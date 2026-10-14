@@ -1,0 +1,105 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "temporal.fullname" . }}-config
+  labels:
+    {{- include "temporal.labels" . | nindent 4 }}
+data:
+  config_template.yaml: |-
+    # enable-template
+    log:
+      stdout: true
+      level: "info"
+    persistence:
+      numHistoryShards: {{ .Values.server.numHistoryShards }}
+      defaultStore: default
+      visibilityStore: visibility
+      datastores:
+        default:
+          sql:
+            pluginName: {{ .Values.database.pluginName | quote }}
+            databaseName: {{ .Values.database.database | quote }}
+            connectAddr: {{ printf "%s:%v" (include "temporal.databaseHost" .) .Values.database.port | quote }}
+            connectProtocol: tcp
+            user: {{ .Values.database.username | quote }}
+            password: {{ `{{ env "TEMPORAL_DEFAULT_STORE_PASSWORD" | quote }}` }}
+            maxConns: {{ .Values.database.maxConns }}
+            maxIdleConns: {{ .Values.database.maxIdleConns }}
+            maxConnLifetime: {{ .Values.database.maxConnLifetime | quote }}
+        visibility:
+          sql:
+            pluginName: {{ .Values.database.pluginName | quote }}
+            databaseName: {{ .Values.database.visibilityDatabase | quote }}
+            connectAddr: {{ printf "%s:%v" (include "temporal.databaseHost" .) .Values.database.port | quote }}
+            connectProtocol: tcp
+            user: {{ .Values.database.username | quote }}
+            password: {{ `{{ env "TEMPORAL_VISIBILITY_STORE_PASSWORD" | quote }}` }}
+            maxConns: {{ .Values.database.maxConns }}
+            maxIdleConns: {{ .Values.database.maxIdleConns }}
+            maxConnLifetime: {{ .Values.database.maxConnLifetime | quote }}
+    global:
+      membership:
+        name: temporal
+        maxJoinDuration: 30s
+        broadcastAddress: {{ `{{ env "POD_IP" | quote }}` }}
+      pprof:
+        port: 7936
+      metrics:
+        tags:
+          type: {{ `{{ env "TEMPORAL_SERVICES" | quote }}` }}
+        prometheus:
+          framework: tally
+          listenAddress: "0.0.0.0:9090"
+    services:
+      frontend:
+        rpc:
+          grpcPort: {{ .Values.server.components.frontend.rpcPort }}
+          httpPort: {{ .Values.server.components.frontend.httpPort }}
+          membershipPort: {{ .Values.server.components.frontend.membershipPort }}
+          bindOnIP: "0.0.0.0"
+      history:
+        rpc:
+          grpcPort: {{ .Values.server.components.history.rpcPort }}
+          membershipPort: {{ .Values.server.components.history.membershipPort }}
+          bindOnIP: "0.0.0.0"
+      matching:
+        rpc:
+          grpcPort: {{ .Values.server.components.matching.rpcPort }}
+          membershipPort: {{ .Values.server.components.matching.membershipPort }}
+          bindOnIP: "0.0.0.0"
+      worker:
+        rpc:
+          membershipPort: {{ .Values.server.components.worker.membershipPort }}
+          bindOnIP: "0.0.0.0"
+    clusterMetadata:
+      enableGlobalNamespace: false
+      failoverVersionIncrement: 10
+      masterClusterName: active
+      currentClusterName: active
+      clusterInformation:
+        active:
+          enabled: true
+          initialFailoverVersion: 1
+          rpcName: temporal-frontend
+          rpcAddress: {{ printf "%s:%v" (include "temporal.componentName" (dict "root" . "component" "frontend")) .Values.frontendService.port | quote }}
+          httpAddress: {{ printf "%s:%v" (include "temporal.componentName" (dict "root" . "component" "frontend")) .Values.frontendService.httpPort | quote }}
+    dcRedirectionPolicy:
+      policy: noop
+      toDC: ""
+    archival:
+      history:
+        state: disabled
+      visibility:
+        state: disabled
+    publicClient:
+      hostPort: {{ printf "%s:%v" (include "temporal.componentName" (dict "root" . "component" "frontend")) .Values.frontendService.port | quote }}
+    dynamicConfigClient:
+      filepath: /etc/temporal/dynamic_config/dynamic_config.yaml
+      pollInterval: 10s
+  dynamic_config.yaml: |-
+    {{- if .Values.server.dynamicConfig }}
+    {{- toYaml .Values.server.dynamicConfig | nindent 4 }}
+    {{- else }}
+    {}
+    {{- end }}

@@ -1,0 +1,29 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.monitoring.serviceMonitor.enabled }}
+{{- range $component := list "frontend" "history" "matching" "worker" }}
+{{- $config := index $.Values.server.components $component }}
+{{- if $config.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "temporal.componentName" (dict "root" $ "component" $component) }}
+  labels:
+    {{- include "temporal.componentLabels" (dict "root" $ "component" $component) | nindent 4 }}
+    {{- with $.Values.monitoring.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "temporal.componentSelectorLabels" (dict "root" $ "component" $component) | nindent 6 }}
+  endpoints:
+    - port: metrics
+      interval: {{ $.Values.monitoring.serviceMonitor.interval }}
+  {{- with $.Values.monitoring.serviceMonitor.namespaceSelector }}
+  namespaceSelector:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

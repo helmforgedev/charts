@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Fail-fast validation
+templates:
+  - validate.yaml
+tests:
+  - it: rejects disabled bundled PostgreSQL
+    set:
+      postgresql.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: postgresql.enabled must be true when database.mode=postgresql
+  - it: rejects bundled PostgreSQL in external mode
+    set:
+      database.mode: external
+      database.host: db.example
+    asserts:
+      - failedTemplate:
+          errorMessage: postgresql.enabled must be false when database.mode=external
+  - it: requires an external database host
+    set:
+      database.mode: external
+      postgresql.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: database.host is required when database.mode=external
+  - it: prevents hooks from racing bundled PostgreSQL
+    set:
+      schema.useHelmHooks: true
+    asserts:
+      - failedTemplate:
+          errorMessage: schema.useHelmHooks=true requires database.mode=external because pre-install hooks run before bundled PostgreSQL

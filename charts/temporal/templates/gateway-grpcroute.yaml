@@ -1,0 +1,56 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.gatewayAPI.enabled }}
+{{- $names := dict }}
+{{- range $index, $route := .Values.gatewayAPI.grpcRoutes | default list }}
+{{- if not $route.parentRefs }}{{ fail "gatewayAPI.grpcRoutes[].parentRefs is required" }}{{- end }}
+{{- $name := include "temporal.grpcRouteName" (dict "root" $ "route" $route "index" $index) }}
+{{- if hasKey $names $name }}{{ fail "GRPCRoute names must be unique" }}{{- end }}
+{{- $_ := set $names $name true }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GRPCRoute
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "temporal.labels" $ | nindent 4 }}
+    {{- with $route.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with $route.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  parentRefs:
+    {{- toYaml $route.parentRefs | nindent 4 }}
+  {{- with $route.hostnames }}
+  hostnames:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- if $route.rules }}
+    {{- range $route.rules }}
+    - {{- with .matches }}
+      matches:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .filters }}
+      filters:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .backendRefs }}
+      backendRefs:
+        {{- toYaml .backendRefs | nindent 8 }}
+      {{- else if not .omitDefaultBackend }}
+      backendRefs:
+        - name: {{ include "temporal.componentName" (dict "root" $ "component" "frontend") }}
+          port: {{ $.Values.frontendService.port }}
+      {{- end }}
+    {{- end }}
+    {{- else }}
+    - backendRefs:
+        - name: {{ include "temporal.componentName" (dict "root" $ "component" "frontend") }}
+          port: {{ $.Values.frontendService.port }}
+    {{- end }}
+{{- end }}
+{{- end }}

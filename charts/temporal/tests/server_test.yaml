@@ -1,0 +1,85 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Temporal server roles
+templates:
+  - server-deployments.yaml
+tests:
+  - it: renders four independent server workloads
+    asserts:
+      - hasDocuments:
+          count: 4
+  - it: serializes history replica startup with an ordered StatefulSet
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: spec.podManagementPolicy
+          value: OrderedReady
+  - it: pins the official server image
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/temporalio/server:1.32.1
+  - it: runs without a Kubernetes API token
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+  - it: applies the restricted server security context
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+  - it: scales frontend independently
+    set:
+      server.components.frontend.replicaCount: 3
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+  - it: disables only an optional role
+    set:
+      server.components.history.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 3
+  - it: passes the database password through SecretKeyRef
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[5].valueFrom.secretKeyRef.name
+          value: temporal-database
+  - it: waits for the actual Temporal schema
+    documentIndex: 0
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: wait_for_schema.*DB_NAME.*DB_EXPECTED_VERSION
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: SELECT curr_version FROM schema_version
+  - it: starts distributed roles in dependency order
+    documentIndex: 0
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: /dev/tcp/.*DEPENDENCY_HOST.*DEPENDENCY_PORT
+      - equal:
+          path: spec.template.spec.initContainers[0].env[10].value
+          value: RELEASE-NAME-temporal-matching-headless
+      - equal:
+          path: spec.template.spec.initContainers[0].env[11].value
+          value: "7235"
+  - it: lets history initialize cluster metadata first
+    documentIndex: 1
+    asserts:
+      - notMatchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: DEPENDENCY_HOST

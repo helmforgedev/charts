@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Gateway API HTTPRoute
+templates:
+  - gateway-httproute.yaml
+tests:
+  - it: renders one HTTPRoute
+    values:
+      - ../ci/gateway-api-values.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: HTTPRoute
+  - it: sends the default backend to the Web UI
+    values:
+      - ../ci/gateway-api-values.yaml
+    asserts:
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 8080
+      - matchRegex:
+          path: spec.rules[0].backendRefs[0].name
+          pattern: -web$
+  - it: requires parentRefs
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes[0].name: ui
+    asserts:
+      - failedTemplate:
+          errorMessage: gatewayAPI.httpRoutes[].parentRefs is required

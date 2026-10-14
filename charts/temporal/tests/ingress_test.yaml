@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Web UI Ingress
+templates:
+  - ingress.yaml
+tests:
+  - it: is disabled by default
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: guards an empty ingressClassName
+    set:
+      ingress.enabled: true
+      ingress.hosts[0].host: temporal.example.com
+      ingress.hosts[0].paths[0].path: /
+      ingress.ingressClassName: ""
+    asserts:
+      - notExists:
+          path: spec.ingressClassName
+  - it: renders an explicit ingressClassName
+    values:
+      - ../ci/ingress-values.yaml
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: nginx

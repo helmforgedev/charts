@@ -1,0 +1,329 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# -- Override the chart name.
+nameOverride: ""
+# -- Override the fully qualified release name.
+fullnameOverride: ""
+# -- Labels added to all chart resources.
+commonLabels: {}
+# -- Registry pull secrets.
+imagePullSecrets: []
+
+# -- Temporal Server configuration.
+server:
+  image:
+    # -- Official Temporal Server image.
+    repository: docker.io/temporalio/server
+    # -- Pinned Temporal Server tag.
+    tag: "1.32.1"
+    # -- Image pull policy.
+    pullPolicy: IfNotPresent
+  # -- History shards. This value is immutable after the database is initialized.
+  numHistoryShards: 512
+  # -- Disable anonymous upstream version checks.
+  versionCheckDisabled: true
+  # -- Dynamic configuration entries rendered verbatim.
+  dynamicConfig: {}
+  # -- Environment variables shared by all server roles.
+  extraEnv: []
+  # -- envFrom sources shared by all server roles.
+  extraEnvFrom: []
+  # -- Pod annotations shared by all server roles.
+  podAnnotations: {}
+  # -- Pod labels shared by all server roles.
+  podLabels: {}
+  # -- Pod security context shared by server roles.
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+    seccompProfile:
+      type: RuntimeDefault
+  # -- Container security context shared by server roles.
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+  # -- Server-role configuration. Each role scales independently.
+  components:
+    frontend:
+      enabled: true
+      replicaCount: 1
+      rpcPort: 7233
+      httpPort: 7243
+      membershipPort: 6933
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 1Gi
+    history:
+      enabled: true
+      replicaCount: 1
+      rpcPort: 7234
+      membershipPort: 6934
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 1Gi
+    matching:
+      enabled: true
+      replicaCount: 1
+      rpcPort: 7235
+      membershipPort: 6935
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 1Gi
+    worker:
+      enabled: true
+      replicaCount: 1
+      rpcPort: 7239
+      membershipPort: 6939
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 1Gi
+  # -- Node selector shared by server roles.
+  nodeSelector: {}
+  # -- Tolerations shared by server roles.
+  tolerations: []
+  # -- Affinity shared by server roles.
+  affinity: {}
+  # -- Topology spread constraints shared by server roles.
+  topologySpreadConstraints: []
+  # -- Termination grace period for server pods.
+  terminationGracePeriodSeconds: 60
+
+# -- Temporal schema lifecycle.
+schema:
+  # -- Create and update default and visibility schemas.
+  enabled: true
+  # -- Render schema setup as Helm pre-install/pre-upgrade hooks. Use only with an already reachable external database.
+  useHelmHooks: false
+  # -- Schema job deadline in seconds.
+  activeDeadlineSeconds: 900
+  # -- Schema job retry count.
+  backoffLimit: 3
+  # -- Initial delay before authenticated schema checks, allowing PostgreSQL init scripts to finish.
+  initialDelaySeconds: 25
+  # -- PostgreSQL client image used to wait for exact schema versions before server startup.
+  waitImage:
+    repository: docker.io/library/postgres
+    tag: "18.6-trixie"
+    pullPolicy: IfNotPresent
+  # -- Schema versions required by the pinned Temporal server release.
+  expectedVersion: "1.19"
+  visibilityExpectedVersion: "1.14"
+  # -- Resources for schema containers.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+
+# -- Database connection. PostgreSQL mode uses the bundled HelmForge subchart.
+database:
+  # -- Database mode: postgresql or external.
+  mode: postgresql
+  # -- PostgreSQL host. Empty derives the bundled Service name.
+  host: ""
+  # -- PostgreSQL port.
+  port: 5432
+  # -- Default store database.
+  database: temporal
+  # -- Visibility store database.
+  visibilityDatabase: temporal_visibility
+  # -- PostgreSQL user.
+  username: temporal
+  # -- PostgreSQL plugin supported by Temporal.
+  pluginName: postgres12
+  # -- Maximum open database connections per server process.
+  maxConns: 20
+  # -- Maximum idle database connections per server process.
+  maxIdleConns: 20
+  # -- Maximum connection lifetime.
+  maxConnLifetime: 1h
+
+# -- Database credential management.
+credentials:
+  # -- Existing Secret. Empty creates a persisted random credential Secret.
+  existingSecret: ""
+  # -- Generated Secret name. Kept stable for the bundled PostgreSQL dependency.
+  secretName: temporal-database
+  # -- Secret key containing the Temporal database user password.
+  passwordKey: user-password
+
+# -- Temporal Web UI.
+web:
+  enabled: true
+  replicaCount: 1
+  image:
+    # -- Official Temporal UI image.
+    repository: docker.io/temporalio/ui
+    # -- Pinned Temporal UI tag.
+    tag: "2.56.0"
+    # -- Image pull policy.
+    pullPolicy: IfNotPresent
+  # -- Additional UI environment variables, including SSO settings.
+  extraEnv: []
+  # -- Additional UI envFrom sources.
+  extraEnvFrom: []
+  # -- UI pod annotations.
+  podAnnotations: {}
+  # -- UI pod labels.
+  podLabels: {}
+  # -- UI resources.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+  # -- UI container security context.
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+  # -- UI pod security context.
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints: []
+
+# -- Temporal admin tools used for operations and runtime verification.
+adminTools:
+  enabled: true
+  image:
+    # -- Official Temporal admin-tools image.
+    repository: docker.io/temporalio/admin-tools
+    # -- Pinned admin-tools tag matching the server.
+    tag: "1.32.1"
+    # -- Image pull policy.
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+
+# -- Public frontend gRPC Service.
+frontendService:
+  type: ClusterIP
+  port: 7233
+  httpPort: 7243
+  annotations: {}
+  ipFamilyPolicy: ""
+  ipFamilies: []
+
+# -- Web UI Service.
+webService:
+  type: ClusterIP
+  port: 8080
+  annotations: {}
+  ipFamilyPolicy: ""
+  ipFamilies: []
+
+# -- Conventional Ingress for the Web UI.
+ingress:
+  enabled: false
+  ingressClassName: ""
+  annotations: {}
+  hosts: []
+  tls: []
+
+# -- Gateway API routes. The chart does not create a shared Gateway.
+gatewayAPI:
+  enabled: false
+  # -- HTTPRoute definitions. Default backends always target the Web UI Service.
+  httpRoutes: []
+  # -- GRPCRoute definitions. Default backends always target the frontend gRPC Service.
+  grpcRoutes: []
+
+# -- External Secrets Operator resources using the canonical items contract.
+externalSecrets:
+  enabled: false
+  refreshInterval: 1h
+  items: []
+
+# -- Per-component PodDisruptionBudgets.
+pdb:
+  enabled: false
+  minAvailable: 1
+  maxUnavailable: ""
+
+# -- NetworkPolicy for Temporal workloads.
+networkPolicy:
+  enabled: false
+  ingressFrom: []
+  egress:
+    enabled: false
+    allowDNS: true
+    extraTo: []
+    extraEgress: []
+
+# -- Prometheus Operator integration.
+monitoring:
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    labels: {}
+    namespaceSelector: {}
+
+# -- Service account configuration.
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+  automountServiceAccountToken: false
+
+# -- Additional Kubernetes resources rendered verbatim.
+extraManifests: []
+
+# -- Helm test configuration.
+test:
+  resources: {}
+
+# Bundled HelmForge PostgreSQL subchart values.
+postgresql:
+  enabled: true
+  auth:
+    database: temporal
+    username: temporal
+    existingSecret: temporal-database
+    existingSecretPostgresPasswordKey: postgres-password
+    existingSecretUserPasswordKey: user-password
+  initdb:
+    scripts:
+      10-temporal-visibility.sql: |
+        SELECT format('CREATE DATABASE %I OWNER %I', 'temporal_visibility', 'temporal')
+        WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'temporal_visibility')\gexec
+  standalone:
+    persistence:
+      size: 20Gi

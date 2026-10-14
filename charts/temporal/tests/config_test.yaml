@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Temporal server configuration
+templates:
+  - server-configmap.yaml
+tests:
+  - it: renders a ConfigMap
+    asserts:
+      - isKind:
+          of: ConfigMap
+  - it: configures the PostgreSQL plugin
+    asserts:
+      - matchRegex:
+          path: data["config_template.yaml"]
+          pattern: "pluginName: \\\"postgres12\\\""
+  - it: derives the bundled PostgreSQL Service
+    asserts:
+      - matchRegex:
+          path: data["config_template.yaml"]
+          pattern: RELEASE-NAME-postgresql:5432
+  - it: uses the explicit external database host
+    set:
+      database.mode: external
+      database.host: db.database.svc
+      postgresql.enabled: false
+    asserts:
+      - matchRegex:
+          path: data["config_template.yaml"]
+          pattern: db.database.svc:5432
+  - it: reads passwords from the process environment
+    asserts:
+      - matchRegex:
+          path: data["config_template.yaml"]
+          pattern: TEMPORAL_DEFAULT_STORE_PASSWORD
+      - matchRegex:
+          path: data["config_template.yaml"]
+          pattern: TEMPORAL_VISIBILITY_STORE_PASSWORD
+  - it: configures Prometheus metrics on 9090
+    asserts:
+      - matchRegex:
+          path: data["config_template.yaml"]
+          pattern: 'listenAddress: "0.0.0.0:9090"'

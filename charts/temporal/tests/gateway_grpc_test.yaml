@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Gateway API GRPCRoute
+templates:
+  - gateway-grpcroute.yaml
+tests:
+  - it: renders one GRPCRoute
+    values:
+      - ../ci/gateway-api-values.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: GRPCRoute
+  - it: sends the default backend to the frontend gRPC Service
+    values:
+      - ../ci/gateway-api-values.yaml
+    asserts:
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 7233
+      - matchRegex:
+          path: spec.rules[0].backendRefs[0].name
+          pattern: -frontend$
+  - it: requires parentRefs
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.grpcRoutes[0].name: frontend
+    asserts:
+      - failedTemplate:
+          errorMessage: gatewayAPI.grpcRoutes[].parentRefs is required

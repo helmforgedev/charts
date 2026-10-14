@@ -1,0 +1,82 @@
+# SPDX-License-Identifier: Apache-2.0
+database:
+  mode: external
+  host: temporal-external-postgresql
+credentials:
+  existingSecret: temporal-external-database
+postgresql:
+  enabled: false
+extraManifests:
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: temporal-external-database
+    type: Opaque
+    stringData:
+      user-password: temporal-ci-password
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: temporal-external-postgresql-init
+    data:
+      10-temporal-visibility.sql: |
+        CREATE DATABASE temporal_visibility OWNER temporal;
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: temporal-external-postgresql
+      labels:
+        app.kubernetes.io/name: temporal-external-postgresql
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: temporal-external-postgresql
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: temporal-external-postgresql
+        spec:
+          containers:
+            - name: postgresql
+              image: docker.io/library/postgres:18.6-trixie
+              env:
+                - name: POSTGRES_DB
+                  value: temporal
+                - name: POSTGRES_USER
+                  value: temporal
+                - name: POSTGRES_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: temporal-external-database
+                      key: user-password
+              ports:
+                - name: postgresql
+                  containerPort: 5432
+              readinessProbe:
+                exec:
+                  command: ["pg_isready", "-U", "temporal", "-d", "temporal"]
+                initialDelaySeconds: 20
+                periodSeconds: 2
+              volumeMounts:
+                - name: data
+                  mountPath: /var/lib/postgresql
+                - name: init
+                  mountPath: /docker-entrypoint-initdb.d
+          volumes:
+            - name: data
+              emptyDir: {}
+            - name: init
+              configMap:
+                name: temporal-external-postgresql-init
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: temporal-external-postgresql
+    spec:
+      selector:
+        app.kubernetes.io/name: temporal-external-postgresql
+      ports:
+        - name: postgresql
+          port: 5432
+          targetPort: postgresql

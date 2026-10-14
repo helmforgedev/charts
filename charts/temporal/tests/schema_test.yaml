@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Temporal schema lifecycle
+templates:
+  - schema-job.yaml
+tests:
+  - it: renders a schema Job
+    asserts:
+      - isKind:
+          of: Job
+  - it: uses the matching official admin-tools image
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/temporalio/admin-tools:1.32.1
+  - it: avoids Helm hooks with bundled PostgreSQL
+    asserts:
+      - notExists:
+          path: metadata.annotations["helm.sh/hook"]
+  - it: supports hooks for an existing external database
+    set:
+      database.mode: external
+      database.host: db.database.svc
+      postgresql.enabled: false
+      schema.useHelmHooks: true
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-install,pre-upgrade
+  - it: manages both default and visibility schemas
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: DEFAULT_DB
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: VISIBILITY_DB
+  - it: reads the database password from a Secret
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[7].valueFrom.secretKeyRef.name
+          value: temporal-database

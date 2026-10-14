@@ -1,0 +1,33 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "temporal.fullname" . }}-test
+  labels:
+    {{- include "temporal.componentLabels" (dict "root" . "component" "test") | nindent 4 }}
+  annotations:
+    helm.sh/hook: test
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  serviceAccountName: {{ include "temporal.serviceAccountName" . }}
+  automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+  containers:
+    - name: health
+      image: "{{ .Values.adminTools.image.repository }}:{{ .Values.adminTools.image.tag }}"
+      imagePullPolicy: {{ .Values.adminTools.image.pullPolicy }}
+      command: ["temporal", "operator", "cluster", "health"]
+      args:
+        - --address
+        - {{ printf "%s:%v" (include "temporal.componentName" (dict "root" . "component" "frontend")) .Values.frontendService.port | quote }}
+      resources:
+        {{- toYaml .Values.test.resources | nindent 8 }}
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault

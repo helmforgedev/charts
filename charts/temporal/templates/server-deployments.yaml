@@ -1,0 +1,235 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- range $component := list "frontend" "history" "matching" "worker" }}
+{{- $config := index $.Values.server.components $component }}
+{{- $dependency := dict }}
+{{- if eq $component "matching" }}
+{{- $dependency = dict "component" "history" "port" 7234 }}
+{{- else if eq $component "frontend" }}
+{{- $dependency = dict "component" "matching" "port" 7235 }}
+{{- else if eq $component "worker" }}
+{{- $dependency = dict "component" "frontend" "port" 7233 }}
+{{- end }}
+{{- if $config.enabled }}
+---
+apiVersion: apps/v1
+kind: {{ ternary "StatefulSet" "Deployment" (eq $component "history") }}
+metadata:
+  name: {{ include "temporal.componentName" (dict "root" $ "component" $component) }}
+  labels:
+    {{- include "temporal.componentLabels" (dict "root" $ "component" $component) | nindent 4 }}
+spec:
+  {{- if eq $component "history" }}
+  serviceName: {{ printf "%s-headless" (include "temporal.componentName" (dict "root" $ "component" $component)) }}
+  podManagementPolicy: OrderedReady
+  updateStrategy:
+    type: RollingUpdate
+  {{- end }}
+  replicas: {{ $config.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "temporal.componentSelectorLabels" (dict "root" $ "component" $component) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "temporal.componentSelectorLabels" (dict "root" $ "component" $component) | nindent 8 }}
+        {{- with $.Values.server.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ toYaml $.Values | sha256sum }}
+        {{- with $.Values.server.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "temporal.serviceAccountName" $ }}
+      automountServiceAccountToken: {{ $.Values.serviceAccount.automountServiceAccountToken }}
+      securityContext:
+        {{- toYaml $.Values.server.podSecurityContext | nindent 8 }}
+      {{- if $.Values.schema.enabled }}
+      initContainers:
+        - name: wait-for-schema
+          image: "{{ $.Values.schema.waitImage.repository }}:{{ $.Values.schema.waitImage.tag }}"
+          imagePullPolicy: {{ $.Values.schema.waitImage.pullPolicy }}
+          command: ["bash", "-ec"]
+          args:
+            - |
+              sleep "$INITIAL_DELAY_SECONDS"
+              wait_for_schema() {
+                db="$1"
+                expected="$2"
+                attempt=0
+                until [ "$(PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$db" -Atc "SELECT curr_version FROM schema_version WHERE version_partition = 0" 2>/dev/null)" = "$expected" ]; do
+                  attempt=$((attempt + 1))
+                  if [ "$attempt" -ge 120 ]; then exit 1; fi
+                  sleep 5
+                done
+              }
+              wait_for_schema "$DB_NAME" "$DB_EXPECTED_VERSION"
+              wait_for_schema "$DB_VISIBILITY_NAME" "$DB_VISIBILITY_EXPECTED_VERSION"
+              {{- if $dependency.component }}
+              attempt=0
+              until (echo > "/dev/tcp/$DEPENDENCY_HOST/$DEPENDENCY_PORT") >/dev/null 2>&1; do
+                attempt=$((attempt + 1))
+                if [ "$attempt" -ge 120 ]; then exit 1; fi
+                sleep 2
+              done
+              {{- end }}
+          env:
+            - name: INITIAL_DELAY_SECONDS
+              value: {{ $.Values.schema.initialDelaySeconds | quote }}
+            - name: DB_HOST
+              value: {{ include "temporal.databaseHost" $ | quote }}
+            - name: DB_PORT
+              value: {{ $.Values.database.port | quote }}
+            - name: DB_USER
+              value: {{ $.Values.database.username | quote }}
+            - name: DB_PLUGIN
+              value: {{ $.Values.database.pluginName | quote }}
+            - name: DB_NAME
+              value: {{ $.Values.database.database | quote }}
+            - name: DB_VISIBILITY_NAME
+              value: {{ $.Values.database.visibilityDatabase | quote }}
+            - name: DB_EXPECTED_VERSION
+              value: {{ $.Values.schema.expectedVersion | quote }}
+            - name: DB_VISIBILITY_EXPECTED_VERSION
+              value: {{ $.Values.schema.visibilityExpectedVersion | quote }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "temporal.databaseSecretName" $ }}
+                  key: {{ $.Values.credentials.passwordKey }}
+            {{- if $dependency.component }}
+            - name: DEPENDENCY_HOST
+              value: {{ printf "%s-headless" (include "temporal.componentName" (dict "root" $ "component" $dependency.component)) | quote }}
+            - name: DEPENDENCY_PORT
+              value: {{ $dependency.port | quote }}
+            {{- end }}
+          resources:
+            {{- toYaml $.Values.schema.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+      {{- end }}
+      containers:
+        - name: temporal-{{ $component }}
+          image: "{{ $.Values.server.image.repository }}:{{ $.Values.server.image.tag }}"
+          imagePullPolicy: {{ $.Values.server.image.pullPolicy }}
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: SERVICES
+              value: {{ $component }}
+            - name: TEMPORAL_SERVICES
+              value: {{ $component }}
+            - name: TEMPORAL_SERVER_CONFIG_FILE_PATH
+              value: /etc/temporal/config/config_template.yaml
+            - name: TEMPORAL_VERSION_CHECK_DISABLED
+              value: {{ ternary "1" "0" $.Values.server.versionCheckDisabled | quote }}
+            - name: TEMPORAL_DEFAULT_STORE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "temporal.databaseSecretName" $ }}
+                  key: {{ $.Values.credentials.passwordKey }}
+            - name: TEMPORAL_VISIBILITY_STORE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "temporal.databaseSecretName" $ }}
+                  key: {{ $.Values.credentials.passwordKey }}
+            {{- with $.Values.server.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with $.Values.server.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            {{- if ne $component "worker" }}
+            - name: rpc
+              containerPort: {{ $config.rpcPort }}
+              protocol: TCP
+            {{- end }}
+            - name: membership
+              containerPort: {{ $config.membershipPort }}
+              protocol: TCP
+            {{- if eq $component "frontend" }}
+            - name: http
+              containerPort: {{ $config.httpPort }}
+              protocol: TCP
+            {{- end }}
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          {{- if ne $component "worker" }}
+          startupProbe:
+            tcpSocket:
+              port: rpc
+            periodSeconds: 10
+            failureThreshold: 60
+          livenessProbe:
+            tcpSocket:
+              port: rpc
+            periodSeconds: 20
+            failureThreshold: 6
+          readinessProbe:
+            tcpSocket:
+              port: rpc
+            periodSeconds: 10
+            failureThreshold: 6
+          {{- end }}
+          resources:
+            {{- toYaml $config.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml $.Values.server.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/temporal/config/config_template.yaml
+              subPath: config_template.yaml
+              readOnly: true
+            - name: dynamic-config
+              mountPath: /etc/temporal/dynamic_config
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "temporal.fullname" $ }}-config
+        - name: dynamic-config
+          configMap:
+            name: {{ include "temporal.fullname" $ }}-config
+            items:
+              - key: dynamic_config.yaml
+                path: dynamic_config.yaml
+        - name: tmp
+          emptyDir: {}
+      {{- with $.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.server.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.server.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.server.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.server.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ $.Values.server.terminationGracePeriodSeconds }}
+{{- end }}
+{{- end }}

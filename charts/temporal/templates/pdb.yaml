@@ -1,0 +1,42 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.pdb.enabled }}
+{{- range $component := list "frontend" "history" "matching" "worker" }}
+{{- $config := index $.Values.server.components $component }}
+{{- if $config.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "temporal.componentName" (dict "root" $ "component" $component) }}
+  labels:
+    {{- include "temporal.componentLabels" (dict "root" $ "component" $component) | nindent 4 }}
+spec:
+  {{- if $.Values.pdb.maxUnavailable }}
+  maxUnavailable: {{ $.Values.pdb.maxUnavailable }}
+  {{- else }}
+  minAvailable: {{ $.Values.pdb.minAvailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "temporal.componentSelectorLabels" (dict "root" $ "component" $component) | nindent 6 }}
+{{- end }}
+{{- end }}
+{{- if .Values.web.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "temporal.componentName" (dict "root" . "component" "web") }}
+  labels:
+    {{- include "temporal.componentLabels" (dict "root" . "component" "web") | nindent 4 }}
+spec:
+  {{- if .Values.pdb.maxUnavailable }}
+  maxUnavailable: {{ .Values.pdb.maxUnavailable }}
+  {{- else }}
+  minAvailable: {{ .Values.pdb.minAvailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "temporal.componentSelectorLabels" (dict "root" . "component" "web") | nindent 6 }}
+{{- end }}
+{{- end }}

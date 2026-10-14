@@ -1,0 +1,102 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.server.components.frontend.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "temporal.componentName" (dict "root" . "component" "frontend") }}
+  labels:
+    {{- include "temporal.componentLabels" (dict "root" . "component" "frontend") | nindent 4 }}
+  {{- with .Values.frontendService.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.frontendService.type }}
+  {{- with .Values.frontendService.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.frontendService.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  ports:
+    - name: grpc
+      port: {{ .Values.frontendService.port }}
+      targetPort: rpc
+      protocol: TCP
+      appProtocol: kubernetes.io/h2c
+    - name: http
+      port: {{ .Values.frontendService.httpPort }}
+      targetPort: http
+      protocol: TCP
+      appProtocol: http
+  selector:
+    {{- include "temporal.componentSelectorLabels" (dict "root" . "component" "frontend") | nindent 4 }}
+---
+{{- end }}
+{{- if .Values.web.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "temporal.componentName" (dict "root" . "component" "web") }}
+  labels:
+    {{- include "temporal.componentLabels" (dict "root" . "component" "web") | nindent 4 }}
+  {{- with .Values.webService.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.webService.type }}
+  {{- with .Values.webService.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.webService.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  ports:
+    - name: http
+      port: {{ .Values.webService.port }}
+      targetPort: http
+      protocol: TCP
+      appProtocol: http
+  selector:
+    {{- include "temporal.componentSelectorLabels" (dict "root" . "component" "web") | nindent 4 }}
+---
+{{- end }}
+{{- range $component := list "frontend" "history" "matching" "worker" }}
+{{- $config := index $.Values.server.components $component }}
+{{- if $config.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ printf "%s-headless" (include "temporal.componentName" (dict "root" $ "component" $component)) }}
+  labels:
+    {{- include "temporal.componentLabels" (dict "root" $ "component" $component) | nindent 4 }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    {{- if ne $component "worker" }}
+    - name: grpc
+      port: {{ $config.rpcPort }}
+      targetPort: rpc
+      protocol: TCP
+      appProtocol: kubernetes.io/h2c
+    {{- end }}
+    - name: membership
+      port: {{ $config.membershipPort }}
+      targetPort: membership
+      protocol: TCP
+      appProtocol: tcp
+    - name: metrics
+      port: 9090
+      targetPort: metrics
+      protocol: TCP
+      appProtocol: http
+  selector:
+    {{- include "temporal.componentSelectorLabels" (dict "root" $ "component" $component) | nindent 4 }}
+---
+{{- end }}
+{{- end }}

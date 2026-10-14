@@ -1,0 +1,156 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+Temporal has been installed.
+
+1. Installation summary
+=======================
+
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Chart: {{ .Chart.Name }} {{ .Chart.Version }}
+Temporal Server: {{ .Chart.AppVersion }}
+Server image: {{ .Values.server.image.repository }}:{{ .Values.server.image.tag }}
+Web UI: {{ ternary "enabled" "disabled" .Values.web.enabled }}
+Database mode: {{ .Values.database.mode }}
+History shards: {{ .Values.server.numHistoryShards }}
+
+The history shard count is immutable after schema initialization. Restore the
+original value if an upgrade validation reports a mismatch.
+
+2. Access
+=========
+
+Frontend gRPC Service:
+  {{ include "temporal.componentName" (dict "root" . "component" "frontend") }}.{{ .Release.Namespace }}.svc:{{ .Values.frontendService.port }}
+
+Local SDK access:
+  kubectl -n {{ .Release.Namespace }} port-forward service/{{ include "temporal.componentName" (dict "root" . "component" "frontend") }} 7233:{{ .Values.frontendService.port }}
+
+{{- if .Values.web.enabled }}
+Web UI Service:
+  {{ include "temporal.componentName" (dict "root" . "component" "web") }}.{{ .Release.Namespace }}.svc:{{ .Values.webService.port }}
+
+Local Web UI access:
+  kubectl -n {{ .Release.Namespace }} port-forward service/{{ include "temporal.componentName" (dict "root" . "component" "web") }} 8080:{{ .Values.webService.port }}
+  Open http://127.0.0.1:8080
+{{- end }}
+
+{{- if .Values.gatewayAPI.enabled }}
+Gateway API resources:
+  kubectl -n {{ .Release.Namespace }} get httproute,grpcroute
+
+HTTPRoute backends target only the Web UI. GRPCRoute backends target only the
+frontend gRPC Service. Verify Accepted=True and ResolvedRefs=True for every
+route before directing clients to the Gateway.
+{{- end }}
+
+3. Getting started
+==================
+
+Wait for every Temporal role:
+  kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "temporal.componentName" (dict "root" . "component" "frontend") }} --timeout=10m
+  kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "temporal.componentName" (dict "root" . "component" "history") }} --timeout=10m
+  kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "temporal.componentName" (dict "root" . "component" "matching") }} --timeout=10m
+  kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "temporal.componentName" (dict "root" . "component" "worker") }} --timeout=10m
+
+Run the chart health test:
+  helm test {{ .Release.Name }} -n {{ .Release.Namespace }} --logs
+
+Create a namespace from the admin tools pod:
+  kubectl -n {{ .Release.Namespace }} exec deployment/{{ include "temporal.componentName" (dict "root" . "component" "admin-tools") }} -- temporal operator namespace create --namespace production
+
+List namespaces:
+  kubectl -n {{ .Release.Namespace }} exec deployment/{{ include "temporal.componentName" (dict "root" . "component" "admin-tools") }} -- temporal operator namespace list
+
+4. Credentials
+==============
+
+Database Secret:
+  {{ include "temporal.databaseSecretName" . }}
+
+Inspect only metadata, never print secret values into support tickets:
+  kubectl -n {{ .Release.Namespace }} describe secret {{ include "temporal.databaseSecretName" . }}
+
+For production, set credentials.existingSecret or configure
+externalSecrets.items[] to manage the Secret through External Secrets Operator.
+The Secret must contain key {{ .Values.credentials.passwordKey }}.
+
+5. Configuration summary
+========================
+
+Server roles:
+  frontend replicas: {{ .Values.server.components.frontend.replicaCount }}
+  history replicas: {{ .Values.server.components.history.replicaCount }}
+  matching replicas: {{ .Values.server.components.matching.replicaCount }}
+  worker replicas: {{ .Values.server.components.worker.replicaCount }}
+  Web UI replicas: {{ .Values.web.replicaCount }}
+
+Production guidance:
+  - Size and scale each role independently from observed Temporal metrics.
+  - Use topology spread or anti-affinity across failure domains.
+  - Protect every replica set with an intentional PodDisruptionBudget.
+  - Back up PostgreSQL and test database restore procedures.
+  - Terminate TLS at the Gateway or configure end-to-end TLS externally.
+  - Do not expose frontend gRPC without authentication and network controls.
+
+6. Validation commands
+======================
+
+Workloads:
+  kubectl -n {{ .Release.Namespace }} get deployments,pods,jobs
+
+Services and endpoints:
+  kubectl -n {{ .Release.Namespace }} get services,endpointslices
+
+Schema job:
+  kubectl -n {{ .Release.Namespace }} logs job/{{ include "temporal.fullname" . }}-schema-{{ .Release.Revision }}
+
+Cluster health:
+  kubectl -n {{ .Release.Namespace }} exec deployment/{{ include "temporal.componentName" (dict "root" . "component" "admin-tools") }} -- temporal operator cluster health
+
+Web health:
+  kubectl -n {{ .Release.Namespace }} port-forward service/{{ include "temporal.componentName" (dict "root" . "component" "web") }} 8080:{{ .Values.webService.port }}
+  curl --fail http://127.0.0.1:8080/healthz
+
+Metrics:
+  kubectl -n {{ .Release.Namespace }} port-forward service/{{ include "temporal.componentName" (dict "root" . "component" "frontend-headless") }} 9090:9090
+  curl --fail http://127.0.0.1:9090/metrics
+
+7. Troubleshooting
+==================
+
+Recent events:
+  kubectl -n {{ .Release.Namespace }} get events --sort-by=.lastTimestamp
+
+All Temporal logs:
+  kubectl -n {{ .Release.Namespace }} logs -l app.kubernetes.io/name={{ include "temporal.name" . }} --all-containers --prefix --tail=200
+
+Previous container logs:
+  kubectl -n {{ .Release.Namespace }} logs -l app.kubernetes.io/name={{ include "temporal.name" . }} --all-containers --previous --prefix --tail=200
+
+If server pods wait in init containers, inspect the schema Job and PostgreSQL
+logs first. External databases must already contain both configured databases,
+and the supplied user must own or be able to manage both Temporal schemas.
+
+If a GRPCRoute is not Accepted, confirm that the Gateway has a compatible gRPC
+listener and that its controller supports the v1 GRPCRoute resource. The chart
+uses kubernetes.io/h2c for the plaintext backend protocol.
+
+If the UI is healthy but cannot reach Temporal, inspect the frontend Service,
+EndpointSlice, frontend logs, and TEMPORAL_ADDRESS in the Web UI pod.
+
+8. Resources
+============
+
+HelmForge documentation:
+  https://helmforge.dev/docs/charts/temporal
+
+Temporal documentation:
+  https://docs.temporal.io/self-hosted-guide/deployment
+
+Temporal source:
+  https://github.com/temporalio/temporal
+
+Chart issues:
+  https://github.com/helmforgedev/charts/issues
+
+Happy Helmforging :)
