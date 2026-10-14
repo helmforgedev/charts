@@ -2,12 +2,19 @@
 {{- range $component := list "frontend" "history" "matching" "worker" }}
 {{- $config := index $.Values.server.components $component }}
 {{- $dependency := dict }}
+{{- $dependencyComponent := "" }}
 {{- if eq $component "matching" }}
-{{- $dependency = dict "component" "history" "port" 7234 }}
+{{- $dependencyComponent = "history" }}
 {{- else if eq $component "frontend" }}
-{{- $dependency = dict "component" "matching" "port" 7235 }}
+{{- $dependencyComponent = "matching" }}
 {{- else if eq $component "worker" }}
-{{- $dependency = dict "component" "frontend" "port" 7233 }}
+{{- $dependencyComponent = "frontend" }}
+{{- end }}
+{{- if $dependencyComponent }}
+{{- $dependencyConfig := index $.Values.server.components $dependencyComponent }}
+{{- if $dependencyConfig.enabled }}
+{{- $dependency = dict "component" $dependencyComponent "port" $dependencyConfig.rpcPort }}
+{{- end }}
 {{- end }}
 {{- if $config.enabled }}
 ---

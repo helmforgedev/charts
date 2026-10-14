@@ -78,8 +78,9 @@ replication. PostgreSQL read replicas alone do not provide Temporal failover.
 7. Run cluster health and a representative workflow.
 8. Review logs, restarts, events, latency, and persistence errors.
 
-Use `helm upgrade --reset-then-reuse-values` or pass image tags explicitly so a
-previous image value cannot silently survive the upgrade.
+With Helm 3.14 or later, use `helm upgrade --reset-then-reuse-values`; with an
+older client, pass image tags explicitly. Either approach prevents a previous
+image value from silently surviving the upgrade.
 
 ## Common Failures
 

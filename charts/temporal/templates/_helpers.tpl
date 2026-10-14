@@ -104,6 +104,15 @@ app.kubernetes.io/component: {{ .component }}
 {{- if and (eq .Values.database.mode "postgresql") (not .Values.postgresql.enabled) -}}
 {{- fail "postgresql.enabled must be true when database.mode=postgresql" -}}
 {{- end -}}
+{{- if and (eq .Values.database.mode "postgresql") (ne .Values.database.database .Values.postgresql.auth.database) -}}
+{{- fail "database.database must match postgresql.auth.database when database.mode=postgresql" -}}
+{{- end -}}
+{{- if and (eq .Values.database.mode "postgresql") (ne .Values.database.visibilityDatabase "temporal_visibility") -}}
+{{- fail "database.visibilityDatabase must be temporal_visibility when database.mode=postgresql because the bundled init script creates that database" -}}
+{{- end -}}
+{{- if and (eq .Values.database.mode "postgresql") (or (ne .Values.database.username "temporal") (ne .Values.postgresql.auth.username "temporal")) -}}
+{{- fail "database.username and postgresql.auth.username must be temporal when database.mode=postgresql because the bundled init script assigns ownership to that role" -}}
+{{- end -}}
 {{- if and (eq .Values.database.mode "external") .Values.postgresql.enabled -}}
 {{- fail "postgresql.enabled must be false when database.mode=external" -}}
 {{- end -}}

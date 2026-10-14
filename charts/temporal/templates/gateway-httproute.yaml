@@ -29,23 +29,17 @@ spec:
   {{- end }}
   rules:
     {{- if $route.rules }}
-    {{- range $route.rules }}
-    - {{- with .matches }}
-      matches:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .filters }}
-      filters:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- if .backendRefs }}
-      backendRefs:
-        {{- toYaml .backendRefs | nindent 8 }}
-      {{- else if not .omitDefaultBackend }}
-      backendRefs:
-        - name: {{ include "temporal.componentName" (dict "root" $ "component" "web") }}
-          port: {{ $.Values.webService.port }}
-      {{- end }}
+    {{- range $rule := $route.rules }}
+    {{- $renderedRule := deepCopy $rule }}
+    {{- $omitDefaultBackend := $renderedRule.omitDefaultBackend | default false }}
+    {{- $_ := unset $renderedRule "omitDefaultBackend" }}
+    {{- if $renderedRule.backendRefs }}
+    {{- else if $omitDefaultBackend }}
+    {{- $_ := unset $renderedRule "backendRefs" }}
+    {{- else }}
+    {{- $_ := set $renderedRule "backendRefs" (list (dict "name" (include "temporal.componentName" (dict "root" $ "component" "web")) "port" $.Values.webService.port)) }}
+    {{- end }}
+    {{- toYaml (list $renderedRule) | nindent 4 }}
     {{- end }}
     {{- else }}
     - backendRefs:
