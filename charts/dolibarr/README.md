@@ -119,14 +119,17 @@ database:
 ## Upgrade to 24.0.1
 
 Dolibarr 24.0.1 is a patch release on the 24.0 line. It fixes authorization,
-CSRF, upload reporting, API-call accounting, SQL prefix compatibility, table
+failed-upload reporting, API-call counting, SQL-prefix handling, table
 creation and multiple business workflows. Back up the database and both the
 documents and custom PVCs before upgrading. The 24.0 major-upgrade cautions
 still apply: review removed or renamed modules, hooks, configuration variables
 and integrations, then test the upgrade in staging before reusing production
-storage.
+storage. In particular, the Login API is disabled by default in 24.0 unless
+`API_ENABLE_LOGIN_API` is enabled, so integrations that use it can stop
+authenticating.
 
 [Review the official Dolibarr 24.0.1 release notes](https://github.com/Dolibarr/dolibarr/releases/tag/24.0.1)
+and the [24.0.0 migration notes](https://github.com/Dolibarr/dolibarr/releases/tag/24.0.0)
 before production rollout.
 
 ### Application
