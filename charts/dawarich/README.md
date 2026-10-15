@@ -50,13 +50,14 @@ If an existing Secret or
 explicit password is omitted, the chart generates and retains an initial
 credential. It does not reset an existing account when the credential changes.
 
-## Upgrade to 1.15.2
+## Upgrade to 1.15.3
 
-This release adds the experimental read-only MCP endpoint and exploration
-achievements, and fixes point uploads, account deletion, route-gap settings and
-IPv4 fallback for outbound connections. Back up PostGIS and persistent files,
-and preserve encryption secrets before upgrading. See the
-[official release notes](https://github.com/Freika/dawarich/releases/tag/1.15.2).
+This release adds private trip sharing for family members, editable profile
+names, exact trip-to-map links and shared-achievement previews. It also fixes
+geocoding deduplication, GPX exports, queued test email and archived Immich
+photo filtering. Back up PostGIS and persistent files, and preserve encryption
+secrets before upgrading. See the
+[official release notes](https://github.com/Freika/dawarich/releases/tag/1.15.3).
 Redis dependency 3.0.0 retains its image, storage and authentication defaults
 and fixes TLS/custom-port health probes.
 
@@ -208,6 +209,6 @@ manifests; it does not replace image vulnerability management or application rev
 
 ## Sources
 
-- [Dawarich 1.15.2](https://github.com/Freika/dawarich/tree/1.15.2)
+- [Dawarich 1.15.3](https://github.com/Freika/dawarich/tree/1.15.3)
 - [Official PostGIS image](https://github.com/postgis/docker-postgis)
 - [Official unprivileged NGINX image](https://github.com/nginx/docker-nginx-unprivileged)
