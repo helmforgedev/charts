@@ -6,7 +6,7 @@ Deploy [Apache Answer](https://answer.apache.org/) on Kubernetes — an open-sou
 
 - **SQLite by default** — zero database configuration needed
 - **PostgreSQL subchart** — bundled via HelmForge dependency (`2.0.4`)
-- **MySQL subchart** — bundled via HelmForge dependency (`2.0.3`)
+- **MySQL subchart** — bundled via HelmForge dependency (`2.1.0`)
 - **External database** — connect to existing PostgreSQL or MySQL
 - **Auto-install** — unattended setup via environment variables
 - **Scheduled backups** — database-aware CronJob with S3 upload
