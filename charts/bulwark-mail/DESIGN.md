@@ -4,7 +4,7 @@
 
 ## Goals
 
-Provide a secure, reproducible Bulwark 1.11.2 deployment with explicit wizard and declarative modes, durable state, external secret integration, modern HTTP exposure, and behavioral acceptance.
+Provide a secure, reproducible Bulwark 1.14.2 deployment with explicit wizard and declarative modes, durable state, external secret integration, modern HTTP exposure, and behavioral acceptance.
 
 ## Workload choice
 

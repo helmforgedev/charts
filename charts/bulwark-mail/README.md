@@ -59,7 +59,7 @@ The single-writer contract is enforced:
 
 ## Image and security
 
-The chart uses `ghcr.io/bulwarkmail/webmail:1.11.2-always`. The `-always` tag is the deterministic upstream index for 1.11.2; the plain tag exposed duplicate manifests. The image supports linux/amd64 and linux/arm64.
+The chart uses `ghcr.io/bulwarkmail/webmail:1.14.2-always`. The `-always` tag is the deterministic upstream index for 1.14.2. The image supports linux/amd64 and linux/arm64.
 
 Defaults match the upstream image user:
 

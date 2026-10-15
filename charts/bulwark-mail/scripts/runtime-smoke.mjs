@@ -16,7 +16,7 @@ const pod = pods.find(item => !item.metadata.deletionTimestamp
 assert.ok(pod, 'Ready Bulwark Mail pod required');
 
 const container = pod.spec.containers.find(item => item.name === 'bulwark-mail');
-assert.equal(container.image, 'ghcr.io/bulwarkmail/webmail:1.11.2-always');
+assert.equal(container.image, 'ghcr.io/bulwarkmail/webmail:1.14.2-always');
 const env = Object.fromEntries(container.env.filter(item => 'value' in item).map(item => [item.name, item.value]));
 const expectedJmap = env.JMAP_SERVER_URL || '';
 const declarative = expectedJmap.length > 0;
@@ -51,7 +51,7 @@ if (declarative) {
   assert.equal(setup.readOnly, false);
   assert.match(rootResponse.headers.get('location') || '', /^\\/setup(?:\\/|$)/);
 }
-console.log('Bulwark 1.11.2 health, config, session, settings, and setup-mode contract verified');
+console.log('Bulwark 1.14.2 health, config, session, settings, and setup-mode contract verified');
 `;
 
 const result = run(['exec', pod.metadata.name, '-c', 'bulwark-mail', '--', 'node', '--input-type=commonjs', '-e', `(async()=>{${program}})().catch(error=>{console.error(error);process.exit(1)})`]);

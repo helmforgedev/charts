@@ -6,7 +6,7 @@
 
 - Issue: https://github.com/helmforgedev/charts/issues/1358
 - Upstream: https://github.com/bulwarkmail/webmail
-- Target: Bulwark 1.11.2
+- Target: Bulwark 1.14.2
 
 ## Runtime findings
 
@@ -22,9 +22,9 @@ Stalwart has several community charts. WrenIX was active but explicitly alpha, l
 
 ## Image evidence
 
-`ghcr.io/bulwarkmail/webmail:1.11.2-always` resolves for linux/amd64 and linux/arm64. The verified index digest is `sha256:0d48c66f993f7f52c0c2b75d4f70ee08b2d638ba3ea9fae7e09c9371365b533a`.
+`ghcr.io/bulwarkmail/webmail:1.14.2-always` resolves for linux/amd64 and linux/arm64. The verified index digest is `sha256:8660154ea9fbeec4234fc9952fe4cfd32817c323d2a0ebfeb7258f58f9267b77`.
 
-The upstream plain `1.11.2` tag had duplicate manifests; the deterministic `1.11.2-always` index was selected deliberately.
+The deterministic `1.14.2-always` index was selected deliberately.
 
 ## HelmForge differentiation
 
