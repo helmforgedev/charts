@@ -31,6 +31,36 @@ tests:
           path: spec.template.spec.initContainers[0].command[2]
           pattern: "touch \"\\$\\{CLONE_DONE\\}\""
 
+  - it: should configure resources for the clone init container
+    template: statefulset-replicas.yaml
+    set:
+      architecture: replication
+      replication.readReplicas.clone.resources.requests.cpu: 100m
+      replication.readReplicas.clone.resources.requests.memory: 128Mi
+      replication.readReplicas.clone.resources.limits.cpu: 500m
+      replication.readReplicas.clone.resources.limits.memory: 512Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.cpu
+          value: 100m
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.memory
+          value: 128Mi
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.limits.cpu
+          value: 500m
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.limits.memory
+          value: 512Mi
+
+  - it: should omit clone init container resources by default
+    template: statefulset-replicas.yaml
+    set:
+      architecture: replication
+    asserts:
+      - notExists:
+          path: spec.template.spec.initContainers[0].resources
+
   - it: should disable service account token automount by default
     template: statefulset-replicas.yaml
     set:
