@@ -4,8 +4,8 @@
 
 Helm chart for deploying [Gitea](https://gitea.io/) self-hosted Git service on Kubernetes using the official [`gitea/gitea`](https://hub.docker.com/r/gitea/gitea) rootless Docker image.
 
-- **Current application version** `1.27.3`
-- **Default image** `docker.io/gitea/gitea:1.27.3-rootless`
+- **Current application version** `28.1.0`
+- **Default image** `docker.io/gitea/gitea:28.1.0-rootless`
 - **Chart lock policy** source chart does not commit `Chart.lock`; dependencies are resolved during packaging/validation
 - **Rootless storage** PVC paths are prepared for UID/GID 1000 by a small initContainer
 
@@ -137,7 +137,7 @@ gitea:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `gitea/gitea` | Container image repository |
-| `image.tag` | `"1.27.3-rootless"` | Image tag |
+| `image.tag` | `"28.1.0-rootless"` | Image tag |
 | `replicaCount` | `1` | Number of replicas |
 | `gitea.appName` | `"Gitea: Git with a cup of tea"` | Application display name |
 | `gitea.runMode` | `prod` | Run mode (dev, prod, test) |
@@ -191,12 +191,24 @@ Only one database source can be active. The chart fails with a clear error if mu
 
 ## Upgrade Notes
 
-This update moves the default rootless image to `1.27.3-rootless`. Gitea 1.27.3
-contains security and maintenance fixes without a documented change to the
-rootless image contract. Back up the database and repositories first; Gitea runs
-required database migrations during the first startup. Review the
-[upstream v1.27.3 release](https://github.com/go-gitea/gitea/releases/tag/v1.27.3)
-before upgrading.
+This update moves the default rootless image to `28.1.0-rootless`. Back up the
+database, repositories, LFS objects, packages, attachments, and the retained
+configuration before upgrading; Gitea runs required database migrations during
+the first startup.
+
+Gitea 28 introduces an internal proxy for Git network operations. Existing
+`ALLOWED_HOST_LIST`, `BLOCKED_HOST_LIST`, `ALLOWED_DOMAINS`, and
+`BLOCKED_DOMAINS` overrides must be reviewed: wildcard and domain matching
+changed, the `external` preset was removed, and an exclusive allow list now
+requires `EGRESS_MODE = strict`. Configure replacements through
+`gitea.extraEnv` with `GITEA__security__...` variables.
+
+Completed Actions runs now default to 400 days of retention. Set
+`GITEA__actions__RUN_RETENTION_DAYS` to `0` before the upgrade if all historical
+runs must be retained. Review the [v28.0.0 migration notes](https://github.com/go-gitea/gitea/releases/tag/v28.0.0)
+and the [v28.1.0 fixes](https://github.com/go-gitea/gitea/releases/tag/v28.1.0)
+before production rollout. The rootless UID, ports, work directory, data path,
+and `GITEA_APP_INI` contract remain compatible with this chart.
 
 ## SSH Access
 
