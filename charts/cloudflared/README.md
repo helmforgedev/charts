@@ -178,14 +178,13 @@ topologySpreadConstraints:
 
 ## Upgrade Notes
 
-Cloudflared 2026.9.3 retains the existing quick-tunnel and managed-token
-contracts. The intervening releases do not document changes to ports,
-credentials, probes or tunnel configuration. The `--transport-loglevel` flag
-remains deprecated, and origin URLs must use valid syntax, including brackets
-around IPv6 literals.
+Cloudflared 2026.10.0 retains the existing quick-tunnel and managed-token
+contracts. It improves QUIC request cancellation and DNS resolution retries.
+The new normalized-path access-rule behavior is present but disabled by default,
+so the forwarded request path and existing ingress selection remain unchanged.
 
 Review the
-[official 2026.9.3 release](https://github.com/cloudflare/cloudflared/releases/tag/2026.9.3)
+[official 2026.10.0 release](https://github.com/cloudflare/cloudflared/releases/tag/2026.10.0)
 before production rollout.
 
 ## Security Scan
