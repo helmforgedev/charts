@@ -1,0 +1,84 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+Stalwart has been installed.
+
+1. Installation summary
+=======================
+- Release: {{ .Release.Name }}
+- Namespace: {{ .Release.Namespace }}
+- Chart: {{ .Chart.Name }} {{ .Chart.Version }}
+- Application: {{ .Chart.AppVersion }}
+- Image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+- Replicas: {{ .Values.replicaCount }}
+- Config source: {{ .Values.config.source }}
+
+2. Access
+=========
+- HTTP/JMAP Service: {{ include "stalwart.httpServiceName" . }}
+- Mail Service: {{ include "stalwart.mailServiceName" . }}
+- Peer Service: {{ include "stalwart.headlessServiceName" . }}
+
+Forward the management listener:
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "stalwart.httpServiceName" . }} 8080:{{ .Values.ports.management.servicePort }}
+
+Then open http://127.0.0.1:8080/admin.
+
+3. Getting started
+==================
+Wait for the StatefulSet:
+
+  kubectl -n {{ .Release.Namespace }} rollout status statefulset/{{ include "stalwart.fullname" . }} --timeout=5m
+
+Stalwart 0.16 reads only its DataStore object from config.json. Configure
+listeners, stores, domains, accounts, telemetry, and the Coordinator through
+the Web UI or stalwart-cli.
+
+4. Credentials
+==============
+This chart does not generate a default password. Supply recovery or permanent
+administrator credentials through extraEnv.valueFrom, extraEnvFrom, or an
+ExternalSecret. Remove recovery credentials after creating permanent access.
+
+5. Configuration summary
+========================
+- Local persistence: {{ .Values.persistence.enabled }}
+- Declarative apply Job: {{ .Values.applyJob.enabled }}
+- Gateway API: {{ .Values.gatewayAPI.enabled }}
+- ServiceMonitor: {{ .Values.monitoring.serviceMonitor.enabled }}
+- NetworkPolicy: {{ .Values.networkPolicy.enabled }}
+
+For clustered operation, use an external shared DataStore, configure all other
+shared stores and the Coordinator in the database, and keep the coordinator
+topic `stwt.agora` dedicated to this Stalwart cluster.
+
+6. Validation commands
+======================
+  helm -n {{ .Release.Namespace }} status {{ .Release.Name }}
+  kubectl -n {{ .Release.Namespace }} get pods,svc,pdb
+  kubectl -n {{ .Release.Namespace }} wait pod -l app.kubernetes.io/instance={{ .Release.Name }} --for=condition=Ready --timeout=5m
+  curl -fsS http://127.0.0.1:8080/healthz/ready
+  helm -n {{ .Release.Namespace }} test {{ .Release.Name }}
+
+The official readiness endpoint proves DataStore initialization. It does not
+prove coordinator membership; validate cluster events and behavior separately.
+
+7. Troubleshooting
+==================
+  kubectl -n {{ .Release.Namespace }} get pods -o wide
+  kubectl -n {{ .Release.Namespace }} get events --sort-by=.lastTimestamp
+  kubectl -n {{ .Release.Namespace }} describe statefulset/{{ include "stalwart.fullname" . }}
+  kubectl -n {{ .Release.Namespace }} logs statefulset/{{ include "stalwart.fullname" . }} --all-containers --tail=200
+  kubectl -n {{ .Release.Namespace }} logs statefulset/{{ include "stalwart.fullname" . }} --all-containers --previous --tail=200
+
+If the container fails with "operation not permitted", retain
+NET_BIND_SERVICE: the official binary has a file capability for ports below
+1024 and needs that capability in its bounding set.
+
+8. Resources
+============
+- HelmForge: https://helmforge.dev/docs/charts/stalwart
+- Upstream docs: https://stalw.art/docs/
+- Upstream source: https://github.com/stalwartlabs/stalwart
+- Issues: https://github.com/helmforgedev/charts/issues
+
+Happy Helmforging :)

@@ -1,0 +1,36 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.gatewayAPI.enabled }}
+{{- range $index, $route := .Values.gatewayAPI.tlsRoutes }}
+{{- if gt $index 0 }}
+---
+{{- end }}
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: TLSRoute
+metadata:
+  name: {{ include "stalwart.routeName" (dict "root" $ "route" $route "kind" "tls" "index" $index) }}
+  labels:
+    {{- include "stalwart.labels" $ | nindent 4 }}
+    {{- with $route.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with $route.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  parentRefs:
+    {{- toYaml $route.parentRefs | nindent 4 }}
+  {{- with $route.hostnames }}
+  hostnames:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- if $route.rules }}
+    {{- toYaml $route.rules | nindent 4 }}
+    {{- else }}
+    - backendRefs:
+        - name: {{ include "stalwart.mailServiceName" $ }}
+          port: {{ include "stalwart.servicePort" (dict "root" $ "name" $route.backendPort "service" "mail") }}
+    {{- end }}
+{{- end }}
+{{- end }}

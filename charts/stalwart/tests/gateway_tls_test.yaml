@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Stalwart TLSRoute
+templates:
+  - templates/gateway-tlsroute.yaml
+tests:
+  - it: renders the IMAPS route
+    values:
+      - ../ci/gateway-api-values.yaml
+    asserts:
+      - isKind:
+          of: TLSRoute
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 993
+  - it: resolves an extra mail port by name
+    values:
+      - ../ci/extra-port-values.yaml
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.tlsRoutes:
+        - parentRefs:
+            - name: mail-tls
+          backendPort: custom-smtp
+    asserts:
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 2525

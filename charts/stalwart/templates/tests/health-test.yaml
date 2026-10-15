@@ -1,0 +1,26 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "stalwart.fullname" . }}-test-health"
+  labels:
+    {{- include "stalwart.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: test
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  containers:
+    - name: health
+      image: docker.io/curlimages/curl:8.16.0
+      args:
+        - --fail
+        - --silent
+        - --show-error
+        - http://{{ include "stalwart.httpServiceName" . }}:{{ .Values.ports.management.servicePort }}/healthz/ready
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        capabilities:
+          drop: ["ALL"]

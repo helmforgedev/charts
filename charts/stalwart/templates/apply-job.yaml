@@ -1,0 +1,98 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.applyJob.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "stalwart.fullname" . }}-apply
+  labels:
+    {{- include "stalwart.labels" . | nindent 4 }}
+    app.kubernetes.io/component: configuration
+  {{- if .Values.applyJob.useHelmHooks }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "5"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+  {{- end }}
+spec:
+  backoffLimit: {{ .Values.applyJob.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.applyJob.activeDeadlineSeconds }}
+  {{- if not .Values.applyJob.useHelmHooks }}
+  ttlSecondsAfterFinished: {{ .Values.applyJob.ttlSecondsAfterFinished }}
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "stalwart.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: configuration
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "stalwart.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      {{- if .Values.applyJob.dryRunFirst }}
+      initContainers:
+        - name: validate-plan
+          image: "{{ .Values.applyJob.image.repository }}:{{ .Values.applyJob.image.tag }}"
+          imagePullPolicy: {{ .Values.applyJob.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          args:
+            - apply
+            - --file
+            - /plan/{{ .Values.applyJob.plan.key }}
+            - --dry-run
+          env:
+            {{- toYaml .Values.applyJob.env | nindent 12 }}
+          {{- with .Values.applyJob.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: plan
+              mountPath: /plan
+              readOnly: true
+      {{- end }}
+      containers:
+        - name: apply
+          image: "{{ .Values.applyJob.image.repository }}:{{ .Values.applyJob.image.tag }}"
+          imagePullPolicy: {{ .Values.applyJob.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          args:
+            - apply
+            - --file
+            - /plan/{{ .Values.applyJob.plan.key }}
+            {{- toYaml .Values.applyJob.extraArgs | nindent 12 }}
+          env:
+            {{- toYaml .Values.applyJob.env | nindent 12 }}
+          {{- with .Values.applyJob.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.applyJob.resources | nindent 12 }}
+          volumeMounts:
+            - name: plan
+              mountPath: /plan
+              readOnly: true
+      volumes:
+        - name: plan
+          {{- if eq .Values.applyJob.plan.source "existingSecret" }}
+          secret:
+            secretName: {{ .Values.applyJob.plan.existingSecret }}
+          {{- else }}
+          configMap:
+            name: {{ .Values.applyJob.plan.existingConfigMap }}
+          {{- end }}
+{{- end }}

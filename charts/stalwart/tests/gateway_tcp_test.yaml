@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Stalwart TCPRoute
+templates:
+  - templates/gateway-tcproute.yaml
+tests:
+  - it: renders the SMTP route
+    values:
+      - ../ci/gateway-api-values.yaml
+    asserts:
+      - isKind:
+          of: TCPRoute
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 25
+  - it: resolves an extra mail port by name
+    values:
+      - ../ci/extra-port-values.yaml
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.tcpRoutes:
+        - parentRefs:
+            - name: mail
+          backendPort: custom-smtp
+    asserts:
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 2525
+  - it: rejects a disabled built-in backend port
+    set:
+      ports.smtp.enabled: false
+      gatewayAPI.enabled: true
+      gatewayAPI.tcpRoutes:
+        - parentRefs:
+            - name: mail
+          backendPort: smtp
+    asserts:
+      - failedTemplate:
+          errorMessage: gateway route backendPort "smtp" does not match an enabled built-in port or extraPorts entry
+  - it: uses an extra port that replaces a disabled built-in name
+    set:
+      ports.smtp.enabled: false
+      extraPorts:
+        - name: smtp
+          containerPort: 2525
+          servicePort: 2525
+          service: mail
+          protocol: TCP
+      gatewayAPI.enabled: true
+      gatewayAPI.tcpRoutes:
+        - parentRefs:
+            - name: mail
+          backendPort: smtp
+    asserts:
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 2525

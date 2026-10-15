@@ -1,0 +1,51 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "stalwart.fullname" . }}
+  labels:
+    {{- include "stalwart.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "stalwart.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    {{- if .Values.networkPolicy.egress.enabled }}
+    - Egress
+    {{- end }}
+  ingress:
+    - {{- with .Values.networkPolicy.ingressFrom }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      ports:
+        {{- range $name, $port := .Values.ports }}
+        {{- if $port.enabled }}
+        - protocol: TCP
+          port: {{ $name }}
+        {{- end }}
+        {{- end }}
+        {{- range .Values.extraPorts }}
+        - protocol: {{ default "TCP" .protocol }}
+          port: {{ .name }}
+        {{- end }}
+  {{- if .Values.networkPolicy.egress.enabled }}
+  egress:
+    {{- if .Values.networkPolicy.egress.allowDNS }}
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- end }}
+    {{- with .Values.networkPolicy.egress.extraTo }}
+    - to:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.networkPolicy.egress.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+{{- end }}

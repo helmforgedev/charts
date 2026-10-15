@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Stalwart apply Job
+templates:
+  - templates/apply-job.yaml
+tests:
+  - it: is disabled by default
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: mounts a Secret plan and uses refs
+    set:
+      applyJob.enabled: true
+      applyJob.plan.source: existingSecret
+      applyJob.plan.existingSecret: plan
+      applyJob.envFrom:
+        - secretRef:
+            name: cli-auth
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].secret.secretName
+          value: plan
+      - equal:
+          path: spec.template.spec.containers[0].envFrom[0].secretRef.name
+          value: cli-auth
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: post-install,post-upgrade

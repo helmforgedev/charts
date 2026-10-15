@@ -1,0 +1,426 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# -- Number of Stalwart replicas. Values above one require external shared storage.
+replicaCount: 1
+
+image:
+  # -- Official Stalwart image repository.
+  repository: docker.io/stalwartlabs/stalwart
+  # -- Immutable Stalwart release tag.
+  tag: v0.16.26
+  # -- Image pull policy.
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets.
+imagePullSecrets: []
+# -- Override the chart name.
+nameOverride: ""
+# -- Override the fully qualified release name.
+fullnameOverride: ""
+# -- Labels added to all resources.
+commonLabels: {}
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount.
+  create: true
+  # -- Mount the Kubernetes API token in pods.
+  automountServiceAccountToken: false
+  # -- ServiceAccount annotations, including workload identity bindings.
+  annotations: {}
+  # -- Existing ServiceAccount name when creation is disabled.
+  name: ""
+
+config:
+  # -- Config source: generated, existingConfigMap, or existingSecret.
+  source: generated
+  # -- DataStore object rendered to config.json when source is generated.
+  dataStore:
+    "@type": RocksDb
+    path: /var/lib/stalwart
+  existingConfigMap:
+    # -- Existing ConfigMap name containing config.json.
+    name: ""
+    # -- Existing ConfigMap key.
+    key: config.json
+  existingSecret:
+    # -- Existing Secret name containing config.json.
+    name: ""
+    # -- Existing Secret key.
+    key: config.json
+
+# -- Stalwart cluster role applied to every replica in this release.
+role: ""
+# -- Push shard applied to every replica in this release.
+pushShard: ""
+recoveryMode:
+  # -- Start only the recovery management listener.
+  enabled: false
+  # -- Recovery listener port.
+  port: 8080
+  # -- Recovery-mode log level.
+  logLevel: info
+
+# -- Additional environment entries with full value/valueFrom support.
+extraEnv: []
+# -- Additional environment sources such as existing Secrets and ConfigMaps.
+extraEnvFrom: []
+# -- Additional Secret or ConfigMap-backed volume mounts.
+extraSecretMounts: []
+
+ports:
+  smtp:
+    # -- Enable SMTP.
+    enabled: true
+    # -- SMTP container port.
+    containerPort: 25
+    # -- SMTP Service port.
+    servicePort: 25
+    # -- Service group: mail or http.
+    service: mail
+  smtps:
+    # -- Enable implicit TLS SMTP.
+    enabled: true
+    # -- SMTPS container port.
+    containerPort: 465
+    # -- SMTPS Service port.
+    servicePort: 465
+    # -- Service group.
+    service: mail
+  submission:
+    # -- Enable SMTP submission.
+    enabled: true
+    # -- Submission container port.
+    containerPort: 587
+    # -- Submission Service port.
+    servicePort: 587
+    # -- Service group.
+    service: mail
+  imap:
+    # -- Enable IMAP.
+    enabled: true
+    # -- IMAP container port.
+    containerPort: 143
+    # -- IMAP Service port.
+    servicePort: 143
+    # -- Service group.
+    service: mail
+  imaps:
+    # -- Enable implicit TLS IMAP.
+    enabled: true
+    # -- IMAPS container port.
+    containerPort: 993
+    # -- IMAPS Service port.
+    servicePort: 993
+    # -- Service group.
+    service: mail
+  pop3:
+    # -- Enable POP3.
+    enabled: true
+    # -- POP3 container port.
+    containerPort: 110
+    # -- POP3 Service port.
+    servicePort: 110
+    # -- Service group.
+    service: mail
+  pop3s:
+    # -- Enable implicit TLS POP3.
+    enabled: true
+    # -- POP3S container port.
+    containerPort: 995
+    # -- POP3S Service port.
+    servicePort: 995
+    # -- Service group.
+    service: mail
+  sieve:
+    # -- Enable ManageSieve.
+    enabled: true
+    # -- ManageSieve container port.
+    containerPort: 4190
+    # -- ManageSieve Service port.
+    servicePort: 4190
+    # -- Service group.
+    service: mail
+  https:
+    # -- Enable the HTTPS/JMAP listener.
+    enabled: true
+    # -- HTTPS container port.
+    containerPort: 443
+    # -- HTTPS Service port.
+    servicePort: 443
+    # -- Service group.
+    service: http
+  management:
+    # -- Enable the management and health listener.
+    enabled: true
+    # -- Management container port.
+    containerPort: 8080
+    # -- Management Service port.
+    servicePort: 8080
+    # -- Service group.
+    service: http
+
+# -- Additional listener ports. Names must be unique and at most 15 characters.
+extraPorts: []
+  # - name: metrics-alt
+  #   containerPort: 9091
+  #   servicePort: 9091
+  #   service: http
+  #   protocol: TCP
+  #   hostPort: null
+
+service:
+  http:
+    # -- HTTP/JMAP Service type.
+    type: ClusterIP
+    # -- HTTP/JMAP Service annotations.
+    annotations: {}
+    # -- HTTP/JMAP Service IP family policy.
+    # ipFamilyPolicy: PreferDualStack
+    # -- HTTP/JMAP Service IP families.
+    # ipFamilies: [IPv4, IPv6]
+  mail:
+    # -- Mail Service type.
+    type: ClusterIP
+    # -- Mail Service annotations.
+    annotations: {}
+    # -- Preserve source addresses for external Services.
+    externalTrafficPolicy: ""
+    # -- Mail Service IP family policy.
+    # ipFamilyPolicy: PreferDualStack
+    # -- Mail Service IP families.
+    # ipFamilies: [IPv4, IPv6]
+  headless:
+    # -- Headless peer Service annotations.
+    annotations: {}
+    # -- Headless Service IP family policy.
+    # ipFamilyPolicy: PreferDualStack
+    # -- Headless Service IP families.
+    # ipFamilies: [IPv4, IPv6]
+
+ingress:
+  # -- Enable an Ingress for HTTP/JMAP traffic.
+  enabled: false
+  # -- Ingress class name.
+  ingressClassName: ""
+  # -- Ingress annotations.
+  annotations: {}
+  # -- Ingress hosts and paths.
+  hosts: []
+  # -- Ingress TLS entries.
+  tls: []
+
+gatewayAPI:
+  # -- Enable all chart-managed Gateway API routes.
+  enabled: false
+  # -- HTTPRoute definitions for HTTP/JMAP traffic.
+  httpRoutes: []
+  # -- TCPRoute definitions for plain and STARTTLS mail protocols.
+  tcpRoutes: []
+  # -- TLSRoute definitions for implicit TLS passthrough.
+  tlsRoutes: []
+
+persistence:
+  # -- Create one data PVC per pod.
+  enabled: true
+  # -- Existing claim mounted by a single replica instead of a claim template.
+  existingClaim: ""
+  # -- PVC access modes.
+  accessModes:
+    - ReadWriteOnce
+  # -- Requested storage size.
+  size: 20Gi
+  # -- Storage class; empty uses the cluster default.
+  storageClass: ""
+  # -- PVC annotations.
+  annotations: {}
+
+pdb:
+  # -- Render a PDB automatically when replicas exceed one.
+  enabled: true
+  # -- Minimum available replicas when maxUnavailable is empty.
+  minAvailable: 1
+  # -- Maximum unavailable replicas; mutually exclusive with minAvailable.
+  maxUnavailable: null
+
+# -- StatefulSet pod management policy.
+podManagementPolicy: Parallel
+updateStrategy:
+  # -- StatefulSet update strategy.
+  type: RollingUpdate
+  rollingUpdate:
+    # -- Ordinal partition for rolling updates.
+    partition: 0
+
+# -- StatefulSet metadata annotations.
+statefulSetAnnotations: {}
+# -- Pod annotations, including scrape or reloader annotations.
+podAnnotations: {}
+# -- Pod labels.
+podLabels: {}
+# -- Arbitrary value included in the pod-template checksum.
+rolloutTrigger: ""
+# -- Pod priority class.
+priorityClassName: ""
+# -- Runtime class.
+runtimeClassName: ""
+# -- DNS policy.
+dnsPolicy: ClusterFirst
+# -- DNS configuration.
+dnsConfig: {}
+# -- Termination grace period for active protocol sessions.
+terminationGracePeriodSeconds: 60
+
+podSecurityContext:
+  # -- Run as non-root.
+  runAsNonRoot: true
+  # -- Runtime UID.
+  runAsUser: 2000
+  # -- Runtime GID.
+  runAsGroup: 2000
+  # -- Filesystem group.
+  fsGroup: 2000
+  seccompProfile:
+    # -- Pod seccomp profile.
+    type: RuntimeDefault
+
+securityContext:
+  # -- Disallow privilege escalation.
+  allowPrivilegeEscalation: false
+  # -- Use a read-only root filesystem.
+  readOnlyRootFilesystem: true
+  # -- Run container as non-root.
+  runAsNonRoot: true
+  capabilities:
+    # -- Drop all inherited capabilities.
+    drop:
+      - ALL
+    # -- Allow the official binary's privileged listener ports.
+    add:
+      - NET_BIND_SERVICE
+
+probes:
+  liveness:
+    # -- Enable liveness probe.
+    enabled: true
+    # -- Initial liveness delay.
+    initialDelaySeconds: 30
+    # -- Liveness period.
+    periodSeconds: 10
+    # -- Liveness timeout.
+    timeoutSeconds: 5
+    # -- Liveness failure threshold.
+    failureThreshold: 6
+  readiness:
+    # -- Enable readiness probe.
+    enabled: true
+    # -- Initial readiness delay.
+    initialDelaySeconds: 5
+    # -- Readiness period.
+    periodSeconds: 10
+    # -- Readiness timeout.
+    timeoutSeconds: 5
+    # -- Readiness failure threshold.
+    failureThreshold: 6
+
+# -- Container lifecycle overrides. SIGTERM already initiates graceful drain.
+lifecycle: {}
+# -- Resource requests and limits.
+resources: {}
+# -- Node selector.
+nodeSelector: {}
+# -- Tolerations.
+tolerations: []
+# -- Affinity override. HA gets soft pod anti-affinity when empty.
+affinity: {}
+# -- Topology spread override. HA gets a hostname spread when empty.
+topologySpreadConstraints: []
+# -- Additional init containers.
+extraInitContainers: []
+# -- Additional sidecar containers.
+extraContainers: []
+# -- Additional volumes.
+extraVolumes: []
+# -- Additional mounts on the Stalwart container.
+extraVolumeMounts: []
+
+applyJob:
+  # -- Run a declarative stalwart-cli plan.
+  enabled: false
+  # -- Render as post-install/post-upgrade Helm hooks.
+  useHelmHooks: true
+  image:
+    # -- Official Stalwart CLI image.
+    repository: ghcr.io/stalwartlabs/cli
+    # -- Pinned CLI release.
+    tag: 1.0.13
+    # -- CLI image pull policy.
+    pullPolicy: IfNotPresent
+  plan:
+    # -- Plan source: existingConfigMap or existingSecret.
+    source: existingConfigMap
+    # -- Existing plan ConfigMap name.
+    existingConfigMap: ""
+    # -- Existing plan Secret name.
+    existingSecret: ""
+    # -- NDJSON plan key.
+    key: plan.ndjson
+  # -- Validate the plan in an init container before applying it.
+  dryRunFirst: true
+  # -- Job backoff limit.
+  backoffLimit: 3
+  # -- Maximum Job runtime.
+  activeDeadlineSeconds: 300
+  # -- Seconds before Kubernetes removes a finished non-hook Job.
+  ttlSecondsAfterFinished: 300
+  # -- Environment entries including STALWART_URL and auth refs.
+  env: []
+  # -- Environment sources for CLI authentication.
+  envFrom: []
+  # -- CLI Job resources.
+  resources: {}
+  # -- Additional CLI arguments after apply --file.
+  extraArgs:
+    - --json
+
+monitoring:
+  # -- Service annotations for pull-based scrapers.
+  serviceAnnotations: {}
+  serviceMonitor:
+    # -- Render a Prometheus Operator ServiceMonitor.
+    enabled: false
+    # -- ServiceMonitor labels.
+    labels: {}
+    # -- Metrics path.
+    path: /metrics/prometheus
+    # -- Scrape interval.
+    interval: 30s
+    # -- Service port name.
+    port: management
+    # -- Namespace selector.
+    namespaceSelector: {}
+
+networkPolicy:
+  # -- Enable NetworkPolicy.
+  enabled: false
+  # -- Allowed ingress peers; empty permits all sources on the declared ports.
+  ingressFrom: []
+  egress:
+    # -- Restrict egress.
+    enabled: false
+    # -- Allow DNS egress.
+    allowDNS: true
+    # -- Simple additional egress peers.
+    extraTo: []
+    # -- Complete additional egress rules.
+    extraEgress: []
+
+externalSecrets:
+  # -- Render external-secrets.io resources.
+  enabled: false
+  # -- Default refresh interval.
+  refreshInterval: 1h
+  # -- Complete ExternalSecret definitions.
+  items: []
+
+# -- Additional Kubernetes manifests, including VictoriaMetrics scrape CRs.
+extraManifests: []

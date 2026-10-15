@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Stalwart Services
+templates:
+  - templates/services.yaml
+tests:
+  - it: renders headless http and mail services
+    documentIndex: 0
+    asserts:
+      - hasDocuments:
+          count: 3
+      - equal:
+          path: spec.clusterIP
+          value: None
+  - it: renders the HTTP service
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: spec.ports[0].name
+          value: https
+  - it: renders the mail service
+    documentIndex: 2
+    asserts:
+      - equal:
+          path: spec.ports[0].name
+          value: imap
+  - it: renders a custom listener
+    documentIndex: 2
+    set:
+      extraPorts:
+        - name: custom-smtp
+          containerPort: 2525
+          servicePort: 2525
+          service: mail
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: custom-smtp
+            port: 2525
+            targetPort: custom-smtp
+            protocol: TCP
+  - it: propagates dual stack to the headless Service
+    documentIndex: 0
+    values:
+      - ../ci/dual-stack-values.yaml
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack

@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Stalwart StatefulSet
+templates:
+  - templates/statefulset.yaml
+tests:
+  - it: uses official runtime defaults
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/stalwartlabs/stalwart:v0.16.26
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /healthz/ready
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.add[0]
+          value: NET_BIND_SERVICE
+  - it: mounts an existing Secret config and env references
+    set:
+      config.source: existingSecret
+      config.existingSecret.name: stalwart-config
+      extraEnv:
+        - name: STALWART_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: database
+              key: password
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].secret.secretName
+          value: stalwart-config
+      - equal:
+          path: spec.template.spec.containers[0].env[0].valueFrom.secretKeyRef.name
+          value: database
+  - it: renders automatic HA placement
+    set:
+      replicaCount: 3
+      persistence.enabled: false
+      config.source: existingSecret
+      config.existingSecret.name: bootstrap
+    asserts:
+      - exists:
+          path: spec.template.spec.affinity.podAntiAffinity
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].maxSkew
+          value: 1
+  - it: keeps the data directory writable without persistence
+    set:
+      persistence.enabled: false
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[1].name
+          value: data
+      - exists:
+          path: spec.template.spec.volumes[1].emptyDir

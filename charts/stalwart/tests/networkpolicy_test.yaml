@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Stalwart NetworkPolicy
+templates:
+  - templates/networkpolicy.yaml
+tests:
+  - it: allows external sources on exposed mail ports by default
+    set:
+      networkPolicy.enabled: true
+    asserts:
+      - notExists:
+          path: spec.ingress[0].from
+  - it: restricts ingress when peers are configured
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.ingressFrom:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: mail-gateway
+    asserts:
+      - equal:
+          path: spec.ingress[0].from[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: mail-gateway

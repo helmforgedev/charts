@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Stalwart validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: accepts defaults
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: rejects local HA persistence
+    set:
+      replicaCount: 3
+    asserts:
+      - failedTemplate:
+          errorMessage: replicaCount > 1 requires persistence.enabled=false and an external shared DataStore
+  - it: rejects local HA datastore
+    set:
+      replicaCount: 3
+      persistence.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: replicaCount > 1 requires an external shared DataStore; RocksDb and Sqlite are single-node backends
+  - it: rejects a missing config reference
+    set:
+      config.source: existingSecret
+    asserts:
+      - failedTemplate:
+          errorMessage: config.existingSecret.name is required when config.source=existingSecret
+  - it: rejects empty Gateway API
+    set:
+      gatewayAPI.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: gatewayAPI requires at least one route when enabled
+  - it: rejects duplicate extra port names
+    set:
+      extraPorts:
+        - name: smtp
+          containerPort: 2525
+          servicePort: 2525
+          service: mail
+    asserts:
+      - failedTemplate:
+          errorMessage: extraPorts contains duplicate port name "smtp"
