@@ -69,7 +69,7 @@ StatefulSet: middlemanager (port 8091, PVC: task-storage)
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `apache/druid` | Druid container image |
-| `image.tag` | `"37.0.0"` | Image tag |
+| `image.tag` | `"38.0.0"` | Image tag |
 | `coordinator.enabled` | `true` | Enable coordinator |
 | `coordinator.replicaCount` | `1` | Coordinator replicas |
 | `coordinator.port` | `8081` | Coordinator port |
@@ -105,18 +105,22 @@ StatefulSet: middlemanager (port 8091, PVC: task-storage)
 | `postgresql.enabled` | `true` | Enable PostgreSQL subchart |
 | `zookeeper.enabled` | `true` | Enable bundled ZooKeeper |
 
-## Druid 37.0.0 upgrade notes
+## Druid 38.0.0 upgrade notes
 
-This chart tracks Apache Druid `37.0.0`. Before upgrading persistent clusters,
+This chart tracks Apache Druid `38.0.0`. Before upgrading persistent clusters,
 review the upstream [release notes](https://druid.apache.org/docs/latest/release-info/release-notes/)
 and [upgrade notes](https://druid.apache.org/docs/latest/release-info/upgrade-notes/).
 
 Important upstream changes include:
 
-- Hadoop-based ingestion has been removed.
-- Druid moved S3 integrations to AWS SDK v2.
-- Broker segment metadata cache is enabled by default, improving
-  `sys.segments` queries while increasing Broker memory usage.
+- Java 17 support was removed; the official image supplies a supported runtime.
+- The ZooKeeper-based `remote` task runner was removed. Existing overrides must
+  use `httpRemote` or omit `druid.indexer.runner.type` to use its default.
+- ZooKeeper-based segment announcement and discovery were removed. Existing
+  overrides must use `druid.serverview.type=http` or omit the property.
+- Druid 38 is the final release able to read legacy v0.4-v0.7 ZSTD frames.
+- Kafka streaming shard specs using the new `dim_value_set` type prevent a
+  downgrade until those segments are compacted or the feature is removed.
 
 ## External Metadata Storage
 
