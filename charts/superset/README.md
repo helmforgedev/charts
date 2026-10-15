@@ -82,10 +82,12 @@ Job: superset-init (DB migrate + admin creation)
 | `postgresql.enabled` | `true` | Enable PostgreSQL subchart |
 | `postgresql.standalone.persistence.enabled` | `true` | Enable persistent storage for bundled PostgreSQL |
 | `postgresql.standalone.persistence.storageClass` | `""` | Storage class for bundled PostgreSQL; empty uses the cluster default |
+| `postgresql.standalone.persistence.accessModes` | `[ReadWriteOnce]` | Access modes for the bundled PostgreSQL PVC |
 | `postgresql.standalone.persistence.size` | `8Gi` | Bundled PostgreSQL PVC size |
 | `redis.enabled` | `true` | Enable Redis subchart |
 | `redis.standalone.persistence.enabled` | `true` | Enable persistent storage for bundled Redis |
 | `redis.standalone.persistence.storageClass` | `""` | Storage class for bundled Redis; empty uses the cluster default |
+| `redis.standalone.persistence.accessModes` | `[ReadWriteOnce]` | Access modes for the bundled Redis PVC |
 | `redis.standalone.persistence.size` | `8Gi` | Bundled Redis PVC size |
 
 ## Bundled Storage
