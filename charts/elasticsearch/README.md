@@ -161,7 +161,7 @@ dataTiers:
 | `namespaceOverride` | Namespace for chart-managed namespaced resources | `""` |
 | `clusterName` | Elasticsearch cluster name | `helmforge-cluster` |
 | `image.repository` | Elasticsearch image | `docker.io/library/elasticsearch` |
-| `image.tag` | Image tag | `9.5.3` |
+| `image.tag` | Image tag | `9.5.5` |
 | `nameOverride` | Override chart name | `""` |
 | `fullnameOverride` | Override full release name | `""` |
 
@@ -262,7 +262,7 @@ dataTiers:
 | Parameter | Description | Default |
 |---|---|---|
 | `kibana.enabled` | Deploy Kibana alongside Elasticsearch | `false` |
-| `kibana.image.tag` | Kibana version (must match ES version) | `9.5.3` |
+| `kibana.image.tag` | Kibana version (must match ES version) | `9.5.5` |
 | `kibana.replicaCount` | Kibana replica count | `1` |
 | `kibana.ingress.enabled` | Expose Kibana via Ingress | `false` |
 | `kibana.ingress.hosts` | Ingress hostnames | `[kibana.example.com]` |
@@ -311,15 +311,17 @@ Security posture acceptable.
 
 ## Upgrade Notes
 
-`docker.io/library/elasticsearch:9.5.3` updates translog shutdown cleanup,
-bulk indexing, authorization and vector-query handling. The optional bundled
-Kibana image is aligned to 9.5.3, including audit/session and saved-object fixes.
+`docker.io/library/elasticsearch:9.5.5` contains upstream security fixes and
+correctness fixes for replica sequence numbers, request-breaker cleanup, search
+phase failures, PIT validation, sorted empty-shard results, ES|QL and SQL. The
+optional bundled Kibana image remains aligned at 9.5.5 for wire and saved-object
+compatibility.
 Take a snapshot backup and verify plugins, ILM policies, index templates and
 existing vector indices in staging before reusing production PVCs.
 Generated credentials are retained during upgrades; changing a Kubernetes Secret
 alone does not rotate passwords already stored by Elasticsearch.
-See the [Elasticsearch release notes](https://www.elastic.co/docs/release-notes/elasticsearch#elasticsearch-9.5.3-release-notes)
-and [Kibana release notes](https://www.elastic.co/docs/release-notes/kibana#kibana-9.5.3-release-notes).
+See the [Elasticsearch release notes](https://www.elastic.co/docs/release-notes/elasticsearch#elasticsearch-9.5.5-release-notes)
+and [Kibana release notes](https://www.elastic.co/docs/release-notes/kibana#kibana-9.5.5-release-notes).
 
 ## Resources Generated
 
