@@ -5,17 +5,17 @@
 - Issue: `helmforgedev/charts#1419`
 - Requester: `Aidas-dev`
 - Upstream: <https://github.com/ghostfolio/ghostfolio>
-- Research date: 2026-10-09
+- Research date: 2026-10-15
 
 ## Verified upstream contract
 
-Ghostfolio 3.82.0 is an Angular and NestJS wealth-management application. The
-official container is `docker.io/ghostfolio/ghostfolio:3.82.0`; its
+Ghostfolio 3.84.2 is an Angular and NestJS wealth-management application. The
+official container is `docker.io/ghostfolio/ghostfolio:3.84.2`; its
 multi-platform OCI index was verified for Linux amd64, arm/v7, and arm64 and
 resolved to
-`sha256:3b87436abfe7daae20a8bd5862bda230d327a5af49a837f888c007863ecb94fb`.
+`sha256:8dd6b9bd5cad3aa886e87300b89edc0fe2dd583e622b4e45669c139bc734bd36`.
 The digest records the verification evidence; the chart default uses the
-official release tag `3.82.0`. The image runs as the upstream `node` user and
+official release tag `3.84.2`. The image runs as the upstream `node` user and
 exposes port 3333.
 
 PostgreSQL and Redis are mandatory. The upstream entrypoint runs
@@ -62,10 +62,10 @@ contract. The HelmForge implementation differentiates itself through:
 
 ## Sources
 
-- <https://github.com/ghostfolio/ghostfolio/releases/tag/3.82.0>
-- <https://github.com/ghostfolio/ghostfolio/blob/3.82.0/README.md>
-- <https://github.com/ghostfolio/ghostfolio/blob/3.82.0/Dockerfile>
-- <https://github.com/ghostfolio/ghostfolio/blob/3.82.0/docker/entrypoint.sh>
-- <https://github.com/ghostfolio/ghostfolio/blob/3.82.0/docker/docker-compose.yml>
+- <https://github.com/ghostfolio/ghostfolio/releases/tag/3.84.2>
+- <https://github.com/ghostfolio/ghostfolio/blob/3.84.2/README.md>
+- <https://github.com/ghostfolio/ghostfolio/blob/3.84.2/Dockerfile>
+- <https://github.com/ghostfolio/ghostfolio/blob/3.84.2/docker/entrypoint.sh>
+- <https://github.com/ghostfolio/ghostfolio/blob/3.84.2/docker/docker-compose.yml>
 - <https://hub.docker.com/r/ghostfolio/ghostfolio/tags>
 - <https://github.com/ByTheHugo/ghostfolio-helm>

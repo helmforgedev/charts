@@ -38,7 +38,7 @@ upstream startup contract.
 The acceptance gate is `make validate-chart CHART=ghostfolio`, followed by
 `make standards-check CHART=ghostfolio`, the dedicated External Secrets
 runtime test, site lint/build, and the repository-wide preflight. Runtime smoke
-must prove the real 3.82.0 image becomes Ready against PostgreSQL and Redis and
+must prove the real 3.84.2 image becomes Ready against PostgreSQL and Redis and
 that both official health endpoints answer successfully.
 
 ## Risks and mitigations
