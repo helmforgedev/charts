@@ -2,7 +2,7 @@
 
 Deploy [Certimate](https://github.com/certimate-go/certimate), a self-hosted certificate automation platform for ACME issuance, deployment, renewal, and monitoring.
 
-This chart packages the official `certimate/certimate:v0.4.34` image and follows the upstream container contract: HTTP on port `8090` and durable PocketBase data under `/app/pb_data`.
+This chart packages the official `certimate/certimate:v0.4.35` image and follows the upstream container contract: HTTP on port `8090` and durable PocketBase data under `/app/pb_data`.
 
 ## Production Defaults
 
@@ -73,11 +73,11 @@ Back up the PersistentVolumeClaim before upgrades. Certimate stores its
 PocketBase database, uploaded certificate material, ACME account state, workflow
 definitions, and provider credentials under `/app/pb_data`.
 
-Certimate 0.4.34 adds automatic ZeroSSL EAB credential retrieval, improves
-certificate subject visibility, and fixes Volcengine WAF and LeCDN deployment
-providers. It does not change the container port, storage path, or chart
+Certimate 0.4.35 adds OpenSSH user-certificate authentication for SSH
+credentials and fixes Cloudflare SSL and Alibaba Cloud CAS certificate
+deployments. It does not change the container port, storage path, or chart
 configuration contract. Review the
-[official release](https://github.com/certimate-go/certimate/releases/tag/v0.4.34).
+[official release](https://github.com/certimate-go/certimate/releases/tag/v0.4.35).
 
 Certimate's upstream deployment uses PocketBase-local state. This chart does not
 ship PostgreSQL, MySQL, or Redis subcharts because the product does not expose an
@@ -93,7 +93,7 @@ ACME endpoints required by your workflows.
 Local security scan:
 
 ```text
-Image: certimate/certimate:v0.4.34
+Image: certimate/certimate:v0.4.35
 Scanner: Kubescape v4.0.9, frameworks MITRE, NSA, SOC2
 Result: 93.93939 compliance score
 ```
