@@ -197,14 +197,17 @@ jobs:
 
       - name: Validate manifests against K8s schemas
         run: |
+          # The pinned catalog is a fallback for schemas published on main that kubeconform cannot compile.
           helm template test-release charts/${{ matrix.chart }} \
             | kubeconform -strict -summary \
               -schema-location default \
               -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+              -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/f1e7f6bc0537bf0622ffe6e47dbaa85914fabbec/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
               -exit-on-error
 
       - name: Validate ci values manifests against K8s schemas
         run: |
+          # The pinned catalog is a fallback for schemas published on main that kubeconform cannot compile.
           for f in charts/${{ matrix.chart }}/ci/*.yaml; do
             [ -f "$f" ] || continue
             echo "--- Validating with $f ---"
@@ -212,6 +215,7 @@ jobs:
               | kubeconform -strict -summary \
                 -schema-location default \
                 -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+                -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/f1e7f6bc0537bf0622ffe6e47dbaa85914fabbec/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
                 -exit-on-error
           done
 
