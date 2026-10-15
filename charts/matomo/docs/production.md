@@ -13,6 +13,11 @@ before the web container starts. The synchronization overwrites image-managed
 files without deleting configuration, marketplace plugins, or other files that
 exist only on the PVC.
 
+The default `Recreate` Deployment strategy stops the old web pod before the new
+init container modifies the shared application volume. Treat image upgrades as
+a brief maintenance window. A `RollingUpdate` override is safe only when no
+serving pod shares application files with the synchronizing pod.
+
 Back up the database and application volume before changing `image.tag`. The
 chart deliberately does not run database migrations during every startup;
 after the new pod starts, execute `core:update` during a maintenance window:

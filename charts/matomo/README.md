@@ -73,6 +73,11 @@ release files into the persistent volume on every web pod start, so changing
 overwrites files shipped by the image but retains PVC-only files such as
 `config/config.ini.php`, installed plugins, and `misc/user` content.
 
+The Deployment defaults to `updateStrategy.type=Recreate`, ensuring the old web
+pod is stopped before the new init container changes application files. Plan a
+brief maintenance window for image upgrades. Override this only when application
+code is not shared with a serving pod during rollout.
+
 Back up the database and PVC before changing `image.tag`. After the pod is
 running with the new code, apply any required database migrations during the
 planned maintenance window:
@@ -101,6 +106,7 @@ outside the image lifecycle.
 | `archiver.nodeSelector` | Node selector for archiver pods | `{}` |
 | `archiver.tolerations` | Tolerations for archiver pods | `[]` |
 | `archiver.affinity` | Custom affinity that replaces generated same-node affinity | `{}` |
+| `updateStrategy.type` | Deployment rollout strategy | `Recreate` |
 | `ingress.enabled` | Render Ingress | `false` |
 | `gatewayAPI.enabled` | Render HTTPRoute resources | `false` |
 | `externalSecrets.enabled` | Render ExternalSecret resources | `false` |
