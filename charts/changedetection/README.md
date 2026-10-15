@@ -243,7 +243,7 @@ probes:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `ghcr.io/dgtlmoon/changedetection.io` | changedetection.io image repository |
-| `image.tag` | `0.60.8` | changedetection.io image tag |
+| `image.tag` | `0.60.9` | changedetection.io image tag |
 | `image.pullPolicy` | `IfNotPresent` | Image pull policy |
 | `changedetection.port` | `5000` | Application port |
 | `changedetection.baseUrl` | `""` | Public base URL |
@@ -284,11 +284,11 @@ probes:
 
 ## Upgrade Notes
 
-Version 0.60.8 adds HTTP caching for UI assets and PWA support, validates values
-received through imports and API updates, and improves reverse-proxy language
-routing, LLM responsiveness and browser dependencies. It does not change the
-service port or `/datastore` persistence contract. Review the
-[0.60.8 notes](https://github.com/dgtlmoon/changedetection.io/releases/tag/0.60.8).
+Version 0.60.9 fixes decimal-comma price detection, adds a Unix-time notification
+filter and exposes the language selector on the login page. It also updates
+security-sensitive runtime dependencies. It does not change the service port or
+`/datastore` persistence contract. Review the
+[0.60.9 notes](https://github.com/dgtlmoon/changedetection.io/releases/tag/0.60.9).
 
 Version 0.60.3 includes the intervening watch/tag loading, XML parsing,
 CSRF/XSS protections, browser and UTF-8 backup fixes since 0.55.8.
