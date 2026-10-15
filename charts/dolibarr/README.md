@@ -116,17 +116,17 @@ database:
 
 ## Parameters
 
-## Upgrade Notes
+## Upgrade to 24.0.1
 
-Dolibarr 24.0.0 is a major application upgrade with database schema changes
-and stricter security defaults. Back up both the database and the documents and
-custom PVCs, review removed or renamed modules, hooks, configuration variables,
-and links, then test the upgrade in staging before reusing production storage.
-The release enables stricter CSRF handling, disables the login API unless
-`API_ENABLE_LOGIN_API` is configured, and restricts unsecured SELECT clauses in
-extrafield filters by default. Review integrations that depend on those paths.
+Dolibarr 24.0.1 is a patch release on the 24.0 line. It fixes authorization,
+CSRF, upload reporting, API-call accounting, SQL prefix compatibility, table
+creation and multiple business workflows. Back up the database and both the
+documents and custom PVCs before upgrading. The 24.0 major-upgrade cautions
+still apply: review removed or renamed modules, hooks, configuration variables
+and integrations, then test the upgrade in staging before reusing production
+storage.
 
-[Review the official Dolibarr 24.0.0 release notes](https://github.com/Dolibarr/dolibarr/releases/tag/24.0.0)
+[Review the official Dolibarr 24.0.1 release notes](https://github.com/Dolibarr/dolibarr/releases/tag/24.0.1)
 before production rollout.
 
 ### Application
