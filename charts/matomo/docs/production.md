@@ -23,7 +23,7 @@ chart deliberately does not run database migrations during every startup;
 after the new pod starts, execute `core:update` during a maintenance window:
 
 ```bash
-kubectl exec deploy/matomo -- php /var/www/html/console core:update --yes --no-interaction
+kubectl exec -n matomo deploy/matomo -- php /var/www/html/console core:update --yes --no-interaction
 ```
 
 Disable `persistence.codeSync.enabled` only when another process owns the

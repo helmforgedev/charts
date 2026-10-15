@@ -83,7 +83,7 @@ running with the new code, apply any required database migrations during the
 planned maintenance window:
 
 ```bash
-kubectl exec deploy/matomo -- php /var/www/html/console core:update --yes --no-interaction
+kubectl exec -n matomo deploy/matomo -- php /var/www/html/console core:update --yes --no-interaction
 ```
 
 Set `persistence.codeSync.enabled=false` only when application files are managed
