@@ -34,3 +34,34 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].volumeMounts[0].mountPath
           value: /var/www/html
+  - it: synchronizes image code into the persistent application volume
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: sync-matomo-code
+      - equal:
+          path: spec.template.spec.initContainers[1].image
+          value: docker.io/library/matomo:5.14.0-apache
+      - equal:
+          path: spec.template.spec.initContainers[1].volumeMounts[0].mountPath
+          value: /var/www/html
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: 'tar cf - --one-file-system -C /usr/src/matomo \. \| tar xf - -C /var/www/html'
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: 'chown -R "\$\{user\}:\$\{group\}" /var/www/html'
+  - it: allows automatic code synchronization to be disabled
+    template: deployment.yaml
+    set:
+      persistence:
+        codeSync:
+          enabled: false
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-db
+      - lengthEqual:
+          path: spec.template.spec.initContainers
+          count: 1

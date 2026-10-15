@@ -21,6 +21,7 @@ helm install matomo oci://ghcr.io/helmforgedev/helm/matomo
 - External MySQL/MariaDB mode for production.
 - CronJob-based `core:archive` execution.
 - Persistent Matomo application volume.
+- Automatic synchronization of image code into the persistent application volume.
 - Ingress and Gateway API HTTPRoute support.
 - NetworkPolicy, ServiceMonitor, dual-stack Service fields.
 - External Secrets integration for database passwords.
@@ -63,6 +64,26 @@ ingress:
     - host: analytics.example.com
 ```
 
+## Upgrades
+
+The official image keeps its release code under `/usr/src/matomo`, while this
+chart persists `/var/www/html`. The `sync-matomo-code` init container copies the
+release files into the persistent volume on every web pod start, so changing
+`image.tag` also changes the code Matomo executes. The copy is additive: it
+overwrites files shipped by the image but retains PVC-only files such as
+`config/config.ini.php`, installed plugins, and `misc/user` content.
+
+Back up the database and PVC before changing `image.tag`. After the pod is
+running with the new code, apply any required database migrations during the
+planned maintenance window:
+
+```bash
+kubectl exec deploy/matomo -- php /var/www/html/console core:update --yes --no-interaction
+```
+
+Set `persistence.codeSync.enabled=false` only when application files are managed
+outside the image lifecycle.
+
 ## Configuration
 
 | Parameter | Description | Default |
@@ -73,7 +94,13 @@ ingress:
 | `database.mode` | `auto`, `external`, or `mysql` | `auto` |
 | `mysql.enabled` | Deploy HelmForge MySQL subchart | `true` |
 | `persistence.enabled` | Persist `/var/www/html` | `true` |
+| `persistence.codeSync.enabled` | Synchronize image code into `/var/www/html` on pod start | `true` |
+| `persistence.codeSync.resources` | Resources for the code synchronization init container | `{}` |
 | `archiver.enabled` | Create archive CronJob | `true` |
+| `archiver.sameNodeAsMatomo` | Schedule the archiver with a web pod for RWO storage | `true` |
+| `archiver.nodeSelector` | Node selector for archiver pods | `{}` |
+| `archiver.tolerations` | Tolerations for archiver pods | `[]` |
+| `archiver.affinity` | Custom affinity that replaces generated same-node affinity | `{}` |
 | `ingress.enabled` | Render Ingress | `false` |
 | `gatewayAPI.enabled` | Render HTTPRoute resources | `false` |
 | `externalSecrets.enabled` | Render ExternalSecret resources | `false` |

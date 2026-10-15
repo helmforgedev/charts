@@ -33,6 +33,27 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- with .Values.archiver.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.archiver.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.archiver.affinity }}
+          affinity:
+            {{- toYaml .Values.archiver.affinity | nindent 12 }}
+          {{- else if .Values.archiver.sameNodeAsMatomo }}
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      {{- include "matomo.selectorLabels" . | nindent 22 }}
+                      app.kubernetes.io/component: web
+                  topologyKey: kubernetes.io/hostname
+          {{- end }}
           containers:
             - name: archive
               image: {{ include "matomo.image" . | quote }}
@@ -45,6 +66,10 @@ spec:
                 - sh
                 - -ec
                 - |
+                  if [ ! -r /var/www/html/config/config.ini.php ]; then
+                    echo "Matomo is not configured yet; skipping archive run"
+                    exit 0
+                  fi
                   php /var/www/html/console core:archive --url="${MATOMO_URL}" {{ join " " .Values.archiver.extraArgs }}
               env:
                 - name: MATOMO_URL

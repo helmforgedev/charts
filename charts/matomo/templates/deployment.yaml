@@ -20,6 +20,7 @@ spec:
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
+        app.kubernetes.io/component: web
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
@@ -38,7 +39,7 @@ spec:
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if or .Values.database.waitForConnection.enabled .Values.extraInitContainers }}
+      {{- if or .Values.database.waitForConnection.enabled .Values.persistence.codeSync.enabled .Values.extraInitContainers }}
       initContainers:
         {{- if .Values.database.waitForConnection.enabled }}
         - name: wait-for-db
@@ -60,6 +61,40 @@ spec:
               value: {{ include "matomo.databaseHost" . | quote }}
             - name: DB_PORT
               value: {{ include "matomo.databasePort" . | quote }}
+        {{- end }}
+        {{- if .Values.persistence.codeSync.enabled }}
+        - name: sync-matomo-code
+          image: {{ include "matomo.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            - sh
+            - -ec
+            - |
+              uid="$(id -u)"
+              if [ "${uid}" = "0" ]; then
+                user="${APACHE_RUN_USER:-www-data}"
+                group="${APACHE_RUN_GROUP:-www-data}"
+                user="${user#'#'}"
+                group="${group#'#'}"
+              else
+                user="${uid}"
+                group="$(id -g)"
+              fi
+              tar cf - --one-file-system -C /usr/src/matomo . | tar xf - -C /var/www/html
+              if [ "${uid}" = "0" ]; then
+                chown -R "${user}:${group}" /var/www/html
+              fi
+          {{- with .Values.persistence.codeSync.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: matomo-data
+              mountPath: /var/www/html
         {{- end }}
         {{- with .Values.extraInitContainers }}
         {{- toYaml . | nindent 8 }}

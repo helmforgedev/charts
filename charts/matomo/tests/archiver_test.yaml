@@ -13,6 +13,9 @@ tests:
       - equal:
           path: spec.concurrencyPolicy
           value: Forbid
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'if \[ ! -r /var/www/html/config/config.ini.php \]'
   - it: disables archiver when requested
     set:
       archiver:
@@ -39,3 +42,42 @@ tests:
       - equal:
           path: spec.jobTemplate.spec.template.spec.containers[0].securityContext.runAsUser
           value: 33
+  - it: schedules the archiver with the Matomo web pod for ReadWriteOnce storage
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey
+          value: kubernetes.io/hostname
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].labelSelector.matchLabels["app.kubernetes.io/component"]
+          value: web
+  - it: disables automatic same-node affinity when requested
+    set:
+      archiver:
+        sameNodeAsMatomo: false
+    asserts:
+      - notExists:
+          path: spec.jobTemplate.spec.template.spec.affinity
+  - it: renders custom archiver scheduling configuration
+    set:
+      archiver:
+        sameNodeAsMatomo: false
+        nodeSelector:
+          workload: analytics
+        tolerations:
+          - key: dedicated
+            operator: Equal
+            value: analytics
+            effect: NoSchedule
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms: []
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.nodeSelector.workload
+          value: analytics
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.tolerations[0].key
+          value: dedicated
+      - exists:
+          path: spec.jobTemplate.spec.template.spec.affinity.nodeAffinity

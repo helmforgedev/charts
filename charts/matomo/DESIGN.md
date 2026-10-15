@@ -10,6 +10,7 @@ or external MySQL/MariaDB connection, and a CronJob for Matomo archiving.
 
 - Uses the official `docker.io/library/matomo` image instead of vendor images.
 - Makes the production archiver CronJob first-class.
+- Synchronizes image-managed code into the application PVC before web startup.
 - Keeps external database and External Secrets flows explicit for managed DBs.
 - Supports dual-stack Service fields, Gateway API, and NetworkPolicy defaults.
 
@@ -20,6 +21,8 @@ or external MySQL/MariaDB connection, and a CronJob for Matomo archiving.
 - It does not manage Matomo plugins or marketplace lifecycle.
 - It does not configure Matomo trusted proxy settings inside the database; the
   chart documents the reverse proxy requirement and exposes `extraEnv`.
+- It does not run database migrations automatically because production update
+  duration and maintenance requirements vary by installation.
 
 ## Validation Notes
 
