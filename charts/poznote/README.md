@@ -71,7 +71,7 @@ ingress:
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `image.repository` | Image repository | `ghcr.io/timothepoznanski/poznote` |
-| `image.tag` | Image tag | `6.100.0` |
+| `image.tag` | Image tag | `6.115.0` |
 | `image.pullPolicy` | Pull policy | `IfNotPresent` |
 
 #### Application Parameters
@@ -143,10 +143,13 @@ This chart intentionally does NOT:
 
 ## Upgrade Notes
 
-Poznote `6.100.0` adds sidebar and dashboard view controls, touch interactions,
-image handling improvements and restores public links when importing a backup.
-It includes the current background export, restore and import workers, chunked
-archive uploads, snapshot retention and conflict-safe autosave.
+The upgrade range from Poznote `6.100.0` through `6.115.0` adds scheduled local
+backup archives, revisions, richer Markdown editing and repeating tasks. The
+`6.115.0` release adds dash lists and an optional login-screen bypass. Only
+enable "Open without login" when network access is restricted to the account
+owner or a trusted reverse proxy provides authentication; the API continues to
+require credentials. This upgrade range also includes upstream security
+hardening and Alpine package updates.
 Since `6.80.0`, upstream fixes stored XSS and backup streaming with custom themes,
 adds app passwords, and changes REST errors from HTTP 200 to actual error status
 codes. Integrations must handle HTTP 404 for inaccessible or missing IDs and
@@ -159,7 +162,7 @@ Complete backups and restores now continue in detached workers, with progress
 polled by the browser. Keep the pod running until the job completes and verify
 its final status before downloading or relying on the backup.
 
-Review the [official 6.100.0 release](https://github.com/timothepoznanski/poznote/releases/tag/6.100.0).
+Review the [official 6.115.0 release](https://github.com/timothepoznanski/poznote/releases/tag/6.115.0).
 
 Back up the complete `data` PVC before upgrading and verify a restore in a
 separate instance. It contains SQLite, notes, attachments and application
