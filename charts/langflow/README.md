@@ -1,7 +1,7 @@
 # Langflow Helm Chart
 
 Langflow is a visual builder for AI workflows, RAG applications, agents, and integrations with model providers and vector databases.
-This HelmForge chart deploys the official `docker.io/langflowai/langflow:1.12.3` image with persistent local state by default and explicit
+This HelmForge chart deploys the official `docker.io/langflowai/langflow:1.12.6` image with persistent local state by default and explicit
 production paths for secret management, PostgreSQL-compatible databases, ingress, Gateway API, and horizontal scaling.
 
 Langflow 1.12 adds authorization changes, database migrations and curated default
@@ -51,10 +51,10 @@ compatibility when needed. This chart does not provision an OpenTelemetry collec
 Sources: [1.12 release](https://github.com/langflow-ai/langflow/releases/tag/v1.12.0),
 [database migration guide](https://github.com/langflow-ai/langflow/blob/v1.12.0/docs/docs/Develop/database-migrations.mdx).
 
-The [1.12.3 patch](https://github.com/langflow-ai/langflow/releases/tag/v1.12.3)
-includes extensive sandbox, SSRF, credential-isolation and cache-deserialization
-security fixes plus MCP, export, knowledge-base and assistant corrections.
-Review provider environment values before restarting an existing deployment.
+The [1.12.6 patch](https://github.com/langflow-ai/langflow/releases/tag/v1.12.6)
+includes the 1.12.4 and 1.12.5 security hardening, MCP session and credential
+fixes, plus additional security backports and safer MCP schema discovery. Back
+up state and review provider environment values before restarting.
 
 ## Install
 
