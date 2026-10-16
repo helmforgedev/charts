@@ -102,7 +102,7 @@ Use feature flags instead to enable optional components.
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `image.tag` | openHAB image tag | `5.2.1` |
+| `image.tag` | openHAB image tag | `5.2.3` |
 | `image.repository` | Image repository | `docker.io/openhab/openhab` |
 | `replicaCount` | Must be 1 — no clustering support | `1` |
 | `namespaceOverride` | Namespace for chart-managed resources | `""` |
@@ -247,11 +247,19 @@ See [Prometheus Metrics Guide](docs/metrics.md) for full details.
 
 ## Upgrade Notes
 
-openHAB `5.2.1` is a stable patch release for the 5.x line. It fixes runtime,
-UI, connectivity, scripting, voice, and add-on regressions without changing the
-container contract. Back up the `userdata`, `conf`, and `addons` PVCs before
+openHAB `5.2.3` includes the security fixes introduced in `5.2.2`, plus fixes
+for authentication through openHAB Cloud and reverse proxies and the Main UI
+map tile provider. Back up the `userdata`, `conf`, and `addons` PVCs before
 upgrading. openHAB 5.x still requires Java 21, which is provided by the official
 container image used by this chart.
+
+This upgrade changes security-sensitive behavior. Configure the Sitemap
+`allowedHosts` setting for every host used through the `/proxy` endpoint; the
+new allowlist is empty by default. Reassess `trustedNetworks` behind a reverse
+proxy because it now uses the actual client address and no longer trusts
+`X-Forwarded-For`. Third-party OAuth2 clients using `/auth` must use a same-origin
+redirect URI and PKCE `S256`. IP Camera binding users whose ONVIF events arrive
+through NAT or a proxy must add those source addresses to `ipWhitelist`.
 
 ### Security Scan: openhab
 
