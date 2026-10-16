@@ -51,7 +51,7 @@ if(deployment.metadata.name==='papra-queue'){
  await verifyPendingQueue({k,pod,documentId,deployment,context,namespace,release,chartPath:fileURLToPath(new URL('..',import.meta.url)),forward,verifyDocument,waitForSearch});
 }
 if(values.persistence.enabled){k(['rollout','restart','deployment/'+deployment.metadata.name]);k(['rollout','status','deployment/'+deployment.metadata.name,'--timeout=90s']);await forward(async base=>{const session=await api(base,'/api/users/me');assert.equal(session.status,200,'Persisted native session after replacement');await verifyDocument(base);await login(base);});}
-execFileSync('helm',['upgrade',release,fileURLToPath(new URL('..',import.meta.url)),'--kube-context',context,'-n',namespace,'--reuse-values','--wait','--timeout','60s'],{encoding:'utf8',timeout:75000});assert.deepEqual(secret(authName),authSecret);assert.deepEqual(secret(bootstrapName),bootstrapSecret);
+execFileSync('helm',['upgrade',release,fileURLToPath(new URL('..',import.meta.url)),'--kube-context',context,'-n',namespace,'--reset-then-reuse-values','--wait','--timeout','60s'],{encoding:'utf8',timeout:75000});assert.deepEqual(secret(authName),authSecret);assert.deepEqual(secret(bootstrapName),bootstrapSecret);
 if(deployment.metadata.name==='papra-restore'){
  assert.equal(values.database.remoteUrl,'');assert.equal(values.storage.driver,'filesystem');
  const originalPod=pod(),claim=deployment.spec.template.spec.volumes.find(v=>v.name==='workspace').persistentVolumeClaim.claimName;

@@ -1,7 +1,7 @@
 # Papra Helm Chart
 
 Deploy [Papra](https://github.com/papra-hq/papra), a private document archive with extraction, full-text search and
-organization-based access control. The chart uses the official `ghcr.io/papra-hq/papra:26.6.2-rootless` image.
+organization-based access control. The chart uses the official `ghcr.io/papra-hq/papra:26.7.0-rootless` image.
 
 ## Production defaults
 
@@ -111,6 +111,13 @@ Take a consistent database and original-document backup before upgrades. Native 
 rollback does not reverse data migrations. For local state, stop the writer, archive the database directory including
 WAL files and the complete document directory, and retain all Secrets separately. Restore into a fresh PVC with
 `persistence.existingClaim`, then authenticate and verify original checksums and search results before reopening access.
+
+Papra `26.7.0` changes the successful trash-document API response from a JSON
+body to HTTP `204 No Content`; update API clients that parse `{ success: true }`.
+The intake email webhook no longer has a default validation secret, so set
+`INTAKE_EMAILS_WEBHOOK_SECRET` from a Kubernetes Secret before enabling that
+integration. The release also prevents custom OAuth providers from creating
+accounts when registration is disabled. Existing users can still sign in.
 
 PVC retention protects generated claims from ordinary release uninstall. Namespace deletion and external storage
 policies can still remove data. Existing claims are managed by their owner. Recreate upgrades deliberately include
