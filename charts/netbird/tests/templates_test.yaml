@@ -11,7 +11,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: netbirdio/netbird-server:0.79.0
+          value: netbirdio/netbird-server:0.80.0
         template: templates/deployment.yaml
         documentIndex: 0
   - it: renders the official pinned dashboard image
@@ -21,6 +21,18 @@ tests:
           value: netbirdio/dashboard:v2.90.10
         template: templates/deployment.yaml
         documentIndex: 1
+  - it: renders an explicit data-store encryption key into the chart-managed config Secret
+    set:
+      server.store.encryptionKey: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+    asserts:
+      - equal:
+          path: stringData.data-store-encryption-key
+          value: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+        template: templates/secret-config.yaml
+      - matchRegex:
+          path: stringData["config.yaml"]
+          pattern: 'encryptionKey: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="'
+        template: templates/secret-config.yaml
   - it: configures dashboard defaults for the embedded identity provider
     asserts:
       - contains:
