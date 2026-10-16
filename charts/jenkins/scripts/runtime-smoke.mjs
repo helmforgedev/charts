@@ -38,7 +38,7 @@ try {
   const request = (route, options={}) => fetch(base+route,{...options,redirect:'manual',signal:AbortSignal.timeout(20000)});
   const login = await request('/login');
   assert.equal(login.status,200,'Login page');
-  assert.equal(login.headers.get('x-jenkins'),'2.568.3','Actual Jenkins version');
+  assert.equal(login.headers.get('x-jenkins'),'2.580.1','Actual Jenkins version');
   await login.arrayBuffer();
   if (user && password) {
     const anonymous = await request('/api/json');
@@ -61,9 +61,9 @@ try {
     const deleted = await request(`/job/${name}/doDelete`,{method:'POST',headers});
     assert.ok([200,302,303].includes(deleted.status),'Delete test job');
     await deleted.arrayBuffer();
-    console.log('Jenkins 2.568.3: anonymous denial, admin authentication, session CSRF and job configuration roundtrip passed.');
+    console.log('Jenkins 2.580.1: anonymous denial, admin authentication, session CSRF and job configuration roundtrip passed.');
   } else {
-    console.log('Jenkins 2.568.3: login/version passed; bootstrap credentials are not configured in this scenario.');
+    console.log('Jenkins 2.580.1: login/version passed; bootstrap credentials are not configured in this scenario.');
   }
 } finally {
   if (child.exitCode === null && child.pid) {

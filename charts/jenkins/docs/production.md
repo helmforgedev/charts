@@ -38,6 +38,19 @@ This avoids chart-generated credentials changing during GitOps reconciliation.
 Pin plugin versions in `plugins.install.list`. Avoid `latest=true` in
 production unless upgrades are intentionally tested in a staging environment.
 
+## Upgrading to Jenkins 2.580.1
+
+Back up `JENKINS_HOME` and validate the upgrade against the backup before
+changing a production controller. Upgrade installed plugins before the core
+upgrade and confirm that jobs and plugins load afterward.
+
+The 2.580.x line removes several detached plugins from the Jenkins WAR. Most
+connected installations resolve them from the update center automatically.
+Controllers without update-center access must make any required detached
+plugins available in `JENKINS_HOME/plugins` before startup. See the official
+[Jenkins 2.580.x upgrade guide](https://www.jenkins.io/doc/upgrade-guide/2.580/)
+for the affected plugins and compatibility details.
+
 ## Operations
 
 After deployment:
