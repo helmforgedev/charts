@@ -86,13 +86,16 @@ Recommended reading before installation:
 - [Kubernetes Gateway API](https://kubernetes.io/docs/concepts/services-networking/gateway/)
 - [External Secrets Operator](https://external-secrets.io/latest/)
 
-## Keycloak 26.7.x alignment
+## Keycloak 26.8.x alignment
 
-This chart tracks the official Keycloak server image `quay.io/keycloak/keycloak:26.7.4`.
+This chart tracks the official Keycloak server image `quay.io/keycloak/keycloak:26.8.1`.
 
-Relevant 26.7.x operational changes to account for during rollout:
+Relevant 26.8.x operational changes to account for during rollout:
 
-- 26.7.4 includes six security fixes and Quarkus 3.33.3.2; review the upstream migration guide before production rollout
+- 26.8.1 supersedes 26.8.0 and includes security fixes; review the upstream migration guide before production rollout
+- multi-cluster v1 (`multi-site`) is deprecated in favor of the `stateless` feature used by multi-cluster v2
+- Kubernetes pods expose their pod name as `KC_CACHE_EMBEDDED_NODE_NAME` for stable cache-node observability
+- large-table indexes skipped during schema migration can now be created automatically in the background on supported databases
 - zero-downtime patch releases are supported within the same minor stream, but still require readiness, proxy, and database validation
 - the HTTP stack supports graceful shutdown, so keep `terminationGracePeriodSeconds` aligned with connection draining at the proxy layer
 - Kubernetes and OpenShift truststore initialization improved upstream; keep custom `truststore` and database CA mounts explicit when the platform uses private CAs
@@ -245,7 +248,7 @@ postgresql:
 |-----------|-------------|---------|
 | `mode` | `dev` or `production` | `dev` |
 | `image.repository` | Keycloak image repository | `quay.io/keycloak/keycloak` |
-| `image.tag` | Keycloak image tag | `26.7.4` |
+| `image.tag` | Keycloak image tag | `26.8.1` |
 | `admin.existingSecret` | Existing secret for bootstrap admin credentials | `""` |
 | `http.port` | Application HTTP port | `8080` |
 | `http.managementPort` | Management port for health and metrics | `9000` |

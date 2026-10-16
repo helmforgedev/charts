@@ -537,6 +537,10 @@ true
   value: {{ ternary "true" "false" .Values.health.enabled | quote }}
 - name: KC_METRICS_ENABLED
   value: {{ ternary "true" "false" .Values.metrics.enabled | quote }}
+- name: KC_CACHE_EMBEDDED_NODE_NAME
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.name
 {{- if .Values.metrics.userEvents }}
 - name: KC_EVENT_METRICS_USER_ENABLED
   value: "true"
