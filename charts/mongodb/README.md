@@ -148,7 +148,7 @@ deciding constraint, and review the
 |-----------|-------------|---------|
 | `architecture` | `standalone`, `replicaset`, or `sharded` | `standalone` |
 | `image.repository` | MongoDB image | `mongo` |
-| `image.tag` | Image tag | `8.3.11` |
+| `image.tag` | Image tag | `9.0.2` |
 | `nameOverride` | Override chart name | `""` |
 | `fullnameOverride` | Override full release name | `""` |
 
@@ -286,12 +286,13 @@ See the [`examples/`](examples/) directory:
 
 ## Upgrade Notes
 
-MongoDB `8.3.11` is a security and reliability patch within the MongoDB `8.3`
-release line. It addresses upstream CVEs plus authorization, input validation,
-memory-bound, query-planning, and crash fixes. Review the
-[MongoDB 8.3 release notes](https://www.mongodb.com/docs/manual/release-notes/8.3/)
-before upgrading production clusters, take a backup, and verify the data files
-are compatible with the target `mongod` version before reusing existing PVCs.
+MongoDB `9.0.2` is a patch in the MongoDB `9.0` rapid-release line. Before a
+binary upgrade from `8.3`, take a tested backup and confirm every member reports
+`featureCompatibilityVersion: "8.3"`. Upgrade using the topology-specific
+upstream procedure, then raise FCV to `9.0` only after all members are healthy
+and rollback is no longer required. Review the
+[MongoDB 9.0 release notes](https://www.mongodb.com/docs/manual/release-notes/9.0/)
+before reusing existing PVCs.
 Keep replica set keyFiles and root credentials stable across `helm upgrade`;
 those values are initialized by MongoDB and should be rotated with MongoDB
 administrative commands instead of changing chart values.
