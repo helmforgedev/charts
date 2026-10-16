@@ -8,8 +8,8 @@ and runtime validation.
 ## Highlights
 
 - Official `quay.io/oauth2-proxy/oauth2-proxy` image.
-- `v7.15.4` default, including the upstream Go `1.26.7` rebuild and the latest
-  dependency vulnerability fixes published by the oauth2-proxy project.
+- `v7.15.5` default, including upstream authentication-boundary hardening and
+  the Go `1.26.8` dependency refresh.
 - Reverse proxy header trust disabled by default, with required explicit
   `trusted_proxy_ips` CIDRs when enabled behind ingress controllers, gateways,
   or service mesh edge proxies.
@@ -60,10 +60,20 @@ implementation, or edge proxy.
 
 ## Upgrade Notes
 
-OAuth2 Proxy `v7.15.4` keeps the same chart-facing configuration surface as
-`v7.15.3`, but refreshes the runtime to Go `1.26.7` and rolls in the upstream
-dependency vulnerability fixes called out in the official release notes. No values change
-is required for this chart bump.
+OAuth2 Proxy `v7.15.5` keeps the same chart-facing configuration surface as
+`v7.15.4`. It fixes authentication bypasses involving ambiguous skip-auth path
+matching and untrusted client-IP headers, and prevents callback errors from
+exposing credentials. No values change is required for this chart bump.
+
+Review custom `skip_auth_routes` and `skip_auth_regex` expressions before the
+upgrade: path matching is intentionally stricter, so ambiguous paths that were
+previously skipped may now require authentication. Deployments behind a reverse
+proxy must continue to list only the actual proxy CIDRs in
+`config.reverseProxy.trustedProxyIps`.
+
+The upstream `--bitbucket-team` option is deprecated. Migrate custom arguments
+to `--bitbucket-workspace`; the deprecated option remains available in this
+release.
 
 The chart keeps `config.reverseProxy.enabled=false` by default. If you enable
 reverse proxy header handling, the chart requires at least one
