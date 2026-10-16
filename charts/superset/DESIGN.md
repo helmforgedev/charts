@@ -42,6 +42,14 @@ scheduler). Scale PostgreSQL/Redis for resilience.
 URI and Redis URL are assembled at runtime via `$(DB_PASSWORD)`/`$(REDIS_PASSWORD)`
 interpolation, never written to a ConfigMap.
 
+Optional Python dependencies follow the same consistency rule.
+`superset.extraPythonPackages` is appended to the built-in dependency set in
+web, worker, beat, and init. The values schema limits entries to package names
+and version constraints so the list cannot inject shell commands. Runtime
+installation is a convenience path. `superset.installPythonPackages: false`
+skips all runtime installation for immutable custom images that contain the
+built-in PostgreSQL and Redis clients plus every configured extra package.
+
 ## What this chart deliberately does NOT do
 
 - It does not let web/worker/beat self-initialize the schema (single init Job).

@@ -31,6 +31,25 @@ tests:
           path: spec.template.spec.containers[0].command[2]
           pattern: "celery.*worker"
 
+  - it: should install additional Python packages in worker
+    template: templates/worker-deployment.yaml
+    set:
+      superset.extraPythonPackages:
+        - clickhouse-connect==0.13.0
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "(?s)^set -e.*uv pip install.*psycopg2-binary redis clickhouse-connect==0\\.13\\.0.*--quiet"
+
+  - it: should skip runtime package installation for an immutable custom image
+    template: templates/worker-deployment.yaml
+    set:
+      superset.installPythonPackages: false
+    asserts:
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "uv pip install"
+
   - it: should not render when disabled
     template: templates/worker-deployment.yaml
     set:

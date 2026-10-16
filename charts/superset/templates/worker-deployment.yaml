@@ -55,8 +55,11 @@ spec:
             - /bin/sh
             - -c
             - |
-              uv pip install --target /tmp/superset-python psycopg2-binary redis --quiet
+              set -e
+              {{- if .Values.superset.installPythonPackages }}
+              uv pip install --target /tmp/superset-python {{ include "superset.pythonPackages" . }} --quiet
               export PYTHONPATH="/tmp/superset-python${PYTHONPATH:+:$PYTHONPATH}"
+              {{- end }}
               celery --app=superset.tasks.celery_app:app worker --pool=prefork --concurrency={{ .Values.worker.concurrency }} -Ofair --loglevel=INFO
           {{- with .Values.securityContext }}
           securityContext:

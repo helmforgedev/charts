@@ -11,6 +11,7 @@ interactive dashboards, SQL Lab, and a rich set of visualizations.
 - **PostgreSQL subchart** — bundled metadata store with option for external database
 - **Redis subchart** — bundled Celery broker and result backend with option for external Redis
 - **superset_config.py via ConfigMap** — extend Superset configuration through `superset.extraConfig`
+- **Additional Python packages** — install pinned database drivers consistently in web, worker, beat, and init
 - **Auto-generated secrets** — admin password, Flask SECRET_KEY, database and Redis passwords
 - **Health probes** — startup, liveness, and readiness probes on `/health`
 - **Ingress support** — configurable with `ingressClassName` (traefik, nginx, etc.)
@@ -65,6 +66,8 @@ Job: superset-init (DB migrate + admin creation)
 | `superset.adminPassword` | `""` (auto) | Admin password |
 | `superset.secretKey` | `""` (auto) | Flask SECRET_KEY |
 | `superset.loadExamples` | `false` | Load example dashboards |
+| `superset.installPythonPackages` | `true` | Install runtime Python dependencies at process startup |
+| `superset.extraPythonPackages` | `[]` | Additional Python package specifications installed in every Superset process |
 | `web.replicaCount` | `1` | Web server replicas |
 | `web.workers` | `2` | Gunicorn workers |
 | `web.timeout` | `120` | Gunicorn timeout |
@@ -177,6 +180,52 @@ superset:
     }
     ROW_LIMIT = 50000
 ```
+
+## Additional Python Packages
+
+Use `superset.extraPythonPackages` for development and simpler deployments that
+need optional database drivers. Package entries support names with optional
+version constraints. Pin a tested version so every Superset process receives the
+same dependency:
+
+```yaml
+superset:
+  extraPythonPackages:
+    - clickhouse-connect==0.13.0
+```
+
+Superset 6.1.0 recommends `clickhouse-connect>=0.13.0` for ClickHouse and uses
+the `clickhousedb://user:password@host:port/database` SQLAlchemy URI.
+
+These packages are downloaded when the init, web, worker, and beat containers
+start. Their startup therefore depends on package-index availability. For
+production, build an immutable image instead:
+
+```dockerfile
+FROM apache/superset:6.1.0
+
+USER root
+
+RUN . /app/.venv/bin/activate && \
+    uv pip install psycopg2-binary redis "clickhouse-connect==0.13.0"
+
+USER superset
+```
+
+Push the image to your registry, then configure its immutable tag and disable
+runtime installation:
+
+```yaml
+image:
+  repository: registry.example.com/superset
+  tag: 6.1.0-clickhouse-0.13.0
+
+superset:
+  installPythonPackages: false
+```
+
+When runtime installation is disabled, the image must contain
+`psycopg2-binary`, `redis`, and every entry from `extraPythonPackages`.
 
 ## More Information
 

@@ -35,6 +35,12 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
 
+{{/* Python dependencies shared by web, worker, beat, and init. Values schema
+restricts additional entries to shell-safe package names and version specifiers. */}}
+{{- define "superset.pythonPackages" -}}
+psycopg2-binary redis{{ range .Values.superset.extraPythonPackages }} {{ . }}{{ end }}
+{{- end -}}
+
 {{- define "superset.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
 {{- default (include "superset.fullname" .) .Values.serviceAccount.name -}}

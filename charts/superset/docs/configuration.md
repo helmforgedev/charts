@@ -16,6 +16,8 @@ and Redis.
 | `worker.*` / `beat.*` | enabled | Celery worker/scheduler tiers. |
 | `init.enabled` / `init.waitImage` | `true` | Init Job (db upgrade + FAB init + admin) and the kubectl image its waiter uses. |
 | `superset.adminUsername` / `adminPassword` | `admin` / generated | First admin user. |
+| `superset.installPythonPackages` | `true` | Install Python dependencies when each Superset process starts. |
+| `superset.extraPythonPackages` | `[]` | Optional Python packages installed in every Superset process. |
 | `ingress.*` | disabled | Expose the web UI. |
 
 ## Init ordering (why there is a wait-for-init)
@@ -37,6 +39,25 @@ Use bundled subcharts or managed datastores (`database.mode: external`,
 `redisConfig.mode: external`). The SQLAlchemy URI and Redis URL are assembled at
 runtime with `$(DB_PASSWORD)`/`$(REDIS_PASSWORD)` from secrets, never templated
 into a ConfigMap.
+
+## Optional Python dependencies
+
+`superset.extraPythonPackages` adds database drivers and extensions to the
+existing runtime dependency installation for web, worker, beat, and init. Each
+entry must be a package name with an optional version constraint; direct URLs
+and environment markers are not accepted. Pin tested versions:
+
+```yaml
+superset:
+  extraPythonPackages:
+    - clickhouse-connect==0.13.0
+```
+
+Runtime installation is convenient but makes pod startup depend on the package
+index. Production deployments should derive an immutable image from the pinned
+Superset image, preinstall `psycopg2-binary`, `redis`, and all additional
+packages, select it with `image.repository` and `image.tag`, and set
+`superset.installPythonPackages: false`.
 
 ## Access
 
