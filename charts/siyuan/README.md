@@ -1,7 +1,7 @@
 # SiYuan
 
 Private knowledge workspace with a persistent filesystem, native access-code authentication and optional OIDC. The chart
-uses the official `docker.io/b3log/siyuan:v3.8.5` image, verified for Linux amd64, arm64 and arm.
+uses the official `docker.io/b3log/siyuan:v3.8.6` image, verified for Linux amd64, arm64 and arm.
 
 ## Production contract
 
@@ -176,9 +176,10 @@ Take a quiesced backup first. Review upstream storage-format changes and allow R
 manifests and image, not data migrations. Restore a compatible workspace backup when an older version cannot read newer
 storage.
 
-SiYuan v3.8.5 adds database calendar/list views and fixes security, sync,
-unreferenced-asset cleanup, OIDC redirect and S3 configuration issues. Review the
-[upstream release](https://github.com/siyuan-note/siyuan/releases/tag/v3.8.5).
+SiYuan v3.8.6 expands mind maps and database calendars, improves startup,
+synchronization, index recovery and large-document performance, and fixes security
+and database transaction issues. Review the
+[upstream release](https://github.com/siyuan-note/siyuan/releases/tag/v3.8.6).
 
 ## Security Scan
 

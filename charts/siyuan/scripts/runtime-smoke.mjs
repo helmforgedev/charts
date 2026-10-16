@@ -41,7 +41,10 @@ if(values.oidc.enabled){
  const client=readFileSync(new URL('./oidc-fixture-client.cjs',import.meta.url),'utf8');
  const output=k(['exec',pod(),'-c','oidc-fixture','--','node','-e',client]);assert.ok(output.includes('PASS native OIDC'));console.log(output.trim());
 }
-execFileSync('helm',['upgrade',release,fileURLToPath(new URL('..',import.meta.url)),'--kube-context',context,'-n',namespace,'--reuse-values','--wait','--timeout','60s'],{encoding:'utf8',timeout:75000});assert.deepEqual(JSON.parse(k(['get','secret',secretName,'-o','json'])).data,secret,'Helm upgrade must retain access code');
+execFileSync('helm',['upgrade',release,fileURLToPath(new URL('..',import.meta.url)),'--kube-context',context,'-n',namespace,'--reset-then-reuse-values','--wait','--timeout','60s'],{encoding:'utf8',timeout:75000});assert.deepEqual(JSON.parse(k(['get','secret',secretName,'-o','json'])).data,secret,'Helm upgrade must retain access code');
+const upgradedValues=JSON.parse(execFileSync('helm',['get','values',release,'-n',namespace,'--kube-context',context,'-a','-o','json'],{encoding:'utf8'}));
+const upgradedPod=JSON.parse(k(['get','pods','-l',`app.kubernetes.io/instance=${release},app.kubernetes.io/name=siyuan`,'-o','json'])).items.find(p=>!p.metadata.deletionTimestamp);assert.equal(upgradedPod.spec.containers.find(c=>c.name==='siyuan').image,`${upgradedValues.image.repository}:${upgradedValues.image.tag}`);assert.ok(upgradedPod.status.containerStatuses.every(c=>c.restartCount===0));
+await forward(base=>authenticated(base,async api=>{assert.equal((await api('/api/export/exportMdContent',{id:document,yfm:false,addTitle:false})).content,originalContent,'Full notebook content must survive Helm upgrade');}));
 
 if(deployment.metadata.name==='siyuan-restore'){
  assert.ok(values.persistence.enabled);
@@ -57,7 +60,7 @@ if(deployment.metadata.name==='siyuan-restore'){
  k(['wait','pod/workspace-recovery','--for=jsonpath={.status.phase}=Succeeded','--timeout=60s']);
  assert.ok(k(['logs','workspace-recovery']).includes('workspace-archive-restored'));
  k(['delete','pod/workspace-recovery','--wait=true','--timeout=30s']);
- execFileSync('helm',['upgrade',release,fileURLToPath(new URL('..',import.meta.url)),'--kube-context',context,'-n',namespace,'--reuse-values','--set','persistence.existingClaim='+restoreName,'--wait','--timeout','60s'],{encoding:'utf8',timeout:75000});
+ execFileSync('helm',['upgrade',release,fileURLToPath(new URL('..',import.meta.url)),'--kube-context',context,'-n',namespace,'--reset-then-reuse-values','--set','persistence.existingClaim='+restoreName,'--wait','--timeout','60s'],{encoding:'utf8',timeout:75000});
  await forward(base=>authenticated(base,async api=>{assert.equal((await api('/api/export/exportMdContent',{id:document,yfm:false,addTitle:false})).content,originalContent,'Fresh PVC recovery must retain complete Unicode document');}));
  console.log('PASS quiesced full-workspace archive restored into a fresh PVC, native login and identical document export');
 }
