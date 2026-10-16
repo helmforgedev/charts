@@ -224,12 +224,13 @@ service:
 
 ## Upgrade Notes
 
-ntfy 2.28.0 hardens message and cache limits. Titles are limited to 1 KiB,
-combined tags to 512 bytes, and cache replay to 10 MiB. Cache replay now counts
-toward daily visitor bandwidth and can return HTTP 429; large deployments may
-need to review `visitor-attachment-daily-bandwidth-limit`. Clients should also
-handle `X-Messages-Truncated` on capped replay responses. Back up persistent
-state and validate publishing and replay workflows before rollout.
+ntfy 2.30.0 links attachments in email notifications, supports SMTP LOGIN
+authentication, and fixes PostgreSQL memory growth introduced in 2.29.0. It
+also includes the first experimental clustering support through
+`experimental-cluster-listen`; upstream does not consider clustering ready for
+production, and this chart remains single-replica. Back up persistent state and
+validate publishing, cache replay, email delivery and attachment workflows
+before rollout. Review the [2.30.0 release](https://github.com/binwiederhier/ntfy/releases/tag/v2.30.0).
 
 ## Limitations
 
