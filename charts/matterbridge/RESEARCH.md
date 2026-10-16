@@ -3,7 +3,7 @@
 **Chart request:** helmforgedev/charts#1077
 **Requester:** drieks
 **Upstream:** [Matterbridge on GitHub](https://github.com/Luligu/matterbridge)
-**Research date:** 2026-09-09
+**Research date:** 2026-10-16
 
 ## Product and Runtime
 
@@ -11,11 +11,11 @@ Matterbridge is an Apache-2.0 Matter plugin manager. It exposes devices from
 platforms such as Zigbee2MQTT, MQTT, Home Assistant, Homebridge and Shelly to
 Matter controllers including Apple Home, Google Home and Amazon Alexa.
 
-The stable upstream release selected for this chart is `3.10.11`, published on
-2026-09-26. The official pinned image is
-`docker.io/luligu/matterbridge:3.10.11`. HelmForge manifest verification
+The stable upstream release selected for this chart is `3.10.13`, published on
+2026-10-09. The official pinned image is
+`docker.io/luligu/matterbridge:3.10.13`. HelmForge manifest verification
 confirmed `linux/amd64` and `linux/arm64` support. The selected standalone image
-reports OCI application version `3.10.11`.
+reports OCI application version `3.10.13`.
 
 Year-based tags such as `2026.9.1` in the same repository are Home Assistant
 add-on images with an s6 `/init` entrypoint. They are a different distribution
@@ -196,7 +196,7 @@ reflection as supported features.
 ## Primary Sources
 
 - [Matterbridge repository](https://github.com/Luligu/matterbridge)
-- [Matterbridge 3.10.11 release](https://github.com/Luligu/matterbridge/releases/tag/3.10.11)
+- [Matterbridge 3.10.13 release](https://github.com/Luligu/matterbridge/releases/tag/3.10.13)
 - [Official Docker documentation](https://github.com/Luligu/matterbridge/blob/main/README-DOCKER.md)
 - [Official Docker Compose file](https://github.com/Luligu/matterbridge/blob/main/docker/docker-compose.yml)
 - [Official health check source](https://github.com/Luligu/matterbridge/blob/main/packages/core/src/mb_health.ts)
