@@ -54,10 +54,11 @@ kubectl port-forward svc/<release>-komga 25600:80
 
 ## Upgrade Notes
 
-Komga `1.27.1` fixes missing API restriction checks, Kobo proxy synchronization
-and unnecessary book downloads after metadata changes, alongside UI fixes.
-Back up the `/config` PVC before upgrading because Komga stores its SQLite
-databases there.
+Komga `1.29.1` supersedes 1.29.0 with fixes for NextUI reader links and dialogs.
+The 1.29 line adds notable entities, OAuth2 login in NextUI, a selectable
+default UI, and persistent HTTP sessions in a dedicated SQLite database for
+Docker deployments. The chart's `/config` PVC covers both the main database
+and the session database. Back up that PVC before upgrading.
 
 ## Production Example
 
@@ -105,7 +106,7 @@ backup:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/gotson/komga` | Image repository |
-| `image.tag` | `"1.27.1"` | Image tag |
+| `image.tag` | `"1.29.1"` | Image tag |
 | `image.pullPolicy` | `IfNotPresent` | Pull policy |
 
 ### Komga Configuration
