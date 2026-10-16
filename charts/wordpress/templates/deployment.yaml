@@ -65,6 +65,93 @@ spec:
               value: {{ include "wordpress.databaseHost" . | quote }}
             - name: DB_PORT
               value: {{ include "wordpress.databasePort" . | quote }}
+        {{- if and .Values.coreSync.enabled (or (eq .Values.image.repository "docker.io/library/wordpress") .Values.coreSync.allowCustomImage) }}
+        - name: sync-wordpress-core
+          image: {{ include "wordpress.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - |
+              read_version() {
+                awk -F"'" '/^\$wp_version = / { print $2; exit }' "$1"
+              }
+              source_version="$(read_version /usr/src/wordpress/wp-includes/version.php)"
+              if [ -z "$source_version" ]; then
+                echo "Unable to read the WordPress version from the image." >&2
+                exit 1
+              fi
+              if [ ! -f /var/www/html/wp-includes/version.php ]; then
+                if [ ! -f /var/www/html/index.php ]; then
+                  echo "WordPress core is not initialized; the main container will seed version ${source_version}."
+                  exit 0
+                fi
+                echo "Persisted core is incomplete; synchronizing version ${source_version}."
+                target_version=""
+              else
+                target_version="$(read_version /var/www/html/wp-includes/version.php)"
+              fi
+              completion_marker=/var/www/html/.helmforge-core-version
+              completed_version="$(cat "$completion_marker" 2>/dev/null || true)"
+              if [ "$source_version" = "$target_version" ] && [ "$source_version" = "$completed_version" ]; then
+                echo "WordPress core ${target_version} is already synchronized."
+                exit 0
+              fi
+              if [ -n "$target_version" ] && [ "$source_version" != "$target_version" ]; then
+                newest_version="$(printf '%s\n%s\n' "$source_version" "$target_version" | sort -V | tail -n 1)"
+                if [ "$newest_version" = "$target_version" ]; then
+                  echo "Persisted WordPress core ${target_version} is newer than image core ${source_version}; skipping downgrade."
+                  exit 0
+                fi
+              fi
+              echo "Synchronizing WordPress core ${target_version} -> ${source_version}."
+              stage=/var/www/html/.helmforge-core-sync
+              rm -rf "$stage"
+              mkdir -p "$stage"
+              cp -a /usr/src/wordpress/wp-admin /usr/src/wordpress/wp-includes "$stage/"
+              for source_file in /usr/src/wordpress/*; do
+                [ -f "$source_file" ] || continue
+                [ "$(basename "$source_file")" = "wp-config.php" ] && continue
+                cp -a "$source_file" "$stage/"
+              done
+              staged_version="$(read_version "$stage/wp-includes/version.php")"
+              if [ "$staged_version" != "$source_version" ]; then
+                echo "Staged WordPress core failed version validation." >&2
+                exit 1
+              fi
+              rm -rf /var/www/html/wp-admin.previous /var/www/html/wp-includes.previous
+              [ ! -d /var/www/html/wp-admin ] || mv /var/www/html/wp-admin /var/www/html/wp-admin.previous
+              mv "$stage/wp-admin" /var/www/html/wp-admin
+              [ ! -d /var/www/html/wp-includes ] || mv /var/www/html/wp-includes /var/www/html/wp-includes.previous
+              mv "$stage/wp-includes" /var/www/html/wp-includes
+              for staged_file in "$stage"/*; do
+                [ -f "$staged_file" ] || continue
+                cp -f "$staged_file" /var/www/html/
+              done
+              printf '%s\n' "$source_version" > "${completion_marker}.tmp"
+              mv "${completion_marker}.tmp" "$completion_marker"
+              rm -rf "$stage" /var/www/html/wp-admin.previous /var/www/html/wp-includes.previous
+              chown -R 33:33 /var/www/html/wp-admin /var/www/html/wp-includes
+              for source_file in /usr/src/wordpress/*; do
+                [ -f "$source_file" ] || continue
+                [ "$(basename "$source_file")" = "wp-config.php" ] && continue
+                chown 33:33 "/var/www/html/$(basename "$source_file")"
+              done
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: false
+            runAsUser: 0
+            capabilities:
+              add:
+                - CHOWN
+                - DAC_OVERRIDE
+                - FOWNER
+              drop:
+                - ALL
+          volumeMounts:
+            - name: wordpress-data
+              mountPath: /var/www/html
+        {{- end }}
         {{- with .Values.extraInitContainers }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

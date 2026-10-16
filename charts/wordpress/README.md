@@ -16,6 +16,23 @@ helm install wordpress helmforge/wordpress
 helm install wordpress oci://ghcr.io/helmforgedev/helm/wordpress
 ```
 
+## Upgrade notes for 7.1.3
+
+WordPress 7.1.3 is a maintenance and security release with seven security fixes
+and four bug fixes. The security fixes cover stored XSS, denial of service,
+second-order SQL injection, authorization weaknesses, disclosure of comments on
+private or unpublished posts, unsafe embeds, and hook action-name collisions.
+Back up the database and `wp-content` before upgrading. The chart synchronizes
+the core files from the selected image into the persistent volume while
+preserving `wp-content`, `wp-config.php`, `.htaccess`, and custom root files.
+After upgrading, verify the site, administration pages, comments, embeds,
+exports, and scheduled jobs. Custom repositories skip synchronization unless
+`coreSync.allowCustomImage=true`; opt in only when the image retains the
+official `/usr/src/wordpress` layout and standard shell utilities.
+
+See the [WordPress 7.1.3 release announcement](https://wordpress.org/news/2026/10/wordpress-7-1-3-maintenance-and-security-release/)
+for the upstream details.
+
 ## Quick Start
 
 The default path is intentionally convenient for development and evaluation: one WordPress Deployment,
@@ -418,6 +435,8 @@ The chart creates an `HTTPRoute` that sends traffic to the WordPress Service.
 | `networkPolicy.enabled` | `false` | Create NetworkPolicy |
 | `networkPolicy.egress.enabled` | `false` | Manage egress allow list |
 | `networkPolicy.egress.extraEgress` | `[]` | Append complete custom egress rules with optional ports |
+| `coreSync.enabled` | `true` | Synchronize image core files into an existing WordPress volume |
+| `coreSync.allowCustomImage` | `false` | Opt a compatible custom repository into core synchronization |
 | `metrics.enabled` | `false` | Enable Apache exporter sidecar |
 | `metrics.serviceMonitor.enabled` | `false` | Create ServiceMonitor |
 | `plugins.enabled` | `false` | Enable plugin installer support |

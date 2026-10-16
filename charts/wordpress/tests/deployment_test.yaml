@@ -61,6 +61,40 @@ tests:
           path: spec.template.spec.containers[0].image
           pattern: "wordpress:.*-apache"
 
+  - it: should synchronize persisted WordPress core from the selected image
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: sync-wordpress-core
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "Synchronizing WordPress core"
+      - contains:
+          path: spec.template.spec.initContainers[1].volumeMounts
+          content:
+            name: wordpress-data
+            mountPath: /var/www/html
+
+  - it: should preserve custom images without the official core layout
+    template: templates/deployment.yaml
+    set:
+      image.repository: example.com/custom-wordpress
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.initContainers
+          count: 1
+
+  - it: should allow compatible custom images to opt into core synchronization
+    template: templates/deployment.yaml
+    set:
+      image.repository: example.com/custom-wordpress
+      coreSync.allowCustomImage: true
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: sync-wordpress-core
+
   - it: should set WORDPRESS_DB_HOST env var
     template: templates/deployment.yaml
     asserts:
@@ -289,7 +323,7 @@ tests:
           command: ["sh", "-c", "true"]
     asserts:
       - equal:
-          path: spec.template.spec.initContainers[1].name
+          path: spec.template.spec.initContainers[2].name
           value: prepare-content
 
   - it: should append extra containers
