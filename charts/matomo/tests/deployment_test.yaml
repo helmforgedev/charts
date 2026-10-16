@@ -37,7 +37,7 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].volumeMounts[0].mountPath
           value: /var/www/html
-  - it: synchronizes image code into the persistent application volume
+  - it: synchronizes image code without replacing volume root metadata
     template: deployment.yaml
     asserts:
       - equal:
@@ -51,7 +51,10 @@ tests:
           value: /var/www/html
       - matchRegex:
           path: spec.template.spec.initContainers[1].command[2]
-          pattern: 'tar cf - --one-file-system -C /usr/src/matomo \. \| tar xf - -C /var/www/html'
+          pattern: 'cd /usr/src/matomo/'
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: 'tar cf - --one-file-system \$\(ls -A\) \| tar xf - -C /var/www/html --no-overwrite-dir'
       - matchRegex:
           path: spec.template.spec.initContainers[1].command[2]
           pattern: 'chown -R "\$\{user\}:\$\{group\}" /var/www/html'

@@ -11,6 +11,8 @@ or external MySQL/MariaDB connection, and a CronJob for Matomo archiving.
 - Uses the official `docker.io/library/matomo` image instead of vendor images.
 - Makes the production archiver CronJob first-class.
 - Synchronizes image-managed code into the application PVC before web startup.
+- Preserves existing directory metadata during code sync so non-root images can
+  use volumes made writable through `fsGroup`.
 - Keeps external database and External Secrets flows explicit for managed DBs.
 - Supports dual-stack Service fields, Gateway API, and NetworkPolicy defaults.
 

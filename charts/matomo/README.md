@@ -73,6 +73,12 @@ release files into the persistent volume on every web pod start, so changing
 overwrites files shipped by the image but retains PVC-only files such as
 `config/config.ini.php`, installed plugins, and `misc/user` content.
 
+The sync archives the entries inside `/usr/src/matomo` rather than the source
+directory itself, and preserves metadata on directories that already exist in
+the volume. This allows the init container to run as a non-root UID when the
+volume is writable through `podSecurityContext.fsGroup`; it does not need to
+change the ownership, mode, or timestamps of the volume root.
+
 The Deployment defaults to `updateStrategy.type=Recreate`, ensuring the old web
 pod is stopped before the new init container changes application files. Plan a
 brief maintenance window for image upgrades. Override this only when application

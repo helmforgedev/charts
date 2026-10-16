@@ -13,6 +13,11 @@ before the web container starts. The synchronization overwrites image-managed
 files without deleting configuration, marketplace plugins, or other files that
 exist only on the PVC.
 
+The sync archives the source directory's top-level entries instead of the
+directory itself and preserves metadata on existing directories. A non-root init
+container can therefore write through an `fsGroup`-prepared volume without
+attempting to change the mode or timestamps of the volume root.
+
 The default `Recreate` Deployment strategy stops the old web pod before the new
 init container modifies the shared application volume. Treat image upgrades as
 a brief maintenance window. A `RollingUpdate` override is safe only when no
