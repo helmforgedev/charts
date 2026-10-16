@@ -68,7 +68,7 @@ Hoppscotch AIO uses subpath-based routing (`ENABLE_SUBPATH_BASED_ACCESS=true`):
 
 All traffic goes through a single Ingress/Service on port 80.
 Inside the pod, the AIO Caddy server listens on non-root port `8081` via
-`HOPP_AIO_ALTERNATE_PORT`; the Kubernetes Service maps external port `80` to
+`HOPP_ALTERNATE_PORT`; the Kubernetes Service maps external port `80` to
 that named container port. Port `8080` remains reserved for the Hoppscotch
 backend process inside the AIO image.
 
@@ -77,7 +77,7 @@ backend process inside the AIO image.
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `mode` | Chart mode: `dev` or `production` | `dev` |
-| `image.tag` | Hoppscotch image tag | `2026.8.2` |
+| `image.tag` | Hoppscotch image tag | `2026.9.0` |
 | `namespaceOverride` | Namespace for chart-managed resources. Use with an external database; bundled PostgreSQL remains in the Helm release namespace. | `""` |
 | `replicaCount` | Number of replicas | `1` |
 | `ingress.enabled` | Enable Ingress | `false` |
@@ -105,8 +105,9 @@ backend process inside the AIO image.
 
 ## Upgrade Notes
 
-Hoppscotch `2026.8.2` includes the `2026.8.0` Community Edition changes that unify REST and GraphQL workspaces, add data collection
-runs, and includes security and maintenance fixes. Back up the
+Hoppscotch `2026.9.0` adds the AI assistant and related provider connections for Enterprise Self-Host, introduces Enterprise
+Cloud capabilities, and updates backend dependencies and Caddy to address high-severity vulnerabilities. The Community Edition
+deployment contract, database migration command, ports, and health endpoint remain compatible with `2026.8.2`. Back up the
 PostgreSQL database and keep `DATA_ENCRYPTION_KEY` stable before upgrading.
 The bundled PostgreSQL path now derives `DATABASE_URL` from the PostgreSQL
 user password Secret, bootstraps `pg_trgm` on fresh data directories, and runs
@@ -116,8 +117,9 @@ The chart also persists `WEBAPP_SERVER_SIGNING_KEY` in the chart Secret so
 signed web bundles remain valid across pod restarts. When using External
 Secrets, include `webapp-server-signing-key` in `externalSecrets.data`, or set
 `signingKey.existingSecret` and `signingKey.existingSecretKey` to reference a
-separately managed Secret. Releases `2026.8.1` and `2026.8.2` contain no
-functional Community Edition changes.
+separately managed Secret. The chart now uses the current `HOPP_ALTERNATE_PORT`
+name for the non-root AIO listener; upstream continues to accept the legacy
+`HOPP_AIO_ALTERNATE_PORT` name for compatibility.
 
 ## Examples
 
