@@ -5,7 +5,7 @@ encryption identity.
 
 ## Operating contract
 
-- Official `twentycrm/twenty:v2.43.0` image pinned by immutable manifest digest.
+- Official `twentycrm/twenty:v2.46.0` image pinned by immutable manifest digest.
 - One Recreate Pod serializes migrations and shares local files between server and worker. This chart does not claim
   application HA or horizontal scaling.
 - Native first-administrator and workspace activation before public startup, followed by explicit closure of public
@@ -69,18 +69,19 @@ AI providers and hosted function execution are outside the tested integration se
 See [dependencies](docs/dependencies.md), [storage](docs/storage.md), [SMTP](docs/smtp.md) and
 [observability](docs/observability.md).
 
-## Upgrading to 2.43.0
+## Upgrading to 2.46.0
 
-Twenty 2.43 migrates workflows and application-scoped core schemas, changes
-file uploads to direct storage paths, and includes permission, OAuth and
-dependency hardening. Review the
-[official release](https://github.com/twentyhq/twenty/releases/tag/twenty%2Fv2.43.0)
-and take a coordinated database, files and Redis backup before upgrading. Preserve
-`ENCRYPTION_KEY`, `SERVER_ID` and the ownership marker. Startup applies native
-migrations; application installation state now comes from deterministic queue
-jobs instead of the removed `Application.state` GraphQL field. Custom API clients
-must use the install/uninstall job status queries. Existing Canvas tabs migrate
-to vertical lists, and AI model selection uses a five-tier slider.
+Twenty 2.46 includes the 2.44-2.46 native migrations and breaking API changes.
+Application registration variables must be declared through manifests, record
+sharing and usage-limit APIs changed, application upgrades are now queued jobs,
+and `sendInboxMessage` now accepts workspace member IDs. Review the
+[2.44](https://github.com/twentyhq/twenty/releases/tag/twenty%2Fv2.44.0),
+[2.45](https://github.com/twentyhq/twenty/releases/tag/twenty%2Fv2.45.0) and
+[2.46](https://github.com/twentyhq/twenty/releases/tag/twenty%2Fv2.46.0)
+releases and take a coordinated database, files and Redis backup before
+upgrading. Preserve `ENCRYPTION_KEY`, `SERVER_ID` and the ownership marker.
+Startup applies native migrations; test custom applications, MCP clients,
+sharing integrations and workflow agents against the new contracts first.
 
 Private-network SSO issuers, mail and calendar hosts now require the native
 `OUTBOUND_HTTP_ALLOWED_INTERNAL_HOSTS` allowlist through `extraEnv`. Use explicit
