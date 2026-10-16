@@ -51,7 +51,7 @@ try {
   assert.ok(localPort, 'port-forward must become ready');
   base = `http://127.0.0.1:${localPort}`;
   const info = await request('GET', '/');
-  assert.equal(info.version, '1.19.1', 'the updated server must actually run');
+  assert.equal(info.version, '1.19.2', 'the updated server must actually run');
   if (writeKey) await request('GET', '/collections', undefined, 'invalid-key', 401);
   const distributed = env.some(e => e.name === 'QDRANT__CLUSTER__ENABLED' && e.value === 'true');
   if (distributed) {
@@ -77,7 +77,7 @@ try {
   }
   await request('DELETE', `/collections/${collection}`);
   created = false;
-  console.log(`Qdrant 1.19.1: vector write/query/delete passed; ${pods.length} pod(s); authenticated=${Boolean(writeKey)}; distributed=${distributed}`);
+  console.log(`Qdrant 1.19.2: vector write/query/delete passed; ${pods.length} pod(s); authenticated=${Boolean(writeKey)}; distributed=${distributed}`);
 } finally {
   if (created) await request('DELETE', `/collections/${collection}`).catch(() => {});
   if (forward.exitCode === null) {
