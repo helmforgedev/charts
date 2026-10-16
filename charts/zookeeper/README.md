@@ -23,7 +23,7 @@ helm install zookeeper oci://ghcr.io/helmforgedev/helm/zookeeper -f values.yaml
 
 ## What This Chart Covers
 
-- official Apache ZooKeeper image with pinned `3.9.5` default tag
+- official Apache ZooKeeper image with pinned `3.9.6` default tag
 - replicated StatefulSet ensemble with stable pod DNS
 - default three-node quorum and validation against accidental even replica counts
 - standalone development mode with `replicaCount: 1`
@@ -43,6 +43,19 @@ helm install zookeeper oci://ghcr.io/helmforgedev/helm/zookeeper -f values.yaml
 | Standalone | `replicaCount: 1` | Local development, CI, and non-critical tests. |
 
 Keep production replica counts odd. The chart blocks even replica counts unless `allowEvenReplicas=true` is set deliberately.
+
+## Upgrade notes for 3.9.6
+
+ZooKeeper 3.9.6 is an upstream bugfix and security release. It updates Netty to
+address reported vulnerabilities, prevents metrics logging from exposing
+keystore and truststore passwords, fixes C-client and Kerberos thread leaks,
+restores custom TLS context and FIPS startup paths, and improves shutdown and
+CLI behavior. No chart contract change is required for the 3.9.5 to 3.9.6
+upgrade, but back up snapshots and transaction logs and verify quorum health
+before and after rolling the ensemble.
+
+See the [Apache ZooKeeper 3.9.6 release notes](https://zookeeper.apache.org/doc/r3.9.6/releasenotes.html)
+for the complete upstream issue list.
 
 ## Quick Start
 
@@ -207,7 +220,7 @@ listed families.
 | `replicaCount` | Number of ZooKeeper servers | `3` |
 | `allowEvenReplicas` | Permit even replica counts | `false` |
 | `image.repository` | ZooKeeper image repository | `docker.io/library/zookeeper` |
-| `image.tag` | ZooKeeper image tag | `3.9.5` |
+| `image.tag` | ZooKeeper image tag | `3.9.6` |
 | `zookeeper.tickTime` | ZooKeeper tick time in milliseconds | `2000` |
 | `zookeeper.initLimit` | ZooKeeper init limit | `10` |
 | `zookeeper.syncLimit` | ZooKeeper sync limit | `5` |
@@ -253,4 +266,5 @@ Security posture acceptable.
 - [Apache ZooKeeper Administrator's Guide](https://zookeeper.apache.org/doc/current/zookeeperAdmin.html)
 - [Apache ZooKeeper Getting Started](https://zookeeper.apache.org/doc/current/zookeeperStarted.html)
 - [ZooKeeper releases](https://zookeeper.apache.org/releases.html)
+- [ZooKeeper 3.9.6 release notes](https://zookeeper.apache.org/doc/r3.9.6/releasenotes.html)
 - [Official Docker image](https://hub.docker.com/_/zookeeper)
