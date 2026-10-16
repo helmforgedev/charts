@@ -83,7 +83,7 @@ Metabase image, so proxy-based environments can mirror both images:
 ```yaml
 image:
   repository: registry.example.com/proxy/metabase/metabase
-  tag: v0.63.18
+  tag: v0.64.1
 
 waitForDatabase:
   image:
@@ -150,7 +150,7 @@ externalSecrets:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/metabase/metabase` | Metabase container image repository |
-| `image.tag` | `v0.63.18` | Metabase container image tag |
+| `image.tag` | `v0.64.1` | Metabase container image tag |
 | `waitForDatabase.image.repository` | `docker.io/library/busybox` | Wait-for-db init container image repository |
 | `waitForDatabase.image.tag` | `1.37` | Wait-for-db init container image tag |
 | `waitForDatabase.image.pullPolicy` | `IfNotPresent` | Wait-for-db init container image pull policy |
@@ -184,8 +184,8 @@ externalSecrets:
 
 ## Upgrade Notes
 
-Metabase `v0.63.18` is a public maintenance release. Back up the Metabase application
-database and review the [official Metabase 63 changelog](https://www.metabase.com/changelog/63#metabase-6318)
+Metabase `v0.64.1` is the first public maintenance release in the 0.64 line. Back up the Metabase application
+database and review the [official Metabase 64 changelog](https://www.metabase.com/changelog/64#metabase-641)
 before upgrading. Keep the encryption key stable and validate the `/api/health`
 endpoint after rollout.
 
@@ -195,14 +195,14 @@ Secret during connected Helm upgrades. For GitOps or offline rendering, set
 cluster's current key. An explicit `metabase.encryptionSecretKey` takes precedence
 and must not change after installation.
 
-Metabase 0.63.18 includes the 0.63 maintenance-line fixes that protect additional setting values and warn when startup
-encrypts legacy plaintext fields. To refuse that automatic cleanup instead,
+Metabase 0.64.1 includes the 0.64 feature line and its first maintenance fixes.
+The existing startup encryption behavior remains relevant: to refuse automatic cleanup of legacy plaintext fields,
 set `MB_DISABLE_LEGACY_STARTUP_ENCRYPTION=true` through `metabase.extraEnv`.
 The upstream default is `false`. This option is separate from enabling
 encryption on an application database that has never been encrypted.
 The patch also validates LDAP server certificates; verify the trust chain of
 your LDAP server before upgrading an LDAP-enabled deployment.
-See the [0.63.18 changelog](https://www.metabase.com/changelog/63#metabase-6318).
+See the [0.64.1 changelog](https://www.metabase.com/changelog/64#metabase-641).
 
 Starting with 0.63.16, adding encryption to an existing unencrypted application
 database requires an explicit migration. Back up the database and key, stop all
