@@ -126,10 +126,10 @@ externalSecrets:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/louislam/uptime-kuma` | Uptime Kuma container image |
-| `image.tag` | `2.5.5` | Uptime Kuma image tag |
+| `image.tag` | `2.5.6` | Uptime Kuma image tag |
 | `uptimeKuma.port` | `3001` | Application port |
 | `database.type` | `sqlite` | Database type (sqlite, mariadb) |
-| `mysql.enabled` | `false` | Deploy MySQL subchart (`helmforge/mysql` `2.0.3`) |
+| `mysql.enabled` | `false` | Deploy MySQL subchart (`helmforge/mysql` `2.1.0`) |
 | `persistence.enabled` | `true` | Enable persistence for /app/data |
 | `persistence.size` | `2Gi` | PVC size |
 | `ingress.enabled` | `false` | Enable ingress |
@@ -141,11 +141,10 @@ externalSecrets:
 
 ## Upgrade Notes
 
-Uptime Kuma `2.5.5` fixes a memory leak in TCP monitors. Version 2.5.4 also
-fixed MySQL-family connection pool initialization, cached HTTP response handling,
-browser context cleanup, and JSONata security issues.
-It also adds SFTP monitoring and notification providers. The default `database.type=sqlite`, port, and persistence paths are unchanged.
-See the [upstream release notes](https://github.com/louislam/uptime-kuma/releases/tag/2.5.5).
+Uptime Kuma `2.5.6` fixes average-response badge calculations and updates
+security-sensitive dependencies. The default `database.type=sqlite`, port, and
+persistence paths are unchanged. See the
+[upstream release notes](https://github.com/louislam/uptime-kuma/releases/tag/2.5.6).
 Keep persistence enabled and back up `/app/data` before upgrading live
 instances.
 
