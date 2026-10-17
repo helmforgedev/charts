@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: cluster RPC authentication
+templates:
+  - templates/statefulset.yaml
+  - templates/configmap.yaml
+  - templates/rpc-secret.yaml
+tests:
+  - it: does not generate RPC credentials in standalone mode
+    template: templates/rpc-secret.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: generates separate RPC credentials for the cluster
+    template: templates/rpc-secret.yaml
+    set:
+      architecture: cluster
+      replicaCount: 4
+      auth.existingSecret: s3-credentials
+      auth.rpcSecret: test-rpc-secret-at-least-thirty-two-characters
+    asserts:
+      - equal:
+          path: data.rpc-secret
+          value: dGVzdC1ycGMtc2VjcmV0LWF0LWxlYXN0LXRoaXJ0eS10d28tY2hhcmFjdGVycw==
+  - it: references generated RPC credentials in the storage container
+    template: templates/statefulset.yaml
+    set:
+      architecture: cluster
+      replicaCount: 4
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[2].valueFrom.secretKeyRef.name
+          pattern: '-rpc$'
+      - equal:
+          path: spec.template.spec.containers[0].env[2].name
+          value: RUSTFS_RPC_SECRET
+  - it: uses existing RPC secret keys
+    template: templates/statefulset.yaml
+    set:
+      architecture: distributed
+      replicaCount: 4
+      auth.rpcExistingSecret: internode-auth
+      auth.rpcSecretKey: shared-key
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[2].valueFrom.secretKeyRef
+          value:
+            name: internode-auth
+            key: shared-key
+  - it: does not generate a secret when existing RPC credentials are supplied
+    template: templates/rpc-secret.yaml
+    set:
+      architecture: cluster
+      replicaCount: 4
+      auth.rpcExistingSecret: internode-auth
+    asserts:
+      - hasDocuments:
+          count: 0

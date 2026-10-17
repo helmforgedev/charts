@@ -1,0 +1,168 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: shared chart configuration contracts
+templates:
+  - templates/statefulset.yaml
+  - templates/configmap.yaml
+  - templates/pdb.yaml
+  - templates/replication-configmap.yaml
+  - templates/replication-job.yaml
+  - templates/tests/test-connection.yaml
+tests:
+  - it: accepts the documented percentage disruption budget
+    template: templates/pdb.yaml
+    set:
+      pdb.enabled: true
+      pdb.maxUnavailable: 25%
+    asserts:
+      - equal:
+          path: spec.maxUnavailable
+          value: 25%
+  - it: propagates pull secrets and service account to health tests
+    template: templates/tests/test-connection.yaml
+    set:
+      imagePullSecrets:
+        - name: private-registry
+      serviceAccount.name: workload-account
+      nodeSelector:
+        workload: storage
+      tolerations:
+        - key: storage
+          operator: Exists
+    asserts:
+      - equal:
+          path: spec.imagePullSecrets[0].name
+          value: private-registry
+      - equal:
+          path: spec.serviceAccountName
+          value: workload-account
+      - equal:
+          path: spec.nodeSelector.workload
+          value: storage
+      - equal:
+          path: spec.tolerations[0].key
+          value: storage
+  - it: preserves common metadata on health pods without selecting them for storage traffic
+    template: templates/tests/test-connection.yaml
+    set:
+      commonLabels:
+        team: platform
+    asserts:
+      - equal:
+          path: metadata.labels.team
+          value: platform
+      - equal:
+          path: metadata.labels["app.kubernetes.io/part-of"]
+          value: helmforge
+      - notExists:
+          path: metadata.labels["app.kubernetes.io/name"]
+  - it: preserves common metadata on replication pods without selecting them for storage traffic
+    template: templates/replication-job.yaml
+    values:
+      - ../ci/replication-bucket-values.yaml
+    set:
+      commonLabels:
+        team: platform
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.team
+          value: platform
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/component"]
+          value: replication-setup
+      - notExists:
+          path: spec.template.metadata.labels["app.kubernetes.io/name"]
+  - it: rejects a peer pointing back to the default local endpoint
+    template: templates/statefulset.yaml
+    release:
+      name: demo
+      namespace: storage
+    set:
+      replication:
+        enabled: true
+        peers:
+          - name: self
+            endpoint: http://demo-rustfs.storage.svc.cluster.local:9000/
+            existingSecret: credentials
+        buckets:
+          - id: backup
+            sourceBucket: uploads
+            destinationPeer: self
+            destinationBucket: backup
+            priority: 1
+    asserts:
+      - failedTemplate:
+          errorMessage: replication peer endpoint must differ from localEndpoint
+  - it: rejects an existing claim when persistence is disabled
+    template: templates/statefulset.yaml
+    set:
+      persistence.enabled: false
+      persistence.existingClaim: existing-data
+    asserts:
+      - failedTemplate:
+          errorMessage: persistence.existingClaim requires persistence.enabled=true
+  - it: retains completed health test pods so helm test can retrieve logs
+    template: templates/tests/test-connection.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/hook-delete-policy"]
+          value: before-hook-creation
+
+  - it: reserves StatefulSet revision label space for long release names
+    template: templates/statefulset.yaml
+    release:
+      name: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    asserts:
+    - equal:
+        path: metadata.name
+        value: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-182032ef
+    - equal:
+        path: spec.serviceName
+        value: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-182032ef-headless
+
+  - it: reserves StatefulSet revision label space for long fullname overrides
+    template: templates/statefulset.yaml
+    set:
+      fullnameOverride: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    asserts:
+    - equal:
+        path: metadata.name
+        value: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    - equal:
+        path: spec.serviceName
+        value: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb-headless
+
+  - it: distinguishes long release names sharing their first 52 characters
+    template: templates/statefulset.yaml
+    release:
+      name: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab
+    asserts:
+    - equal:
+        path: metadata.name
+        value: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-9ecabf6d
+    - equal:
+        path: spec.serviceName
+        value: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-9ecabf6d-headless
+
+  - it: preserves generated names at the 52-character boundary
+    template: templates/statefulset.yaml
+    release:
+      name: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    asserts:
+    - equal:
+        path: metadata.name
+        value: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-rustfs
+    - equal:
+        path: spec.serviceName
+        value: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-rustfs-headless
+
+  - it: preserves short generated names
+    template: templates/statefulset.yaml
+    release:
+      name: storage
+    asserts:
+    - equal:
+        path: metadata.name
+        value: storage-rustfs
+    - equal:
+        path: spec.serviceName
+        value: storage-rustfs-headless

@@ -1,0 +1,44 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- range $console := list false true }}
+{{- if or (not $console) $.Values.config.consoleEnabled }}
+{{- $svc := ternary $.Values.consoleService $.Values.service $console }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "rustfs.fullname" $ }}{{ if $console }}-console{{ end }}
+  labels:
+    {{- include "rustfs.labels" $ | nindent 4 }}
+  {{- with $svc.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ $svc.type }}
+  ports:
+    - name: {{ ternary "console" "api" $console }}
+      port: {{ $svc.port }}
+      targetPort: {{ ternary "console" "api" $console }}
+  selector:
+    {{- include "rustfs.selectorLabels" $ | nindent 4 }}
+    {{- if and $console (has $.Values.architecture (list "distributed" "cluster")) }}
+    statefulset.kubernetes.io/pod-name: {{ include "rustfs.fullname" $ }}-0
+    {{- end }}
+{{- end }}
+{{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "rustfs.fullname" . }}-headless
+  labels:
+    {{- include "rustfs.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    - name: api
+      port: 9000
+      targetPort: api
+  selector:
+    {{- include "rustfs.selectorLabels" . | nindent 4 }}

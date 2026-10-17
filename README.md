@@ -71,6 +71,7 @@ Browse the full catalog with descriptions, install commands, values guidance, an
 
 Common categories include:
 
+- **Object storage**: [RustFS](charts/rustfs) for standalone/distributed S3-compatible storage and bucket/site replication.
 - **Data services**: PostgreSQL, MySQL, MariaDB, MongoDB, Redis, Valkey, Kafka, ZooKeeper, RabbitMQ, Elasticsearch, and Druid.
 - **Identity and access**: Keycloak, Authelia, OAuth2 Proxy, and application charts with ingress/auth patterns.
 - **Operations and automation**: n8n, Cronicle, FastMCP Server, Cloudflared, Velero, DDNS Updater, Envoy Gateway, and Envoy Gateway CRDs.

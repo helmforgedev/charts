@@ -1,0 +1,112 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: storage topology and credentials
+templates:
+  - templates/statefulset.yaml
+  - templates/configmap.yaml
+  - templates/service.yaml
+  - templates/secret.yaml
+tests:
+  - it: defaults to one durable pod
+    template: templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.name
+          value: data
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+  - it: creates distributed endpoints using the configured DNS domain
+    template: templates/configmap.yaml
+    set:
+      architecture: distributed
+      replicaCount: 4
+      clusterDomain: internal.test
+    asserts:
+      - matchRegex:
+          path: data.RUSTFS_VOLUMES
+          pattern: 'http://.*-\{0\.\.\.3\}\..*-headless\..*\.svc\.internal\.test:9000/data'
+  - it: pins distributed console to ordinal zero
+    template: templates/service.yaml
+    documentIndex: 1
+    set:
+      architecture: distributed
+      replicaCount: 4
+    asserts:
+      - matchRegex:
+          path: spec.selector["statefulset.kubernetes.io/pod-name"]
+          pattern: '-0$'
+  - it: does not create a secret when an existing secret is supplied
+    template: templates/secret.yaml
+    set:
+      auth.existingSecret: credentials
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: mounts an existing claim without creating another claim
+    template: templates/statefulset.yaml
+    set:
+      persistence.existingClaim: precreated
+    asserts:
+      - notExists:
+          path: spec.volumeClaimTemplates
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: precreated
+  - it: keeps container ports fixed when service ports change
+    template: templates/statefulset.yaml
+    set:
+      service.port: 80
+      consoleService.port: 8080
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 9000
+  - it: rejects selector label overrides
+    template: templates/statefulset.yaml
+    set:
+      podLabels:
+        app.kubernetes.io/name: other
+    asserts:
+      - failedTemplate:
+          errorMessage: podLabels must not override selector labels
+
+  - it: removes console service when disabled
+    template: templates/service.yaml
+    set:
+      config.consoleEnabled: false
+    asserts:
+      - hasDocuments:
+          count: 2
+  - it: maps existing credential keys
+    template: templates/statefulset.yaml
+    set:
+      auth.existingSecret: credentials
+      auth.existingSecretAccessKeyKey: username
+      auth.existingSecretSecretKeyKey: password
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[0].valueFrom.secretKeyRef
+          value:
+            name: credentials
+            key: username
+      - equal:
+          path: spec.template.spec.containers[0].env[1].valueFrom.secretKeyRef.key
+          value: password
+  - it: uses ephemeral data without claim templates
+    template: templates/statefulset.yaml
+    set:
+      persistence.enabled: false
+    asserts:
+      - notExists:
+          path: spec.volumeClaimTemplates
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}

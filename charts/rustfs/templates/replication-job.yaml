@@ -1,0 +1,88 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.replication.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "rustfs.fullname" . }}-repl
+  labels:
+    {{- include "rustfs.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  activeDeadlineSeconds: {{ .Values.replication.activeDeadlineSeconds }}
+  backoffLimit: {{ .Values.replication.backoffLimit }}
+  ttlSecondsAfterFinished: {{ .Values.replication.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "rustfs.auxiliaryLabels" (dict "root" . "component" "replication-setup") | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      serviceAccountName: {{ include "rustfs.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: setup
+          {{- with .Values.replication.image }}
+          image: {{ if .digest }}{{ printf "%s@%s" .repository .digest | quote }}{{ else }}{{ printf "%s:%s" .repository .tag | quote }}{{ end }}
+          imagePullPolicy: {{ .pullPolicy }}
+          {{- end }}
+          command: [/bin/sh, /configuration/setup.sh]
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.replication.resources | nindent 12 }}
+          volumeMounts:
+            - name: configuration
+              mountPath: /configuration
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+            - name: local-credentials
+              mountPath: /credentials/local
+              readOnly: true
+            {{- range .Values.replication.peers }}
+            - name: peer-{{ .name }}
+              mountPath: /credentials/{{ .name }}
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: configuration
+          configMap:
+            name: {{ include "rustfs.fullname" . }}-repl
+        - name: tmp
+          emptyDir: {}
+        - name: local-credentials
+          secret:
+            secretName: {{ include "rustfs.secretName" . }}
+            items:
+              - key: {{ if .Values.auth.existingSecret }}{{ .Values.auth.existingSecretAccessKeyKey }}{{ else }}access-key{{ end }}
+                path: access-key
+              - key: {{ if .Values.auth.existingSecret }}{{ .Values.auth.existingSecretSecretKeyKey }}{{ else }}secret-key{{ end }}
+                path: secret-key
+        {{- range .Values.replication.peers }}
+        - name: peer-{{ .name }}
+          secret:
+            secretName: {{ .existingSecret }}
+            items:
+              - key: {{ default "access-key" .accessKeyKey }}
+                path: access-key
+              - key: {{ default "secret-key" .secretKeyKey }}
+                path: secret-key
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

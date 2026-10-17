@@ -1,0 +1,15 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.replication.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "rustfs.fullname" . }}-repl
+  labels:
+    {{- include "rustfs.labels" . | nindent 4 }}
+data:
+  config.json: |
+    {{- $endpoint := include "rustfs.replicationLocalEndpoint" . }}
+    {{- dict "mode" .Values.replication.mode "localEndpoint" $endpoint "peers" .Values.replication.peers "buckets" .Values.replication.buckets | toJson | nindent 4 }}
+  setup.sh: |
+    {{- .Files.Get "files/replication.sh" | nindent 4 }}
+{{- end }}

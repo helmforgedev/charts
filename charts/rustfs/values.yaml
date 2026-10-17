@@ -1,0 +1,352 @@
+# SPDX-License-Identifier: Apache-2.0
+# =============================================================================
+# RustFS Helm Chart - Default Values
+# =============================================================================
+
+# -- Storage topology: standalone | distributed | cluster (alias of distributed). Do not change on an existing installation.
+architecture: standalone
+# -- Number of storage pods: exactly 1 for standalone, at least 4 for distributed.
+# Do not change replicaCount on an existing installation without an upstream migration procedure.
+replicaCount: 1
+# -- Override the chart name used in resource names and labels.
+nameOverride: ""
+# -- Override the full resource name. Leave empty to use <release>-<chart>.
+fullnameOverride: ""
+# -- Kubernetes DNS domain used to build distributed peer endpoints.
+clusterDomain: cluster.local
+# -- Extra labels applied to chart resources. Must not override selector labels.
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+image:
+  # -- RustFS container image repository, including the registry.
+  repository: docker.io/rustfs/rustfs
+  # -- RustFS image tag. Ignored when image.digest is set.
+  tag: "1.0.1"
+  # -- Optional immutable image digest, for example sha256:<digest>. Takes precedence over tag.
+  digest: ""
+  # -- Image pull policy: Always | IfNotPresent | Never.
+  pullPolicy: IfNotPresent
+# -- Registry credentials for storage pods, replication setup, and Helm tests, for example [{name: registry-credentials}].
+imagePullSecrets: []
+
+# =============================================================================
+# Authentication
+# =============================================================================
+auth:
+  # -- Access key stored in the chart-managed Secret. Ignored when existingSecret is set.
+  accessKey: rustfsadmin
+  # -- Secret key for the chart-managed Secret; at least 8 characters when supplied.
+  # Empty generates a random key on install and reuses the live Secret on upgrade.
+  # Offline rendering generates a new key each time; use existingSecret for GitOps.
+  secretKey: ""
+  # -- Existing Secret containing both credentials. Disables creation of the chart-managed Secret.
+  # All distributed pods must use the same credentials. Restart pods after credential changes.
+  existingSecret: ""
+  # -- Access-key entry in auth.existingSecret. Chart-managed Secrets always use access-key.
+  existingSecretAccessKeyKey: access-key
+  # -- Secret-key entry in auth.existingSecret. Chart-managed Secrets always use secret-key.
+  existingSecretSecretKeyKey: secret-key
+  # -- Shared internode RPC secret for cluster/distributed mode; at least 32 characters when supplied.
+  # Empty generates a random key.
+  # Generated RPC credentials are stored separately from the S3 credentials and reused on upgrade.
+  rpcSecret: ""
+  # -- Existing Secret for the internode RPC key. Recommended for cluster deployments managed by GitOps.
+  # Ignored in standalone mode. All members of a cluster must use the same RPC secret.
+  rpcExistingSecret: ""
+  # -- Key in auth.rpcExistingSecret containing the RPC secret; generated Secrets always use rpc-secret.
+  rpcSecretKey: rpc-secret
+
+# =============================================================================
+# Application Configuration
+# =============================================================================
+config:
+  # -- Enable the web console on container port 9001 and create its Service.
+  consoleEnabled: true
+  # -- Externally advertised API address; set to match the address exposed to clients.
+  externalAddress: ":9000"
+  # -- Allowed API CORS origins. Restrict the wildcard for production clients.
+  corsAllowedOrigins: "*"
+  # -- Allowed console CORS origins. Restrict the wildcard for production clients.
+  consoleCorsAllowedOrigins: "*"
+  # -- RustFS observability logger level: trace | debug | info | warn | error.
+  logLevel: info
+
+# =============================================================================
+# Persistent Storage
+# =============================================================================
+persistence:
+  # -- Persist /data using a PVC per pod. Required for distributed mode.
+  # When false, standalone uses emptyDir and loses data when its pod is removed.
+  enabled: true
+  # -- Existing data PVC to mount instead of creating a claim template.
+  # Supported only in standalone mode with persistence.enabled=true.
+  existingClaim: ""
+  # -- StorageClass for generated claims. Empty uses the cluster default; "-" sets storageClassName="".
+  storageClass: ""
+  # -- Access modes requested by each generated data claim.
+  accessModes: [ReadWriteOnce]
+  # -- Storage capacity requested per pod. StatefulSet claims are retained on release removal.
+  size: 10Gi
+  # -- Annotations added to generated data claim templates.
+  annotations: {}
+
+# =============================================================================
+# Services and Ingress
+# =============================================================================
+service:
+  # -- API Service type: ClusterIP | NodePort | LoadBalancer.
+  type: ClusterIP
+  # -- Client-facing API Service port. The container and peer port remains 9000.
+  port: 9000
+  # -- Annotations added to the API Service.
+  annotations: {}
+consoleService:
+  # -- Console Service type: ClusterIP | NodePort | LoadBalancer.
+  # Created only when config.consoleEnabled=true; selects pod zero in distributed mode.
+  type: ClusterIP
+  # -- Client-facing console Service port. The container port remains 9001.
+  port: 9001
+  # -- Annotations added to the console Service.
+  annotations: {}
+ingress:
+  # -- Create an Ingress for the S3 API. Requires at least one hosts entry.
+  enabled: false
+  # -- IngressClass name. Empty leaves class selection to the cluster.
+  ingressClassName: ""
+  # -- API Ingress annotations, such as controller-specific upload size and timeout settings.
+  annotations: {}
+  # -- API host and path rules; expose S3 at the root path to preserve request signing.
+  hosts: []
+  #   - host: s3.example.com
+  #     paths:
+  #       - path: /
+  #         pathType: Prefix
+  # -- TLS certificates for the API Ingress. TLS terminates at the ingress controller.
+  tls: []
+  #   - secretName: rustfs-api-tls
+  #     hosts:
+  #       - s3.example.com
+consoleIngress:
+  # -- Create a console Ingress. Requires config.consoleEnabled=true and at least one host.
+  enabled: false
+  # -- Console IngressClass name. Empty leaves class selection to the cluster.
+  ingressClassName: ""
+  # -- Annotations added to the console Ingress.
+  annotations: {}
+  # -- Console host and path rules, independent of the API Ingress.
+  hosts: []
+  #   - host: console.example.com
+  #     paths:
+  #       - path: /
+  #         pathType: Prefix
+  # -- TLS certificates for the console Ingress. Backend traffic remains HTTP.
+  tls: []
+  #   - secretName: rustfs-console-tls
+  #     hosts:
+  #       - console.example.com
+
+# =============================================================================
+# Service Account and Security
+# =============================================================================
+serviceAccount:
+  # -- Create a dedicated ServiceAccount for storage, replication setup, and Helm test pods.
+  create: false
+  # -- ServiceAccount name. Empty uses the generated name when create=true, otherwise default.
+  name: ""
+  # -- Annotations added to the chart-created ServiceAccount.
+  annotations: {}
+# -- Mount a Kubernetes API token into storage pods. RustFS does not require API access.
+automountServiceAccountToken: false
+# -- Pod security settings shared by storage, replication setup, and Helm test pods.
+podSecurityContext:
+  # -- Group used for mounted volume ownership and access.
+  fsGroup: 10001
+  # -- Seccomp configuration for pod containers.
+  seccompProfile:
+    # -- Use the container runtime's default syscall filtering profile.
+    type: RuntimeDefault
+# -- Container security settings shared by storage, replication setup, and Helm tests.
+securityContext:
+  # -- User ID of the official RustFS 1.0.1 image.
+  runAsUser: 10001
+  # -- Primary group ID for the RustFS process.
+  runAsGroup: 10001
+  # -- Require a non-root container user.
+  runAsNonRoot: true
+  # -- Prevent processes from gaining additional privileges.
+  allowPrivilegeEscalation: false
+  # -- Keep the image filesystem read-only; /data, /logs, and /tmp have writable mounts.
+  readOnlyRootFilesystem: true
+  # -- Linux capability settings for the container.
+  capabilities:
+    # -- Drop all Linux capabilities; RustFS does not require privileged operations.
+    drop: [ALL]
+
+# =============================================================================
+# Resources and Scheduling
+# =============================================================================
+# -- CPU/memory requests and limits for the RustFS container. Size explicitly for your workload.
+resources: {}
+# -- Extra storage pod labels. Must not override app.kubernetes.io/name or instance selectors.
+podLabels: {}
+# -- Extra storage pod annotations. Configuration changes also generate a checksum annotation.
+podAnnotations: {}
+# -- Required node labels for storage, replication setup, and Helm test pods.
+nodeSelector: {}
+# -- Tolerations shared by storage, replication setup, and Helm test pods.
+tolerations: []
+# -- Pod affinity/anti-affinity rules. Configure separate failure domains for distributed storage.
+affinity: {}
+# -- Topology spread constraints for distributing storage pods across nodes or zones.
+topologySpreadConstraints: []
+# -- Optional existing PriorityClass name for storage pods.
+priorityClassName: ""
+# -- Seconds allowed for graceful storage pod termination before forced shutdown.
+terminationGracePeriodSeconds: 60
+
+# =============================================================================
+# Health Probes
+# =============================================================================
+# Each probe accepts a Kubernetes probe object; set it to {} to omit that probe.
+# Named port api always targets container port 9000, regardless of service.port.
+# -- Liveness probe to detect an unresponsive RustFS process.
+livenessProbe:
+  # -- HTTP endpoint used for the liveness check.
+  httpGet:
+    # -- RustFS process health endpoint.
+    path: /health
+    # -- Named API container port.
+    port: api
+  # -- Seconds between liveness checks.
+  periodSeconds: 30
+  # -- Timeout in seconds for each liveness check.
+  timeoutSeconds: 10
+  # -- Consecutive failures before Kubernetes restarts the container.
+  failureThreshold: 3
+# -- Readiness probe controlling whether a pod receives API Service traffic.
+readinessProbe:
+  # -- HTTP endpoint used to determine whether RustFS is ready for requests.
+  httpGet:
+    # -- RustFS readiness endpoint.
+    path: /health/ready
+    # -- Named API container port.
+    port: api
+  # -- Seconds between readiness checks.
+  periodSeconds: 10
+  # -- Timeout in seconds for each readiness check.
+  timeoutSeconds: 5
+# -- Startup probe allowing initialization before liveness and readiness checks begin.
+startupProbe:
+  # -- HTTP endpoint used to detect successful process startup.
+  httpGet:
+    # -- RustFS process health endpoint.
+    path: /health
+    # -- Named API container port.
+    port: api
+  # -- Seconds between startup checks.
+  periodSeconds: 10
+  # -- Consecutive failures allowed before restart; defaults allow approximately 10 minutes.
+  failureThreshold: 60
+
+# =============================================================================
+# Availability and Extensions
+# =============================================================================
+pdb:
+  # -- Create a PodDisruptionBudget for voluntary disruptions. Does not guarantee storage quorum.
+  enabled: false
+  # -- Maximum unavailable storage pods during voluntary disruptions; integer or percentage.
+  # With one replica, 1 allows downtime. Use 0 to block voluntary eviction of that pod.
+  maxUnavailable: 1
+# -- Additional Kubernetes env entries for the RustFS container, including valueFrom references.
+extraEnv: []
+# -- Additional envFrom sources, such as configMapRef or secretRef, for the RustFS container.
+extraEnvFrom: []
+# -- Additional Kubernetes volumes for storage pods. Pair with extraVolumeMounts as needed.
+extraVolumes: []
+# -- Additional RustFS container volume mounts. Avoid the built-in data, logs, and tmp mounts.
+extraVolumeMounts: []
+# -- Extra Kubernetes objects rendered with tpl in the release context. Accept only trusted values.
+extraManifests: []
+
+# =============================================================================
+# Helm Tests
+# =============================================================================
+tests:
+  # -- Render a Helm test pod that requests the API /health endpoint; run with helm test.
+  # This checks HTTP health, not an authenticated S3 write/read cycle.
+  # Test pods remain for log retrieval and are replaced on the next helm test run.
+  enabled: true
+  # -- Image containing wget for the Helm test container.
+  image: docker.io/busybox:1.37.0
+
+# =============================================================================
+# Replication Between Independent Deployments
+# =============================================================================
+# Replication is independent of architecture and works with standalone or cluster.
+replication:
+  # -- Configure replication using a post-install/post-upgrade CLI Job.
+  # Disabling this or removing entries does not delete remote rules or site relationships.
+  enabled: false
+  # -- Replication mode: bucket (directional rules) | site (whole deployment relationship).
+  # Bucket and site replication cannot be configured together by this Job.
+  mode: bucket
+  # -- Local S3 endpoint. Empty uses this release's internal API Service in bucket mode.
+  # Required for site mode: use a stable endpoint reachable from every participating site.
+  localEndpoint: ""
+  image:
+    # -- Official RustFS CLI image, including registry.
+    repository: docker.io/rustfs/rc
+    # -- CLI release supporting bucket replication and site administration.
+    tag: v0.1.36
+    # -- Optional digest overriding the CLI image tag.
+    digest: ""
+    # -- CLI container image pull policy.
+    pullPolicy: IfNotPresent
+  # -- Maximum time for the setup Job, including waiting for every endpoint to become ready.
+  activeDeadlineSeconds: 600
+  # -- Failed Job retries. Existing bucket rule IDs are updated rather than duplicated.
+  backoffLimit: 2
+  # -- Completed Job retention; hook cleanup also removes successful Jobs.
+  ttlSecondsAfterFinished: 300
+  # -- CLI Job container resource requests and limits.
+  resources: {}
+  # -- Remote RustFS deployments. Credentials must already exist in the release namespace.
+  # Each peer needs a unique name other than local; all endpoints must be reachable by the Job.
+  peers: []
+  #   # -- Peer alias: lowercase letters/digits/hyphens, starts with a letter, ends with a letter/digit, not local.
+  #   - name: backup
+  #     # -- Stable S3 origin URL reachable by the Job and the replicating servers.
+  #     endpoint: https://s3-backup.example.com
+  #     # -- Secret in this release namespace holding the peer credentials.
+  #     existingSecret: rustfs-backup-credentials
+  #     # -- Access-key entry in the peer Secret; defaults to access-key.
+  #     accessKeyKey: access-key
+  #     # -- Secret-key entry in the peer Secret; defaults to secret-key.
+  #     secretKeyKey: secret-key
+  # -- Bucket rules (required in bucket mode, forbidden in site mode).
+  # IDs must be unique per source bucket; priorities must also be unique per source bucket.
+  # Destination peer/bucket changes for an existing ID require an explicit manual migration.
+  # The Job enables versioning on both buckets and optionally creates missing buckets.
+  # Existing rules with the same ID have flags, priority, and prefix updated.
+  buckets: []
+  #   # -- Stable rule identifier used for add/update operations.
+  #   - id: backup-objects
+  #     # -- Source bucket on this release.
+  #     sourceBucket: uploads
+  #     # -- Alias of a peer declared above.
+  #     destinationPeer: backup
+  #     # -- Destination bucket on that peer.
+  #     destinationBucket: uploads-backup
+  #     # -- Positive priority, unique per source bucket; higher means more important.
+  #     priority: 1
+  #     # -- Object-key prefix filter; empty matches every key.
+  #     prefix: ""
+  #     # -- Comma-separated replication flags; these three are enabled when omitted.
+  #     replicate: delete,delete-marker,existing-objects
+  #     # -- Create missing source/destination buckets; defaults to false.
+  #     createBuckets: false
+  # Site mode links local plus ALL peers in one operation, using administrative credentials.
+  # An existing relationship must match these endpoints; membership changes fail for manual review.

@@ -1,0 +1,275 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: cluster topology and replication setup
+templates:
+- templates/statefulset.yaml
+- templates/configmap.yaml
+- templates/service.yaml
+- templates/replication-configmap.yaml
+- templates/replication-job.yaml
+tests:
+- it: does not create a setup job by default
+  template: templates/replication-job.yaml
+  asserts:
+  - hasDocuments:
+      count: 0
+- it: renders a bounded post-install and post-upgrade job
+  set: &id001
+    architecture: cluster
+    replicaCount: 4
+    auth:
+      existingSecret: rustfs-credentials
+    replication:
+      enabled: true
+      mode: bucket
+      peers:
+      - name: backup
+        endpoint: https://s3-backup.example.com
+        existingSecret: backup-credentials
+      buckets:
+      - id: uploads-backup
+        sourceBucket: uploads
+        destinationPeer: backup
+        destinationBucket: uploads-backup
+        priority: 1
+        prefix: ''
+        replicate: delete,delete-marker,existing-objects
+        createBuckets: true
+  template: templates/replication-job.yaml
+  asserts:
+  - isKind:
+      of: Job
+  - equal:
+      path: metadata.annotations["helm.sh/hook"]
+      value: post-install,post-upgrade
+  - equal:
+      path: spec.activeDeadlineSeconds
+      value: 600
+  - equal:
+      path: spec.template.spec.automountServiceAccountToken
+      value: false
+  - equal:
+      path: spec.template.spec.containers[0].command
+      value:
+      - /bin/sh
+      - /configuration/setup.sh
+- it: keeps setup pods out of storage service selectors
+  set: *id001
+  template: templates/replication-job.yaml
+  asserts:
+  - notExists:
+      path: spec.template.metadata.labels["app.kubernetes.io/name"]
+- it: mounts local and peer credentials without rendering secret values
+  set: *id001
+  template: templates/replication-job.yaml
+  asserts:
+  - equal:
+      path: spec.template.spec.volumes[2].secret.secretName
+      value: rustfs-credentials
+  - equal:
+      path: spec.template.spec.volumes[3].secret.secretName
+      value: backup-credentials
+  - notExists:
+      path: spec.template.spec.containers[0].env
+- it: supports custom peer secret keys for all sites
+  set:
+    architecture: cluster
+    replicaCount: 4
+    auth:
+      existingSecret: rustfs-credentials
+    replication:
+      enabled: true
+      mode: site
+      localEndpoint: https://s3-primary.example.com
+      peers:
+      - name: secondary
+        endpoint: https://s3-secondary.example.com
+        existingSecret: secondary-credentials
+        accessKeyKey: username
+        secretKeyKey: password
+      - name: third
+        endpoint: https://s3-third.example.com
+        existingSecret: third-credentials
+  template: templates/replication-job.yaml
+  asserts:
+  - equal:
+      path: spec.template.spec.volumes[3].secret.items[0].key
+      value: username
+  - equal:
+      path: spec.template.spec.volumes[3].secret.items[1].key
+      value: password
+  - equal:
+      path: spec.template.spec.volumes[4].secret.secretName
+      value: third-credentials
+- it: includes the pinned CLI script and configuration
+  set: *id001
+  template: templates/replication-configmap.yaml
+  asserts:
+  - matchRegex:
+      path: data["config.json"]
+      pattern: '"mode":"bucket"'
+  - matchRegex:
+      path: data["setup.sh"]
+      pattern: rc replicate update
+- it: accepts cluster as distributed topology
+  set:
+    architecture: cluster
+    replicaCount: 4
+  template: templates/configmap.yaml
+  asserts:
+  - matchRegex:
+      path: data.RUSTFS_VOLUMES
+      pattern: http://.*-\{0\.\.\.3\}.*:9000/data
+- it: pins cluster console to ordinal zero
+  set:
+    architecture: cluster
+    replicaCount: 4
+  template: templates/service.yaml
+  documentIndex: 1
+  asserts:
+  - matchRegex:
+      path: spec.selector["statefulset.kubernetes.io/pod-name"]
+      pattern: -0$
+- it: rejects duplicate peer aliases
+  set:
+    architecture: cluster
+    replicaCount: 4
+    auth:
+      existingSecret: rustfs-credentials
+    replication:
+      enabled: true
+      mode: bucket
+      peers:
+      - &id002
+        name: backup
+        endpoint: https://s3-backup.example.com
+        existingSecret: backup-credentials
+      - *id002
+      buckets:
+      - id: uploads-backup
+        sourceBucket: uploads
+        destinationPeer: backup
+        destinationBucket: uploads-backup
+        priority: 1
+        prefix: ''
+        replicate: delete,delete-marker,existing-objects
+        createBuckets: true
+  template: templates/statefulset.yaml
+  asserts:
+  - failedTemplate:
+      errorMessage: replication peer names must be unique
+- it: rejects unknown bucket peers
+  set:
+    architecture: cluster
+    replicaCount: 4
+    auth:
+      existingSecret: rustfs-credentials
+    replication:
+      enabled: true
+      mode: bucket
+      peers:
+      - name: backup
+        endpoint: https://s3-backup.example.com
+        existingSecret: backup-credentials
+      buckets:
+      - id: uploads-backup
+        sourceBucket: uploads
+        destinationPeer: unknown
+        destinationBucket: uploads-backup
+        priority: 1
+        prefix: ''
+        replicate: delete,delete-marker,existing-objects
+        createBuckets: true
+  template: templates/statefulset.yaml
+  asserts:
+  - failedTemplate:
+      errorMessage: replication bucket destinationPeer must reference a configured
+        peer
+- it: rejects duplicate bucket rule IDs
+  set:
+    architecture: cluster
+    replicaCount: 4
+    auth:
+      existingSecret: rustfs-credentials
+    replication:
+      enabled: true
+      mode: bucket
+      peers:
+      - name: backup
+        endpoint: https://s3-backup.example.com
+        existingSecret: backup-credentials
+      buckets:
+      - id: uploads-backup
+        sourceBucket: uploads
+        destinationPeer: backup
+        destinationBucket: uploads-backup
+        priority: 1
+        prefix: ''
+        replicate: delete,delete-marker,existing-objects
+        createBuckets: true
+      - id: uploads-backup
+        sourceBucket: uploads
+        destinationPeer: backup
+        destinationBucket: uploads-backup
+        priority: 2
+        prefix: ''
+        replicate: delete,delete-marker,existing-objects
+        createBuckets: true
+  template: templates/statefulset.yaml
+  asserts:
+  - failedTemplate:
+      errorMessage: replication rule IDs must be unique per source bucket
+- it: rejects duplicate bucket priorities
+  set:
+    architecture: cluster
+    replicaCount: 4
+    auth:
+      existingSecret: rustfs-credentials
+    replication:
+      enabled: true
+      mode: bucket
+      peers:
+      - name: backup
+        endpoint: https://s3-backup.example.com
+        existingSecret: backup-credentials
+      buckets:
+      - id: uploads-backup
+        sourceBucket: uploads
+        destinationPeer: backup
+        destinationBucket: uploads-backup
+        priority: 1
+        prefix: ''
+        replicate: delete,delete-marker,existing-objects
+        createBuckets: true
+      - id: other-id
+        sourceBucket: uploads
+        destinationPeer: backup
+        destinationBucket: uploads-backup
+        priority: 1
+        prefix: ''
+        replicate: delete,delete-marker,existing-objects
+        createBuckets: true
+  template: templates/statefulset.yaml
+  asserts:
+  - failedTemplate:
+      errorMessage: replication rule priorities must be unique per source bucket
+- it: rejects duplicate peer endpoints
+  template: templates/statefulset.yaml
+  set:
+    replication:
+      enabled: true
+      peers:
+        - name: first
+          endpoint: https://backup.example.com
+          existingSecret: first-secret
+        - name: second
+          endpoint: https://backup.example.com/
+          existingSecret: second-secret
+      buckets:
+        - id: backup
+          sourceBucket: uploads
+          destinationPeer: first
+          destinationBucket: uploads-backup
+          priority: 1
+  asserts:
+    - failedTemplate:
+        errorMessage: replication peer endpoints must be unique

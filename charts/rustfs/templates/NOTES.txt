@@ -1,0 +1,20 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+RustFS ({{ .Values.architecture }}) has been installed.
+API: {{ include "rustfs.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
+{{ if .Values.config.consoleEnabled }}
+Console:
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "rustfs.fullname" . }}-console 9001:{{ .Values.consoleService.port }}
+{{ end }}
+Credentials are stored in Secret {{ include "rustfs.secretName" . }}.
+Back up data before upgrades. Do not change topology or replicaCount on an existing installation.
+{{ if has .Values.architecture (list "distributed" "cluster") }}
+Internode RPC credentials: Secret {{ default (printf "%s-rpc" (include "rustfs.fullname" .)) .Values.auth.rpcExistingSecret }}.
+All storage members must share the same RPC key.
+{{ end }}
+{{ if .Values.replication.enabled }}
+Replication setup: {{ .Values.replication.mode }} mode, applied by the post-install/post-upgrade hook.
+Failed setup logs: kubectl logs -n {{ .Release.Namespace }} job/{{ include "rustfs.fullname" . }}-repl
+Removing replication values or uninstalling this release does not delete remote replication state.
+{{ end }}
+
+Happy Helmforging :)
