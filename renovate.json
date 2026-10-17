@@ -1,0 +1,78 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":dependencyDashboard", ":dependencyDashboardApproval", ":semanticCommits"],
+  "timezone": "Europe/Vilnius",
+  "schedule": ["before 6am on monday"],
+  "labels": ["dependencies"],
+  "prHourlyLimit": 2,
+  "prConcurrentLimit": 8,
+  "rebaseWhen": "conflicted",
+  "automerge": false,
+  "pinDigests": false,
+  "enabledManagers": ["helmv3", "helm-values"],
+  "helm-values": {
+    "managerFilePatterns": ["/^charts/[^/]+/values\\.ya?ml$/"]
+  },
+  "helmv3": {
+    "managerFilePatterns": ["/^charts/[^/]+/Chart\\.ya?ml$/"]
+  },
+  "prBodyNotes": [
+    "**Manual finish before merge** (HelmForge gates - see CONTRIBUTING.md and standards-check.yml GR-079). (1) The chart `version` is auto-derived from the Conventional Commit scope: do NOT edit it by hand - land this as `fix(<chart>)` or `feat(<chart>)` so the release tooling bumps the right chart. (2) Update `appVersion` in `Chart.yaml` when the application image tag changes. (3) Add an `artifacthub.io/changes` entry in `Chart.yaml`. (4) For subchart dependency bumps run `helm dependency build charts/<chart>` so `Chart.lock` is committed. (5) Validate with `./test.sh <chart>` and, before merge, `./test.sh <chart> --runtime` on the local `k3d-helmforge-tests-wsl` context (mandatory per CONTRIBUTING.md). (6) Satisfy the site-sync and release rules."
+  ],
+  "packageRules": [
+    {
+      "description": "Container image tags in chart values.yaml (image / controller.image / server.image / app.image / ...). One PR per image; never automerge - each needs a Chart.yaml version bump + artifacthub changelog.",
+      "matchManagers": ["helm-values"],
+      "separateMultipleMajor": true
+    },
+    {
+      "description": "Chart.yaml cohesion: update appVersion alongside the image tag when the same chart is touched.",
+      "matchManagers": ["helm-values"],
+      "matchFileNames": ["charts/*/values.yaml"],
+      "addLabels": ["dependencies"]
+    },
+    {
+      "description": "HelmForge OCI subchart dependencies (oci://ghcr.io/helmforgedev/helm). Grouped into one PR; never automerge.",
+      "matchManagers": ["helmv3"],
+      "groupName": "helm subchart dependencies"
+    },
+    {
+      "description": "GitHub Actions pins in .github/workflows. Grouped, ci-labelled to match the existing Dependabot convention.",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions",
+      "labels": ["dependencies", "ci"]
+    },
+    {
+      "description": "Digest-only updates are never automerged (charts pin tags, not digests).",
+      "matchUpdateTypes": ["digest"],
+      "automerge": false
+    },
+    {
+      "description": "Major bumps always need manual review + k3d validation.",
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "addLabels": ["major"]
+    },
+    {
+      "description": "Pilot scope (maintainer spec): default-disable Renovate for every chart dependency manager - a limited, representative set starts enabled.",
+      "matchManagers": ["helmv3", "helm-values"],
+      "enabled": false
+    },
+    {
+      "description": "Pilot scope: re-enable only the representative charts (stalwart: Gateway API + ExternalSecret + apply-job; bulwark-mail: JMAP webmail image; ib-gateway: image-only Interactive Brokers Gateway; gitea: ExternalSecret-heavy; questdb, openhuman, hermes-agent, openclaw: digest-pinned images; atuin, attic: image-only). Remove the last two pilot rules to widen coverage after parity.",
+      "matchFileNames": [
+        "charts/stalwart/**",
+        "charts/bulwark-mail/**",
+        "charts/questdb/**",
+        "charts/ib-gateway/**",
+        "charts/gitea/**",
+        "charts/openhuman/**",
+        "charts/hermes-agent/**",
+        "charts/openclaw/**",
+        "charts/atuin/**",
+        "charts/attic/**"
+      ],
+      "enabled": true
+    }
+  ]
+}
