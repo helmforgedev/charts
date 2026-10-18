@@ -40,8 +40,9 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
-      {{- if include "ntfy.databaseEnabled" . }}
+      {{- if or (include "ntfy.databaseEnabled" .) (include "ntfy.adminEnabled" .) }}
       initContainers:
+        {{- if include "ntfy.databaseEnabled" . }}
         - name: wait-for-db
           image: docker.io/library/busybox:1.37
           command:
@@ -63,6 +64,61 @@ spec:
               memory: 16Mi
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
+        {{- end }}
+        {{- if include "ntfy.adminEnabled" . }}
+        - name: init-admin
+          image: {{ include "ntfy.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              AUTH_FILE="/var/cache/ntfy/auth.db"
+              mkdir -p /var/cache/ntfy
+              if [ ! -f "$AUTH_FILE" ]; then
+                ntfy serve --auth-file=/var/cache/ntfy/auth.db --listen-http=:18080 &
+                PID=$!
+                for i in $(seq 1 30); do
+                  if [ -f "$AUTH_FILE" ]; then break; fi
+                  sleep 1
+                done
+                kill -TERM $PID 2>/dev/null || true
+                wait $PID 2>/dev/null || true
+              fi
+              if [ ! -f "$AUTH_FILE" ]; then
+                echo "ERROR: Failed to initialize $AUTH_FILE within timeout" >&2
+                exit 1
+              fi
+              echo "Bootstrapping admin user '$ADMIN_USER'..."
+              NTFY_AUTH_FILE="$AUTH_FILE" ntfy user add --role={{ .Values.ntfy.admin.role | default "admin" | quote }} --ignore-exists "$ADMIN_USER"
+          env:
+            - name: ADMIN_USER
+              {{- if and .Values.ntfy.admin.existingSecret .Values.ntfy.admin.existingSecretUsernameKey }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ntfy.adminSecretName" . }}
+                  key: {{ .Values.ntfy.admin.existingSecretUsernameKey }}
+              {{- else }}
+              value: {{ include "ntfy.adminUsername" . | quote }}
+              {{- end }}
+            - name: NTFY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ntfy.adminSecretName" . }}
+                  key: {{ include "ntfy.adminSecretPasswordKey" . }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/cache/ntfy
+          resources:
+            limits:
+              cpu: 50m
+              memory: 64Mi
+            requests:
+              cpu: 10m
+              memory: 32Mi
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+        {{- end }}
       {{- end }}
       containers:
         - name: ntfy

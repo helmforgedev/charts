@@ -189,6 +189,23 @@ containers, rotating the target Secret does not update `NTFY_DATABASE_URL` in
 an existing ntfy pod. Trigger a Deployment rollout after rotation, or configure
 a compatible restart controller to restart the workload when the Secret changes.
 
+## Administrator Bootstrap
+
+Create an initial administrator account automatically when authentication is enforced (e.g. `authDefaultAccess: "deny-all"`):
+
+```yaml
+ntfy:
+  authDefaultAccess: "deny-all"
+  admin:
+    enabled: true
+    username: "admin"
+    # Inline password or leave empty to auto-generate a secure random 32-character password in a managed Secret
+    password: "InitialSecretPass123!"
+    # Or reference an existing Secret
+    # existingSecret: "ntfy-admin-credentials"
+    # existingSecretPasswordKey: "password"
+```
+
 ## Prometheus Metrics
 
 Enable the built-in Prometheus metrics endpoint:

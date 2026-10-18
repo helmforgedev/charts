@@ -19,6 +19,9 @@
 {{- if and .Values.externalSecrets.enabled (empty .Values.externalSecrets.items) -}}
 {{- fail "externalSecrets.items must contain at least one item when externalSecrets.enabled=true" -}}
 {{- end -}}
+{{- if and .Values.ntfy.admin.enabled .Values.ntfy.admin.existingSecret (empty .Values.ntfy.admin.existingSecretPasswordKey) -}}
+{{- fail "ntfy.admin.existingSecretPasswordKey must not be empty when ntfy.admin.existingSecret is configured" -}}
+{{- end -}}
 {{- if .Values.ntfy.metricsListenHttp -}}
 {{- $port := mustRegexFind "[0-9]+$" .Values.ntfy.metricsListenHttp | int -}}
 {{- if or (lt $port 1) (gt $port 65535) -}}
@@ -160,6 +163,35 @@ true
 {{- $host := include "ntfy.dbHost" . -}}
 {{- $port := include "ntfy.dbPort" . -}}
 {{- $db := include "ntfy.dbName" . -}}
-{{- printf "postgres://%s:%s@%s:%s/%s?sslmode=disable" $user $password $host $port $db -}}
+{{- printf "postgres://%s:%s@%s:%s/%s?sslmode=disable" (urlquery $user) (urlquery $password) $host $port $db -}}
 {{- end -}}
->>>>>>> 178e2d68 (feat(ntfy): add helmforge postgresql subchart support)
+
+{{/* Whether initial admin bootstrap is enabled */}}
+{{- define "ntfy.adminEnabled" -}}
+{{- if and .Values.ntfy.admin .Values.ntfy.admin.enabled -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{/* Admin username */}}
+{{- define "ntfy.adminUsername" -}}
+{{- default "admin" .Values.ntfy.admin.username -}}
+{{- end -}}
+
+{{/* Admin Secret Name */}}
+{{- define "ntfy.adminSecretName" -}}
+{{- if .Values.ntfy.admin.existingSecret -}}
+{{- .Values.ntfy.admin.existingSecret -}}
+{{- else -}}
+{{- printf "%s-admin" (include "ntfy.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Admin Secret Password Key */}}
+{{- define "ntfy.adminSecretPasswordKey" -}}
+{{- if .Values.ntfy.admin.existingSecret -}}
+{{- .Values.ntfy.admin.existingSecretPasswordKey -}}
+{{- else -}}
+password
+{{- end -}}
+{{- end -}}

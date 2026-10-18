@@ -16,6 +16,17 @@ Persistence: {{ if .Values.persistence.enabled }}enabled{{ else }}disabled{{ end
 ACCESS INFORMATION
 --------------------------------------------------------------------
 
+{{- if include "ntfy.adminEnabled" . }}
+ADMIN USERNAME: {{ include "ntfy.adminUsername" . }}
+{{- if and (not .Values.ntfy.admin.password) (not .Values.ntfy.admin.existingSecret) }}
+ADMIN PASSWORD: To retrieve the admin password, run:
+
+  kubectl get secret -n {{ .Release.Namespace }} {{ include "ntfy.adminSecretName" . }} -o jsonpath="{.data.{{ include "ntfy.adminSecretPasswordKey" . }}}" | base64 -d; echo
+{{- else if .Values.ntfy.admin.existingSecret }}
+ADMIN PASSWORD: Sourced from existing Secret '{{ .Values.ntfy.admin.existingSecret }}'
+{{- end }}
+
+{{- end }}
 {{- if .Values.gateway.enabled }}
 {{- with .Values.gateway.hostnames }}
 WEB UI:  https://{{ index . 0 }}/

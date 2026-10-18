@@ -37,7 +37,7 @@ flowchart LR
 - Keep persistence enabled by default so message cache, attachments, and auth data survive restarts.
 - Render Gateway API HTTPRoutes as an opt-in exposure path alongside Ingress.
 - Keep Service dual-stack fields opt-in so clusters without dual-stack support use their defaults.
-- Keep authentication user lifecycle out of the chart; ntfy users are managed with the upstream CLI.
+- Provide one-time initial administrator bootstrap while keeping ongoing user lifecycle out of the chart (managed with upstream CLI).
 - Keep the 2.26.3 abuse ban-feed opt-in, persist its default file on the existing data volume, and leave firewall enforcement to an external consumer.
 
 ## Production Boundary
@@ -46,6 +46,7 @@ Recommended production controls:
 
 - set `ntfy.baseUrl` to the public HTTPS URL clients will use
 - enable authentication and set `ntfy.authDefaultAccess: deny-all` for private deployments
+- enable `ntfy.admin.enabled: true` for one-time initial bootstrap
 - keep persistence enabled with a durable storage class
 - use a provider-managed Secret for PostgreSQL credentials
 - back up the PVC before upgrades
@@ -57,7 +58,7 @@ Recommended production controls:
 
 - multi-replica SQLite coordination
 - automatic multi-replica or shared-attachment configuration for PostgreSQL deployments
-- user account reconciliation
+- ongoing user account reconciliation (the chart provides bootstrap creation only; credential rotation and additional users are managed via upstream CLI)
 - installing Gateway API CRDs or controllers
 - installing Prometheus Operator CRDs
 - installing fail2ban or changing node firewall rules
