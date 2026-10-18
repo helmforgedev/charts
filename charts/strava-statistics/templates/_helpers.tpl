@@ -90,3 +90,14 @@ config.yaml: |
 {{- printf "%s-data" (include "strava-statistics.fullname" .) -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Validation helper
+*/}}
+{{- define "strava-statistics.validate" -}}
+{{- if not .Values.strava.existingSecret -}}
+  {{- if or (not .Values.strava.clientId) (not .Values.strava.clientSecret) (not .Values.strava.refreshToken) -}}
+    {{- fail "strava-statistics: strava.existingSecret must be set or strava.clientId, strava.clientSecret, and strava.refreshToken must be provided" -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}
