@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: ServiceMonitor
+templates:
+  - templates/servicemonitor.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render ServiceMonitor by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not render ServiceMonitor when only enableMetrics is true
+    set:
+      ntfy.enableMetrics: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not render ServiceMonitor when only serviceMonitor.enabled is true
+    set:
+      metrics.serviceMonitor.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render ServiceMonitor targeting http port when metricsListenHttp is empty
+    set:
+      ntfy.enableMetrics: true
+      metrics.serviceMonitor.enabled: true
+    asserts:
+      - isKind:
+          of: ServiceMonitor
+      - equal:
+          path: metadata.name
+          value: test-ntfy
+      - equal:
+          path: spec.endpoints[0].port
+          value: http
+      - equal:
+          path: spec.endpoints[0].path
+          value: /metrics
+
+  - it: should render ServiceMonitor targeting metrics port when metricsListenHttp is configured
+    set:
+      ntfy.enableMetrics: true
+      ntfy.metricsListenHttp: ":9090"
+      metrics.serviceMonitor.enabled: true
+    asserts:
+      - isKind:
+          of: ServiceMonitor
+      - equal:
+          path: metadata.name
+          value: test-ntfy
+      - equal:
+          path: spec.endpoints[0].port
+          value: metrics
+      - equal:
+          path: spec.endpoints[0].path
+          value: /metrics

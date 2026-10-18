@@ -127,3 +127,24 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "ntfy.database.enabled requires ntfy.database.existingSecret"
+
+  - it: should expose containerPort metrics in Deployment when metricsListenHttp is set
+    template: templates/deployment.yaml
+    set:
+      ntfy.enableMetrics: true
+      ntfy.metricsListenHttp: ":9090"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: metrics
+            containerPort: 9090
+            protocol: TCP
+
+  - it: should reject invalid metricsListenHttp without port in validate
+    template: templates/validate.yaml
+    set:
+      ntfy.metricsListenHttp: ":abc"
+    asserts:
+      - failedTemplate:
+          errorMessage: "ntfy.metricsListenHttp must end with a valid port number (1-65535), got: :abc"

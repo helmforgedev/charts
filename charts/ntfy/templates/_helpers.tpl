@@ -11,6 +11,12 @@
 {{- if and .Values.externalSecrets.enabled (empty .Values.externalSecrets.items) -}}
 {{- fail "externalSecrets.items must contain at least one item when externalSecrets.enabled=true" -}}
 {{- end -}}
+{{- if .Values.ntfy.metricsListenHttp -}}
+{{- $port := mustRegexFind "[0-9]+$" .Values.ntfy.metricsListenHttp | int -}}
+{{- if or (lt $port 1) (gt $port 65535) -}}
+{{- fail (printf "ntfy.metricsListenHttp must end with a valid port number (1-65535), got: %s" .Values.ntfy.metricsListenHttp) -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}
 
 {{- define "ntfy.fullname" -}}
@@ -59,5 +65,12 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- .Values.persistence.existingClaim -}}
 {{- else -}}
 {{- printf "%s-data" (include "ntfy.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Metrics port number parsed from metricsListenHttp (e.g. :9090 -> 9090) */}}
+{{- define "ntfy.metricsPort" -}}
+{{- if .Values.ntfy.metricsListenHttp -}}
+{{- mustRegexFind "[0-9]+$" .Values.ntfy.metricsListenHttp | int -}}
 {{- end -}}
 {{- end -}}
