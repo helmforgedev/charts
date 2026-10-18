@@ -1,20 +1,53 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-RustFS ({{ .Values.architecture }}) has been installed.
-API: {{ include "rustfs.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
-{{ if .Values.config.consoleEnabled }}
-Console:
-  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "rustfs.fullname" . }}-console 9001:{{ .Values.consoleService.port }}
-{{ end }}
-Credentials are stored in Secret {{ include "rustfs.secretName" . }}.
-Back up data before upgrades. Do not change topology or replicaCount on an existing installation.
-{{ if has .Values.architecture (list "distributed" "cluster") }}
-Internode RPC credentials: Secret {{ default (printf "%s-rpc" (include "rustfs.fullname" .)) .Values.auth.rpcExistingSecret }}.
-All storage members must share the same RPC key.
-{{ end }}
-{{ if .Values.replication.enabled }}
-Replication setup: {{ .Values.replication.mode }} mode, applied by the post-install/post-upgrade hook.
-Failed setup logs: kubectl logs -n {{ .Release.Namespace }} job/{{ include "rustfs.fullname" . }}-repl
-Removing replication values or uninstalling this release does not delete remote replication state.
-{{ end }}
+1. Access RustFS
+
+   Cluster URL:
+   http://{{ include "rustfs.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
+
+   Confirm the workload:
+   kubectl -n {{ .Release.Namespace }} get statefulset,pod,svc -l app.kubernetes.io/instance={{ .Release.Name }}
+
+2. Retrieve Authentication Credentials
+
+   Root credentials and access keys are stored in Secret: {{ include "rustfs.secretName" . }}
+
+   For clustered setups, RPC secret: {{ default (printf "%s-rpc" (include "rustfs.fullname" .)) .Values.auth.rpcExistingSecret }}
+
+3. Port-Forward for Local Administration
+
+   S3 API: kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "rustfs.fullname" . }} 9000:{{ .Values.service.port }}
+
+   Console: kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "rustfs.fullname" . }}-console 9001:{{ .Values.consoleService.port }}
+
+4. Configure Ingress and TLS
+
+   Public exposure must use HTTPS because S3 credentials and payloads
+   are unsafe over plain HTTP. Configure ingress or gateway.
+   Configure TLS termination and matching DNS records.
+
+5. Verify Health and Probes
+
+   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "rustfs.fullname" . }} 9000:{{ .Values.service.port }}
+   curl --fail http://127.0.0.1:9000/health
+
+   The health endpoint checks the HTTP process, not continuing database health.
+
+6. Configure Observability and Monitoring
+
+   RustFS pushes metrics, traces, and logs over OTLP (OpenTelemetry Protocol).
+
+   Point RUSTFS_OBS_ENDPOINT at an OpenTelemetry Collector to export Prometheus metrics.
+
+7. Replication and Backup Operations
+
+   Back up storage volumes before upgrading or altering topology.
+
+   Do not change topology or replicaCount on an existing clustered deployment.
+
+8. Review Operational Guidance
+
+   See https://helmforge.dev/docs/charts/rustfs for scaling, backup and recovery guidance.
+
+   RustFS documentation and reference architecture: https://rustfs.com
 
 Happy Helmforging :)
