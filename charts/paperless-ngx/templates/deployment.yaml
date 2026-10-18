@@ -1,0 +1,244 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- $dbMode := include "paperless-ngx.databaseMode" . -}}
+{{- $url := include "paperless-ngx.url" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "paperless-ngx.fullname" . }}
+  labels:
+    {{- include "paperless-ngx.componentLabels" (dict "ctx" . "component" "webserver") | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    {{- if .Values.strategy }}
+    {{- toYaml .Values.strategy | nindent 4 }}
+    {{- else }}
+    type: Recreate
+    {{- end }}
+  selector:
+    matchLabels:
+      {{- include "paperless-ngx.componentSelectorLabels" (dict "ctx" . "component" "webserver") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "paperless-ngx.componentSelectorLabels" (dict "ctx" . "component" "webserver") | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "paperless-ngx.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      initContainers:
+        {{- if ne $dbMode "sqlite" }}
+        - name: wait-for-postgresql
+          image: docker.io/library/busybox:1.37
+          {{- with .Values.waitForServices.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.waitForServices.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for {{ include "paperless-ngx.databaseHost" . }}:{{ include "paperless-ngx.databasePort" . }} ..."
+              until nc -z -w2 {{ include "paperless-ngx.databaseHost" . }} {{ include "paperless-ngx.databasePort" . }}; do
+                sleep 2
+              done
+              echo "PostgreSQL is reachable."
+        {{- end }}
+        - name: wait-for-valkey
+          image: docker.io/library/busybox:1.37
+          {{- with .Values.waitForServices.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.waitForServices.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for {{ include "paperless-ngx.valkeyHost" . }}:{{ include "paperless-ngx.valkeyPort" . }} ..."
+              until nc -z -w2 {{ include "paperless-ngx.valkeyHost" . }} {{ include "paperless-ngx.valkeyPort" . }}; do
+                sleep 2
+              done
+              echo "Valkey is reachable."
+      containers:
+        - name: paperless
+          image: {{ include "paperless-ngx.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            - name: PAPERLESS_PORT
+              value: "8000"
+            - name: PAPERLESS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "paperless-ngx.secretKeySecretName" . | quote }}
+                  key: {{ include "paperless-ngx.secretKeySecretKey" . | quote }}
+            {{- if $url }}
+            - name: PAPERLESS_URL
+              value: {{ $url | quote }}
+            {{- end }}
+            - name: PAPERLESS_TIME_ZONE
+              value: {{ .Values.paperless.timeZone | quote }}
+            - name: PAPERLESS_OCR_LANGUAGE
+              value: {{ .Values.paperless.ocrLanguage | quote }}
+            {{- if gt (int .Values.paperless.consumer.pollingInterval) 0 }}
+            - name: PAPERLESS_CONSUMER_POLLING_INTERVAL
+              value: {{ .Values.paperless.consumer.pollingInterval | quote }}
+            {{- end }}
+            {{- if .Values.paperless.consumer.recursive }}
+            - name: PAPERLESS_CONSUMER_RECURSIVE
+              value: "true"
+            {{- end }}
+            {{- if .Values.paperless.admin.enabled }}
+            - name: PAPERLESS_ADMIN_USER
+              value: {{ .Values.paperless.admin.username | quote }}
+            {{- with .Values.paperless.admin.email }}
+            - name: PAPERLESS_ADMIN_MAIL
+              value: {{ . | quote }}
+            {{- end }}
+            - name: PAPERLESS_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "paperless-ngx.adminSecretName" . | quote }}
+                  key: {{ include "paperless-ngx.adminSecretKey" . | quote }}
+            {{- end }}
+            {{- if eq $dbMode "sqlite" }}
+            - name: PAPERLESS_DBENGINE
+              value: sqlite
+            {{- else }}
+            - name: PAPERLESS_DBENGINE
+              value: postgresql
+            - name: PAPERLESS_DBHOST
+              value: {{ include "paperless-ngx.databaseHost" . | quote }}
+            - name: PAPERLESS_DBPORT
+              value: {{ include "paperless-ngx.databasePort" . | quote }}
+            - name: PAPERLESS_DBNAME
+              value: {{ include "paperless-ngx.databaseName" . | quote }}
+            - name: PAPERLESS_DBUSER
+              value: {{ include "paperless-ngx.databaseUsername" . | quote }}
+            - name: PAPERLESS_DBPASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "paperless-ngx.databaseSecretName" . }}
+                  key: {{ include "paperless-ngx.databaseSecretKey" . }}
+            {{- end }}
+            {{- with .Values.database.options }}
+            - name: PAPERLESS_DB_OPTIONS
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if include "paperless-ngx.hasValkeyPassword" . }}
+            - name: VALKEY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "paperless-ngx.valkeySecretName" . }}
+                  key: {{ include "paperless-ngx.valkeySecretKey" . }}
+            - name: PAPERLESS_REDIS
+              value: {{ printf "redis://:$(VALKEY_PASSWORD)@%s:%s" (include "paperless-ngx.valkeyHost" .) (include "paperless-ngx.valkeyPort" .) | quote }}
+            {{- else }}
+            - name: PAPERLESS_REDIS
+              value: {{ printf "redis://%s:%s" (include "paperless-ngx.valkeyHost" .) (include "paperless-ngx.valkeyPort" .) | quote }}
+            {{- end }}
+            {{- with .Values.valkey.prefix }}
+            - name: PAPERLESS_REDIS_PREFIX
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if include "paperless-ngx.tikaEnabled" . }}
+            - name: PAPERLESS_TIKA_ENABLED
+              value: "true"
+            - name: PAPERLESS_TIKA_ENDPOINT
+              value: {{ include "paperless-ngx.tikaEndpoint" . | quote }}
+            - name: PAPERLESS_TIKA_GOTENBERG_ENDPOINT
+              value: {{ include "paperless-ngx.gotenbergEndpoint" . | quote }}
+            {{- end }}
+            {{- with .Values.paperless.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.paperless.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- /*
+            Probes send Host: localhost because Paperless-ngx always allows localhost,
+            while the pod IP would be rejected once PAPERLESS_ALLOWED_HOSTS is restricted.
+          */}}
+          {{- range $probe := list "startupProbe" "livenessProbe" "readinessProbe" }}
+          {{- $p := index $.Values $probe }}
+          {{- if $p.enabled }}
+          {{ $probe }}:
+            httpGet:
+              path: {{ $p.path }}
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: localhost
+            initialDelaySeconds: {{ $p.initialDelaySeconds }}
+            periodSeconds: {{ $p.periodSeconds }}
+            timeoutSeconds: {{ $p.timeoutSeconds }}
+            failureThreshold: {{ $p.failureThreshold }}
+          {{- end }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            {{- range $name := list "data" "media" "consume" "export" }}
+            - name: {{ $name }}
+              mountPath: /usr/src/paperless/{{ $name }}
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        {{- range $name := list "data" "media" "consume" "export" }}
+        - name: {{ $name }}
+          {{- include "paperless-ngx.volumeSource" (dict "ctx" $ "name" $name) | nindent 10 }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

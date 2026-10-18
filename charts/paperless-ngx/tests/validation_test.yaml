@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: should accept the defaults
+    asserts:
+      - notFailedTemplate: {}
+
+  - it: should require Tika and Gotenberg together
+    set:
+      tika.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "paperless-ngx: tika.enabled and gotenberg.enabled must be enabled together; Paperless-ngx needs both to convert office documents and emails"
+
+  - it: should reject an ambiguous database selection
+    set:
+      database.external.host: pg.example.internal
+    asserts:
+      - failedTemplate:
+          errorMessage: "paperless-ngx database selection is ambiguous: configure only one of database.external.* or postgresql.enabled"
+
+  - it: should reject SQLite together with the PostgreSQL subchart
+    set:
+      database.mode: sqlite
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.mode=sqlite cannot be combined with postgresql.enabled"
+
+  - it: should require a Valkey
+    set:
+      valkey.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "paperless-ngx requires Valkey: enable valkey.enabled or configure valkey.external.host"
+
+  - it: should require a host for external database secrets
+    set:
+      postgresql.enabled: false
+      database.external.existingSecret: pg-creds
+    asserts:
+      - failedTemplate:
+          errorMessage: "paperless-ngx: database.external.host is required for an external PostgreSQL database"
+
+  - it: should reject a paperless.url with a path
+    set:
+      paperless.url: https://example.com/paperless
+    asserts:
+      - failedTemplate: {}
+
+  - it: should require an admin username when bootstrap is enabled
+    set:
+      paperless.admin.username: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "paperless-ngx: paperless.admin.username is required when paperless.admin.enabled=true"

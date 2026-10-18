@@ -1,0 +1,95 @@
+# SPDX-License-Identifier: Apache-2.0
+# CI scenario: external PostgreSQL and Valkey provided outside the chart
+database:
+  mode: external
+  external:
+    host: paperless-external-postgresql
+    name: paperless
+    username: paperless
+    password: helmforge-test-password
+
+postgresql:
+  enabled: false
+
+valkey:
+  enabled: false
+  external:
+    host: paperless-external-valkey
+    password: helmforge-test-password
+
+extraManifests:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: paperless-external-postgresql
+    spec:
+      ports:
+        - name: postgres
+          port: 5432
+          targetPort: postgres
+      selector:
+        app.kubernetes.io/name: paperless-external-postgresql
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: paperless-external-postgresql
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: paperless-external-postgresql
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: paperless-external-postgresql
+        spec:
+          containers:
+            - name: postgres
+              image: docker.io/library/postgres:18.6-trixie
+              imagePullPolicy: IfNotPresent
+              ports:
+                - name: postgres
+                  containerPort: 5432
+              env:
+                - name: POSTGRES_DB
+                  value: paperless
+                - name: POSTGRES_USER
+                  value: paperless
+                - name: POSTGRES_PASSWORD
+                  value: helmforge-test-password
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: paperless-external-valkey
+    spec:
+      ports:
+        - name: valkey
+          port: 6379
+          targetPort: valkey
+      selector:
+        app.kubernetes.io/name: paperless-external-valkey
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: paperless-external-valkey
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: paperless-external-valkey
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: paperless-external-valkey
+        spec:
+          containers:
+            - name: valkey
+              image: docker.io/valkey/valkey:9.1.2
+              imagePullPolicy: IfNotPresent
+              command: ["valkey-server"]
+              args:
+                - --requirepass
+                - helmforge-test-password
+              ports:
+                - name: valkey
+                  containerPort: 6379

@@ -1,0 +1,27 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- range $name := list "data" "media" "consume" "export" }}
+{{- $p := index $.Values.persistence $name }}
+{{- if and $p.enabled (not $p.existingClaim) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "paperless-ngx.fullname" $ }}-{{ $name }}
+  labels:
+    {{- include "paperless-ngx.labels" $ | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+    {{- with $p.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  accessModes:
+    - {{ $p.accessMode }}
+  {{- if $p.storageClass }}
+  storageClassName: {{ $p.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $p.size }}
+{{- end }}
+{{- end }}

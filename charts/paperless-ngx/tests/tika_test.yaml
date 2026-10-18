@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Tika and Gotenberg
+templates:
+  - templates/tika.yaml
+  - templates/gotenberg.yaml
+tests:
+  - it: should not render Tika or Gotenberg by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render the Tika Deployment and Service
+    template: templates/tika.yaml
+    set:
+      tika.enabled: true
+      gotenberg.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 2
+      - isKind:
+          of: Deployment
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/apache/tika:3.3.1.0
+        documentIndex: 0
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/component"]
+          value: tika
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 35002
+        documentIndex: 0
+      - equal:
+          path: spec.ports[0].port
+          value: 9998
+        documentIndex: 1
+
+  - it: should render Gotenberg with the upstream hardening arguments
+    template: templates/gotenberg.yaml
+    set:
+      tika.enabled: true
+      gotenberg.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/gotenberg/gotenberg:8.37.0
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - gotenberg
+            - --chromium-disable-javascript=true
+            - --chromium-allow-list=^file:///tmp/.*
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /health
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1001
+        documentIndex: 0

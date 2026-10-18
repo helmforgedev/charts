@@ -1,0 +1,490 @@
+# SPDX-License-Identifier: Apache-2.0
+# =============================================================================
+# Paperless-ngx Helm Chart
+# =============================================================================
+# Document management system that scans, indexes, and archives documents.
+# Requires Valkey. Uses PostgreSQL by default and can fall back to SQLite.
+# The web server, task worker, scheduler, and consumer run in one container,
+# so the application is single-replica.
+# =============================================================================
+
+# -- Override the chart name used in resource names
+nameOverride: ""
+
+# -- Override the full release name used in resource names
+fullnameOverride: ""
+
+# -- Labels added to every resource created by this chart
+commonLabels: {}
+
+# -- Number of Paperless-ngx replicas. Only 0 or 1 is supported because the scheduler and consumer must run once.
+replicaCount: 1
+
+# -- Deployment update strategy. Defaults to Recreate because the data and media PVCs are ReadWriteOnce
+# and two Paperless-ngx instances must never run against the same data at the same time.
+strategy: {}
+
+image:
+  # -- Paperless-ngx container image repository
+  repository: ghcr.io/paperless-ngx/paperless-ngx
+  # -- Paperless-ngx image tag. Defaults to appVersion validated on GitHub Releases and GHCR.
+  tag: "3.3.2"
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+paperless:
+  # -- Public URL of Paperless-ngx without trailing slash. Sets ALLOWED_HOSTS, CORS and CSRF origins.
+  # Auto-detected from the first ingress host or gateway hostname when empty.
+  url: ""
+  # -- Secret key used to sign sessions and tokens. Auto-generated if empty.
+  secretKey: ""
+  # -- Existing secret holding the secret key. Takes precedence over secretKey, and stops the chart
+  # from creating or rotating one, which matters for GitOps renderers where the cluster lookup is unavailable.
+  existingSecret: ""
+  # -- Secret key for the secret key value in paperless.existingSecret
+  existingSecretSecretKeyKey: secret-key
+  # -- Time zone used for dates and scheduled tasks
+  timeZone: UTC
+  # -- Default OCR language (Tesseract code). The image ships eng, deu, ita, spa and fra; combine with "+", for example deu+eng.
+  ocrLanguage: eng
+  admin:
+    # -- Create a superuser on startup. Paperless-ngx never changes an existing user's password.
+    enabled: true
+    # -- Superuser username
+    username: admin
+    # -- Superuser email address. Upstream defaults to root@localhost when empty.
+    email: ""
+    # -- Superuser password. Auto-generated if empty. Ignored when existingSecret is set.
+    password: ""
+    # -- Existing secret containing the superuser password
+    existingSecret: ""
+    # -- Secret key for the superuser password in paperless.admin.existingSecret
+    existingSecretPasswordKey: admin-password
+  consumer:
+    # -- Poll the consumption directory every N seconds. 0 uses inotify; set a positive value for NFS or SMB volumes.
+    pollingInterval: 0
+    # -- Consume files in subdirectories of the consumption directory
+    recursive: false
+  # -- Additional environment variables for the Paperless-ngx container
+  extraEnv: []
+  # -- Additional envFrom sources (ConfigMaps or Secrets) for the Paperless-ngx container
+  extraEnvFrom: []
+
+database:
+  # -- Database mode: auto | external | postgresql | sqlite. auto picks external, then the subchart, then SQLite.
+  mode: auto
+  external:
+    # -- External PostgreSQL hostname
+    host: ""
+    # -- External PostgreSQL port
+    port: 5432
+    # -- External PostgreSQL database name
+    name: paperless
+    # -- External PostgreSQL username
+    username: paperless
+    # -- External PostgreSQL password. Ignored when existingSecret is set.
+    password: ""
+    # -- Existing secret containing the external PostgreSQL password
+    existingSecret: ""
+    # -- Secret key for the external PostgreSQL password
+    existingSecretPasswordKey: database-password
+  # -- Advanced driver options passed as PAPERLESS_DB_OPTIONS, for example "sslmode=require,pool.max_size=5"
+  options: ""
+
+# -- Deploy PostgreSQL as a subchart
+postgresql:
+  enabled: true
+  architecture: standalone
+  auth:
+    # -- PostgreSQL database name created on first run
+    database: paperless
+    # -- PostgreSQL username created on first run
+    username: paperless
+    # -- PostgreSQL application user password. Auto-generated if empty.
+    password: ""
+    # -- PostgreSQL superuser password. Auto-generated if empty.
+    postgresPassword: ""
+  standalone:
+    persistence:
+      # -- Enable persistence for PostgreSQL data
+      enabled: true
+      # -- PVC size for PostgreSQL
+      size: 8Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+
+# -- Deploy Valkey as a subchart
+valkey:
+  # -- Deploy the HelmForge Valkey subchart. Disable when using valkey.external.*
+  enabled: true
+  # -- Valkey subchart architecture
+  architecture: standalone
+  # -- Valkey subchart authentication settings
+  auth:
+    # -- Enable Valkey password authentication
+    enabled: true
+    # -- Valkey password. Auto-generated if empty when auth.enabled=true.
+    password: ""
+  # -- Valkey subchart standalone settings
+  standalone:
+    persistence:
+      # -- Enable persistence for Valkey data
+      enabled: true
+      # -- PVC size for Valkey
+      size: 1Gi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  external:
+    # -- External Valkey or Redis-compatible hostname
+    host: ""
+    # -- External Valkey port
+    port: 6379
+    # -- External Valkey password. Ignored when existingSecret is set.
+    password: ""
+    # -- Existing secret containing the external Valkey password
+    existingSecret: ""
+    # -- Secret key for the external Valkey password
+    existingSecretPasswordKey: valkey-password
+  # -- Key and channel prefix in Valkey. Useful when several Paperless-ngx instances share one Valkey.
+  prefix: ""
+
+persistence:
+  data:
+    # -- Create a PVC for /usr/src/paperless/data (search index, classifier, SQLite database). Uses emptyDir when disabled.
+    enabled: true
+    # -- Existing PVC for the data directory
+    existingClaim: ""
+    # -- Storage class for the data PVC
+    storageClass: ""
+    # -- Access mode for the data PVC
+    accessMode: ReadWriteOnce
+    # -- Size of the data PVC
+    size: 2Gi
+    # -- Annotations for the data PVC
+    annotations: {}
+  media:
+    # -- Create a PVC for /usr/src/paperless/media (original and archived documents). Uses emptyDir when disabled.
+    enabled: true
+    # -- Existing PVC for the media directory
+    existingClaim: ""
+    # -- Storage class for the media PVC
+    storageClass: ""
+    # -- Access mode for the media PVC
+    accessMode: ReadWriteOnce
+    # -- Size of the media PVC
+    size: 10Gi
+    # -- Annotations for the media PVC
+    annotations: {}
+  consume:
+    # -- Create a PVC for /usr/src/paperless/consume (watched input folder). Uses emptyDir when disabled.
+    enabled: false
+    # -- Existing PVC for the consumption directory, for example a shared scanner volume
+    existingClaim: ""
+    # -- Storage class for the consume PVC
+    storageClass: ""
+    # -- Access mode for the consume PVC
+    accessMode: ReadWriteOnce
+    # -- Size of the consume PVC
+    size: 5Gi
+    # -- Annotations for the consume PVC
+    annotations: {}
+  export:
+    # -- Create a PVC for /usr/src/paperless/export (document_exporter target). Uses emptyDir when disabled.
+    enabled: false
+    # -- Existing PVC for the export directory
+    existingClaim: ""
+    # -- Storage class for the export PVC
+    storageClass: ""
+    # -- Access mode for the export PVC
+    accessMode: ReadWriteOnce
+    # -- Size of the export PVC
+    size: 10Gi
+    # -- Annotations for the export PVC
+    annotations: {}
+
+# =============================================================================
+# Office document and email conversion (Tika + Gotenberg)
+# =============================================================================
+
+tika:
+  # -- Deploy Apache Tika. Must be enabled together with gotenberg.enabled; sets PAPERLESS_TIKA_ENABLED.
+  enabled: false
+  image:
+    # -- Apache Tika image repository
+    repository: docker.io/apache/tika
+    # -- Apache Tika image tag, matching the upstream Paperless-ngx compose files
+    tag: "3.3.1.0"
+    # -- Image pull policy
+    pullPolicy: IfNotPresent
+  # -- CPU and memory requests/limits for Tika
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1536Mi
+  # -- Pod-level security context for Tika
+  podSecurityContext:
+    runAsUser: 35002
+    runAsGroup: 35002
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  # -- Container-level security context for Tika
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+
+gotenberg:
+  # -- Deploy Gotenberg. Must be enabled together with tika.enabled.
+  enabled: false
+  image:
+    # -- Gotenberg image repository
+    repository: docker.io/gotenberg/gotenberg
+    # -- Gotenberg image tag, matching the upstream Paperless-ngx compose files
+    tag: "8.37.0"
+    # -- Image pull policy
+    pullPolicy: IfNotPresent
+  # -- Gotenberg arguments. The defaults match upstream and block JavaScript and external content in emails.
+  args:
+    - gotenberg
+    - --chromium-disable-javascript=true
+    - --chromium-allow-list=^file:///tmp/.*
+  # -- CPU and memory requests/limits for Gotenberg
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  # -- Pod-level security context for Gotenberg
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  # -- Container-level security context for Gotenberg
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+
+service:
+  # -- Service type for the Paperless-ngx HTTP service
+  type: ClusterIP
+  # -- Service port exposed by the Paperless-ngx service
+  port: 80
+  # -- Annotations for the Paperless-ngx service
+  annotations: {}
+  # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ""
+  # -- Service IP families override. Empty uses cluster default.
+  ipFamilies: []
+
+ingress:
+  # -- Enable ingress for Paperless-ngx
+  enabled: false
+  # -- Ingress class name
+  ingressClassName: ""
+  # -- Ingress annotations. Large uploads may need a body size annotation for your controller.
+  annotations: {}
+  # -- Ingress hosts
+  hosts: []
+    # - host: paperless.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- Ingress TLS configuration
+  tls: []
+
+startupProbe:
+  # -- Enable startup probe. The first start runs database migrations and can take several minutes.
+  enabled: true
+  # -- HTTP path used by the startup probe
+  path: /
+  # -- Initial delay before the first probe, in seconds. Paperless-ngx needs about 40 seconds
+  # for its s6 init before it listens, so earlier probes only produce Unhealthy events.
+  initialDelaySeconds: 60
+  # -- Probe interval, in seconds
+  periodSeconds: 10
+  # -- Probe timeout, in seconds
+  timeoutSeconds: 5
+  # -- Consecutive failures before the probe fails
+  failureThreshold: 60
+
+livenessProbe:
+  # -- Enable liveness probe
+  enabled: true
+  # -- HTTP path used by the liveness probe
+  path: /
+  # -- Initial delay before the first probe, in seconds
+  initialDelaySeconds: 0
+  # -- Probe interval, in seconds
+  periodSeconds: 30
+  # -- Probe timeout, in seconds
+  timeoutSeconds: 10
+  # -- Consecutive failures before the probe fails
+  failureThreshold: 5
+
+readinessProbe:
+  # -- Enable readiness probe
+  enabled: true
+  # -- HTTP path used by the readiness probe
+  path: /
+  # -- Initial delay before the first probe, in seconds
+  initialDelaySeconds: 0
+  # -- Probe interval, in seconds
+  periodSeconds: 10
+  # -- Probe timeout, in seconds
+  timeoutSeconds: 5
+  # -- Consecutive failures before the probe fails
+  failureThreshold: 3
+
+# -- CPU and memory requests/limits for the Paperless-ngx container. OCR of large documents is memory intensive.
+resources:
+  requests:
+    cpu: 250m
+    memory: 768Mi
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+
+# -- Pod-level security context. Paperless-ngx 3.x supports running rootless with any UID/GID.
+podSecurityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  runAsNonRoot: true
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Container-level security context
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+waitForServices:
+  # -- Resources for wait-for-postgresql and wait-for-valkey init containers
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+  # -- Security context for wait-for-postgresql and wait-for-valkey init containers
+  securityContext:
+    runAsUser: 65534
+    runAsGroup: 65534
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount
+  create: false
+  # -- ServiceAccount name override
+  name: ""
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# -- Node selector for pod scheduling
+nodeSelector: {}
+
+# -- Tolerations for pod scheduling
+tolerations: []
+
+# -- Affinity rules for pod scheduling
+affinity: {}
+
+# -- Priority class name
+priorityClassName: ""
+
+# -- Grace period for shutdown, in seconds. Leaves running consume tasks time to finish.
+terminationGracePeriodSeconds: 60
+
+# -- Additional labels for the Paperless-ngx pod
+podLabels: {}
+
+# -- Additional annotations for the Paperless-ngx pod
+podAnnotations: {}
+
+# -- Additional volume mounts for the Paperless-ngx container
+extraVolumeMounts: []
+
+# -- Additional volumes for the Paperless-ngx pod
+extraVolumes: []
+
+# -- Extra Kubernetes manifests to deploy alongside the chart
+extraManifests: []
+
+# =============================================================================
+# Gateway API
+# =============================================================================
+
+gateway:
+  # -- Enable Gateway API HTTPRoute for Paperless-ngx HTTP (requires Gateway API CRDs)
+  enabled: false
+  # -- Annotations for the HTTPRoute
+  annotations: {}
+  # -- Gateway parentRefs for the HTTPRoute
+  parentRefs: []
+  # -- Hostnames matched by the HTTPRoute
+  hostnames: []
+  # -- Path matched by the HTTPRoute
+  path: /
+  # -- Path match type
+  pathType: PathPrefix
+
+# =============================================================================
+# External Secrets Operator
+# =============================================================================
+
+externalSecrets:
+  # -- Render an ExternalSecret for the external database password.
+  # Requires database.external.existingSecret to be set to prevent drift between
+  # the chart-managed Secret and the ExternalSecret.
+  enabled: false
+  # -- External Secrets API version
+  apiVersion: external-secrets.io/v1
+  # -- Refresh interval for the ExternalSecret
+  refreshInterval: "0"
+  secretStoreRef:
+    # -- SecretStore or ClusterSecretStore name
+    name: ""
+    # -- SecretStore kind
+    kind: SecretStore
+  target:
+    # -- Creation policy for the target Secret
+    creationPolicy: Owner
+  # -- Data entries mapping remote keys to secret keys
+  data: []
+  #   - secretKey: database-password
+  #     remoteRef:
+  #       key: paperless/database
+  #       property: password

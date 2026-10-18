@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Gateway API
+templates:
+  - templates/httproute.yaml
+tests:
+  - it: should render an HTTPRoute
+    set:
+      gateway.enabled: true
+      gateway.parentRefs:
+        - name: shared-gateway
+          namespace: gateway-system
+      gateway.hostnames:
+        - paperless.example.com
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: spec.hostnames[0]
+          value: paperless.example.com
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 80
+
+  - it: should require parentRefs
+    set:
+      gateway.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "gateway.parentRefs is required when gateway.enabled=true"

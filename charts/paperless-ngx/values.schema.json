@@ -1,0 +1,841 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Paperless-ngx Helm Chart Values",
+  "description": "Configuration values for the Paperless-ngx Helm chart with PostgreSQL, Valkey, persistent storage, and optional Tika/Gotenberg.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "nameOverride": {
+      "type": "string",
+      "description": "Override the chart name used in resource names"
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "description": "Override the full release name used in resource names"
+    },
+    "commonLabels": {
+      "type": "object",
+      "description": "Labels added to every resource created by this chart"
+    },
+    "replicaCount": {
+      "type": "integer",
+      "description": "Number of Paperless-ngx replicas. Only 0 or 1 is supported because the scheduler and consumer must run once.",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "strategy": {
+      "type": "object",
+      "description": "Deployment update strategy. Defaults to Recreate because the data and media PVCs are ReadWriteOnce and two Paperless-ngx instances must never run against the same data at the same time."
+    },
+    "image": {
+      "type": "object",
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "Paperless-ngx container image repository"
+        },
+        "tag": {
+          "type": "string",
+          "description": "Paperless-ngx image tag. Defaults to appVersion validated on GitHub Releases and GHCR."
+        },
+        "pullPolicy": {
+          "type": "string",
+          "description": "Image pull policy",
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ]
+        }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "description": "Image pull secrets for private registries",
+      "items": {
+        "type": "object"
+      }
+    },
+    "paperless": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "Public URL of Paperless-ngx without trailing slash. Sets ALLOWED_HOSTS, CORS and CSRF origins. Auto-detected from the first ingress host or gateway hostname when empty.",
+          "pattern": "^(|https?://[^/]+/?)$"
+        },
+        "secretKey": {
+          "type": "string",
+          "description": "Secret key used to sign sessions and tokens. Auto-generated if empty."
+        },
+        "existingSecret": {
+          "type": "string",
+          "description": "Existing secret holding the secret key. Takes precedence over secretKey, and stops the chart from creating or rotating one, which matters for GitOps renderers where the cluster lookup is unavailable."
+        },
+        "existingSecretSecretKeyKey": {
+          "type": "string",
+          "description": "Secret key for the secret key value in paperless.existingSecret"
+        },
+        "timeZone": {
+          "type": "string",
+          "description": "Time zone used for dates and scheduled tasks"
+        },
+        "ocrLanguage": {
+          "type": "string",
+          "description": "Default OCR language (Tesseract code). The image ships eng, deu, ita, spa and fra; combine with \"+\", for example deu+eng."
+        },
+        "admin": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Create a superuser on startup. Paperless-ngx never changes an existing user's password."
+            },
+            "username": {
+              "type": "string",
+              "description": "Superuser username"
+            },
+            "email": {
+              "type": "string",
+              "description": "Superuser email address. Upstream defaults to root@localhost when empty."
+            },
+            "password": {
+              "type": "string",
+              "description": "Superuser password. Auto-generated if empty. Ignored when existingSecret is set."
+            },
+            "existingSecret": {
+              "type": "string",
+              "description": "Existing secret containing the superuser password"
+            },
+            "existingSecretPasswordKey": {
+              "type": "string",
+              "description": "Secret key for the superuser password in paperless.admin.existingSecret"
+            }
+          }
+        },
+        "consumer": {
+          "type": "object",
+          "properties": {
+            "pollingInterval": {
+              "type": "integer",
+              "description": "Poll the consumption directory every N seconds. 0 uses inotify; set a positive value for NFS or SMB volumes.",
+              "minimum": 0
+            },
+            "recursive": {
+              "type": "boolean",
+              "description": "Consume files in subdirectories of the consumption directory"
+            }
+          }
+        },
+        "extraEnv": {
+          "type": "array",
+          "description": "Additional environment variables for the Paperless-ngx container",
+          "items": {
+            "type": "object"
+          }
+        },
+        "extraEnvFrom": {
+          "type": "array",
+          "description": "Additional envFrom sources (ConfigMaps or Secrets) for the Paperless-ngx container",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "database": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "description": "Database mode: auto | external | postgresql | sqlite. auto picks external, then the subchart, then SQLite.",
+          "enum": [
+            "auto",
+            "external",
+            "postgresql",
+            "sqlite"
+          ]
+        },
+        "external": {
+          "type": "object",
+          "properties": {
+            "host": {
+              "type": "string",
+              "description": "External PostgreSQL hostname"
+            },
+            "port": {
+              "type": "integer",
+              "description": "External PostgreSQL port",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "name": {
+              "type": "string",
+              "description": "External PostgreSQL database name"
+            },
+            "username": {
+              "type": "string",
+              "description": "External PostgreSQL username"
+            },
+            "password": {
+              "type": "string",
+              "description": "External PostgreSQL password. Ignored when existingSecret is set."
+            },
+            "existingSecret": {
+              "type": "string",
+              "description": "Existing secret containing the external PostgreSQL password"
+            },
+            "existingSecretPasswordKey": {
+              "type": "string",
+              "description": "Secret key for the external PostgreSQL password"
+            }
+          }
+        },
+        "options": {
+          "type": "string",
+          "description": "Advanced driver options passed as PAPERLESS_DB_OPTIONS, for example \"sslmode=require,pool.max_size=5\""
+        }
+      }
+    },
+    "postgresql": {
+      "type": "object",
+      "description": "Deploy PostgreSQL as a subchart"
+    },
+    "valkey": {
+      "type": "object",
+      "description": "Deploy Valkey as a subchart",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Deploy the HelmForge Valkey subchart. Disable when using valkey.external.*"
+        },
+        "architecture": {
+          "type": "string",
+          "description": "Valkey subchart architecture"
+        },
+        "auth": {
+          "type": "object",
+          "description": "Valkey subchart authentication settings"
+        },
+        "standalone": {
+          "type": "object",
+          "description": "Valkey subchart standalone settings"
+        },
+        "external": {
+          "type": "object",
+          "properties": {
+            "host": {
+              "type": "string",
+              "description": "External Valkey or Redis-compatible hostname"
+            },
+            "port": {
+              "type": "integer",
+              "description": "External Valkey port"
+            },
+            "password": {
+              "type": "string",
+              "description": "External Valkey password. Ignored when existingSecret is set."
+            },
+            "existingSecret": {
+              "type": "string",
+              "description": "Existing secret containing the external Valkey password"
+            },
+            "existingSecretPasswordKey": {
+              "type": "string",
+              "description": "Secret key for the external Valkey password"
+            }
+          }
+        },
+        "prefix": {
+          "type": "string",
+          "description": "Key and channel prefix in Valkey. Useful when several Paperless-ngx instances share one Valkey."
+        }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Create a PVC for /usr/src/paperless/data (search index, classifier, SQLite database). Uses emptyDir when disabled."
+            },
+            "existingClaim": {
+              "type": "string",
+              "description": "Existing PVC for the data directory"
+            },
+            "storageClass": {
+              "type": "string",
+              "description": "Storage class for the data PVC"
+            },
+            "accessMode": {
+              "type": "string",
+              "description": "Access mode for the data PVC",
+              "enum": [
+                "ReadWriteOnce",
+                "ReadWriteMany",
+                "ReadWriteOncePod",
+                "ReadOnlyMany"
+              ]
+            },
+            "size": {
+              "type": "string",
+              "description": "Size of the data PVC"
+            },
+            "annotations": {
+              "type": "object",
+              "description": "Annotations for the data PVC"
+            }
+          }
+        },
+        "media": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Create a PVC for /usr/src/paperless/media (original and archived documents). Uses emptyDir when disabled."
+            },
+            "existingClaim": {
+              "type": "string",
+              "description": "Existing PVC for the media directory"
+            },
+            "storageClass": {
+              "type": "string",
+              "description": "Storage class for the media PVC"
+            },
+            "accessMode": {
+              "type": "string",
+              "description": "Access mode for the media PVC",
+              "enum": [
+                "ReadWriteOnce",
+                "ReadWriteMany",
+                "ReadWriteOncePod",
+                "ReadOnlyMany"
+              ]
+            },
+            "size": {
+              "type": "string",
+              "description": "Size of the media PVC"
+            },
+            "annotations": {
+              "type": "object",
+              "description": "Annotations for the media PVC"
+            }
+          }
+        },
+        "consume": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Create a PVC for /usr/src/paperless/consume (watched input folder). Uses emptyDir when disabled."
+            },
+            "existingClaim": {
+              "type": "string",
+              "description": "Existing PVC for the consumption directory, for example a shared scanner volume"
+            },
+            "storageClass": {
+              "type": "string",
+              "description": "Storage class for the consume PVC"
+            },
+            "accessMode": {
+              "type": "string",
+              "description": "Access mode for the consume PVC",
+              "enum": [
+                "ReadWriteOnce",
+                "ReadWriteMany",
+                "ReadWriteOncePod",
+                "ReadOnlyMany"
+              ]
+            },
+            "size": {
+              "type": "string",
+              "description": "Size of the consume PVC"
+            },
+            "annotations": {
+              "type": "object",
+              "description": "Annotations for the consume PVC"
+            }
+          }
+        },
+        "export": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Create a PVC for /usr/src/paperless/export (document_exporter target). Uses emptyDir when disabled."
+            },
+            "existingClaim": {
+              "type": "string",
+              "description": "Existing PVC for the export directory"
+            },
+            "storageClass": {
+              "type": "string",
+              "description": "Storage class for the export PVC"
+            },
+            "accessMode": {
+              "type": "string",
+              "description": "Access mode for the export PVC",
+              "enum": [
+                "ReadWriteOnce",
+                "ReadWriteMany",
+                "ReadWriteOncePod",
+                "ReadOnlyMany"
+              ]
+            },
+            "size": {
+              "type": "string",
+              "description": "Size of the export PVC"
+            },
+            "annotations": {
+              "type": "object",
+              "description": "Annotations for the export PVC"
+            }
+          }
+        }
+      }
+    },
+    "tika": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Deploy Apache Tika. Must be enabled together with gotenberg.enabled; sets PAPERLESS_TIKA_ENABLED."
+        },
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": {
+              "type": "string",
+              "description": "Apache Tika image repository"
+            },
+            "tag": {
+              "type": "string",
+              "description": "Apache Tika image tag, matching the upstream Paperless-ngx compose files"
+            },
+            "pullPolicy": {
+              "type": "string",
+              "description": "Image pull policy",
+              "enum": [
+                "Always",
+                "IfNotPresent",
+                "Never"
+              ]
+            }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "description": "CPU and memory requests/limits for Tika"
+        },
+        "podSecurityContext": {
+          "type": "object",
+          "description": "Pod-level security context for Tika"
+        },
+        "securityContext": {
+          "type": "object",
+          "description": "Container-level security context for Tika"
+        }
+      }
+    },
+    "gotenberg": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Deploy Gotenberg. Must be enabled together with tika.enabled."
+        },
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": {
+              "type": "string",
+              "description": "Gotenberg image repository"
+            },
+            "tag": {
+              "type": "string",
+              "description": "Gotenberg image tag, matching the upstream Paperless-ngx compose files"
+            },
+            "pullPolicy": {
+              "type": "string",
+              "description": "Image pull policy",
+              "enum": [
+                "Always",
+                "IfNotPresent",
+                "Never"
+              ]
+            }
+          }
+        },
+        "args": {
+          "type": "array",
+          "description": "Gotenberg arguments. The defaults match upstream and block JavaScript and external content in emails.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "resources": {
+          "type": "object",
+          "description": "CPU and memory requests/limits for Gotenberg"
+        },
+        "podSecurityContext": {
+          "type": "object",
+          "description": "Pod-level security context for Gotenberg"
+        },
+        "securityContext": {
+          "type": "object",
+          "description": "Container-level security context for Gotenberg"
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Service type for the Paperless-ngx HTTP service",
+          "enum": [
+            "ClusterIP",
+            "NodePort",
+            "LoadBalancer"
+          ]
+        },
+        "port": {
+          "type": "integer",
+          "description": "Service port exposed by the Paperless-ngx service",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the Paperless-ngx service"
+        },
+        "ipFamilyPolicy": {
+          "type": "string",
+          "description": "Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.",
+          "enum": [
+            "",
+            "SingleStack",
+            "PreferDualStack",
+            "RequireDualStack"
+          ]
+        },
+        "ipFamilies": {
+          "type": "array",
+          "description": "Service IP families override. Empty uses cluster default.",
+          "items": {
+            "type": "string",
+            "enum": [
+              "IPv4",
+              "IPv6"
+            ]
+          }
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable ingress for Paperless-ngx"
+        },
+        "ingressClassName": {
+          "type": "string",
+          "description": "Ingress class name"
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Ingress annotations. Large uploads may need a body size annotation for your controller."
+        },
+        "hosts": {
+          "type": "array",
+          "description": "Ingress hosts",
+          "items": {
+            "type": "object"
+          }
+        },
+        "tls": {
+          "type": "array",
+          "description": "Ingress TLS configuration",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "startupProbe": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable startup probe. The first start runs database migrations and can take several minutes."
+        },
+        "path": {
+          "type": "string",
+          "description": "HTTP path used by the startup probe"
+        },
+        "initialDelaySeconds": {
+          "type": "integer",
+          "description": "Initial delay before the first probe, in seconds. Paperless-ngx needs about 40 seconds for its s6 init before it listens, so earlier probes only produce Unhealthy events."
+        },
+        "periodSeconds": {
+          "type": "integer",
+          "description": "Probe interval, in seconds"
+        },
+        "timeoutSeconds": {
+          "type": "integer",
+          "description": "Probe timeout, in seconds"
+        },
+        "failureThreshold": {
+          "type": "integer",
+          "description": "Consecutive failures before the probe fails"
+        }
+      }
+    },
+    "livenessProbe": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable liveness probe"
+        },
+        "path": {
+          "type": "string",
+          "description": "HTTP path used by the liveness probe"
+        },
+        "initialDelaySeconds": {
+          "type": "integer",
+          "description": "Initial delay before the first probe, in seconds"
+        },
+        "periodSeconds": {
+          "type": "integer",
+          "description": "Probe interval, in seconds"
+        },
+        "timeoutSeconds": {
+          "type": "integer",
+          "description": "Probe timeout, in seconds"
+        },
+        "failureThreshold": {
+          "type": "integer",
+          "description": "Consecutive failures before the probe fails"
+        }
+      }
+    },
+    "readinessProbe": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable readiness probe"
+        },
+        "path": {
+          "type": "string",
+          "description": "HTTP path used by the readiness probe"
+        },
+        "initialDelaySeconds": {
+          "type": "integer",
+          "description": "Initial delay before the first probe, in seconds"
+        },
+        "periodSeconds": {
+          "type": "integer",
+          "description": "Probe interval, in seconds"
+        },
+        "timeoutSeconds": {
+          "type": "integer",
+          "description": "Probe timeout, in seconds"
+        },
+        "failureThreshold": {
+          "type": "integer",
+          "description": "Consecutive failures before the probe fails"
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "description": "CPU and memory requests/limits for the Paperless-ngx container. OCR of large documents is memory intensive."
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "description": "Pod-level security context. Paperless-ngx 3.x supports running rootless with any UID/GID."
+    },
+    "securityContext": {
+      "type": "object",
+      "description": "Container-level security context"
+    },
+    "waitForServices": {
+      "type": "object",
+      "properties": {
+        "resources": {
+          "type": "object",
+          "description": "Resources for wait-for-postgresql and wait-for-valkey init containers"
+        },
+        "securityContext": {
+          "type": "object",
+          "description": "Security context for wait-for-postgresql and wait-for-valkey init containers"
+        }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "properties": {
+        "create": {
+          "type": "boolean",
+          "description": "Create a dedicated ServiceAccount"
+        },
+        "name": {
+          "type": "string",
+          "description": "ServiceAccount name override"
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the ServiceAccount"
+        }
+      }
+    },
+    "nodeSelector": {
+      "type": "object",
+      "description": "Node selector for pod scheduling"
+    },
+    "tolerations": {
+      "type": "array",
+      "description": "Tolerations for pod scheduling",
+      "items": {
+        "type": "object"
+      }
+    },
+    "affinity": {
+      "type": "object",
+      "description": "Affinity rules for pod scheduling"
+    },
+    "priorityClassName": {
+      "type": "string",
+      "description": "Priority class name"
+    },
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "description": "Grace period for shutdown, in seconds. Leaves running consume tasks time to finish."
+    },
+    "podLabels": {
+      "type": "object",
+      "description": "Additional labels for the Paperless-ngx pod"
+    },
+    "podAnnotations": {
+      "type": "object",
+      "description": "Additional annotations for the Paperless-ngx pod"
+    },
+    "extraVolumeMounts": {
+      "type": "array",
+      "description": "Additional volume mounts for the Paperless-ngx container",
+      "items": {
+        "type": "object"
+      }
+    },
+    "extraVolumes": {
+      "type": "array",
+      "description": "Additional volumes for the Paperless-ngx pod",
+      "items": {
+        "type": "object"
+      }
+    },
+    "extraManifests": {
+      "type": "array",
+      "description": "Extra Kubernetes manifests to deploy alongside the chart",
+      "items": {
+        "type": "object"
+      }
+    },
+    "gateway": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable Gateway API HTTPRoute for Paperless-ngx HTTP (requires Gateway API CRDs)"
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the HTTPRoute"
+        },
+        "parentRefs": {
+          "type": "array",
+          "description": "Gateway parentRefs for the HTTPRoute",
+          "items": {
+            "type": "object"
+          }
+        },
+        "hostnames": {
+          "type": "array",
+          "description": "Hostnames matched by the HTTPRoute",
+          "items": {
+            "type": "string"
+          }
+        },
+        "path": {
+          "type": "string",
+          "description": "Path matched by the HTTPRoute"
+        },
+        "pathType": {
+          "type": "string",
+          "description": "Path match type",
+          "enum": [
+            "PathPrefix",
+            "Exact",
+            "RegularExpression"
+          ]
+        }
+      }
+    },
+    "externalSecrets": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Render an ExternalSecret for the external database password. Requires database.external.existingSecret to be set to prevent drift between the chart-managed Secret and the ExternalSecret."
+        },
+        "apiVersion": {
+          "type": "string",
+          "description": "External Secrets API version"
+        },
+        "refreshInterval": {
+          "type": "string",
+          "description": "Refresh interval for the ExternalSecret"
+        },
+        "secretStoreRef": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "SecretStore or ClusterSecretStore name"
+            },
+            "kind": {
+              "type": "string",
+              "description": "SecretStore kind",
+              "enum": [
+                "SecretStore",
+                "ClusterSecretStore"
+              ]
+            }
+          }
+        },
+        "target": {
+          "type": "object",
+          "properties": {
+            "creationPolicy": {
+              "type": "string",
+              "description": "Creation policy for the target Secret"
+            }
+          }
+        },
+        "data": {
+          "type": "array",
+          "description": "Data entries mapping remote keys to secret keys",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  }
+}

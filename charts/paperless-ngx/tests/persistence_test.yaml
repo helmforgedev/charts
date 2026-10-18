@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Persistence
+templates:
+  - templates/pvc.yaml
+tests:
+  - it: should create data and media PVCs by default
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-paperless-ngx-data
+        documentIndex: 0
+      - equal:
+          path: spec.resources.requests.storage
+          value: 2Gi
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-paperless-ngx-media
+        documentIndex: 1
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+        documentIndex: 1
+
+  - it: should create consume and export PVCs when enabled
+    set:
+      persistence.consume.enabled: true
+      persistence.export.enabled: true
+      persistence.export.storageClass: fast
+    asserts:
+      - hasDocuments:
+          count: 4
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-paperless-ngx-export
+        documentIndex: 3
+      - equal:
+          path: spec.storageClassName
+          value: fast
+        documentIndex: 3
+
+  - it: should skip PVCs backed by existing claims
+    set:
+      persistence.data.existingClaim: data-claim
+      persistence.media.existingClaim: media-claim
+    asserts:
+      - hasDocuments:
+          count: 0

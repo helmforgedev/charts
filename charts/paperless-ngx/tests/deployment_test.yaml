@@ -1,0 +1,285 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+  - templates/secret.yaml
+tests:
+  - it: should render a single-replica Recreate Deployment by default
+    template: templates/deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/paperless-ngx/paperless-ngx:3.3.2
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8000
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/component"]
+          value: webserver
+
+  - it: should configure the PostgreSQL subchart by default
+    template: templates/deployment.yaml
+    release:
+      name: docs
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_DBENGINE
+            value: postgresql
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_DBHOST
+            value: docs-postgresql
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_DBPASS
+            valueFrom:
+              secretKeyRef:
+                name: docs-postgresql-auth
+                key: user-password
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_REDIS
+            value: redis://:$(VALKEY_PASSWORD)@docs-valkey-client:6379
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-postgresql
+
+  - it: should use SQLite without a PostgreSQL wait container
+    template: templates/deployment.yaml
+    set:
+      postgresql.enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_DBENGINE
+            value: sqlite
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_DBHOST
+          any: true
+      - lengthEqual:
+          path: spec.template.spec.initContainers
+          count: 1
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-valkey
+
+  - it: should configure external PostgreSQL and Valkey
+    template: templates/deployment.yaml
+    set:
+      postgresql.enabled: false
+      valkey.enabled: false
+      database.external.host: pg.example.internal
+      database.external.port: 6432
+      database.external.existingSecret: pg-creds
+      valkey.external.host: valkey.example.internal
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_DBHOST
+            value: pg.example.internal
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_DBPORT
+            value: "6432"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_DBPASS
+            valueFrom:
+              secretKeyRef:
+                name: pg-creds
+                key: database-password
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_REDIS
+            value: redis://valkey.example.internal:6379
+
+  - it: should derive PAPERLESS_URL from the first ingress host
+    template: templates/deployment.yaml
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: docs.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_URL
+            value: https://docs.example.com
+
+  - it: should prefer an explicit paperless.url without trailing slash
+    template: templates/deployment.yaml
+    set:
+      paperless.url: https://paperless.example.org/
+      ingress.enabled: true
+      ingress.hosts:
+        - host: docs.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_URL
+            value: https://paperless.example.org
+
+  - it: should bootstrap the admin user from the generated secret
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_ADMIN_USER
+            value: admin
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_ADMIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-paperless-ngx-admin
+                key: admin-password
+
+  - it: should skip admin bootstrap when disabled
+    template: templates/deployment.yaml
+    set:
+      paperless.admin.enabled: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_ADMIN_USER
+          any: true
+
+  - it: should enable Tika endpoints when Tika and Gotenberg are deployed
+    template: templates/deployment.yaml
+    set:
+      tika.enabled: true
+      gotenberg.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_TIKA_ENABLED
+            value: "true"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_TIKA_ENDPOINT
+            value: http://RELEASE-NAME-paperless-ngx-tika:9998
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_TIKA_GOTENBERG_ENDPOINT
+            value: http://RELEASE-NAME-paperless-ngx-gotenberg:3000
+
+  - it: should enable consumer polling for network filesystems
+    template: templates/deployment.yaml
+    set:
+      paperless.consumer.pollingInterval: 60
+      paperless.consumer.recursive: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_CONSUMER_POLLING_INTERVAL
+            value: "60"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_CONSUMER_RECURSIVE
+            value: "true"
+
+  - it: should mount the four Paperless-ngx directories
+    template: templates/deployment.yaml
+    set:
+      persistence.consume.existingClaim: scanner-share
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].mountPath
+          value: /usr/src/paperless/data
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[1].mountPath
+          value: /usr/src/paperless/media
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[2].mountPath
+          value: /usr/src/paperless/consume
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[3].mountPath
+          value: /usr/src/paperless/export
+      - equal:
+          path: spec.template.spec.volumes[0].persistentVolumeClaim.claimName
+          value: RELEASE-NAME-paperless-ngx-data
+      - equal:
+          path: spec.template.spec.volumes[2].persistentVolumeClaim.claimName
+          value: scanner-share
+      - equal:
+          path: spec.template.spec.volumes[3].emptyDir
+          value: {}
+
+  - it: should run rootless with baseline hardening
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 1000
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+
+  - it: should send Host localhost on probes
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.httpHeaders[0]
+          value:
+            name: Host
+            value: localhost
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.failureThreshold
+          value: 60
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.initialDelaySeconds
+          value: 60
+
+  - it: should honor a custom strategy
+    template: templates/deployment.yaml
+    set:
+      strategy:
+        type: RollingUpdate
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: RollingUpdate

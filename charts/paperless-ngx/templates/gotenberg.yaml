@@ -1,0 +1,106 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.gotenberg.enabled }}
+{{- $c := .Values.gotenberg }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "paperless-ngx.fullname" . }}-gotenberg
+  labels:
+    {{- include "paperless-ngx.componentLabels" (dict "ctx" . "component" "gotenberg") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "paperless-ngx.componentSelectorLabels" (dict "ctx" . "component" "gotenberg") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "paperless-ngx.componentSelectorLabels" (dict "ctx" . "component" "gotenberg") | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "paperless-ngx.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- with $c.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: gotenberg
+          image: {{ printf "%s:%s" $c.image.repository $c.image.tag | quote }}
+          imagePullPolicy: {{ $c.image.pullPolicy }}
+          {{- if hasKey $c "args" }}
+          {{- with $c.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- end }}
+          {{- with $c.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+          {{- with $c.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "paperless-ngx.fullname" . }}-gotenberg
+  labels:
+    {{- include "paperless-ngx.componentLabels" (dict "ctx" . "component" "gotenberg") | nindent 4 }}
+spec:
+  type: ClusterIP
+  {{- with .Values.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    {{- include "paperless-ngx.componentSelectorLabels" (dict "ctx" . "component" "gotenberg") | nindent 4 }}
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+      protocol: TCP
+{{- end }}

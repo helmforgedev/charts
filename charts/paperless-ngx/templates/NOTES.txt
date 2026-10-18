@@ -1,0 +1,155 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- $namespace := .Release.Namespace -}}
+{{- $fullname := include "paperless-ngx.fullname" . -}}
+{{- $url := include "paperless-ngx.url" . -}}
+{{- $dbMode := include "paperless-ngx.databaseMode" . -}}
+1. Paperless-ngx has been installed
+===================================
+  Release:       {{ .Release.Name }}
+  Namespace:     {{ $namespace }}
+  Chart Version: {{ .Chart.Version }}
+  App Version:   {{ .Chart.AppVersion }}
+  Image:         {{ include "paperless-ngx.image" . }}
+
+2. Access
+=========
+[ClusterIP] Port-forward:
+  kubectl port-forward -n {{ $namespace }} svc/{{ $fullname }} 8000:{{ .Values.service.port }}
+  Open: http://localhost:8000
+
+{{- if .Values.ingress.enabled }}
+[Ingress]
+{{- range .Values.ingress.hosts }}
+  Host: {{ .host }}
+{{- end }}
+{{- end }}
+
+{{- if .Values.gateway.enabled }}
+[Gateway API]
+  HTTPRoute: {{ $fullname }}
+{{- range .Values.gateway.hostnames }}
+  Hostname:  {{ . }}
+{{- end }}
+{{- end }}
+
+{{- if $url }}
+Configured PAPERLESS_URL:
+  {{ $url }}
+{{- else }}
+No public URL is configured. Set paperless.url (or enable ingress / gateway with a
+host) before exposing Paperless-ngx, otherwise CSRF checks reject logins through
+your public hostname.
+{{- end }}
+
+3. First Login
+==============
+{{- if .Values.paperless.admin.enabled }}
+  Username: {{ .Values.paperless.admin.username }}
+  Password:
+    kubectl get secret -n {{ $namespace }} {{ include "paperless-ngx.adminSecretName" . }} \
+      -o jsonpath='{.data.{{ include "paperless-ngx.adminSecretKey" . }}}' | base64 -d; echo
+
+  The superuser is created on first start only. Changing paperless.admin.password
+  later does not change the password of an existing user.
+{{- else }}
+  Admin bootstrap is disabled. Create a superuser with:
+    kubectl exec -it -n {{ $namespace }} deploy/{{ $fullname }} -c paperless -- \
+      python3 manage.py createsuperuser
+{{- end }}
+
+4. Configuration Summary
+========================
+  Database:         {{ $dbMode }}{{- if eq $dbMode "postgresql" }} (PostgreSQL subchart){{- else if eq $dbMode "external" }} ({{ .Values.database.external.host }}){{- else }} (file in the data volume){{- end }}
+  Valkey:            {{ include "paperless-ngx.valkeyMode" . }}{{- if .Values.valkey.enabled }} (Valkey subchart){{- else }} ({{ .Values.valkey.external.host }}){{- end }}
+  OCR language:     {{ .Values.paperless.ocrLanguage }}
+  Time zone:        {{ .Values.paperless.timeZone }}
+  Tika/Gotenberg:   {{ if include "paperless-ngx.tikaEnabled" . }}enabled (office documents and emails){{ else }}disabled{{ end }}
+  Ingress:          {{ if .Values.ingress.enabled }}enabled{{ else }}disabled{{ end }}
+  Gateway API:      {{ if .Values.gateway.enabled }}enabled{{ else }}disabled{{ end }}
+  External Secrets: {{ if .Values.externalSecrets.enabled }}enabled{{ else }}disabled{{ end }}
+  Network Policy:   not managed by this chart
+  Service:          {{ .Values.service.type }} on port {{ .Values.service.port }}
+  Volumes:
+{{- range $name := list "data" "media" "consume" "export" }}
+{{- $p := index $.Values.persistence $name }}
+    {{ printf "%-8s" $name }} {{ if $p.existingClaim }}existing PVC {{ $p.existingClaim }}{{ else if $p.enabled }}PVC {{ $fullname }}-{{ $name }} ({{ $p.size }}){{ else }}emptyDir (lost on pod restart){{ end }}
+{{- end }}
+
+{{- if or (not (or .Values.persistence.data.enabled .Values.persistence.data.existingClaim)) (not (or .Values.persistence.media.enabled .Values.persistence.media.existingClaim)) }}
+
+  WARNING: the data or media volume is an emptyDir. Documents, the search index
+  {{- if eq $dbMode "sqlite" }} and the SQLite database{{ end }} are lost when the pod is replaced.
+{{- end }}
+
+5. Getting Started
+==================
+  Step 1: Log in with the superuser from section 3.
+  Step 2: Upload a PDF in the web UI, or copy one into the consume directory:
+            kubectl cp ./scan.pdf {{ $namespace }}/<pod>:/usr/src/paperless/consume/ -c paperless
+  Step 3: Watch it in the "File Tasks" view, then search for words from the document.
+  Step 4: Configure mail rules, workflows and users from the settings.
+
+6. Validation Commands
+======================
+  # Check pods are ready
+  kubectl get pods -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+  # Check services, PVCs, and optional routes
+  kubectl get svc,pvc -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl get ingress,httproute -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} 2>/dev/null || true
+
+  # Check Paperless-ngx logs (web server, task worker, scheduler, consumer)
+  kubectl logs -n {{ $namespace }} deploy/{{ $fullname }} -c paperless --tail=100
+
+  # Check dependency init containers when startup is blocked
+{{- if ne $dbMode "sqlite" }}
+  kubectl logs -n {{ $namespace }} deploy/{{ $fullname }} -c wait-for-postgresql --tail=100
+{{- end }}
+  kubectl logs -n {{ $namespace }} deploy/{{ $fullname }} -c wait-for-valkey --tail=100
+
+  # Run the built-in sanity checker
+  kubectl exec -n {{ $namespace }} deploy/{{ $fullname }} -c paperless -- python3 manage.py document_sanity_checker
+
+7. Backup
+=========
+  This chart does not schedule backups. Back up both the database and the media
+  volume, or use the upstream exporter, which writes documents and metadata:
+    kubectl exec -n {{ $namespace }} deploy/{{ $fullname }} -c paperless -- \
+      document_exporter /usr/src/paperless/export
+{{- if not (or .Values.persistence.export.enabled .Values.persistence.export.existingClaim) }}
+  Enable persistence.export (or mount an existing claim) so exports survive restarts.
+{{- end }}
+
+8. Troubleshooting
+==================
+  Pod not ready:
+    -> Check the init container logs for PostgreSQL and Valkey connectivity.
+    -> The first start runs database migrations; the startup probe allows 10 minutes.
+
+  "CSRF verification failed" when logging in:
+    -> Set paperless.url to the exact public URL, including https://.
+
+  Files in the consume directory are ignored:
+    -> NFS and SMB do not support inotify. Set paperless.consumer.pollingInterval, for example 60.
+
+  Office documents or emails fail to import:
+    -> Enable tika.enabled and gotenberg.enabled.
+
+  Additional OCR languages:
+    -> The image ships eng, deu, ita, spa and fra. Installing more languages with
+       PAPERLESS_OCR_LANGUAGES requires running as root, which this chart does not do by default.
+
+9. Upgrading
+============
+  Back up PostgreSQL and the media volume before upgrading. Keep the secret key
+  ({{ include "paperless-ngx.secretKeySecretName" . }}) stable, otherwise sessions and tokens are invalidated.
+  Read the upstream release notes for breaking changes:
+    https://github.com/paperless-ngx/paperless-ngx/releases
+
+10. Documentation
+=================
+  HelmForge docs: https://helmforge.dev/docs/charts/paperless-ngx
+  Upstream docs:  https://docs.paperless-ngx.com
+  GitHub source:  https://github.com/helmforgedev/charts/tree/main/charts/paperless-ngx
+
+Happy Helmforging :)
