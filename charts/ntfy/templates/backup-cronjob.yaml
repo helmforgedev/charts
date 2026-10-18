@@ -1,0 +1,98 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.backup.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "ntfy.fullname" . }}-backup
+  labels:
+    {{- include "ntfy.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  suspend: {{ .Values.backup.suspend }}
+  concurrencyPolicy: {{ .Values.backup.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.backup.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.backup.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.backup.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "ntfy.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: Never
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          initContainers:
+            - name: archive
+              image: {{ .Values.backup.images.archiver | quote }}
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+                  TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+                  ARCHIVE="/backup/{{ .Values.backup.archivePrefix }}-${TIMESTAMP}.tar.gz"
+                  echo "Creating archive ${ARCHIVE}..."
+                  tar czf "${ARCHIVE}" -C /var/cache/ntfy .
+                  echo "Archive created: $(du -h "${ARCHIVE}" | cut -f1)"
+              volumeMounts:
+                - name: data
+                  mountPath: /var/cache/ntfy
+                  readOnly: true
+                - name: backup-staging
+                  mountPath: /backup
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+          containers:
+            - name: upload
+              image: {{ .Values.backup.images.uploader | quote }}
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+                  mc alias set s3 "${S3_ENDPOINT}" "${S3_ACCESS_KEY}" "${S3_SECRET_KEY}" --api S3v4
+                  {{- if .Values.backup.s3.createBucketIfNotExists }}
+                  mc mb --ignore-existing "s3/${S3_BUCKET}"
+                  {{- end }}
+                  ARCHIVE=$(ls -t /backup/*.tar.gz | head -1)
+                  BASENAME=$(basename "${ARCHIVE}")
+                  mc cp "${ARCHIVE}" "s3/${S3_BUCKET}/{{ .Values.backup.s3.prefix }}/${BASENAME}"
+                  echo "Uploaded ${BASENAME} to s3/${S3_BUCKET}/{{ .Values.backup.s3.prefix }}/"
+              env:
+                - name: S3_ENDPOINT
+                  value: {{ .Values.backup.s3.endpoint | quote }}
+                - name: S3_BUCKET
+                  value: {{ .Values.backup.s3.bucket | quote }}
+                - name: S3_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "ntfy.backupSecretName" . }}
+                      key: {{ .Values.backup.s3.existingSecretAccessKeyKey }}
+                - name: S3_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "ntfy.backupSecretName" . }}
+                      key: {{ .Values.backup.s3.existingSecretSecretKeyKey }}
+              volumeMounts:
+                - name: backup-staging
+                  mountPath: /backup
+                  readOnly: true
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: {{ include "ntfy.dataClaimName" . }}
+            - name: backup-staging
+              emptyDir: {}
+{{- end }}

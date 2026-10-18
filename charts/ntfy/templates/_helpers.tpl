@@ -195,3 +195,12 @@ true
 password
 {{- end -}}
 {{- end -}}
+
+{{/* S3 backup secret name */}}
+{{- define "ntfy.backupSecretName" -}}
+{{- if .Values.backup.s3.existingSecret -}}
+{{- .Values.backup.s3.existingSecret -}}
+{{- else -}}
+{{- printf "%s-backup-s3" (include "ntfy.fullname" .) -}}
+{{- end -}}
+{{- end -}}

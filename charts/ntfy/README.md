@@ -292,3 +292,28 @@ rollout and review the [2.31.1 release](https://github.com/binwiederhier/ntfy/re
 | MITRE + NSA + SOC2 | **74.242424%** |
 
 > Security posture acceptable.
+
+## Backup and Restore
+
+ntfy supports automated scheduled backups to any S3-compatible object storage (e.g. MinIO, AWS S3, Cloudflare R2).
+
+### Backup Architecture
+
+The backup CronJob () runs on a customizable schedule (default: ). It performs the following:
+1. **Archive ()**: creates a compressed tarball containing SQLite databases (, ) and user attachment files from .
+2. **Upload ()**: uploads the archive using the official HelmForge MinIO client () to the designated S3 bucket and prefix.
+
+### Enabling S3 Backup
+
+
+
+### Restore Procedure
+
+1. Scale down the ntfy deployment:
+   
+2. Download the backup archive from S3 using :
+   
+3. Extract the archive into the ntfy persistent volume or cache directory ():
+   
+4. Scale the deployment back up:
+   
