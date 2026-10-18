@@ -98,8 +98,34 @@ ntfy:
 
 ## PostgreSQL
 
-Create a Secret containing the complete PostgreSQL connection URL, then enable
-the database integration:
+### Embedded PostgreSQL (Subchart)
+
+Deploy an integrated PostgreSQL instance managed by the HelmForge PostgreSQL subchart:
+
+```yaml
+postgresql:
+  enabled: true
+  auth:
+    password: "choose-a-strong-password"
+```
+
+### External PostgreSQL
+
+Connect to an existing PostgreSQL database directly via values:
+
+```yaml
+ntfy:
+  database:
+    mode: postgresql
+    external:
+      host: postgres.example.com
+      port: 5432
+      name: ntfy
+      username: ntfy
+      password: "choose-a-strong-password"
+```
+
+Alternatively, reference a pre-created Secret containing the complete PostgreSQL connection URL:
 
 ```bash
 kubectl create secret generic ntfy-database \

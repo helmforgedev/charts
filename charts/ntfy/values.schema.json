@@ -5,41 +5,115 @@
   "type": "object",
   "additionalProperties": true,
   "properties": {
-    "nameOverride": { "type": "string", "default": "" },
-    "fullnameOverride": { "type": "string", "default": "" },
-    "commonLabels": { "type": "object" },
+    "nameOverride": {
+      "type": "string",
+      "default": ""
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "default": ""
+    },
+    "commonLabels": {
+      "type": "object"
+    },
     "image": {
       "type": "object",
       "properties": {
-        "repository": { "type": "string", "default": "docker.io/binwiederhier/ntfy" },
-        "tag": { "type": "string", "default": "" },
-        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"], "default": "IfNotPresent" }
+        "repository": {
+          "type": "string",
+          "default": "docker.io/binwiederhier/ntfy"
+        },
+        "tag": {
+          "type": "string",
+          "default": ""
+        },
+        "pullPolicy": {
+          "type": "string",
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ],
+          "default": "IfNotPresent"
+        }
       }
     },
-    "imagePullSecrets": { "type": "array", "items": { "type": "object" } },
+    "imagePullSecrets": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
     "ntfy": {
       "type": "object",
       "description": "ntfy application configuration",
       "properties": {
-        "baseUrl": { "type": "string", "description": "Public base URL of the instance", "default": "" },
-        "authDefaultAccess": { "type": "string", "enum": ["read-write", "read-only", "write-only", "deny-all"], "default": "read-write" },
-        "behindProxy": { "type": "boolean", "default": true },
-        "enableMetrics": { "type": "boolean", "default": false },
-        "metricsListenHttp": { "type": "string", "default": "" },
-        "attachmentTotalSizeLimit": { "type": "string", "default": "" },
-        "attachmentFileSizeLimit": { "type": "string", "default": "" },
-        "attachmentExpiryDuration": { "type": "string", "default": "" },
+        "baseUrl": {
+          "type": "string",
+          "description": "Public base URL of the instance",
+          "default": ""
+        },
+        "authDefaultAccess": {
+          "type": "string",
+          "enum": [
+            "read-write",
+            "read-only",
+            "write-only",
+            "deny-all"
+          ],
+          "default": "read-write"
+        },
+        "behindProxy": {
+          "type": "boolean",
+          "default": true
+        },
+        "enableMetrics": {
+          "type": "boolean",
+          "default": false
+        },
+        "metricsListenHttp": {
+          "type": "string",
+          "default": ""
+        },
+        "attachmentTotalSizeLimit": {
+          "type": "string",
+          "default": ""
+        },
+        "attachmentFileSizeLimit": {
+          "type": "string",
+          "default": ""
+        },
+        "attachmentExpiryDuration": {
+          "type": "string",
+          "default": ""
+        },
         "banFeed": {
           "type": "object",
           "description": "Opt-in abuse ban-feed for an external fail2ban or equivalent consumer",
           "properties": {
-            "enabled": { "type": "boolean", "default": false },
-            "file": { "type": "string", "default": "/var/cache/ntfy/ban.log" },
-            "window": { "type": "string", "minLength": 1, "default": "10m" },
-            "threshold": { "type": "integer", "minimum": 1, "default": 100 },
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            },
+            "file": {
+              "type": "string",
+              "default": "/var/cache/ntfy/ban.log"
+            },
+            "window": {
+              "type": "string",
+              "minLength": 1,
+              "default": "10m"
+            },
+            "threshold": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 100
+            },
             "weights": {
               "type": "array",
-              "default": ["42909:10"],
+              "default": [
+                "42909:10"
+              ],
               "items": {
                 "type": "string",
                 "pattern": "^(?:\\*|[0-9]+\\*?):[0-9]+$"
@@ -48,24 +122,99 @@
           },
           "allOf": [
             {
-              "if": { "properties": { "enabled": { "const": true } }, "required": ["enabled"] },
+              "if": {
+                "properties": {
+                  "enabled": {
+                    "const": true
+                  }
+                },
+                "required": [
+                  "enabled"
+                ]
+              },
               "then": {
-                "properties": { "file": { "minLength": 1, "pattern": "^/" } },
-                "required": ["file"]
+                "properties": {
+                  "file": {
+                    "minLength": 1,
+                    "pattern": "^/"
+                  }
+                },
+                "required": [
+                  "file"
+                ]
               }
             }
           ]
         },
-        "extraConfig": { "type": "string", "default": "" },
-        "extraEnv": { "type": "array", "items": { "type": "object" } },
+        "extraConfig": {
+          "type": "string",
+          "default": ""
+        },
+        "extraEnv": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
         "database": {
           "type": "object",
-          "description": "PostgreSQL configuration",
+          "description": "Database configuration for message cache, access control, and web push.",
           "additionalProperties": false,
           "properties": {
-            "enabled": { "type": "boolean", "default": false },
-            "existingSecret": { "type": "string", "default": "" },
-            "existingSecretKey": { "type": "string", "minLength": 1, "default": "database-url" }
+            "mode": {
+              "type": "string",
+              "enum": [
+                "sqlite",
+                "postgresql"
+              ],
+              "description": "Database backend mode"
+            },
+            "enabled": {
+              "type": "boolean",
+              "description": "Legacy flag to enable PostgreSQL"
+            },
+            "existingSecret": {
+              "type": "string",
+              "description": "Name of existing Secret containing the PostgreSQL connection URL"
+            },
+            "existingSecretKey": {
+              "type": "string",
+              "description": "Key in existingSecret containing the PostgreSQL connection URL"
+            },
+            "external": {
+              "type": "object",
+              "description": "External PostgreSQL database connection settings",
+              "additionalProperties": false,
+              "properties": {
+                "host": {
+                  "type": "string"
+                },
+                "port": {
+                  "type": [
+                    "string",
+                    "integer"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "username": {
+                  "type": "string"
+                },
+                "password": {
+                  "type": "string"
+                },
+                "existingSecret": {
+                  "type": "string"
+                },
+                "existingSecretPasswordKey": {
+                  "type": "string"
+                },
+                "existingSecretUrlKey": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       }
@@ -75,18 +224,35 @@
       "description": "External Secrets Operator resources for database credentials",
       "additionalProperties": false,
       "properties": {
-        "enabled": { "type": "boolean", "default": false },
-        "refreshInterval": { "type": "string", "minLength": 1, "default": "1h" },
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "refreshInterval": {
+          "type": "string",
+          "minLength": 1,
+          "default": "1h"
+        },
         "items": {
           "type": "array",
           "items": {
             "type": "object",
             "properties": {
-              "name": { "type": "string" },
-              "fullnameOverride": { "type": "string" },
-              "labels": { "type": "object" },
-              "annotations": { "type": "object" },
-              "spec": { "type": "object" }
+              "name": {
+                "type": "string"
+              },
+              "fullnameOverride": {
+                "type": "string"
+              },
+              "labels": {
+                "type": "object"
+              },
+              "annotations": {
+                "type": "object"
+              },
+              "spec": {
+                "type": "object"
+              }
             }
           }
         }
@@ -96,79 +262,277 @@
       "type": "object",
       "description": "Persistence for cache and auth databases",
       "properties": {
-        "enabled": { "type": "boolean", "default": true },
-        "size": { "type": "string", "default": "2Gi" },
-        "storageClass": { "type": "string", "default": "" },
-        "accessModes": { "type": "array", "items": { "type": "string" } },
-        "existingClaim": { "type": "string", "default": "" }
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "size": {
+          "type": "string",
+          "default": "2Gi"
+        },
+        "storageClass": {
+          "type": "string",
+          "default": ""
+        },
+        "accessModes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "existingClaim": {
+          "type": "string",
+          "default": ""
+        }
       }
     },
     "serviceAccount": {
       "type": "object",
       "properties": {
-        "create": { "type": "boolean", "default": false },
-        "name": { "type": "string", "default": "" },
-        "annotations": { "type": "object" }
+        "create": {
+          "type": "boolean",
+          "default": false
+        },
+        "name": {
+          "type": "string",
+          "default": ""
+        },
+        "annotations": {
+          "type": "object"
+        }
       }
     },
     "service": {
       "type": "object",
       "properties": {
-        "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"], "default": "ClusterIP" },
-        "port": { "type": "integer", "default": 80 },
-        "annotations": { "type": "object" },
-        "ipFamilyPolicy": { "type": ["string", "null"], "description": "Dual-stack ipFamilyPolicy (GR-058)", "enum": [null, "SingleStack", "PreferDualStack", "RequireDualStack"] },
-        "ipFamilies": { "type": "array", "description": "Dual-stack ipFamilies (GR-058)", "items": { "type": "string", "enum": ["IPv4", "IPv6"] }, "maxItems": 2 }
+        "type": {
+          "type": "string",
+          "enum": [
+            "ClusterIP",
+            "NodePort",
+            "LoadBalancer"
+          ],
+          "default": "ClusterIP"
+        },
+        "port": {
+          "type": "integer",
+          "default": 80
+        },
+        "annotations": {
+          "type": "object"
+        },
+        "ipFamilyPolicy": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Dual-stack ipFamilyPolicy (GR-058)",
+          "enum": [
+            null,
+            "SingleStack",
+            "PreferDualStack",
+            "RequireDualStack"
+          ]
+        },
+        "ipFamilies": {
+          "type": "array",
+          "description": "Dual-stack ipFamilies (GR-058)",
+          "items": {
+            "type": "string",
+            "enum": [
+              "IPv4",
+              "IPv6"
+            ]
+          },
+          "maxItems": 2
+        }
       }
     },
     "ingress": {
       "type": "object",
       "properties": {
-        "enabled": { "type": "boolean", "default": false },
-        "ingressClassName": { "type": "string", "default": "traefik" },
-        "annotations": { "type": "object" },
-        "hosts": { "type": "array", "items": { "type": "object" } },
-        "tls": { "type": "array", "items": { "type": "object" } }
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "ingressClassName": {
+          "type": "string",
+          "default": "traefik"
+        },
+        "annotations": {
+          "type": "object"
+        },
+        "hosts": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "tls": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
       }
     },
-    "probes": { "type": "object" },
+    "probes": {
+      "type": "object"
+    },
     "metrics": {
       "type": "object",
       "properties": {
         "serviceMonitor": {
           "type": "object",
           "properties": {
-            "enabled": { "type": "boolean", "default": false },
-            "interval": { "type": "string", "default": "30s" },
-            "labels": { "type": "object" }
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            },
+            "interval": {
+              "type": "string",
+              "default": "30s"
+            },
+            "labels": {
+              "type": "object"
+            }
           }
         }
       }
     },
-    "resources": { "type": "object" },
-    "podSecurityContext": { "type": "object" },
-    "securityContext": { "type": "object" },
-    "nodeSelector": { "type": "object" },
-    "tolerations": { "type": "array", "items": { "type": "object" } },
-    "affinity": { "type": "object" },
-    "topologySpreadConstraints": { "type": "array", "items": { "type": "object" } },
-    "priorityClassName": { "type": "string", "default": "" },
-    "terminationGracePeriodSeconds": { "type": "integer", "default": 30 },
-    "podLabels": { "type": "object" },
-    "podAnnotations": { "type": "object" },
-    "extraVolumes": { "type": "array", "items": { "type": "object" } },
-    "extraVolumeMounts": { "type": "array", "items": { "type": "object" } },
-    "extraManifests": { "type": "array", "items": { "type": "object" } },
+    "resources": {
+      "type": "object"
+    },
+    "podSecurityContext": {
+      "type": "object"
+    },
+    "securityContext": {
+      "type": "object"
+    },
+    "nodeSelector": {
+      "type": "object"
+    },
+    "tolerations": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "affinity": {
+      "type": "object"
+    },
+    "topologySpreadConstraints": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "priorityClassName": {
+      "type": "string",
+      "default": ""
+    },
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "default": 30
+    },
+    "podLabels": {
+      "type": "object"
+    },
+    "podAnnotations": {
+      "type": "object"
+    },
+    "extraVolumes": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "extraVolumeMounts": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "extraManifests": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
     "gateway": {
       "type": "object",
       "description": "Gateway API HTTPRoute configuration",
       "properties": {
-        "enabled": { "type": "boolean", "default": false },
-        "annotations": { "type": "object" },
-        "parentRefs": { "type": "array", "items": { "type": "object", "required": ["name"], "properties": { "name": { "type": "string" }, "namespace": { "type": "string" }, "group": { "type": "string" }, "kind": { "type": "string" }, "sectionName": { "type": "string" }, "port": { "type": "integer" } } } },
-        "hostnames": { "type": "array", "items": { "type": "string" } },
-        "path": { "type": "string", "default": "/" },
-        "pathType": { "type": "string", "enum": ["PathPrefix", "Exact", "RegularExpression"], "default": "PathPrefix" }
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "annotations": {
+          "type": "object"
+        },
+        "parentRefs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "namespace": {
+                "type": "string"
+              },
+              "group": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "sectionName": {
+                "type": "string"
+              },
+              "port": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "hostnames": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "path": {
+          "type": "string",
+          "default": "/"
+        },
+        "pathType": {
+          "type": "string",
+          "enum": [
+            "PathPrefix",
+            "Exact",
+            "RegularExpression"
+          ],
+          "default": "PathPrefix"
+        }
+      }
+    },
+    "postgresql": {
+      "type": "object",
+      "description": "HelmForge PostgreSQL subchart configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "architecture": {
+          "type": "string"
+        },
+        "auth": {
+          "type": "object"
+        }
       }
     }
   }

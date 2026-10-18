@@ -61,14 +61,46 @@ ntfy:
   # -- Extra environment variables for the container
   # -- @default -- `[]`
   extraEnv: []
-  # -- PostgreSQL configuration. When enabled, SQLite file options are omitted.
+  # -- Database configuration for message cache, access control, and web push.
+  # When enabled, SQLite file options are omitted.
   database:
-    # -- Use PostgreSQL for the message cache, access control, and web push stores
-    enabled: false
-    # -- Existing Secret containing the PostgreSQL connection URL
+    # -- Database mode: sqlite | postgresql
+    mode: sqlite
+    # -- External PostgreSQL configuration (used when postgresql subchart is disabled)
+    external:
+      host: ""
+      port: "5432"
+      name: ntfy
+      username: ntfy
+      password: ""
+      # -- Existing secret containing the database password
+      existingSecret: ""
+      # -- Key in the existing secret containing the password
+      existingSecretPasswordKey: password
+      # -- Or existing secret containing the full connection URL (e.g. postgres://user:pass@host:5432/db)
+      existingSecretUrlKey: database-url
+    # -- Legacy existingSecret containing the full PostgreSQL connection URL
     existingSecret: ""
-    # -- Key in the existing Secret containing the PostgreSQL connection URL
+    # -- Key in the legacy existingSecret
     existingSecretKey: database-url
+    # -- Deprecated: use postgresql.enabled or database.mode=postgresql instead
+    enabled: false
+
+# =============================================================================
+# Subcharts
+# =============================================================================
+
+postgresql:
+  # -- Deploy PostgreSQL as an embedded HelmForge subchart
+  enabled: false
+  architecture: standalone
+  auth:
+    database: ntfy
+    username: ntfy
+    # -- PostgreSQL password (auto-generated if empty)
+    password: ""
+    existingSecret: ""
+    existingSecretUserPasswordKey: user-password
 
 # =============================================================================
 # External Secrets Operator

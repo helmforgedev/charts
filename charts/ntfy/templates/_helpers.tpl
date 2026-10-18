@@ -5,8 +5,16 @@
 
 {{/* Validate chart values before rendering resources. */}}
 {{- define "ntfy.validate" -}}
-{{- if and .Values.ntfy.database.enabled (empty .Values.ntfy.database.existingSecret) -}}
-{{- fail "ntfy.database.enabled requires ntfy.database.existingSecret" -}}
+{{- if include "ntfy.databaseEnabled" . -}}
+  {{- if and (not .Values.postgresql.enabled) (not .Values.ntfy.database.existingSecret) (not .Values.ntfy.database.external.host) -}}
+    {{- fail "PostgreSQL is enabled but neither postgresql.enabled, ntfy.database.existingSecret, nor ntfy.database.external.host is configured" -}}
+  {{- end -}}
+  {{- if and .Values.postgresql.enabled (empty .Values.postgresql.auth.password) (empty .Values.postgresql.auth.existingSecret) -}}
+    {{- fail "postgresql.enabled=true requires postgresql.auth.password or postgresql.auth.existingSecret so ntfy can construct the database connection" -}}
+  {{- end -}}
+  {{- if and (eq .Values.ntfy.database.mode "postgresql") (not .Values.postgresql.enabled) (not .Values.ntfy.database.existingSecret) (empty .Values.ntfy.database.external.password) (empty .Values.ntfy.database.external.existingSecret) -}}
+    {{- fail "External PostgreSQL requires ntfy.database.external.password or ntfy.database.external.existingSecret" -}}
+  {{- end -}}
 {{- end -}}
 {{- if and .Values.externalSecrets.enabled (empty .Values.externalSecrets.items) -}}
 {{- fail "externalSecrets.items must contain at least one item when externalSecrets.enabled=true" -}}
@@ -74,3 +82,84 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- mustRegexFind "[0-9]+$" .Values.ntfy.metricsListenHttp | int -}}
 {{- end -}}
 {{- end -}}
+
+{{/* Whether PostgreSQL database backend is enabled */}}
+{{- define "ntfy.databaseEnabled" -}}
+{{- if or .Values.postgresql.enabled (eq .Values.ntfy.database.mode "postgresql") .Values.ntfy.database.enabled -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{/* Database host */}}
+{{- define "ntfy.dbHost" -}}
+{{- if .Values.postgresql.enabled -}}
+{{- printf "%s-postgresql" .Release.Name -}}
+{{- else -}}
+{{- .Values.ntfy.database.external.host -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Database port */}}
+{{- define "ntfy.dbPort" -}}
+{{- if .Values.postgresql.enabled -}}
+{{- "5432" -}}
+{{- else -}}
+{{- .Values.ntfy.database.external.port | default "5432" -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Database name */}}
+{{- define "ntfy.dbName" -}}
+{{- if .Values.postgresql.enabled -}}
+{{- .Values.postgresql.auth.database | default "ntfy" -}}
+{{- else -}}
+{{- .Values.ntfy.database.external.name | default "ntfy" -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Database username */}}
+{{- define "ntfy.dbUsername" -}}
+{{- if .Values.postgresql.enabled -}}
+{{- .Values.postgresql.auth.username | default "ntfy" -}}
+{{- else -}}
+{{- .Values.ntfy.database.external.username | default "ntfy" -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Database secret name containing database-url */}}
+{{- define "ntfy.dbSecretName" -}}
+{{- if .Values.ntfy.database.existingSecret -}}
+{{- .Values.ntfy.database.existingSecret -}}
+{{- else -}}
+{{- printf "%s-db" (include "ntfy.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Database secret key */}}
+{{- define "ntfy.dbSecretKey" -}}
+{{- if .Values.ntfy.database.existingSecret -}}
+{{- .Values.ntfy.database.existingSecretKey | default "database-url" -}}
+{{- else -}}
+{{- "database-url" -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Database password */}}
+{{- define "ntfy.dbPassword" -}}
+{{- if .Values.postgresql.enabled -}}
+{{- .Values.postgresql.auth.password -}}
+{{- else -}}
+{{- .Values.ntfy.database.external.password -}}
+{{- end -}}
+{{- end -}}
+
+{{/* PostgreSQL connection string */}}
+{{- define "ntfy.databaseUrl" -}}
+{{- $user := include "ntfy.dbUsername" . -}}
+{{- $password := include "ntfy.dbPassword" . -}}
+{{- $host := include "ntfy.dbHost" . -}}
+{{- $port := include "ntfy.dbPort" . -}}
+{{- $db := include "ntfy.dbName" . -}}
+{{- printf "postgres://%s:%s@%s:%s/%s?sslmode=disable" $user $password $host $port $db -}}
+{{- end -}}
+>>>>>>> 178e2d68 (feat(ntfy): add helmforge postgresql subchart support)

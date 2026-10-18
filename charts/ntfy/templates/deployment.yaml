@@ -40,6 +40,30 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- if include "ntfy.databaseEnabled" . }}
+      initContainers:
+        - name: wait-for-db
+          image: docker.io/library/busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for database at {{ include "ntfy.dbHost" . }}:{{ include "ntfy.dbPort" . }}..."
+              until nc -z -w2 {{ include "ntfy.dbHost" . }} {{ include "ntfy.dbPort" . }}; do
+                echo "Database not ready, retrying in 2s..."
+                sleep 2
+              done
+              echo "Database is ready."
+          resources:
+            limits:
+              cpu: 50m
+              memory: 32Mi
+            requests:
+              cpu: 10m
+              memory: 16Mi
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+      {{- end }}
       containers:
         - name: ntfy
           image: {{ include "ntfy.image" . | quote }}
@@ -56,12 +80,12 @@ spec:
               protocol: TCP
             {{- end }}
           env:
-            {{- if .Values.ntfy.database.enabled }}
+            {{- if include "ntfy.databaseEnabled" . }}
             - name: NTFY_DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.ntfy.database.existingSecret }}
-                  key: {{ .Values.ntfy.database.existingSecretKey }}
+                  name: {{ include "ntfy.dbSecretName" . }}
+                  key: {{ include "ntfy.dbSecretKey" . }}
             {{- end }}
             {{- with .Values.ntfy.extraEnv }}
             {{- toYaml . | nindent 12 }}

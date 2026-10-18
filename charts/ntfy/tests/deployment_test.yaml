@@ -119,14 +119,13 @@ tests:
                 name: ntfy-database
                 key: database-url
 
-  - it: should reject PostgreSQL without an existing Secret
+  - it: should reject PostgreSQL without configuration
     template: templates/validate.yaml
     set:
-      ntfy.database.enabled: true
-      ntfy.database.existingSecret: ""
+      ntfy.database.mode: postgresql
     asserts:
       - failedTemplate:
-          errorMessage: "ntfy.database.enabled requires ntfy.database.existingSecret"
+          errorMessage: "PostgreSQL is enabled but neither postgresql.enabled, ntfy.database.existingSecret, nor ntfy.database.external.host is configured"
 
   - it: should expose containerPort metrics in Deployment when metricsListenHttp is set
     template: templates/deployment.yaml
@@ -148,3 +147,47 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "ntfy.metricsListenHttp must end with a valid port number (1-65535), got: :abc"
+
+  - it: should configure subchart PostgreSQL connection
+    template: templates/deployment.yaml
+    set:
+      postgresql.enabled: true
+      postgresql.auth.password: "secret123"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NTFY_DATABASE_URL
+            valueFrom:
+                secretKeyRef:
+                  name: test-ntfy-db
+                  key: database-url
+
+  - it: should configure external PostgreSQL host connection
+    template: templates/deployment.yaml
+    set:
+      ntfy.database.mode: postgresql
+      ntfy.database.external.host: "postgres.internal"
+      ntfy.database.external.password: "secret123"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NTFY_DATABASE_URL
+            valueFrom:
+                secretKeyRef:
+                  name: test-ntfy-db
+                  key: database-url
+
+  - it: should render wait-for-db init container when postgresql is enabled
+    template: templates/deployment.yaml
+    set:
+      postgresql.enabled: true
+      postgresql.auth.password: "secret123"
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-db
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: docker.io/library/busybox:1.37
