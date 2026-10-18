@@ -36,7 +36,7 @@
         },
         "tag": {
           "type": "string",
-          "description": "Paperless-ngx image tag. Defaults to appVersion validated on GitHub Releases and GHCR."
+          "description": "Paperless-ngx image tag, validated on GitHub Releases and GHCR. Falls back to appVersion when empty."
         },
         "pullPolicy": {
           "type": "string",
@@ -199,11 +199,64 @@
     },
     "postgresql": {
       "type": "object",
-      "description": "Deploy PostgreSQL as a subchart"
+      "description": "HelmForge PostgreSQL subchart settings",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Deploy the HelmForge PostgreSQL subchart. Disable for SQLite or database.external.*"
+        },
+        "architecture": {
+          "type": "string",
+          "description": "PostgreSQL subchart architecture: standalone | replication. Paperless-ngx connects to the primary."
+        },
+        "auth": {
+          "type": "object",
+          "properties": {
+            "database": {
+              "type": "string",
+              "description": "PostgreSQL database name created on first run"
+            },
+            "username": {
+              "type": "string",
+              "description": "PostgreSQL username created on first run"
+            },
+            "password": {
+              "type": "string",
+              "description": "PostgreSQL application user password. Auto-generated if empty."
+            },
+            "postgresPassword": {
+              "type": "string",
+              "description": "PostgreSQL superuser password. Auto-generated if empty."
+            }
+          }
+        },
+        "standalone": {
+          "type": "object",
+          "properties": {
+            "persistence": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Enable persistence for PostgreSQL data"
+                },
+                "size": {
+                  "type": "string",
+                  "description": "PVC size for PostgreSQL"
+                }
+              }
+            },
+            "resources": {
+              "type": "object",
+              "description": "CPU and memory requests/limits for PostgreSQL"
+            }
+          }
+        }
+      }
     },
     "valkey": {
       "type": "object",
-      "description": "Deploy Valkey as a subchart",
+      "description": "HelmForge Valkey subchart settings, or an external Valkey",
       "properties": {
         "enabled": {
           "type": "boolean",
@@ -215,11 +268,40 @@
         },
         "auth": {
           "type": "object",
-          "description": "Valkey subchart authentication settings"
+          "description": "Valkey subchart authentication settings",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable Valkey password authentication"
+            },
+            "password": {
+              "type": "string",
+              "description": "Valkey password. Auto-generated if empty when auth.enabled=true. Must be URL-safe because it is embedded in the PAPERLESS_REDIS URL."
+            }
+          }
         },
         "standalone": {
           "type": "object",
-          "description": "Valkey subchart standalone settings"
+          "description": "Valkey subchart standalone settings",
+          "properties": {
+            "persistence": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Enable persistence for Valkey data"
+                },
+                "size": {
+                  "type": "string",
+                  "description": "PVC size for Valkey"
+                }
+              }
+            },
+            "resources": {
+              "type": "object",
+              "description": "CPU and memory requests/limits for Valkey"
+            }
+          }
         },
         "external": {
           "type": "object",
@@ -234,11 +316,11 @@
             },
             "password": {
               "type": "string",
-              "description": "External Valkey password. Ignored when existingSecret is set."
+              "description": "External Valkey password. Ignored when existingSecret is set. Must be URL-safe because it is embedded in the PAPERLESS_REDIS URL."
             },
             "existingSecret": {
               "type": "string",
-              "description": "Existing secret containing the external Valkey password"
+              "description": "Existing secret containing the external Valkey password. The value must be URL-safe."
             },
             "existingSecretPasswordKey": {
               "type": "string",

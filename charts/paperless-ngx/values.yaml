@@ -27,7 +27,7 @@ strategy: {}
 image:
   # -- Paperless-ngx container image repository
   repository: ghcr.io/paperless-ngx/paperless-ngx
-  # -- Paperless-ngx image tag. Defaults to appVersion validated on GitHub Releases and GHCR.
+  # -- Paperless-ngx image tag, validated on GitHub Releases and GHCR. Falls back to appVersion when empty.
   tag: "3.3.2"
   # -- Image pull policy
   pullPolicy: IfNotPresent
@@ -94,9 +94,11 @@ database:
   # -- Advanced driver options passed as PAPERLESS_DB_OPTIONS, for example "sslmode=require,pool.max_size=5"
   options: ""
 
-# -- Deploy PostgreSQL as a subchart
+# -- HelmForge PostgreSQL subchart settings
 postgresql:
+  # -- Deploy the HelmForge PostgreSQL subchart. Disable for SQLite or database.external.*
   enabled: true
+  # -- PostgreSQL subchart architecture: standalone | replication. Paperless-ngx connects to the primary.
   architecture: standalone
   auth:
     # -- PostgreSQL database name created on first run
@@ -113,6 +115,7 @@ postgresql:
       enabled: true
       # -- PVC size for PostgreSQL
       size: 8Gi
+    # -- CPU and memory requests/limits for PostgreSQL
     resources:
       requests:
         cpu: 100m
@@ -121,7 +124,7 @@ postgresql:
         cpu: 1000m
         memory: 1Gi
 
-# -- Deploy Valkey as a subchart
+# -- HelmForge Valkey subchart settings, or an external Valkey
 valkey:
   # -- Deploy the HelmForge Valkey subchart. Disable when using valkey.external.*
   enabled: true
@@ -131,7 +134,8 @@ valkey:
   auth:
     # -- Enable Valkey password authentication
     enabled: true
-    # -- Valkey password. Auto-generated if empty when auth.enabled=true.
+    # -- Valkey password. Auto-generated if empty when auth.enabled=true. Must be URL-safe
+    # (no @, :, / or %) because it is embedded in the PAPERLESS_REDIS URL.
     password: ""
   # -- Valkey subchart standalone settings
   standalone:
@@ -140,6 +144,7 @@ valkey:
       enabled: true
       # -- PVC size for Valkey
       size: 1Gi
+    # -- CPU and memory requests/limits for Valkey
     resources:
       requests:
         cpu: 50m
@@ -152,9 +157,10 @@ valkey:
     host: ""
     # -- External Valkey port
     port: 6379
-    # -- External Valkey password. Ignored when existingSecret is set.
+    # -- External Valkey password. Ignored when existingSecret is set. Must be URL-safe
+    # (no @, :, / or %) because it is embedded in the PAPERLESS_REDIS URL.
     password: ""
-    # -- Existing secret containing the external Valkey password
+    # -- Existing secret containing the external Valkey password. The value must be URL-safe.
     existingSecret: ""
     # -- Secret key for the external Valkey password
     existingSecretPasswordKey: valkey-password

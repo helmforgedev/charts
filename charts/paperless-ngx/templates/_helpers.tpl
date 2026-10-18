@@ -60,7 +60,7 @@ app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 
 {{- define "paperless-ngx.image" -}}
-{{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
+{{- printf "%s:%s" .Values.image.repository (.Values.image.tag | default .Chart.AppVersion) -}}
 {{- end -}}
 
 {{- define "paperless-ngx.databaseMode" -}}
