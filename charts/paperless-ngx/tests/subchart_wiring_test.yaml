@@ -1,0 +1,131 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Subchart wiring
+templates:
+  - templates/deployment.yaml
+  - templates/secret.yaml
+release:
+  name: test
+tests:
+  - it: should use postgresql.auth.existingSecret and its user password key
+    template: templates/deployment.yaml
+    set:
+      postgresql.auth.existingSecret: my-pg
+      postgresql.auth.existingSecretUserPasswordKey: pw
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_DBPASS
+            valueFrom:
+              secretKeyRef:
+                name: my-pg
+                key: pw
+
+  - it: should use the postgres password key when the app user is postgres
+    template: templates/deployment.yaml
+    set:
+      postgresql.auth.username: postgres
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_DBPASS
+            valueFrom:
+              secretKeyRef:
+                name: test-postgresql-auth
+                key: postgres-password
+
+  - it: should use the PostgreSQL ExternalSecret target name
+    template: templates/deployment.yaml
+    set:
+      postgresql.externalSecrets.enabled: true
+      postgresql.externalSecrets.auth.enabled: true
+      postgresql.externalSecrets.auth.targetName: pg-es
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_DBPASS
+            valueFrom:
+              secretKeyRef:
+                name: pg-es
+                key: user-password
+
+  - it: should honor PostgreSQL fullnameOverride, service port, and the replication primary
+    template: templates/deployment.yaml
+    set:
+      postgresql.fullnameOverride: db
+      postgresql.service.port: 5433
+      postgresql.architecture: replication
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_DBHOST
+            value: db-primary
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_DBPORT
+            value: "5433"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_DBPASS
+            valueFrom:
+              secretKeyRef:
+                name: db-auth
+                key: user-password
+
+  - it: should use valkey.auth.existingSecret and its password key
+    template: templates/deployment.yaml
+    set:
+      valkey.auth.existingSecret: my-vk
+      valkey.auth.existingSecretPasswordKey: pw
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: VALKEY_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: my-vk
+                key: pw
+
+  - it: should connect to the Valkey primary in replication mode
+    template: templates/deployment.yaml
+    set:
+      valkey.architecture: replication
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_REDIS
+            value: redis://:$(VALKEY_PASSWORD)@test-valkey-primary:6379
+
+  - it: should reject Valkey subchart topologies Paperless-ngx cannot use
+    template: templates/deployment.yaml
+    set:
+      valkey.architecture: sentinel
+    asserts:
+      - failedTemplate:
+          errorMessage: "paperless-ngx supports valkey.architecture=standalone or replication for the Valkey subchart (got sentinel); use valkey.external.* for other topologies"
+
+  - it: should reuse the release name for Valkey when it already contains valkey
+    template: templates/deployment.yaml
+    release:
+      name: my-valkey
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_REDIS
+            value: redis://:$(VALKEY_PASSWORD)@my-valkey-client:6379
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: VALKEY_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: my-valkey-auth
+                key: valkey-password

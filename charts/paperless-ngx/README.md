@@ -154,9 +154,13 @@ service:
 
 ```yaml
 database:
+  mode: external
   external:
     host: postgres.example.internal
     existingSecret: paperless-db
+
+postgresql:
+  enabled: false
 
 externalSecrets:
   enabled: true

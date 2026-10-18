@@ -95,11 +95,64 @@ app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 {{- end -}}
 
+{{/*
+Name helpers for the HelmForge PostgreSQL subchart. They mirror postgresql.fullname,
+postgresql.primaryServiceName and postgresql.secretName so that subchart overrides
+(fullnameOverride, nameOverride, architecture, auth.existingSecret, externalSecrets.auth)
+keep the Paperless-ngx wiring correct. Subchart defaults are not visible to the parent
+chart, so every lookup is nil-safe and falls back to the subchart default.
+*/}}
+{{- define "paperless-ngx.postgresqlFullname" -}}
+{{- $pg := .Values.postgresql | default dict -}}
+{{- if $pg.fullnameOverride -}}
+{{- $pg.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name (default "postgresql" $pg.nameOverride) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Usage: include "paperless-ngx.nameWithSuffix" (dict "base" "name" "suffix" "-auth") */}}
+{{- define "paperless-ngx.nameWithSuffix" -}}
+{{- $baseMax := int (sub 63 (len .suffix)) -}}
+{{- printf "%s%s" (.base | trunc $baseMax | trimSuffix "-") .suffix | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "paperless-ngx.postgresqlHost" -}}
+{{- $fullname := include "paperless-ngx.postgresqlFullname" . -}}
+{{- if eq (dig "architecture" "standalone" (.Values.postgresql | default dict)) "replication" -}}
+{{- include "paperless-ngx.nameWithSuffix" (dict "base" $fullname "suffix" "-primary") -}}
+{{- else -}}
+{{- $fullname -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "paperless-ngx.postgresqlSecretName" -}}
+{{- $pg := .Values.postgresql | default dict -}}
+{{- $existing := dig "auth" "existingSecret" "" $pg -}}
+{{- $default := include "paperless-ngx.nameWithSuffix" (dict "base" (include "paperless-ngx.postgresqlFullname" .) "suffix" "-auth") -}}
+{{- if $existing -}}
+{{- $existing -}}
+{{- else if and (dig "externalSecrets" "enabled" false $pg) (dig "externalSecrets" "auth" "enabled" false $pg) -}}
+{{- default $default (dig "externalSecrets" "auth" "targetName" "" $pg) -}}
+{{- else -}}
+{{- $default -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "paperless-ngx.postgresqlSecretKey" -}}
+{{- $pg := .Values.postgresql | default dict -}}
+{{- if eq (dig "auth" "username" "app" $pg) "postgres" -}}
+{{- dig "auth" "existingSecretPostgresPasswordKey" "postgres-password" $pg -}}
+{{- else -}}
+{{- dig "auth" "existingSecretUserPasswordKey" "user-password" $pg -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "paperless-ngx.databaseHost" -}}
 {{- if eq (include "paperless-ngx.databaseMode" .) "external" -}}
 {{- .Values.database.external.host -}}
 {{- else -}}
-{{- printf "%s-postgresql" .Release.Name -}}
+{{- include "paperless-ngx.postgresqlHost" . -}}
 {{- end -}}
 {{- end -}}
 
@@ -107,7 +160,7 @@ app.kubernetes.io/component: {{ .component }}
 {{- if eq (include "paperless-ngx.databaseMode" .) "external" -}}
 {{- .Values.database.external.port | default 5432 | toString -}}
 {{- else -}}
-5432
+{{- dig "service" "port" 5432 (.Values.postgresql | default dict) | toString -}}
 {{- end -}}
 {{- end -}}
 
@@ -133,7 +186,7 @@ app.kubernetes.io/component: {{ .component }}
 {{- else if eq (include "paperless-ngx.databaseMode" .) "external" -}}
 {{- printf "%s-database" (include "paperless-ngx.fullname" .) -}}
 {{- else -}}
-{{- printf "%s-postgresql-auth" .Release.Name -}}
+{{- include "paperless-ngx.postgresqlSecretName" . -}}
 {{- end -}}
 {{- end -}}
 
@@ -143,7 +196,7 @@ app.kubernetes.io/component: {{ .component }}
 {{- else if eq (include "paperless-ngx.databaseMode" .) "external" -}}
 database-password
 {{- else -}}
-user-password
+{{- include "paperless-ngx.postgresqlSecretKey" . -}}
 {{- end -}}
 {{- end -}}
 
@@ -162,11 +215,37 @@ user-password
 {{- end -}}
 {{- end -}}
 
+{{/*
+Name helpers for the HelmForge Valkey subchart. They mirror valkey.fullname (including the
+rule that reuses the release name when it already contains the chart name),
+valkey.clientServiceName, valkey.primaryServiceName and valkey.secretName.
+*/}}
+{{- define "paperless-ngx.valkeyFullname" -}}
+{{- $vk := .Values.valkey | default dict -}}
+{{- if $vk.fullnameOverride -}}
+{{- $vk.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $name := default "valkey" $vk.nameOverride -}}
+{{- if contains $name .Release.Name -}}
+{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "paperless-ngx.valkeyHost" -}}
 {{- if eq (include "paperless-ngx.valkeyMode" .) "external" -}}
 {{- .Values.valkey.external.host -}}
 {{- else -}}
-{{- printf "%s-valkey-client" .Release.Name -}}
+{{- $architecture := dig "architecture" "standalone" (.Values.valkey | default dict) -}}
+{{- if eq $architecture "standalone" -}}
+{{- printf "%s-client" (include "paperless-ngx.valkeyFullname" .) -}}
+{{- else if eq $architecture "replication" -}}
+{{- printf "%s-primary" (include "paperless-ngx.valkeyFullname" .) -}}
+{{- else -}}
+{{- fail (printf "paperless-ngx supports valkey.architecture=standalone or replication for the Valkey subchart (got %s); use valkey.external.* for other topologies" $architecture) -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 
@@ -174,25 +253,36 @@ user-password
 {{- if eq (include "paperless-ngx.valkeyMode" .) "external" -}}
 {{- .Values.valkey.external.port | default 6379 | toString -}}
 {{- else -}}
-6379
+{{- dig "service" "ports" "valkey" 6379 (.Values.valkey | default dict) | toString -}}
 {{- end -}}
 {{- end -}}
 
 {{- define "paperless-ngx.valkeySecretName" -}}
-{{- if and (eq (include "paperless-ngx.valkeyMode" .) "external") .Values.valkey.external.existingSecret -}}
+{{- if eq (include "paperless-ngx.valkeyMode" .) "external" -}}
+{{- if .Values.valkey.external.existingSecret -}}
 {{- .Values.valkey.external.existingSecret -}}
-{{- else if eq (include "paperless-ngx.valkeyMode" .) "external" -}}
-{{- printf "%s-valkey" (include "paperless-ngx.fullname" .) -}}
 {{- else -}}
-{{- printf "%s-valkey-auth" .Release.Name -}}
+{{- printf "%s-valkey" (include "paperless-ngx.fullname" .) -}}
+{{- end -}}
+{{- else -}}
+{{- $existing := dig "auth" "existingSecret" "" (.Values.valkey | default dict) -}}
+{{- if $existing -}}
+{{- $existing -}}
+{{- else -}}
+{{- printf "%s-auth" (include "paperless-ngx.valkeyFullname" .) -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 
 {{- define "paperless-ngx.valkeySecretKey" -}}
-{{- if and (eq (include "paperless-ngx.valkeyMode" .) "external") .Values.valkey.external.existingSecret -}}
+{{- if eq (include "paperless-ngx.valkeyMode" .) "external" -}}
+{{- if .Values.valkey.external.existingSecret -}}
 {{- .Values.valkey.external.existingSecretPasswordKey | default "valkey-password" -}}
 {{- else -}}
 valkey-password
+{{- end -}}
+{{- else -}}
+{{- dig "auth" "existingSecretPasswordKey" "valkey-password" (.Values.valkey | default dict) -}}
 {{- end -}}
 {{- end -}}
 
