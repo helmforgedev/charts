@@ -224,13 +224,11 @@ service:
 
 ## Upgrade Notes
 
-ntfy 2.30.0 links attachments in email notifications, supports SMTP LOGIN
-authentication, and fixes PostgreSQL memory growth introduced in 2.29.0. It
-also includes the first experimental clustering support through
-`experimental-cluster-listen`; upstream does not consider clustering ready for
-production, and this chart remains single-replica. Back up persistent state and
-validate publishing, cache replay, email delivery and attachment workflows
-before rollout. Review the [2.30.0 release](https://github.com/binwiederhier/ntfy/releases/tag/v2.30.0).
+ntfy 2.31.1 upgrades the message database schema (version 16 to 17) to optimize
+topic reconnects with a dedicated index on SQLite and PostgreSQL. The schema migration
+is automatic upon startup. It also allows starting with a warning when a database
+schema is newer than supported, simplifying rollbacks. Back up persistent state before
+rollout and review the [2.31.1 release](https://github.com/binwiederhier/ntfy/releases/tag/v2.31.1).
 
 ## Limitations
 
