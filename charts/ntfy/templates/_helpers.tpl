@@ -5,6 +5,16 @@
 
 {{/* Validate chart values before rendering resources. */}}
 {{- define "ntfy.validate" -}}
+{{- if .Values.oidc.enabled -}}
+  {{- if and (not .Values.oidc.existingSecret) (not .Values.oidc.clientSecret) -}}
+    {{- fail "ntfy: oidc.clientSecret or oidc.existingSecret must be provided when oidc.enabled is true" -}}
+  {{- end -}}
+{{- end -}}
+{{- if .Values.smtp.enabled -}}
+  {{- if not .Values.smtp.senderAddr -}}
+    {{- fail "ntfy: smtp.senderAddr is required when smtp.enabled is true" -}}
+  {{- end -}}
+{{- end -}}
 {{- if include "ntfy.databaseEnabled" . -}}
   {{- if and (not .Values.postgresql.enabled) (not .Values.ntfy.database.existingSecret) (not .Values.ntfy.database.external.host) -}}
     {{- fail "PostgreSQL is enabled but neither postgresql.enabled, ntfy.database.existingSecret, nor ntfy.database.external.host is configured" -}}
@@ -203,4 +213,32 @@ password
 {{- else -}}
 {{- printf "%s-backup-s3" (include "ntfy.fullname" .) -}}
 {{- end -}}
+{{- end -}}
+
+{{/* OIDC Secret Name */}}
+{{- define "ntfy.oidcSecretName" -}}
+{{- if .Values.oidc.existingSecret -}}
+{{- .Values.oidc.existingSecret -}}
+{{- else -}}
+{{- printf "%s-oidc" (include "ntfy.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/* OIDC Secret Key */}}
+{{- define "ntfy.oidcSecretKey" -}}
+{{- .Values.oidc.existingSecretKey | default "client-secret" -}}
+{{- end -}}
+
+{{/* SMTP Secret Name */}}
+{{- define "ntfy.smtpSecretName" -}}
+{{- if .Values.smtp.existingSecret -}}
+{{- .Values.smtp.existingSecret -}}
+{{- else -}}
+{{- printf "%s-smtp" (include "ntfy.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/* SMTP Secret Password Key */}}
+{{- define "ntfy.smtpSecretPasswordKey" -}}
+{{- .Values.smtp.existingSecretPasswordKey | default "smtp-password" -}}
 {{- end -}}

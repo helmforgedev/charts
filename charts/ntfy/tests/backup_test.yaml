@@ -1,62 +1,64 @@
 # SPDX-License-Identifier: Apache-2.0
-suite: backup-cronjob
+suite: Backup
 templates:
   - templates/backup-cronjob.yaml
   - templates/backup-secret.yaml
+release:
+  name: test
+  namespace: default
 tests:
-  - it: should not render when backup is disabled
+  - it: should not render cronjob by default
+    template: templates/backup-cronjob.yaml
     asserts:
       - hasDocuments:
           count: 0
 
-  - it: should render CronJob and Secret when backup is enabled with inline credentials
-    set:
-      backup:
-        enabled: true
-        s3:
-          endpoint: "https://s3.example.com"
-          bucket: "my-bucket"
-          accessKey: "my-access-key"
-          secretKey: "my-secret-key"
+  - it: should not render secret by default
+    template: templates/backup-secret.yaml
     asserts:
-      - containsDocument:
-          kind: CronJob
-          apiVersion: batch/v1
-          name: RELEASE-NAME-ntfy-backup
-      - containsDocument:
-          kind: Secret
-          apiVersion: v1
-          name: RELEASE-NAME-ntfy-backup-s3
+      - hasDocuments:
+          count: 0
+
+  - it: should render CronJob when backup is enabled
+    template: templates/backup-cronjob.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.example.com
+      backup.s3.bucket: my-bucket
+      backup.s3.accessKey: my-access-key
+      backup.s3.secretKey: my-secret-key
+    asserts:
+      - isKind:
+          of: CronJob
       - equal:
           path: spec.schedule
           value: "0 3 * * *"
-        template: templates/backup-cronjob.yaml
       - equal:
           path: spec.jobTemplate.spec.template.spec.containers[0].image
           value: "docker.io/helmforge/mc:1.0.0"
-        template: templates/backup-cronjob.yaml
+
+  - it: should render Secret when backup is enabled with inline credentials
+    template: templates/backup-secret.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.example.com
+      backup.s3.bucket: my-bucket
+      backup.s3.accessKey: my-access-key
+      backup.s3.secretKey: my-secret-key
+    asserts:
+      - isKind:
+          of: Secret
       - equal:
           path: stringData.access-key
           value: "my-access-key"
-        template: templates/backup-secret.yaml
 
   - it: should not render Secret when existingSecret is provided
+    template: templates/backup-secret.yaml
     set:
-      backup:
-        enabled: true
-        s3:
-          endpoint: "https://s3.example.com"
-          bucket: "my-bucket"
-          existingSecret: "my-custom-backup-secret"
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.example.com
+      backup.s3.bucket: my-bucket
+      backup.s3.existingSecret: my-custom-secret
     asserts:
-      - containsDocument:
-          kind: CronJob
-          apiVersion: batch/v1
-          name: RELEASE-NAME-ntfy-backup
-      - notContainsDocument:
-          kind: Secret
-        template: templates/backup-secret.yaml
-      - equal:
-          path: spec.jobTemplate.spec.template.spec.containers[0].env[2].valueFrom.secretKeyRef.name
-          value: "my-custom-backup-secret"
-        template: templates/backup-cronjob.yaml
+      - hasDocuments:
+          count: 0

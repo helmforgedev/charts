@@ -1,0 +1,116 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: OIDC and SMTP
+templates:
+  - templates/configmap.yaml
+  - templates/secret.yaml
+  - templates/deployment.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render OIDC and SMTP settings in ConfigMap when enabled
+    template: templates/configmap.yaml
+    set:
+      oidc:
+        enabled: true
+        issuerUrl: "https://auth.example.com"
+        clientId: "ntfy-client"
+        clientSecret: "test-oidc-secret"
+      smtp:
+        enabled: true
+        senderAddr: "smtp.example.com:587"
+        senderFrom: "ntfy@example.com"
+        senderUser: "smtp-user"
+        senderPass: "smtp-pass"
+        senderVerify: true
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: data["server.yml"]
+          pattern: "smtp-sender-addr: \"smtp.example.com:587\""
+      - matchRegex:
+          path: data["server.yml"]
+          pattern: "smtp-sender-from: \"ntfy@example.com\""
+      - matchRegex:
+          path: data["server.yml"]
+          pattern: "oidc-issuer-url: \"https://auth.example.com\""
+      - matchRegex:
+          path: data["server.yml"]
+          pattern: "oidc-client-id: \"ntfy-client\""
+      - notMatchRegex:
+          path: data["server.yml"]
+          pattern: "test-oidc-secret"
+      - notMatchRegex:
+          path: data["server.yml"]
+          pattern: "smtp-pass"
+
+  - it: should render OIDC and SMTP Secrets with inline credentials
+    template: templates/secret.yaml
+    set:
+      oidc:
+        enabled: true
+        clientSecret: "my-oidc-secret"
+      smtp:
+        enabled: true
+        senderAddr: "smtp.example.com:587"
+        senderPass: "my-smtp-password"
+    asserts:
+      - containsDocument:
+          kind: Secret
+          apiVersion: v1
+          name: test-ntfy-oidc
+      - containsDocument:
+          kind: Secret
+          apiVersion: v1
+          name: test-ntfy-smtp
+
+  - it: should not render Secrets when existingSecret is provided
+    template: templates/secret.yaml
+    set:
+      oidc:
+        enabled: true
+        existingSecret: "custom-oidc-secret"
+      smtp:
+        enabled: true
+        senderAddr: "smtp.example.com:587"
+        existingSecret: "custom-smtp-secret"
+    asserts:
+      - notContainsDocument:
+          kind: Secret
+          apiVersion: v1
+          name: test-ntfy-oidc
+      - notContainsDocument:
+          kind: Secret
+          apiVersion: v1
+          name: test-ntfy-smtp
+
+  - it: should inject sensitive credentials via secretKeyRef in Deployment
+    template: templates/deployment.yaml
+    set:
+      oidc:
+        enabled: true
+        clientSecret: "my-oidc-secret"
+      smtp:
+        enabled: true
+        senderAddr: "smtp.example.com:587"
+        senderPass: "my-smtp-password"
+    asserts:
+      - isKind:
+          of: Deployment
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NTFY_SMTP_SENDER_PASS
+            valueFrom:
+              secretKeyRef:
+                name: test-ntfy-smtp
+                key: smtp-password
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NTFY_OIDC_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: test-ntfy-oidc
+                key: client-secret

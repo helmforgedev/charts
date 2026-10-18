@@ -317,3 +317,23 @@ The backup CronJob () runs on a customizable schedule (default: ). It performs t
    
 4. Scale the deployment back up:
    
+
+## SSO (OpenID Connect) and SMTP
+
+ntfy supports native integration with OpenID Connect (OIDC) identity providers and outbound SMTP email alerting.
+
+### Single Sign-On (OIDC)
+
+To configure SSO with an OIDC provider (e.g. Authentik, Keycloak, Authelia):
+
+
+
+Sensitive client secrets are injected exclusively via Kubernetes Secrets and environment variables (), ensuring zero secrets in ConfigMaps.
+
+### Outbound SMTP Email
+
+To allow email notifications ( header):
+
+
+
+Sensitive passwords are bound via  ().
