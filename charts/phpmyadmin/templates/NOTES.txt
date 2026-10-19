@@ -1,70 +1,67 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-phpMyAdmin deployed
+--------------------------------------------------------------------
+phpMyAdmin database manager has been successfully deployed!
+--------------------------------------------------------------------
 
-Chart:      {{ .Chart.Name }}
-Version:    {{ .Chart.Version }}
-AppVersion: {{ .Chart.AppVersion }}
-Release:    {{ .Release.Name }}
-Namespace:  {{ .Release.Namespace }}
+1. Installation Summary
+   - Release Name: {{ .Release.Name }}
+   - Namespace:    {{ .Release.Namespace }}
+   - Chart:        {{ include "phpmyadmin.chart" . }}
 
-Access
-{{- if .Values.gatewayAPI.enabled }}
-Gateway API HTTPRoute is enabled.
-{{- range .Values.gatewayAPI.hostnames }}
-  URL: http(s)://{{ . }}/
-{{- end }}
-{{- else if .Values.ingress.enabled }}
-Ingress is enabled.
-{{- range $host := .Values.ingress.hosts }}
-  URL: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
-{{- end }}
+2. Service Access
+{{- if .Values.ingress.enabled }}
+   Ingress is enabled. Access phpMyAdmin at:
+  {{- range .Values.ingress.hosts }}
+   - http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}{{ (index .paths 0).path }}
+  {{- end }}
+{{- else if contains "NodePort" .Values.service.type }}
+   NodePort is enabled. Retrieve the address with:
+   $ export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "phpmyadmin.fullname" . }})
+   $ export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+   $ echo http://$NODE_IP:$NODE_PORT
+{{- else if contains "LoadBalancer" .Values.service.type }}
+   LoadBalancer is enabled. Retrieve the external IP with:
+   $ kubectl get svc --namespace {{ .Release.Namespace }} {{ include "phpmyadmin.fullname" . }} -w
 {{- else }}
-Use port-forward for local access:
-  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "phpmyadmin.fullname" . }} 8080:{{ .Values.service.port }}
-  URL: http://localhost:8080/
+   Port-forward the service to localhost:
+   $ kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "phpmyadmin.fullname" . }} 8080:{{ .Values.service.port }}
+   Then browse to: http://127.0.0.1:8080
 {{- end }}
 
-Database target
-{{- if .Values.phpmyadmin.hosts }}
-  Hosts: {{ .Values.phpmyadmin.hosts }}
-  Ports: {{ default (printf "%v" .Values.phpmyadmin.port) .Values.phpmyadmin.ports }}
-{{- else if .Values.phpmyadmin.host }}
-  Host:  {{ .Values.phpmyadmin.host }}
-  Port:  {{ .Values.phpmyadmin.port }}
-{{- else if .Values.phpmyadmin.arbitrary }}
-  Arbitrary server mode is enabled. Users choose the database host at login.
+3. Credentials and Security
+{{- if .Values.phpmyadmin.dbHost }}
+   - Default Database Host: {{ .Values.phpmyadmin.dbHost }}:{{ .Values.phpmyadmin.dbPort }}
 {{- else }}
-  No database host is configured. Set phpmyadmin.host, phpmyadmin.hosts, or phpmyadmin.arbitrary=true.
+   - Database Server: Arbitrary server mode active (enter host details on login)
+{{- end }}
+{{- if .Values.externalSecrets.enabled }}
+   - External Secrets Operator: Integration active for credentials management
+{{- end }}
+{{- if not .Values.ingress.tls }}
+   - Note: Ingress TLS is not enabled. Traffic is unencrypted.
 {{- end }}
 
-Operational checks
-  kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name=phpmyadmin -n {{ .Release.Namespace }} --timeout=300s
-  kubectl get deploy,po,svc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-  kubectl logs -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name=phpmyadmin -n {{ .Release.Namespace }} --all-containers --tail=100
-  kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
+4. Application Configuration
+   - Arbitrary Server Mode: {{ if .Values.phpmyadmin.arbitraryServer }}Enabled{{ else }}Disabled{{ end }}
+   - Upload Limit:          {{ .Values.phpmyadmin.uploadLimit | default "128M" }}
+   - Memory Limit:          {{ .Values.phpmyadmin.memoryLimit | default "512M" }}
 
-Production notes
-{{- if and .Values.externalSecrets.enabled .Values.externalSecrets.auth.enabled }}
-  External Secrets Operator manages the auth Secret: {{ include "phpmyadmin.authSecretName" . }}
-{{- else if .Values.auth.existingSecret }}
-  Existing Secret used for auth: {{ .Values.auth.existingSecret }}
-{{- else if .Values.auth.password }}
-  Inline auth.password rendered a Kubernetes Secret. Prefer existingSecret or externalSecrets.auth in production.
-{{- end }}
-{{- if eq (include "phpmyadmin.needsGeneratedConfig" .) "true" }}
-  config.user.inc.php is generated to apply auth type or blowfish-secret settings that are not handled by the official image environment contract.
-{{- end }}
-{{- if and (gt (int .Values.replicaCount) 1) (not .Values.sessions.enabled) (not .Values.autoscaling.enabled) }}
-  Multiple replicas are enabled without sessions.enabled. Enable shared sessions when using cookie/session-heavy workflows.
-{{- end }}
-{{- if not .Values.networkPolicy.enabled }}
-  NetworkPolicy is disabled. Production deployments should restrict ingress and database egress.
-{{- end }}
+5. Maintenance and Backups
+   - phpMyAdmin is a stateless administration frontend.
+   - Backups and retention should be managed directly on target MySQL/MariaDB databases.
 
-Security warning
-  Do not expose phpMyAdmin directly to the public internet without strong controls such as VPN, SSO/reverse proxy authentication, IP allowlists, TLS, and least-privilege database accounts.
+6. Health Verification
+   Verify rollout status:
+   $ kubectl rollout status deployment/{{ include "phpmyadmin.fullname" . }} -n {{ .Release.Namespace }}
+   Inspect endpoints:
+   $ kubectl get endpoints -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
 
-Documentation:
-  https://helmforge.dev/docs/charts/phpmyadmin
+7. Logs and Diagnostics
+   Inspect container logs:
+   $ kubectl logs -f deployment/{{ include "phpmyadmin.fullname" . }} -c phpmyadmin -n {{ .Release.Namespace }}
+
+8. Documentation and Support
+   - phpMyAdmin Official Documentation: https://docs.phpmyadmin.net/
+   - HelmForge Documentation: https://helmforge.dev/docs/charts/phpmyadmin
 
 Happy Helmforging :)
