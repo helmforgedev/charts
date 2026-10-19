@@ -64,3 +64,29 @@ tests:
       - equal:
           path: spec.ingress[0].from[1].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
           value: gateway-system
+
+  - it: should render extraEgress rules when specified
+    set:
+      networkPolicy:
+        enabled: true
+        egress:
+          enabled: true
+          extraEgress:
+            - to:
+                - ipBlock:
+                    cidr: 10.0.0.0/8
+              ports:
+                - port: 9000
+                  protocol: TCP
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - contains:
+          path: spec.egress
+          content:
+            to:
+              - ipBlock:
+                  cidr: 10.0.0.0/8
+            ports:
+              - port: 9000
+                protocol: TCP

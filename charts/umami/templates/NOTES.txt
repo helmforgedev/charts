@@ -1,80 +1,72 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-Umami {{ .Chart.AppVersion }} was deployed.
+--------------------------------------------------------------------
+Umami Privacy-Focused Analytics has been successfully deployed!
+--------------------------------------------------------------------
 
-Release:   {{ .Release.Name }}
-Namespace: {{ .Release.Namespace }}
-Chart:     {{ .Chart.Name }} {{ .Chart.Version }}
+1. Installation Summary
+   - Release Name:  {{ .Release.Name }}
+   - Namespace:     {{ .Release.Namespace }}
+   - App Version:   {{ .Chart.AppVersion }}
+   - Chart Version: {{ .Chart.Version }}
 
-Access:
+2. Service Access
 {{- if .Values.gatewayAPI.enabled }}
-  Gateway API HTTPRoute is enabled.
-  Hosts:
-{{- range .Values.gatewayAPI.hostnames }}
-    - https://{{ . }}/
-{{- else }}
-    - Check the attached Gateway listener hostnames.
-{{- end }}
+   Gateway API HTTPRoute is enabled.
+  {{- range .Values.gatewayAPI.hostnames }}
+   - https://{{ . }}/
+  {{- else }}
+   - Check attached Gateway listener hostnames.
+  {{- end }}
 {{- else if .Values.ingress.enabled }}
-  Ingress is enabled.
-{{- range $host := .Values.ingress.hosts }}
-    - http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
-{{- end }}
+   Ingress is enabled:
+  {{- range $host := .Values.ingress.hosts }}
+   - http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+  {{- end }}
 {{- else }}
-  Port-forward locally:
-    kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "umami.fullname" . }} 3000:{{ .Values.service.port }}
-
-  Open:
-    http://localhost:3000/
+   Port-forward locally:
+   $ kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "umami.fullname" . }} 3000:{{ .Values.service.port }}
+   Then browse to: http://localhost:3000/
 {{- end }}
 
-Initial Umami credentials:
-  Username: admin
-  Password: umami
+3. Credentials and Security
+   - Initial Username: admin
+   - Initial Password: umami
+   IMPORTANT: Change the administrator password immediately after first login.
+   - APP_SECRET:       {{ include "umami.appSecretName" . }} (Key: {{ include "umami.appSecretKey" . }})
 
-Change the password after first login.
-
-Runtime:
-  Service:     {{ include "umami.fullname" . }}:{{ .Values.service.port }}
-  Database:    {{ include "umami.dbHost" . }}:{{ include "umami.dbPort" . }}/{{ include "umami.dbName" . }}
-  PostgreSQL:  {{ ternary "bundled HelmForge subchart" "external database" .Values.postgresql.enabled }}
-  APP_SECRET:  {{ include "umami.appSecretName" . }}/{{ include "umami.appSecretKey" . }}
-
+4. Application Configuration
+   - Service:          {{ include "umami.fullname" . }}:{{ .Values.service.port }}
+   - Database Backend: {{ ternary "Bundled HelmForge PostgreSQL subchart" "External PostgreSQL database" .Values.postgresql.enabled }}
+   - Database Target:  {{ include "umami.dbHost" . }}:{{ include "umami.dbPort" . }}/{{ include "umami.dbName" . }}
 {{- if .Values.database.external.init.enabled }}
-External database preparation:
-  The prepare-external-db init container ran before Umami startup.
-  It uses {{ .Values.database.external.init.adminExistingSecret }}/{{ .Values.database.external.init.adminExistingSecretPasswordKey }} only during pod initialization.
+   - External DB Init: Enabled (initContainer configured via '{{ .Values.database.external.init.adminExistingSecret }}')
 {{- end }}
 
-{{- if .Values.externalSecrets.enabled }}
-External Secrets:
-  external-secrets.io/v1 resources were rendered.
-  Confirm reconciliation before troubleshooting application startup:
-    kubectl get externalsecret -n {{ .Release.Namespace }}
-    kubectl describe externalsecret -n {{ .Release.Namespace }}
-{{- end }}
-
-{{- if .Values.networkPolicy.enabled }}
-NetworkPolicy:
-  NetworkPolicy is enabled. If Umami cannot reach PostgreSQL or external endpoints,
-  inspect egress rules and CNI enforcement.
-{{- end }}
-
+5. Maintenance and Backups
 {{- if .Values.backup.enabled }}
-Backup:
-  S3-compatible backup CronJob is enabled.
-  Check jobs:
-    kubectl get cronjob,job -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+   - Automated Backups: Enabled (Schedule: '{{ .Values.backup.schedule }}')
+   - Target S3 Bucket:   s3://{{ .Values.backup.s3.bucket }}/{{ .Values.backup.s3.prefix }}
+{{- else }}
+   - Automated Backups: Disabled
+{{- end }}
+{{- if .Values.externalSecrets.enabled }}
+   - External Secrets:   Enabled (SecretStore: '{{ .Values.externalSecrets.secretStoreRef.name }}')
 {{- end }}
 
-Health checks:
-  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ include "umami.name" . }}
-  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ include "umami.name" . }} --all-containers --tail=100
-  kubectl get events -n {{ .Release.Namespace }} --sort-by='.lastTimestamp'
+6. Health Verification
+   Verify rollout status:
+   $ kubectl rollout status deployment/{{ include "umami.fullname" . }} -n {{ .Release.Namespace }}
+   Verify pod status:
+   $ kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ include "umami.name" . }}
 
-Upgrade note:
-  Umami can run database migrations on startup. Back up PostgreSQL before upgrading production releases.
+7. Logs and Diagnostics
+   Inspect container logs:
+   $ kubectl logs -f deployment/{{ include "umami.fullname" . }} -c umami -n {{ .Release.Namespace }}
+   Inspect cluster events:
+   $ kubectl get events -n {{ .Release.Namespace }} --sort-by='.lastTimestamp'
 
-Documentation:
-  https://helmforge.dev/docs/charts/umami
+8. Documentation and Support
+   - Umami Official Documentation: https://umami.is/docs
+   - HelmForge Documentation:      https://helmforge.dev/docs/charts/umami
 
 Happy Helmforging :)
