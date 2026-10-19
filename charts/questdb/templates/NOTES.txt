@@ -1,16 +1,85 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-QuestDB is available inside the cluster at:
-  http://{{ include "questdb.fullname" . }}.{{ .Release.Namespace }}.svc:9000
+1. Application overview:
+   QuestDB is a high-performance time-series database designed for real-time analytics.
+   This chart deploys an open-source standalone instance with support for PostgreSQL wire protocol,
+   InfluxDB Line Protocol (ILP), REST/HTTP queries, and interactive Web Console.
 
-This chart deploys exactly one OSS QuestDB instance. It does not provide HA or
-replication. Keep the service internal unless transport encryption is provided
-by an Ingress, Gateway or service mesh.
+2. Architecture:
+   - Workload type: StatefulSet (single-instance standalone deployment)
+   - Database Root: /var/lib/questdb (contains data, configuration, and WAL logs)
+   - High Availability: Not available in OSS edition; persistent storage preserves data across restarts
+   - Security Note: Keep service internal unless transport encryption is provided by an Ingress or Gateway
 
-The generated PostgreSQL and HTTP passwords are retained in Secret
-{{ include "questdb.authSecretName" . }}. Retrieve the HTTP password with:
-  kubectl get secret -n {{ .Release.Namespace }} {{ include "questdb.authSecretName" . }} -o jsonpath='{.data.{{ .Values.questdb.httpPasswordKey }}}' | base64 -d
+3. Accessing the service:
+   Internal cluster endpoints:
+     - HTTP / Web Console (port 9000):
+         http://{{ include "questdb.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:9000
+{{- if .Values.service.pgWireEnabled }}
+     - PostgreSQL Wire Protocol (port 8812):
+         {{ include "questdb.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:8812
+{{- end }}
+{{- if .Values.service.ilpTcpEnabled }}
+     - InfluxDB Line Protocol TCP (port 9009):
+         {{ include "questdb.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:9009
+{{- end }}
 
-Before taking a storage snapshot, run CHECKPOINT CREATE. After the external
-snapshot or copy completes, run CHECKPOINT RELEASE.
+{{- if .Values.ingress.enabled }}
+   External Ingress URL(s):
+{{- range .Values.ingress.hosts }}
+  {{- $host := .host }}
+  {{- range .paths }}
+     - http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host }}{{ .path | default "/" }}
+  {{- else }}
+     - http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host }}/
+  {{- end }}
+{{- end }}
+{{- else if .Values.gatewayAPI.enabled }}
+   External Gateway API routes are enabled for HTTP endpoints.
+{{- else }}
+   To access the Web Console locally via port-forwarding:
+     kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "questdb.fullname" . }} 9000:9000
+     Visit http://127.0.0.1:9000 in your browser.
+{{- end }}
+
+4. Credentials and authentication:
+   Administrative username: {{ .Values.questdb.httpUser }}
+   PostgreSQL wire protocol username: {{ .Values.questdb.pgUser }}
+   Authentication secret: {{ include "questdb.authSecretName" . }}
+
+   To retrieve the administrative HTTP password:
+     kubectl get secret -n {{ .Release.Namespace }} {{ include "questdb.authSecretName" . }} -o jsonpath="{.data.{{ .Values.questdb.httpPasswordKey }}}" | base64 -d && echo
+
+   To retrieve the PostgreSQL wire protocol password:
+     kubectl get secret -n {{ .Release.Namespace }} {{ include "questdb.authSecretName" . }} -o jsonpath="{.data.{{ .Values.questdb.pgPasswordKey }}}" | base64 -d && echo
+
+5. External Secrets integration:
+{{- if .Values.externalSecrets.enabled }}
+   ExternalSecrets is enabled for synchronizing credentials.
+   ExternalSecret target names are configured in externalSecrets.items[].spec.target.name.
+   Workload authentication secret: {{ include "questdb.authSecretName" . }}
+{{- else }}
+   ExternalSecrets is disabled. Secrets are managed natively by the chart or via questdb.existingSecret.
+{{- end }}
+
+6. Monitoring and metrics:
+{{- if .Values.metrics.enabled }}
+   Prometheus metrics endpoint is enabled on port 9003 at /metrics.
+{{- if .Values.metrics.serviceMonitor.enabled }}
+   Prometheus Operator ServiceMonitor resource is enabled.
+{{- end }}
+{{- else }}
+   Metrics exposition is disabled (.Values.metrics.enabled=false).
+{{- end }}
+
+7. Operational guidelines and snapshots:
+   - Backup / Storage Snapshots:
+       Before taking a persistent volume snapshot, execute SQL command: CHECKPOINT CREATE;
+       After the external volume snapshot finishes, execute: CHECKPOINT RELEASE;
+   - Configuration:
+       Custom properties can be supplied in .Values.questdb.serverConfig to tune memory and table storage.
+
+8. Community and support:
+   - Documentation: https://questdb.com/docs/
+   - HelmForge Catalog: https://repo.helmforge.dev
 
 Happy Helmforging :)
