@@ -519,3 +519,43 @@ tolerations:
 {{- if .Values.pdb.enabled -}}true{{- end -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Compile all validation warnings and fail if any violation is found
+*/}}
+
+{{/*
+Compile all validation warnings and fail if any violation is found
+*/}}
+{{- define "mariadb.validate" -}}
+{{- $messages := list -}}
+{{- if and .Values.externalSecrets .Values.externalSecrets.enabled -}}
+  {{- if not .Values.auth.existingSecret -}}
+    {{- $messages = append $messages "When externalSecrets.enabled is true, auth.existingSecret must be set to prevent credential drift between the chart-managed Secret and the ExternalSecret." -}}
+  {{- end -}}
+  {{- if not (dig "secretStoreRef" "name" "" .Values.externalSecrets) -}}
+    {{- $messages = append $messages "When externalSecrets.enabled is true, externalSecrets.secretStoreRef.name must be provided." -}}
+  {{- end -}}
+{{- end -}}
+{{- if .Values.backup.enabled -}}
+  {{- if not .Values.backup.s3.endpoint -}}
+    {{- $messages = append $messages "When backup.enabled is true, backup.s3.endpoint must be specified." -}}
+  {{- else if not (regexMatch "^https?://[^/]+.*$" .Values.backup.s3.endpoint) -}}
+    {{- $messages = append $messages "When backup.enabled is true, backup.s3.endpoint must be a valid URL starting with http:// or https:// with a valid host." -}}
+  {{- end -}}
+  {{- if not .Values.backup.s3.bucket -}}
+    {{- $messages = append $messages "When backup.enabled is true, backup.s3.bucket must be specified." -}}
+  {{- end -}}
+  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+    {{- $messages = append $messages "When backup.enabled is true, either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey must be provided." -}}
+  {{- end -}}
+{{- end -}}
+{{- if .Values.tls.enabled -}}
+  {{- if not .Values.tls.existingSecret -}}
+    {{- $messages = append $messages "When tls.enabled is true, tls.existingSecret must be provided containing certificates." -}}
+  {{- end -}}
+{{- end -}}
+{{- if $messages -}}
+  {{- fail (printf "validation failed:\n%s" (join "\n" $messages)) -}}
+{{- end -}}
+{{- end -}}
