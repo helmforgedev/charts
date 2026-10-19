@@ -1,20 +1,81 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-Velero has been installed.
+1. Application overview:
+   Velero is an open-source backup, disaster recovery, and cluster migration tool for Kubernetes.
+   It provides point-in-time snapshots and scheduled backups of cluster state, CRDs, and persistent volumes.
+   Deployed as a centralized controller with optional node-agent DaemonSet for file-system-level backups.
 
-Useful checks:
+2. Architecture:
+   - Workload type: Deployment (single-replica Velero server controller)
+   - Node Agent: DaemonSet (optional, currently {{ if .Values.nodeAgent.enabled }}enabled{{ else }}disabled{{ end }})
+   - Object Storage Provider(s):
+{{- range .Values.configuration.backupStorageLocations }}
+       * Location: {{ .name | default "default" }} (provider: {{ .provider }}{{ if .bucket }}, bucket: {{ .bucket }}{{ end }})
+{{- end }}
+{{- $plugins := list -}}
+{{- if .Values.plugins.enabled -}}
+  {{- $plugins = append $plugins "velero-plugin-for-aws (default)" -}}
+{{- end -}}
+{{- range .Values.plugins.extra -}}
+  {{- $plugins = append $plugins .name -}}
+{{- end }}
+   - Plugins: {{ if $plugins }}{{ join ", " $plugins }}{{ else }}none{{ end }}
 
-  kubectl get deployment {{ include "velero.fullname" . }} -n {{ .Release.Namespace }}
-  kubectl get backupstoragelocations.velero.io -n {{ .Release.Namespace }}
-  kubectl get schedules.velero.io -n {{ .Release.Namespace }}
+3. Accessing and managing the service:
+   Internal controller deployment:
+     kubectl get deployment {{ include "velero.fullname" . }} -n {{ .Release.Namespace }}
+{{- if .Values.nodeAgent.enabled }}
+   Node-agent DaemonSet:
+     kubectl get daemonset {{ include "velero.fullname" . }}-node-agent -n {{ .Release.Namespace }}
+{{- end }}
+   Backup storage locations:
+     kubectl get backupstoragelocations.velero.io -n {{ .Release.Namespace }}
+   Volume snapshot locations:
+     kubectl get volumesnapshotlocations.velero.io -n {{ .Release.Namespace }}
+   Scheduled backups:
+     kubectl get schedules.velero.io -n {{ .Release.Namespace }}
 
-If filesystem backup is enabled:
+4. Credentials and storage configuration:
+{{- if include "velero.credentialsSecretEnabled" . }}
+   Credentials secret: {{ include "velero.secretName" . }}
+   Secret key: {{ .Values.credentials.key }}
+{{- else }}
+   Cloud credentials secret is disabled or managed externally via IAM roles / ServiceAccount annotations.
+{{- end }}
+   Service account:
+     kubectl get serviceaccount {{ include "velero.serviceAccountName" . }} -n {{ .Release.Namespace }}
 
-  kubectl get daemonset {{ include "velero.fullname" . }}-node-agent -n {{ .Release.Namespace }}
+5. Backup and restore operations:
+   Create an immediate on-demand backup:
+     velero backup create <backup-name> --include-namespaces <namespace> -n {{ .Release.Namespace }}
+   Describe backup details and progress:
+     velero backup describe <backup-name> -n {{ .Release.Namespace }} --details
+   Restore a backup into the cluster:
+     velero restore create --from-backup <backup-name> -n {{ .Release.Namespace }}
+   Inspect recent backup logs:
+     velero backup logs <backup-name> -n {{ .Release.Namespace }}
 
-Important:
+6. Monitoring and metrics:
+{{- if .Values.metrics.enabled }}
+   Prometheus metrics endpoint is enabled on port {{ .Values.metrics.service.port }} (service: {{ include "velero.fullname" . }}).
+{{- if .Values.metrics.serviceMonitor.enabled }}
+   Prometheus Operator ServiceMonitor resource is enabled.
+{{- end }}
+{{- else }}
+   Metrics exposition is disabled (.Values.metrics.enabled=false).
+{{- end }}
 
-  - validate object storage connectivity before relying on this release for backups
-  - if you use S3-compatible storage such as MinIO, review the s3Url and s3ForcePathStyle settings
-  - if you define schedules, confirm they target the intended namespaces and resource sets
+7. Operational guidelines and best practices:
+   - Object Storage Verification:
+       Validate bucket connectivity and IAM permissions before relying on Velero for production disaster recovery.
+   - S3-Compatible Storage:
+       If using MinIO or Ceph, verify that s3Url and s3ForcePathStyle are correctly configured in backupStorageLocations.
+   - Scheduling Policy:
+       Confirm scheduled backups have realistic TTL (.Values.configuration.defaultBackupTTL) and retention policies.
+   - Disaster Recovery Drill:
+       Periodically test restores into an isolated staging namespace to confirm snapshot integrity and application recovery.
+
+8. Community and support:
+   - Documentation: https://velero.io/docs/
+   - HelmForge Catalog: https://repo.helmforge.dev
 
 Happy Helmforging :)
