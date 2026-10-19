@@ -60,9 +60,9 @@ When ingress is enabled, requests are routed by path:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/appwrite/appwrite` | Appwrite server image |
-| `image.tag` | `2.3.0` | Image tag |
+| `image.tag` | `2.5.0` | Image tag |
 | `console.image.repository` | `docker.io/appwrite/new` | Console image |
-| `console.image.tag` | `1.1.159-self-hosted` | Console image tag |
+| `console.image.tag` | `1.2.74-self-hosted` | Console image tag |
 | `appwrite.locale` | `en` | Application locale |
 | `appwrite.domain` | `""` (auto-detected) | Appwrite domain |
 | `appwrite.openSslKeyV1` | `""` (auto-generated) | 64-char hex encryption key |
@@ -78,6 +78,14 @@ When ingress is enabled, requests are routed by path:
 See [`values.yaml`](values.yaml) for the full configuration reference.
 
 ## Upgrade Notes
+
+### Appwrite 2.5.0
+
+The [2.5 release](https://github.com/appwrite/appwrite/releases/tag/2.5.0)
+ships Console 1.2.74-self-hosted (was 1.1.159) and upstream Appwrite 2.5.0.
+The database migration remains on V25, adding function interval and Android
+fingerprint columns while widening the webhook HTTP password column;
+run `migrate` after upgrading.
 
 ### Appwrite 2.3.0
 
@@ -132,7 +140,7 @@ roll back to 2.2, stop new queue receives and drain or recover every in-flight
 reservation before removing the 2.3 workers. Then restore the database, volumes,
 Secret and matching old images together.
 
-Console IV uses `appwrite/new:1.1.159-self-hosted` on port 3000 with the API on the same origin;
+Console IV uses `appwrite/new:1.2.74-self-hosted` on port 3000 with the API on the same origin;
 the console Service still exposes port 80. `worker-audits` was removed upstream:
 set `workers.audits.enabled=false` in retained values. Jobs, screenshots,
 executions and notifications now have separate worker toggles, alongside the
