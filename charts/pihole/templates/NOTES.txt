@@ -1,123 +1,85 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-=============================================================================
-Pi-hole DNS Sinkhole deployed successfully!
-=============================================================================
+--------------------------------------------------------------------
+Pi-hole DNS Sinkhole has been successfully deployed!
+--------------------------------------------------------------------
 
-WEB ADMIN:
+1. Installation Summary
+   - Release Name:  {{ .Release.Name }}
+   - Namespace:     {{ .Release.Namespace }}
+   - DNS Service:   {{ .Values.serviceDns.type }}
+   - Recursive DNS: {{ if .Values.unbound.enabled }}Enabled (Unbound sidecar on 127.0.0.1#{{ .Values.unbound.port }}){{ else }}Disabled{{ end }}
+
+2. Service Access
 {{- if .Values.ingress.enabled }}
+   Web Admin Ingress is enabled. Access Pi-hole at:
   {{- range .Values.ingress.hosts }}
-   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}/admin
+   - http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}/admin
   {{- end }}
 {{- else }}
-   kubectl port-forward svc/{{ include "pihole.fullname" . }}-web -n {{ .Release.Namespace }} 8080:{{ .Values.serviceWeb.port }}
-   Open: http://localhost:8080/admin
+   Port-forward the Web Admin service to localhost:
+   $ kubectl port-forward svc/{{ include "pihole.fullname" . }}-web 8080:{{ .Values.serviceWeb.port }} -n {{ .Release.Namespace }}
+   Then browse to: http://127.0.0.1:8080/admin
 {{- end }}
 
-   Password: {{- if .Values.admin.existingSecret }} {{ .Values.admin.existingSecret }} (existing secret)
-{{- else if .Values.admin.password }} <from values.yaml>
-{{- else }} kubectl get secret {{ include "pihole.fullname" . }} -n {{ .Release.Namespace }} -o jsonpath='{.data.password}' | base64 -d
-{{- end }}
-
-DNS SERVICE:
-   Type: {{ .Values.serviceDns.type }}
+   DNS Service:
 {{- if eq .Values.serviceDns.type "LoadBalancer" }}
   {{- if .Values.serviceDns.loadBalancerIP }}
-   IP: {{ .Values.serviceDns.loadBalancerIP }}
+   - LoadBalancer IP: {{ .Values.serviceDns.loadBalancerIP }}
   {{- else }}
-   IP: kubectl get svc {{ include "pihole.fullname" . }}-dns -n {{ .Release.Namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+   - LoadBalancer IP: kubectl get svc {{ include "pihole.fullname" . }}-dns -n {{ .Release.Namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
   {{- end }}
 {{- else if eq .Values.serviceDns.type "NodePort" }}
-   Port: kubectl get svc {{ include "pihole.fullname" . }}-dns -n {{ .Release.Namespace }} -o jsonpath='{.spec.ports[?(@.name=="dns-udp")].nodePort}'
+   - NodePort: kubectl get svc {{ include "pihole.fullname" . }}-dns -n {{ .Release.Namespace }} -o jsonpath='{.spec.ports[?(@.name=="dns-udp")].nodePort}'
 {{- else }}
-   Internal: {{ include "pihole.fullname" . }}-dns.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.serviceDns.port }}
+   - ClusterIP: {{ include "pihole.fullname" . }}-dns.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.serviceDns.port }}
 {{- end }}
 
-BLOCKLISTS:
-{{- if ne .Values.dns.preset "none" }}
-   Preset: {{ .Values.dns.preset }}
+3. Credentials and Security
+{{- if .Values.admin.existingSecret }}
+   - Admin Password: Loaded from existing Secret '{{ .Values.admin.existingSecret }}' (key: '{{ .Values.admin.existingSecretKey }}')
+{{- else if .Values.admin.password }}
+   - Admin Password: Configured via values.yaml
 {{- else }}
-   Preset: none (using custom lists only)
+   - Admin Password: Auto-generated in chart Secret. Retrieve with:
+     $ kubectl get secret {{ include "pihole.secretName" . }} -n {{ .Release.Namespace }} -o jsonpath='{.data.{{ include "pihole.secretKey" . }}}' | base64 -d && echo
 {{- end }}
+
+4. Application Configuration
+   - Blocklist Preset: {{ .Values.dns.preset }}
 {{- $adlists := include "pihole.adlists" . | fromYamlArray }}
-   Total adlists: {{ len $adlists }}
+   - Active Adlists:   {{ len $adlists }}
 {{- $whitelist := include "pihole.whitelist" . | fromYamlArray }}
-{{- if gt (len $whitelist) 0 }}
-   Whitelist: {{ len $whitelist }} domains (including presets)
-{{- end }}
-{{- if .Values.dns.blacklist }}
-   Blacklist: {{ len .Values.dns.blacklist }} domains
-{{- end }}
-{{- if .Values.dns.regex }}
-   Regex filters: {{ len .Values.dns.regex }}
-{{- end }}
-
-{{- if .Values.dns.whitelistPresets }}
-   Whitelist Presets:
-{{- if .Values.dns.whitelistPresets.microsoft }} - Microsoft
-{{- end }}
-{{- if .Values.dns.whitelistPresets.apple }} - Apple
-{{- end }}
-{{- if .Values.dns.whitelistPresets.google }} - Google
-{{- end }}
-{{- if .Values.dns.whitelistPresets.gaming }} - Gaming
-{{- end }}
-{{- if .Values.dns.whitelistPresets.smartHome }} - Smart Home
-{{- end }}
-{{- end }}
-
-{{- if .Values.unbound.enabled }}
-
-RECURSIVE DNS:
-   Unbound sidecar: enabled (privacy-first DNS)
-   Pi-hole upstream: 127.0.0.1#{{ .Values.unbound.port }}
-{{- end }}
-
+   - Whitelist Domains: {{ len $whitelist }}
 {{- if .Values.metrics.enabled }}
-
-METRICS:
-   Exporter: enabled on port {{ .Values.metrics.port }}
-{{- if .Values.metrics.serviceMonitor.enabled }}
-   ServiceMonitor: created for Prometheus Operator
-{{- end }}
-   Metrics endpoint: http://{{ include "pihole.fullname" . }}-web:{{ .Values.metrics.port }}/metrics
+   - Prometheus Metrics: Enabled on port {{ .Values.metrics.port }}
 {{- end }}
 
+5. Maintenance and Backups
 {{- if .Values.backup.enabled }}
-
-BACKUP:
-   S3 backups: enabled
-   Schedule: {{ .Values.backup.schedule }}
-   Bucket: s3://{{ .Values.backup.s3.bucket }}/{{ .Values.backup.s3.prefix }}
+   - Automated S3 Backups: Enabled (Schedule: '{{ .Values.backup.schedule }}')
+   - Target S3 Bucket:     s3://{{ .Values.backup.s3.bucket }}/{{ .Values.backup.s3.prefix }}
+{{- else }}
+   - Automated Backups:     Disabled
+{{- end }}
+{{- if and .Values.externalSecrets .Values.externalSecrets.enabled }}
+   - External Secrets Operator: Integration active for admin credentials
 {{- end }}
 
-{{- if .Values.dns.conditionalForwarding.enabled }}
+6. Health Verification
+   Verify pod rollout status:
+   $ kubectl rollout status deployment/{{ include "pihole.fullname" . }} -n {{ .Release.Namespace }}
+   Test DNS query resolution:
+   $ dig @<PIHOLE_DNS_IP> -p 53 pi.hole +short
 
-CONDITIONAL FORWARDING:
-{{- if .Values.dns.conditionalForwarding.domain }}
-   Local domain: {{ .Values.dns.conditionalForwarding.domain }}
+7. Logs and Diagnostics
+   Inspect application logs:
+   $ kubectl logs -f deployment/{{ include "pihole.fullname" . }} -c pihole -n {{ .Release.Namespace }}
+{{- if .Values.unbound.enabled }}
+   $ kubectl logs -f deployment/{{ include "pihole.fullname" . }} -c unbound -n {{ .Release.Namespace }}
 {{- end }}
-{{- if .Values.dns.conditionalForwarding.network }}
-   Network: {{ .Values.dns.conditionalForwarding.network }}
-{{- end }}
-{{- if .Values.dns.conditionalForwarding.router }}
-   Router: {{ .Values.dns.conditionalForwarding.router }}
-{{- end }}
-{{- end }}
 
-NEXT STEPS:
-   1. Update device/router DNS settings to point to Pi-hole service IP
-   2. Access web admin to view real-time statistics
-   3. Wait for gravity to update (automatic on first run)
-   4. Monitor blocked queries in the web dashboard
+8. Documentation and Support
+   - Pi-hole Official Documentation: https://docs.pi-hole.net/
+   - HelmForge Documentation: https://helmforge.dev/docs/charts/pihole
 
-UPGRADE REMINDER:
-   Pi-hole {{ .Chart.AppVersion }} includes Core/FTL fixes. Back up persistent
-   configuration before upgrading production DNS deployments.
-
-DOCUMENTATION:
-   Chart: https://helmforge.dev/docs/charts/pihole
-   Pi-hole: https://docs.pi-hole.net/
-Source: https://github.com/helmforgedev/charts/tree/main/charts/pihole
-
-=============================================================================
 Happy Helmforging :)

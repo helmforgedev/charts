@@ -270,3 +270,45 @@ Returns list.
 
 {{- $whitelist | toJson }}
 {{- end }}
+
+{{/* ========== Validation helper ========== */}}
+{{/*
+Compile all validation warnings and errors into a single message.
+*/}}
+{{- define "pihole.validate" -}}
+{{- $messages := list -}}
+{{- if .Values.backup.enabled -}}
+  {{- if not .Values.backup.s3.bucket -}}
+    {{- $messages = append $messages "When backup.enabled is true, backup.s3.bucket must be specified." -}}
+  {{- end -}}
+  {{- if not .Values.backup.s3.endpoint -}}
+    {{- $messages = append $messages "When backup.enabled is true, backup.s3.endpoint must be specified." -}}
+  {{- end -}}
+  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+    {{- $messages = append $messages "When backup.enabled is true, either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey must be provided." -}}
+  {{- end -}}
+{{- end -}}
+{{- if and .Values.externalSecrets .Values.externalSecrets.enabled -}}
+  {{- if not .Values.admin.existingSecret -}}
+    {{- $messages = append $messages "When externalSecrets.enabled is true, admin.existingSecret must be set to prevent credential drift between the chart-managed Secret and the ExternalSecret." -}}
+  {{- end -}}
+  {{- if not (dig "secretStoreRef" "name" "" .Values.externalSecrets) -}}
+    {{- $messages = append $messages "When externalSecrets.enabled is true, externalSecrets.secretStoreRef.name must be provided." -}}
+  {{- end -}}
+  {{- $hasPasswordKey := false -}}
+  {{- range .Values.externalSecrets.data -}}
+    {{- if eq .secretKey $.Values.admin.existingSecretKey -}}
+      {{- $hasPasswordKey = true -}}
+    {{- end -}}
+  {{- end -}}
+  {{- if not $hasPasswordKey -}}
+    {{- $messages = append $messages (printf "When externalSecrets.enabled is true, externalSecrets.data must contain an entry with secretKey '%s' to populate the admin password." .Values.admin.existingSecretKey) -}}
+  {{- end -}}
+{{- end -}}
+{{- if $messages -}}
+  {{- $leader := "\n\n================================================================================\nCHART CONFIGURATION VALIDATION ERRORS:\n================================================================================\n" -}}
+  {{- $trailer := "\n================================================================================\n" -}}
+  {{- $errorList := join "\n - " $messages -}}
+  {{- printf "%s - %s%s" $leader $errorList $trailer | fail -}}
+{{- end -}}
+{{- end -}}

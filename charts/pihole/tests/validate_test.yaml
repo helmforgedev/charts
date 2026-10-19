@@ -1,0 +1,87 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Configuration Validation Tests
+templates:
+  - templates/validate.yaml
+release:
+  name: test
+  namespace: default
+
+tests:
+  - it: should pass with default configuration
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should fail when backup enabled without bucket
+    set:
+      backup.enabled: true
+      backup.s3.bucket: ""
+      backup.s3.endpoint: "http://minio:9000"
+      backup.s3.accessKey: "minioadmin"
+      backup.s3.secretKey: "minioadmin"
+    asserts:
+      - failedTemplate:
+          errorMessagePattern: "When backup\.enabled is true, backup\.s3\.bucket must be specified\."
+
+  - it: should fail when backup enabled without endpoint
+    set:
+      backup.enabled: true
+      backup.s3.bucket: "my-bucket"
+      backup.s3.endpoint: ""
+      backup.s3.accessKey: "minioadmin"
+      backup.s3.secretKey: "minioadmin"
+    asserts:
+      - failedTemplate:
+          errorMessagePattern: "When backup\.enabled is true, backup\.s3\.endpoint must be specified\."
+
+  - it: should fail when backup enabled without credentials
+    set:
+      backup.enabled: true
+      backup.s3.bucket: "my-bucket"
+      backup.s3.endpoint: "http://minio:9000"
+      backup.s3.existingSecret: ""
+      backup.s3.accessKey: ""
+      backup.s3.secretKey: ""
+    asserts:
+      - failedTemplate:
+          errorMessagePattern: "When backup\.enabled is true, either backup\.s3\.existingSecret or both backup\.s3\.accessKey and backup\.s3\.secretKey must be provided\."
+
+  - it: should fail when externalSecrets enabled without admin existingSecret
+    set:
+      externalSecrets.enabled: true
+      admin.existingSecret: ""
+      externalSecrets.secretStoreRef.name: "vault"
+      externalSecrets.data:
+        - secretKey: password
+          remoteRef:
+            key: secret/pihole
+    asserts:
+      - failedTemplate:
+          errorMessagePattern: "When externalSecrets\.enabled is true, admin\.existingSecret must be set to prevent credential drift between the chart-managed Secret and the ExternalSecret\."
+
+  - it: should fail when externalSecrets enabled without secretStoreRef.name
+    set:
+      externalSecrets.enabled: true
+      admin.existingSecret: "pihole-vault-secret"
+      externalSecrets.secretStoreRef.name: ""
+      externalSecrets.data:
+        - secretKey: password
+          remoteRef:
+            key: secret/pihole
+    asserts:
+      - failedTemplate:
+          errorMessagePattern: "When externalSecrets\.enabled is true, externalSecrets\.secretStoreRef\.name must be provided\."
+
+  - it: should fail when externalSecrets enabled without matching admin password key
+    set:
+      externalSecrets.enabled: true
+      admin.existingSecret: "pihole-vault-secret"
+      admin.existingSecretKey: "admin-pass"
+      externalSecrets.secretStoreRef.name: "vault"
+      externalSecrets.data:
+        - secretKey: other-key
+          remoteRef:
+            key: secret/pihole
+    asserts:
+      - failedTemplate:
+          errorMessagePattern: "When externalSecrets\.enabled is true, externalSecrets\.data must contain an entry with secretKey 'admin-pass' to populate the admin password\."
