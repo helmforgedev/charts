@@ -1,88 +1,80 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-Apache ZooKeeper {{ .Chart.AppVersion }} has been installed.
+--------------------------------------------------------------------
+Apache ZooKeeper {{ .Chart.AppVersion }} has been successfully deployed!
+--------------------------------------------------------------------
 
-Installation Details:
-  Release: {{ .Release.Name }}
-  Namespace: {{ include "zookeeper.namespace" . }}
-  Chart: {{ .Chart.Name }} {{ .Chart.Version }}
-  Image: {{ include "zookeeper.image" . }}
-  Replicas: {{ .Values.replicaCount }}
+1. Installation Summary
+   - Release Name:  {{ .Release.Name }}
+   - Namespace:     {{ include "zookeeper.namespace" . }}
+   - Chart Version: {{ .Chart.Name }}-{{ .Chart.Version }}
+   - App Version:   {{ .Chart.AppVersion }}
+   - Image:         {{ include "zookeeper.image" . }}
+   - Replicas:      {{ .Values.replicaCount }}
 
-Client Endpoint:
-  {{ include "zookeeper.clientServiceName" . }}.{{ include "zookeeper.namespace" . }}.svc.{{ include "zookeeper.clusterDomain" . }}:{{ .Values.service.ports.client }}
-
-Headless Ensemble Endpoint:
-  {{ include "zookeeper.headlessServiceName" . }}.{{ include "zookeeper.namespace" . }}.svc.{{ include "zookeeper.clusterDomain" . }}
-
-Per-Pod DNS:
+2. Service Access & Endpoints
+   - Client Service Endpoint:
+     {{ include "zookeeper.clientServiceName" . }}.{{ include "zookeeper.namespace" . }}.svc.{{ include "zookeeper.clusterDomain" . }}:{{ .Values.service.ports.client }}
+   - Headless Ensemble Endpoint:
+     {{ include "zookeeper.headlessServiceName" . }}.{{ include "zookeeper.namespace" . }}.svc.{{ include "zookeeper.clusterDomain" . }}
+   - Per-Pod DNS Entries:
 {{- range $i := until (.Values.replicaCount | int) }}
-  {{ include "zookeeper.statefulSetName" $ }}-{{ $i }}.{{ include "zookeeper.headlessServiceName" $ }}.{{ include "zookeeper.namespace" $ }}.svc.{{ include "zookeeper.clusterDomain" $ }}
+     {{ include "zookeeper.statefulSetName" $ }}-{{ $i }}.{{ include "zookeeper.headlessServiceName" $ }}.{{ include "zookeeper.namespace" $ }}.svc.{{ include "zookeeper.clusterDomain" $ }}
 {{- end }}
-
-Configuration Summary:
-  Persistence: {{ ternary "enabled" "disabled" .Values.persistence.enabled }}
-  Separate transaction log PVC: {{ ternary "enabled" "disabled" .Values.persistence.dataLogDir.enabled }}
-  PodDisruptionBudget: {{ ternary "enabled" "disabled" .Values.podDisruptionBudget.enabled }}
-  NetworkPolicy: {{ ternary "enabled" "disabled" .Values.networkPolicy.enabled }}
-  Metrics: {{ ternary "enabled" "disabled" .Values.metrics.enabled }}
-  ServiceMonitor: {{ ternary "enabled" "disabled" .Values.metrics.serviceMonitor.enabled }}
-  PrometheusRule: {{ ternary "enabled" "disabled" .Values.metrics.prometheusRule.enabled }}
-  SASL client auth: {{ ternary "enabled" "disabled" .Values.auth.client.enabled }}
-  TLS client port: {{ ternary "enabled" "disabled" .Values.tls.client.enabled }}
-  ExternalSecret: {{ ternary "enabled" "disabled" .Values.externalSecrets.enabled }}
-
-{{- if and (gt (.Values.replicaCount | int) 1) (not .Values.allowEvenReplicas) }}
-Quorum Notes:
-  This release uses an odd ZooKeeper ensemble size. Keep production replica
-  counts odd so a majority quorum can be maintained during failures.
-{{- end }}
-
-Validation Commands:
-  helm test {{ .Release.Name }} -n {{ include "zookeeper.namespace" . }}
-  kubectl get pods -n {{ include "zookeeper.namespace" . }} -l app.kubernetes.io/instance={{ .Release.Name | quote }}
-  kubectl rollout status statefulset/{{ include "zookeeper.statefulSetName" . }} -n {{ include "zookeeper.namespace" . }} --timeout=5m
-
-Check server status:
-  kubectl exec -n {{ include "zookeeper.namespace" . }} {{ include "zookeeper.statefulSetName" . }}-0 -- zkServer.sh status
-
-Check the client port from inside the cluster:
-  kubectl run {{ .Release.Name }}-ruok -n {{ include "zookeeper.namespace" . }} --rm -i --restart=Never --image=docker.io/library/busybox:1.37.0 -- sh -c "echo ruok | nc {{ include "zookeeper.clientServiceName" . }} {{ .Values.service.ports.client }}"
-
-{{- if .Values.metrics.enabled }}
-Metrics Endpoint:
-  {{ include "zookeeper.metricsServiceName" . }}.{{ include "zookeeper.namespace" . }}.svc.{{ include "zookeeper.clusterDomain" . }}:{{ .Values.service.ports.metrics }}/metrics
-
-Port-forward metrics locally:
-  kubectl port-forward -n {{ include "zookeeper.namespace" . }} svc/{{ include "zookeeper.metricsServiceName" . }} {{ .Values.service.ports.metrics }}:{{ .Values.service.ports.metrics }}
-{{- end }}
-
-{{- if .Values.auth.client.enabled }}
-SASL Client Authentication:
-  Client authentication is enabled. Applications need a matching ZooKeeper
-  client JAAS configuration for user {{ .Values.auth.client.username | quote }}.
-{{- if .Values.auth.client.existingSecret }}
-  JAAS Secret: {{ .Values.auth.client.existingSecret }}
-{{- else }}
-  JAAS Secret: {{ include "zookeeper.authSecretName" . }}
-{{- end }}
-{{- end }}
-
 {{- if .Values.tls.client.enabled }}
-TLS Client Port:
-  Secure client endpoint:
-    {{ include "zookeeper.clientServiceName" . }}.{{ include "zookeeper.namespace" . }}.svc.{{ include "zookeeper.clusterDomain" . }}:{{ .Values.service.ports.tls }}
-  TLS material Secret: {{ include "zookeeper.tlsSecretName" . }}
-  TLS password Secret: {{ include "zookeeper.tlsPasswordsSecretName" . }}
+   - Secure TLS Client Endpoint:
+     {{ include "zookeeper.clientServiceName" . }}.{{ include "zookeeper.namespace" . }}.svc.{{ include "zookeeper.clusterDomain" . }}:{{ .Values.service.ports.tls }}
 {{- end }}
 
-Troubleshooting:
-  kubectl describe statefulset/{{ include "zookeeper.statefulSetName" . }} -n {{ include "zookeeper.namespace" . }}
-  kubectl logs -n {{ include "zookeeper.namespace" . }} {{ include "zookeeper.statefulSetName" . }}-0 -c zookeeper --tail=200
-  kubectl get events -n {{ include "zookeeper.namespace" . }} --sort-by=.lastTimestamp
+3. Credentials and Security
+   - SASL Client Auth:      {{ ternary "enabled" "disabled" .Values.auth.client.enabled }}
+{{- if .Values.auth.client.enabled }}
+     - SASL Client Username: {{ .Values.auth.client.username | quote }}
+     - Client JAAS Secret:  {{ if .Values.auth.client.existingSecret }}{{ .Values.auth.client.existingSecret }}{{ else }}{{ include "zookeeper.authSecretName" . }}{{ end }}
+{{- end }}
+   - TLS Client Encryption: {{ ternary "enabled" "disabled" .Values.tls.client.enabled }}
+{{- if .Values.tls.client.enabled }}
+     - TLS Certificate Secret: {{ include "zookeeper.tlsSecretName" . }}
+     - TLS Passwords Secret:   {{ include "zookeeper.tlsPasswordsSecretName" . }}
+{{- end }}
+   - External Secrets:      {{ ternary "enabled" "disabled" .Values.externalSecrets.enabled }}
+   - NetworkPolicy:         {{ ternary "enabled" "disabled" .Values.networkPolicy.enabled }}
 
-Documentation:
-  Chart docs: https://helmforge.dev/docs/charts/zookeeper
-  ZooKeeper admin guide: https://zookeeper.apache.org/doc/current/zookeeperAdmin.html
-  ZooKeeper getting started: https://zookeeper.apache.org/doc/current/zookeeperStarted.html
+4. Application Configuration
+   - Admin Server:          {{ ternary "enabled" "disabled" .Values.zookeeper.adminServerEnabled }}{{ if .Values.zookeeper.adminServerEnabled }} (Port: {{ .Values.zookeeper.adminServerPort }}){{ end }}
+   - PodDisruptionBudget:   {{ ternary "enabled" "disabled" .Values.podDisruptionBudget.enabled }}
+{{- if and (gt (.Values.replicaCount | int) 1) (not .Values.allowEvenReplicas) }}
+   - Ensemble Quorum Note:  Odd replica count maintained to ensure leader election and majority quorum.
+{{- end }}
+
+5. Persistence and Storage
+   - Data Persistence:      {{ ternary "enabled" "disabled" .Values.persistence.enabled }}
+   - Separate Txn Log PVC:  {{ ternary "enabled" "disabled" .Values.persistence.dataLogDir.enabled }}
+
+6. Observability & Health Verification
+   - Metrics Exporter:      {{ ternary "enabled" "disabled" .Values.metrics.enabled }}
+{{- if .Values.metrics.enabled }}
+     - Metrics Endpoint:    {{ include "zookeeper.metricsServiceName" . }}.{{ include "zookeeper.namespace" . }}.svc.{{ include "zookeeper.clusterDomain" . }}:{{ .Values.service.ports.metrics }}/metrics
+     - ServiceMonitor:      {{ ternary "enabled" "disabled" .Values.metrics.serviceMonitor.enabled }}
+     - PrometheusRule:      {{ ternary "enabled" "disabled" .Values.metrics.prometheusRule.enabled }}
+{{- end }}
+   - Rollout Status Check:
+     $ kubectl rollout status statefulset/{{ include "zookeeper.statefulSetName" . }} -n {{ include "zookeeper.namespace" . }} --timeout=5m
+   - Server Status via zkServer.sh:
+     $ kubectl exec -n {{ include "zookeeper.namespace" . }} {{ include "zookeeper.statefulSetName" . }}-0 -- zkServer.sh status
+   - Probe Client Port via Four-Letter Word (ruok):
+     $ kubectl run {{ .Release.Name }}-ruok -n {{ include "zookeeper.namespace" . }} --rm -i --restart=Never --image=docker.io/library/busybox:1.37.0 -- sh -c "echo ruok | nc {{ include "zookeeper.clientServiceName" . }} {{ .Values.service.ports.client }}"
+
+7. Logs and Diagnostics
+   - Inspect StatefulSet pods:
+     $ kubectl get pods -n {{ include "zookeeper.namespace" . }} -l app.kubernetes.io/instance={{ .Release.Name | quote }}
+   - View ZooKeeper server logs:
+     $ kubectl logs -f -n {{ include "zookeeper.namespace" . }} {{ include "zookeeper.statefulSetName" . }}-0 -c zookeeper --tail=200
+   - Inspect cluster events:
+     $ kubectl get events -n {{ include "zookeeper.namespace" . }} --sort-by=.lastTimestamp
+
+8. Documentation and Useful Links
+   - HelmForge Chart Docs:     https://helmforge.dev/docs/charts/zookeeper
+   - ZooKeeper Administrator:  https://zookeeper.apache.org/doc/current/zookeeperAdmin.html
+   - ZooKeeper Getting Started: https://zookeeper.apache.org/doc/current/zookeeperStarted.html
 
 Happy Helmforging :)

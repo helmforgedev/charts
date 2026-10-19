@@ -36,3 +36,49 @@ tests:
           content:
             protocol: UDP
             port: 53
+
+  - it: renders extraEgress rules when specified
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.extraEgress:
+        - to:
+            - ipBlock:
+                cidr: 10.0.0.0/8
+          ports:
+            - protocol: TCP
+              port: 9092
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - contains:
+          path: spec.egress
+          content:
+            to:
+              - ipBlock:
+                  cidr: 10.0.0.0/8
+            ports:
+              - protocol: TCP
+                port: 9092
+
+  - it: renders deprecated extra egress rules when specified
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.extra:
+        - to:
+            - ipBlock:
+                cidr: 192.168.0.0/16
+          ports:
+            - protocol: TCP
+              port: 8080
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - contains:
+          path: spec.egress
+          content:
+            to:
+              - ipBlock:
+                  cidr: 192.168.0.0/16
+            ports:
+              - protocol: TCP
+                port: 8080
