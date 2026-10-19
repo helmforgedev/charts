@@ -52,11 +52,16 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep 'values\.yaml$' || true)
+            CHARTS=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | sed -n 's|^\(charts/[^/]*\)/.*|\1|p' | sort -u || true)
           else
             FILES=""
+            CHARTS=""
           fi
           echo "files<<EOF" >> $GITHUB_OUTPUT
           echo "$FILES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "charts<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHARTS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: ASCII check
@@ -81,7 +86,7 @@ jobs:
             [ -z "$f" ] && continue
             [ -f "$f" ] || continue
             # Skip commented lines; also match tags followed by inline comments
-            if grep -nE '^[^#]*tag:\s*["'"'"']?(latest|main|master|dev|nightly|edge|stable)["'"'"']?\s*(#.*)?$' "$f"; then
+            if grep -nE '^[^#]*tag:\s*['"'"'"']?(latest|main|master|dev|nightly|edge|stable)['"'"'"']?\s*(#.*)?$' "$f"; then
               echo "::error file=$f::Floating image tag detected — pinned tags required (GR-004/GR-040)"
               FAIL=1
             fi
@@ -101,6 +106,23 @@ jobs:
               echo "::warning file=$f::Missing values.schema.json for $(basename $CHART_DIR)"
             fi
           done <<< "${{ steps.detect.outputs.files }}"
+
+      - name: Schema global property check
+        if: steps.detect.outputs.charts != ''
+        run: |
+          FAIL=0
+          while IFS= read -r c; do
+            [ -z "$c" ] && continue
+            [ -d "$c" ] || continue
+            SCHEMA="$c/values.schema.json"
+            if [ -f "$SCHEMA" ]; then
+              if ! jq -e '.properties.global and (.properties.global.type == "object") and (.properties.global.additionalProperties == true)' "$SCHEMA" > /dev/null 2>&1; then
+                echo "::error file=$SCHEMA::Missing or invalid top-level global property in values.schema.json (required: type object with additionalProperties: true)"
+                FAIL=1
+              fi
+            fi
+          done <<< "${{ steps.detect.outputs.charts }}"
+          exit $FAIL
 
   license-headers:
     name: License Headers
