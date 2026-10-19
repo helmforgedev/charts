@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Configuration Validation Tests
+templates:
+  - validate.yaml
+
+tests:
+  - it: should pass with default postgresql subchart enabled
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should fail when both postgresql and mysql subcharts are enabled
+    set:
+      postgresql.enabled: true
+      mysql.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessagePattern: "Both postgresql\.enabled and mysql\.enabled are set to true\. Please select only one database subchart\."
+
+  - it: should fail when both subcharts disabled and external host is missing
+    set:
+      postgresql.enabled: false
+      mysql.enabled: false
+      database.external.host: ""
+    asserts:
+      - failedTemplate:
+          errorMessagePattern: "When both postgresql and mysql subcharts are disabled, database\.external\.host must be specified\."
+
+  - it: should pass when subcharts disabled and external host + password provided
+    set:
+      postgresql.enabled: false
+      mysql.enabled: false
+      database.external.host: "db.example.com"
+      database.external.password: "secretpass"
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should fail when externalSecrets is enabled with empty items
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items: []
+    asserts:
+      - failedTemplate:
+          errorMessagePattern: "externalSecrets\.enabled is true, but externalSecrets\.items is empty\."
+
+  - it: should fail when oidc is enabled with missing endpoints
+    set:
+      oidc.enabled: true
+      oidc.clientId: "client123"
+    asserts:
+      - failedTemplate:
+          errorMessagePattern: "oidc\.enabled is true, but one or more required endpoints .* are missing\."

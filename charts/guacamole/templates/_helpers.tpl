@@ -207,3 +207,37 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "guacamole.backupSecretSecretKeyKey" -}}
 {{- .Values.backup.s3.existingSecretSecretKeyKey | default "secret-key" -}}
 {{- end -}}
+
+{{/* ========== Validation helper ========== */}}
+{{/*
+Compile all validation warnings and errors into a single message.
+*/}}
+{{- define "guacamole.validate" -}}
+{{- $messages := list -}}
+{{- if and .Values.postgresql.enabled .Values.mysql.enabled -}}
+  {{- $messages = append $messages "Both postgresql.enabled and mysql.enabled are set to true. Please select only one database subchart." -}}
+{{- end -}}
+{{- if and (not .Values.postgresql.enabled) (not .Values.mysql.enabled) -}}
+  {{- if not .Values.database.external.host -}}
+    {{- $messages = append $messages "When both postgresql and mysql subcharts are disabled, database.external.host must be specified." -}}
+  {{- end -}}
+  {{- if and (not .Values.database.external.existingSecret) (not (include "guacamole.dbPassword" .)) -}}
+    {{- $messages = append $messages "When using an external database, either database.external.existingSecret or database.external.password must be provided." -}}
+  {{- end -}}
+{{- end -}}
+{{- if and .Values.externalSecrets.enabled (not .Values.externalSecrets.items) -}}
+  {{- $messages = append $messages "externalSecrets.enabled is true, but externalSecrets.items is empty." -}}
+{{- end -}}
+{{- if and .Values.oidc.enabled (or (not .Values.oidc.authorizationEndpoint) (not .Values.oidc.clientId) (not .Values.oidc.jwksEndpoint) (not .Values.oidc.issuer)) -}}
+  {{- $messages = append $messages "oidc.enabled is true, but one or more required endpoints (authorizationEndpoint, clientId, jwksEndpoint, issuer) are missing." -}}
+{{- end -}}
+{{- if and .Values.saml.enabled (or (and (not .Values.saml.idpMetadataUrl) (not .Values.saml.idpUrl)) (and (not .Values.saml.entityId) (not .Values.ingress.enabled))) -}}
+  {{- $messages = append $messages "saml.enabled is true, but idpMetadataUrl/idpUrl or entityId is missing." -}}
+{{- end -}}
+{{- if $messages -}}
+  {{- $leader := "\n\n================================================================================\nCHART CONFIGURATION VALIDATION ERRORS:\n================================================================================\n" -}}
+  {{- $trailer := "\n================================================================================\n" -}}
+  {{- $errorList := join "\n - " $messages -}}
+  {{- printf "%s - %s%s" $leader $errorList $trailer | fail -}}
+{{- end -}}
+{{- end -}}

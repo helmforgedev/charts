@@ -1,50 +1,55 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-Apache Guacamole has been deployed.
+--------------------------------------------------------------------
+Apache Guacamole has been successfully deployed!
+--------------------------------------------------------------------
 
-Access:
+1. Installation Summary
+   - Release Name: {{ .Release.Name }}
+   - Namespace:    {{ .Release.Namespace }}
+   - Database:     {{ if .Values.postgresql.enabled }}Embedded PostgreSQL{{ else if .Values.mysql.enabled }}Embedded MySQL{{ else }}External Database ({{ .Values.database.external.host }}){{ end }}
 
-  Port-forward the service:
-
-    kubectl port-forward svc/{{ include "guacamole.fullname" . }} 8080:{{ .Values.service.port }} -n {{ .Release.Namespace }}
-
-  Open:
-
-    http://localhost:8080/
+2. Service Access
 {{- if .Values.ingress.enabled }}
-{{- range .Values.ingress.hosts }}
-
-  Ingress: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+   Ingress is enabled. Access Apache Guacamole at:
+  {{- range .Values.ingress.hosts }}
+   - http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}{{ (index .paths 0).path }}
+  {{- end }}
+{{- else }}
+   Port-forward the Apache Guacamole service to localhost:
+   $ kubectl port-forward svc/{{ include "guacamole.fullname" . }} 8080:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+   Then browse to: http://127.0.0.1:8080/guacamole/
 {{- end }}
-{{- end }}
 
-Credentials:
+3. Credentials and Security
+   Default administrator credentials: guacadmin / guacadmin
+   IMPORTANT: Change the administrator credentials immediately upon first login.
 
-  Default username: guacadmin
-  Default password: guacadmin
-
-  Change the default password immediately after first login.
-
-Runtime:
-
-  Database: {{ include "guacamole.dbType" . }}
+4. Authentication
 {{- if .Values.oidc.enabled }}
-  SSO: OpenID Connect enabled
+   - OIDC authentication is enabled (client: {{ .Values.oidc.clientId }}).
+{{- else if .Values.saml.enabled }}
+   - SAML authentication is enabled (Entity ID: {{ include "guacamole.samlEntityId" . }}).
+{{- else }}
+   - Standard database authentication is active.
 {{- end }}
-{{- if .Values.saml.enabled }}
-  SSO: SAML enabled
-{{- end }}
+
+5. Maintenance and Backups
 {{- if .Values.backup.enabled }}
-  Backup: S3 CronJob enabled on schedule {{ .Values.backup.schedule }}
+   - Scheduled database backups are active (cron: {{ .Values.backup.schedule }}).
+{{- else }}
+   - Automated backups are disabled.
 {{- end }}
 
-Validation:
+6. Health Verification
+   Check pod status and rollout:
+   $ kubectl get pods -l {{ include "guacamole.selectorLabels" . | replace ": " "=" }} -n {{ .Release.Namespace }}
 
-  Check rollout:
+7. Logs and Diagnostics
+   Stream logs from the Guacamole deployment:
+   $ kubectl logs -f deployment/{{ include "guacamole.fullname" . }} -n {{ .Release.Namespace }}
 
-    kubectl rollout status deployment/{{ include "guacamole.fullname" . }} -n {{ .Release.Namespace }}
-
-  Check pods:
-
-    kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+8. Documentation and Support
+   - Apache Guacamole Docs: https://guacamole.apache.org/doc/gug/
+   - HelmForge Documentation: https://helmforge.dev/docs/charts/guacamole
 
 Happy Helmforging :)
