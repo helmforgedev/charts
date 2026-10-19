@@ -17,7 +17,8 @@ jobs:
       - uses: actions/github-script@v9
         with:
           script: |
-            const { data: files } = await github.rest.pulls.listFiles({
+            // Paginate files to accurately detect all touched charts on large PRs
+            const files = await github.paginate(github.rest.pulls.listFiles, {
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: context.payload.pull_request.number,
@@ -32,7 +33,6 @@ jobs:
               const chartMatch = file.filename.match(/^charts\/([^/]+)\//);
               if (chartMatch) {
                 charts.add(chartMatch[1]);
-                labels.add(`chart:${chartMatch[1]}`);
               }
 
               // Detect area
@@ -52,20 +52,58 @@ jobs:
             else if (totalChanges <= 500) labels.add('size:L');
             else labels.add('size:XL');
 
-            // Multi-chart detection
-            if (charts.size > 3) labels.add('multi-chart');
+            // Multi-chart detection: if more than 3 charts are touched, use 'multi-chart'
+            // instead of individual chart labels to avoid label spam and exceeding GitHub's 100-label limit
+            if (charts.size > 3) {
+              labels.add('multi-chart');
+            } else {
+              for (const chart of charts) {
+                labels.add(`chart:${chart}`);
+              }
+            }
 
-            const labelsArray = [...labels];
-            if (labelsArray.length > 0) {
-              // Create labels that don't exist yet
-              const { data: existingLabels } = await github.rest.issues.listLabelsForRepo({
+            // Fetch live PR labels to avoid stale webhook payloads across synchronize events
+            const { data: livePR } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number
+            });
+            const currentPRLabels = new Set(
+              (livePR.labels || []).map(l => l.name)
+            );
+
+            // If multi-chart, clean up any pre-existing individual chart:* labels
+            if (charts.size > 3) {
+              for (const existingLabel of currentPRLabels) {
+                if (existingLabel.startsWith('chart:')) {
+                  try {
+                    await github.rest.issues.removeLabel({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: context.payload.pull_request.number,
+                      name: existingLabel
+                    });
+                    currentPRLabels.delete(existingLabel);
+                  } catch (e) {
+                    if (e.status !== 404) throw e;
+                  }
+                }
+              }
+            }
+
+            // Only add labels that are not already present on the PR
+            const labelsToAdd = [...labels].filter(l => !currentPRLabels.has(l));
+
+            if (labelsToAdd.length > 0) {
+              // Paginate repo labels to avoid 422 errors on repos with >100 labels
+              const existingLabels = await github.paginate(github.rest.issues.listLabelsForRepo, {
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 per_page: 100
               });
               const existingNames = new Set(existingLabels.map(l => l.name));
 
-              for (const label of labelsArray) {
+              for (const label of labelsToAdd) {
                 if (!existingNames.has(label)) {
                   let color = '0e8a16'; // green default
                   if (label.startsWith('chart:')) color = '1d76db';
@@ -87,12 +125,24 @@ jobs:
                 }
               }
 
-              await github.rest.issues.addLabels({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.payload.pull_request.number,
-                labels: labelsArray
-              });
+              // Respect GitHub's 100-label maximum quota
+              const remainingQuota = Math.max(0, 100 - currentPRLabels.size);
+              const batchToApply = labelsToAdd.slice(0, remainingQuota);
 
-              core.info(`Applied labels: ${labelsArray.join(', ')}`);
+              if (batchToApply.length > 0) {
+                try {
+                  await github.rest.issues.addLabels({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: context.payload.pull_request.number,
+                    labels: batchToApply
+                  });
+                  core.info(`Applied labels: ${batchToApply.join(', ')}`);
+                } catch (e) {
+                  core.warning(`addLabels failed (${e.status}): ${e.message}. Batch: ${batchToApply.join(', ')}`);
+                  throw e;
+                }
+              }
+            } else {
+              core.info('All labels already applied.');
             }

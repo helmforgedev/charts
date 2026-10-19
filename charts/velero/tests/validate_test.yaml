@@ -1,0 +1,159 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: validate
+templates:
+  - templates/validate.yaml
+tests:
+  - it: should pass validation with default values
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should pass validation when a valid s3Url and bucket are provided
+    set:
+      configuration.backupStorageLocations:
+        - name: minio
+          provider: aws
+          bucket: velero-backups
+          config:
+            s3Url: "http://minio.storage.svc:9000"
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should fail when backupStorageLocations is empty
+    set:
+      configuration.backupStorageLocations: []
+    asserts:
+      - failedTemplate:
+          errorMessage: "Velero requires at least one backup storage location configured in configuration.backupStorageLocations."
+
+  - it: should fail when a backupStorageLocation has no name
+    set:
+      configuration.backupStorageLocations:
+        - name: ""
+          provider: aws
+    asserts:
+      - failedTemplate:
+          errorMessage: "configuration.backupStorageLocations[0].name must be specified."
+
+  - it: should fail when a backupStorageLocation has no provider
+    set:
+      configuration.backupStorageLocations:
+        - name: default
+          provider: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "configuration.backupStorageLocations[0].provider must be specified."
+
+  - it: should fail when s3Url is malformed
+    set:
+      configuration.backupStorageLocations:
+        - name: default
+          provider: aws
+          bucket: velero-backups
+          config:
+            s3Url: "ftp://invalid.storage.com"
+    asserts:
+      - failedTemplate:
+          errorMessage: "configuration.backupStorageLocations[0].config.s3Url must be a valid URL starting with http:// or https:// with a valid host."
+
+  - it: should fail when s3Url is configured but bucket is empty
+    set:
+      configuration.backupStorageLocations:
+        - name: default
+          provider: aws
+          bucket: ""
+          config:
+            s3Url: "http://minio.storage.svc:9000"
+    asserts:
+      - failedTemplate:
+          errorMessage: "configuration.backupStorageLocations[0].bucket must be specified when s3Url is configured."
+
+  - it: should fail when schedules are defined but bucket is empty
+    set:
+      schedules:
+        - name: daily
+          schedule: "0 3 * * *"
+          template:
+            includedNamespaces: ["default"]
+      configuration.backupStorageLocations:
+        - name: default
+          provider: aws
+          bucket: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "configuration.backupStorageLocations[0].bucket must be specified when schedules are defined."
+
+  - it: should fail when both existingSecret and secretContents are set
+    set:
+      credentials:
+        useSecret: true
+        existingSecret: "my-secret"
+        secretContents: "[default]
+aws_access_key_id=minio
+"
+    asserts:
+      - failedTemplate:
+          errorMessage: "When credentials.useSecret is true and credentials.existingSecret is provided, neither credentials.secretContents nor credentials.name should be set."
+
+  - it: should fail when both existingSecret and name are set
+    set:
+      credentials:
+        useSecret: true
+        existingSecret: "my-secret"
+        name: "custom-secret-name"
+    asserts:
+      - failedTemplate:
+          errorMessage: "When credentials.useSecret is true and credentials.existingSecret is provided, neither credentials.secretContents nor credentials.name should be set."
+
+  - it: should fail when schedule is missing name
+    set:
+      schedules:
+        - name: ""
+          schedule: "0 1 * * *"
+          template:
+            includedNamespaces: ["default"]
+      configuration.backupStorageLocations:
+        - name: default
+          provider: aws
+          bucket: velero-backups
+    asserts:
+      - failedTemplate:
+          errorMessage: "schedules[0].name must be specified."
+
+  - it: should fail when schedule is missing cron expression
+    set:
+      schedules:
+        - name: daily-backup
+          schedule: ""
+          template:
+            includedNamespaces: ["default"]
+      configuration.backupStorageLocations:
+        - name: default
+          provider: aws
+          bucket: velero-backups
+    asserts:
+      - failedTemplate:
+          errorMessage: "schedules[0].schedule (cron expression) must be specified."
+
+  - it: should fail when schedule is missing template
+    set:
+      schedules:
+        - name: daily-backup
+          schedule: "0 1 * * *"
+          template: null
+      configuration.backupStorageLocations:
+        - name: default
+          provider: aws
+          bucket: velero-backups
+    asserts:
+      - failedTemplate:
+          errorMessage: "schedules[0].template must be specified."
+
+  - it: should fail when metrics.serviceMonitor is enabled but metrics.enabled is false
+    set:
+      metrics.enabled: false
+      metrics.serviceMonitor.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "When metrics.serviceMonitor.enabled is true, metrics.enabled must also be true."
