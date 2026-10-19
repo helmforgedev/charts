@@ -1,8 +1,8 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 Kafka deployed successfully.
 
-Access
-======
+1. Service Access & Bootstrap Endpoints
+=======================================
 
 Internal bootstrap address:
 - {{ include "kafka.clientServiceName" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:{{ .Values.listeners.client.port }}
@@ -28,8 +28,8 @@ Services:
 {{- end }}
 {{- end }}
 
-Topology
-========
+2. Architecture & Topology Summary
+==================================
 
 - runtime: {{ .Values.runtime }}
 - architecture: {{ .Values.architecture }}
@@ -48,8 +48,8 @@ Topology
 - broker statefulset: {{ include "kafka.brokerStatefulSetName" . }}
 {{- end }}
 
-KRaft
-=====
+3. KRaft & Metadata Credentials
+===============================
 
 {{- if .Values.kraft.existingSecret }}
 - KRaft metadata Secret: {{ .Values.kraft.existingSecret }}
@@ -57,11 +57,19 @@ KRaft
 {{- else if .Values.kraft.clusterId }}
 - KRaft cluster ID: configured from values
 {{- else }}
-- KRaft cluster ID: generated in the chart-managed Secret
+- KRaft cluster ID: generated in chart-managed Secret
 {{- end }}
 
-Operations
-==========
+4. Application & Cluster Configuration
+======================================
+
+- default replication factor: {{ .Values.config.defaultReplicationFactor }}
+- offsets topic replication factor: {{ .Values.config.offsetsTopicReplicationFactor }}
+- transaction state log replication factor: {{ .Values.config.transactionStateLogReplicationFactor }}
+- auto-create topics enabled: {{ .Values.config.autoCreateTopicsEnabled }}
+
+5. Operations & Workload Inspection
+===================================
 
 Inspect release objects:
 - kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
@@ -71,11 +79,8 @@ Inspect release objects:
 Run Helm tests:
 - helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
 
-Validate broker readiness:
-- kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} --tail=100
-
-Metrics
-=======
+6. Observability & Health Verification
+======================================
 
 {{- if .Values.metrics.enabled }}
 - JMX exporter javaagent: enabled
@@ -89,8 +94,11 @@ Metrics
 - JMX exporter javaagent: disabled
 {{- end }}
 
-Production reminders
-====================
+Validate broker readiness:
+- kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} --tail=100
+
+7. Troubleshooting & Production Best Practices
+==============================================
 
 - use architecture=cluster for production workloads
 - keep a stable KRaft cluster ID in kraft.existingSecret before storing data
@@ -98,8 +106,8 @@ Production reminders
 - keep config.autoCreateTopicsEnabled=false in production unless explicitly required
 - validate topic creation, producer, consumer, and pod rescheduling flows before promotion
 
-Resources
-=========
+8. Documentation & Community Support
+====================================
 
 - Chart documentation: https://helmforge.dev/docs/charts/kafka
 - Kafka documentation: https://kafka.apache.org/documentation/
