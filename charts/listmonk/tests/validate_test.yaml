@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Configuration Validation Tests
+templates:
+  - validate.yaml
+
+tests:
+  - it: should pass with default postgresql subchart enabled
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should fail when postgresql disabled and external host missing
+    set:
+      postgresql.enabled: false
+      database.external.host: ""
+    asserts:
+      - failedTemplate:
+          errorMessagePattern: "When postgresql subchart is disabled, database\.external\.host must be specified\."
+
+  - it: should fail when postgresql disabled and external password missing
+    set:
+      postgresql.enabled: false
+      database.external.host: "postgres.db.local"
+      database.external.password: ""
+      database.external.existingSecret: ""
+    asserts:
+      - failedTemplate:
+          errorMessagePattern: "When postgresql subchart is disabled, either database\.external\.existingSecret or database\.external\.password must be provided\."
+
+  - it: should fail when externalSecrets enabled with empty items
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items: []
+    asserts:
+      - failedTemplate:
+          errorMessagePattern: "externalSecrets\.enabled is true, but externalSecrets\.items is empty\."

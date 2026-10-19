@@ -166,3 +166,26 @@ true
 {{- printf "%s-backup" (include "listmonk.fullname" .) -}}
 {{- end -}}
 {{- end -}}
+
+{{/* ========== Validation helper ========== */}}
+{{/*
+Compile all validation warnings and errors into a single message.
+*/}}
+{{- define "listmonk.validate" -}}
+{{- $messages := list -}}
+{{- if and (not .Values.postgresql.enabled) (not .Values.database.external.host) -}}
+  {{- $messages = append $messages "When postgresql subchart is disabled, database.external.host must be specified." -}}
+{{- end -}}
+{{- if and (not .Values.postgresql.enabled) (not .Values.database.external.existingSecret) (not .Values.database.external.password) -}}
+  {{- $messages = append $messages "When postgresql subchart is disabled, either database.external.existingSecret or database.external.password must be provided." -}}
+{{- end -}}
+{{- if and .Values.externalSecrets (and .Values.externalSecrets.enabled (not .Values.externalSecrets.items)) -}}
+  {{- $messages = append $messages "externalSecrets.enabled is true, but externalSecrets.items is empty." -}}
+{{- end -}}
+{{- if $messages -}}
+  {{- $leader := "\n\n================================================================================\nCHART CONFIGURATION VALIDATION ERRORS:\n================================================================================\n" -}}
+  {{- $trailer := "\n================================================================================\n" -}}
+  {{- $errorList := join "\n - " $messages -}}
+  {{- printf "%s - %s%s" $leader $errorList $trailer | fail -}}
+{{- end -}}
+{{- end -}}
