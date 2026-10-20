@@ -1,7 +1,7 @@
 # SiYuan
 
 Private knowledge workspace with a persistent filesystem, native access-code authentication and optional OIDC. The chart
-uses the official `docker.io/b3log/siyuan:v3.8.6` image, verified for Linux amd64, arm64 and arm.
+uses the official `docker.io/b3log/siyuan:v3.8.7` image, verified for Linux amd64, arm64 and arm.
 
 ## Production contract
 
