@@ -19,7 +19,7 @@ assert.equal(pods.length, 1, 'default Stalwart installation must have one pod');
 const pod = pods[0];
 assert.ok(pod.status.conditions?.some((condition) => condition.type === 'Ready' && condition.status === 'True'));
 const container = pod.spec.containers.find((candidate) => candidate.name === 'stalwart');
-assert.equal(container?.image, 'docker.io/stalwartlabs/stalwart:v0.16.26');
+assert.equal(container?.image, 'docker.io/stalwartlabs/stalwart:v0.16.27');
 assert.equal(pod.spec.automountServiceAccountToken, false);
 
 const services = JSON.parse(kubectl(['get', 'services', '-l', selector, '-o', 'json'])).items;

@@ -8,7 +8,7 @@ Research date: 2026-10-15
 
 ## Recommendation
 
-Ship a beta chart for Stalwart 0.16.26. The request is aligned with HelmForge:
+Ship a beta chart for Stalwart 0.16.27. The request is aligned with HelmForge:
 there is no published first-party chart repository, and existing community
 charts do not combine external-secret-native configuration, safe HA validation,
 Gateway API L4/L7 routes, and the current v0.16 configuration model.
