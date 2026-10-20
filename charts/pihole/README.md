@@ -135,7 +135,7 @@ metrics:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/pihole/pihole` | Pi-hole container image repository |
-| `image.tag` | `2026.09.0` | Pi-hole container image tag (official upstream release 2026.09.0) |
+| `image.tag` | `2026.10.0` | Pi-hole container image tag (official upstream release 2026.10.0) |
 | `image.pullPolicy` | `IfNotPresent` | Pi-hole image pull policy |
 | `pihole.timezone` | `UTC` | Timezone for logs and scheduled tasks |
 | `pihole.upstreamDns` | `8.8.8.8;8.8.4.4` | Upstream DNS servers (semicolon-delimited) |
@@ -293,6 +293,15 @@ metrics:
 - [Unbound Recursive DNS](docs/unbound.md) — privacy-focused recursive DNS resolution
 
 ## Upgrade Notes
+
+### Upgrading to 2026.10.0
+
+Pi-hole 2026.10.0 includes upstream bug fixes and performance improvements.
+No breaking configuration or schema changes are introduced in this release.
+
+Upstream release notes: [Pi-hole 2026.10.0](https://github.com/pi-hole/docker-pi-hole/releases/tag/2026.10.0).
+
+### Upgrading to 2026.09.0
 
 Pi-hole `2026.09.0` includes FTL 6.7.1 fixes for remote code execution,
 arbitrary file reads, a stack overflow and configuration-validation bypasses.
