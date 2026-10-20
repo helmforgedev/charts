@@ -267,6 +267,15 @@ service:
 
 ## Upgrade Notes
 
+### Upgrading to v2.32.0
+
+ntfy `v2.32.0` is an upstream release containing new features, bug fixes, and stability improvements.
+No breaking configuration or schema changes are introduced in this release.
+
+Review the [official v2.32.0 release notes](https://github.com/binwiederhier/ntfy/releases/tag/v2.32.0).
+
+### Upgrading to v2.31.1
+
 ntfy 2.31.1 upgrades the message database schema (version 16 to 17) to optimize
 topic reconnects with a dedicated index on SQLite and PostgreSQL. The schema migration
 is automatic upon startup. It also allows starting with a warning when a database
