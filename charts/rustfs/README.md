@@ -3,9 +3,9 @@
 
 RustFS provides an S3-compatible object API and web console. This chart uses the
 HelmForge naming, labels, security, persistence, CI scenarios, and test conventions.
-It has no chart dependencies. RustFS is pinned to `1.0.1`, verified against the
-[official release](https://github.com/rustfs/rustfs/releases/tag/1.0.1) and
-[official image tag](https://hub.docker.com/r/rustfs/rustfs/tags?name=1.0.1).
+It has no chart dependencies. RustFS is pinned to `1.0.3`, verified against the
+[official release](https://github.com/rustfs/rustfs/releases/tag/1.0.3) and
+[official image tag](https://hub.docker.com/r/rustfs/rustfs/tags?name=1.0.3).
 
 ## Install
 
@@ -68,6 +68,15 @@ Do not change architecture, replica count, release name, or storage layout on an
 existing installation. Distributed expansion and migration require an application
 level procedure outside this chart. PVCs created by the StatefulSet are retained
 when the release is removed. Back up data and test restores before upgrades.
+
+## Upgrading
+
+### To 1.0.3
+
+RustFS 1.0.3 includes bug fixes, stability and performance improvements.
+No breaking configuration or values changes are introduced in this release.
+
+Upstream release notes: [1.0.3](https://github.com/rustfs/rustfs/releases/tag/1.0.3).
 
 ## Networking
 
@@ -165,7 +174,7 @@ for constraints. Important settings:
 | --- | --- | --- |
 | `architecture` | `standalone` | Storage topology |
 | `replicaCount` | `1` | Must be one for standalone, at least four for distributed |
-| `image.repository` / `image.tag` | `docker.io/rustfs/rustfs` / `1.0.1` | Server image |
+| `image.repository` / `image.tag` | `docker.io/rustfs/rustfs` / `1.0.3` | Server image |
 | `image.digest` | empty | Overrides tag when supplied |
 | `persistence.size` | `10Gi` | Capacity per pod |
 | `persistence.storageClass` | empty | Cluster default; `-` disables dynamic provisioning |
