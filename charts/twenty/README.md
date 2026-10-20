@@ -5,7 +5,7 @@ encryption identity.
 
 ## Operating contract
 
-- Official `twentycrm/twenty:v2.46.0` image pinned by immutable manifest digest.
+- Official `twentycrm/twenty:v2.49.0` image pinned by immutable manifest digest.
 - One Recreate Pod serializes migrations and shares local files between server and worker. This chart does not claim
   application HA or horizontal scaling.
 - Native first-administrator and workspace activation before public startup, followed by explicit closure of public
