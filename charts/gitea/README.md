@@ -5,7 +5,7 @@
 Helm chart for deploying [Gitea](https://gitea.io/) self-hosted Git service on Kubernetes using the official [`gitea/gitea`](https://hub.docker.com/r/gitea/gitea) rootless Docker image.
 
 - **Current application version** `28.1.0`
-- **Default image** `docker.io/gitea/gitea:28.1.0-rootless`
+- **Default image** `docker.io/gitea/gitea:28.2.0-rootless`
 - **Chart lock policy** source chart does not commit `Chart.lock`; dependencies are resolved during packaging/validation
 - **Rootless storage** PVC paths are prepared for UID/GID 1000 by a small initContainer
 
@@ -137,7 +137,7 @@ gitea:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `gitea/gitea` | Container image repository |
-| `image.tag` | `"28.1.0-rootless"` | Image tag |
+| `image.tag` | `"28.2.0-rootless"` | Image tag |
 | `replicaCount` | `1` | Number of replicas |
 | `gitea.appName` | `"Gitea: Git with a cup of tea"` | Application display name |
 | `gitea.runMode` | `prod` | Run mode (dev, prod, test) |
@@ -191,7 +191,7 @@ Only one database source can be active. The chart fails with a clear error if mu
 
 ## Upgrade Notes
 
-This update moves the default rootless image to `28.1.0-rootless`. Back up the
+This update moves the default rootless image to `28.2.0-rootless`. Back up the
 database, repositories, LFS objects, packages, attachments, and the retained
 configuration before upgrading; Gitea runs required database migrations during
 the first startup.
