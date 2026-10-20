@@ -1,0 +1,226 @@
+# Default values for transmute.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  # -- Container image repository for Transmute
+  repository: ghcr.io/transmute-app/transmute
+  # -- Container image tag (defaults to Chart.appVersion)
+  tag: "1.0.0"
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Secrets for pulling images from private registries
+imagePullSecrets: []
+# -- Override chart name
+nameOverride: ""
+# -- Override full release name
+fullnameOverride: ""
+
+serviceAccount:
+  # -- Specifies whether a service account should be created
+  create: true
+  # -- Annotations to add to the service account
+  annotations: {}
+  # -- The name of the service account to use
+  name: ""
+  # -- Automount API credentials for a Service Account
+  automountServiceAccountToken: false
+
+# -- Annotations to add to the pod metadata
+podAnnotations: {}
+# -- Labels to add to the pod metadata
+podLabels: {}
+
+# -- Pod security context
+podSecurityContext:
+  fsGroup: 1000
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Container security context
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  capabilities:
+    drop:
+      - ALL
+
+service:
+  # -- Kubernetes Service type
+  type: ClusterIP
+  # -- Kubernetes Service port
+  port: 8080
+  # -- Annotations for the Service
+  annotations: {}
+
+# -- Application runtime configuration
+config:
+  # -- Path to persistent data directory
+  dataDir: /app/data
+  # -- Path for file storage (uploads, outputs, temporary work)
+  storageDir: /app/data/storage
+  # -- Number of concurrent transcoding jobs in the queue
+  queueConcurrency: 1
+  # -- Maximum execution timeout in seconds for a single transcoding job
+  jobTimeout: 86400
+
+# -- Authentication settings
+auth:
+  # -- Enable or disable user authentication
+  enabled: true
+  # -- Secret key used for signing session cookies and tokens (min 32 chars). Leave empty to autogenerate
+  secretKey: ""
+  # -- Name of existing Secret containing TRANSMUTE_SECRET_KEY, INITIAL_ADMIN_EMAIL, INITIAL_ADMIN_PASSWORD
+  existingSecret: ""
+  # -- Allow user self-registration via web UI
+  allowRegistration: false
+  # -- Initial administrator credentials
+  initialAdmin:
+    email: ""
+    password: ""
+
+# -- OpenID Connect (OIDC) Single Sign-On configuration
+oidc:
+  # -- Enable OIDC authentication
+  enabled: false
+  # -- OIDC Issuer / Discovery URL
+  providerUrl: ""
+  # -- OIDC Client ID
+  clientId: ""
+  # -- OIDC Client Secret (can also be provided via secret or External Secrets)
+  clientSecret: ""
+  # -- Public redirect callback URI
+  redirectUri: ""
+  # -- OIDC scopes to request
+  scopes: "openid profile email"
+  # -- Automatically create local account upon successful OIDC login
+  autoRegister: true
+  # -- Disable password login when OIDC is active
+  disableLocalAuth: false
+
+ingress:
+  # -- Enable ingress record generation
+  enabled: false
+  # -- Ingress class name
+  className: ""
+  # -- Ingress annotations
+  annotations: {}
+  # -- Ingress hosts
+  hosts:
+    - host: transmute.local
+      paths:
+        - path: /
+          pathType: Prefix
+  # -- Ingress TLS configuration
+  tls: []
+
+# -- Gateway API HTTPRoute configuration
+httpRoute:
+  # -- Enable Gateway API HTTPRoute generation
+  enabled: false
+  # -- Annotations to add to HTTPRoute
+  annotations: {}
+  # -- Gateway API parent references
+  parentRefs: []
+  # -- Hostnames for the HTTPRoute
+  hostnames: []
+  # -- Path prefix for the rule
+  path: /
+
+resources:
+  limits:
+    memory: 2Gi
+  requests:
+    cpu: 200m
+    memory: 256Mi
+
+# -- Liveness probe configuration
+livenessProbe:
+  httpGet:
+    path: /api/health
+    port: http
+  initialDelaySeconds: 15
+  periodSeconds: 20
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# -- Readiness probe configuration
+readinessProbe:
+  httpGet:
+    path: /api/health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# -- Startup probe configuration
+startupProbe:
+  httpGet:
+    path: /api/health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 30
+
+persistence:
+  # -- Enable persistence using Persistent Volume Claims
+  enabled: true
+  # -- PVC storage access mode
+  accessModes:
+    - ReadWriteOnce
+  # -- PVC storage request size
+  size: 20Gi
+  # -- Storage class name (set to '-' to disable dynamic provisioning)
+  storageClass: ""
+  # -- Annotations for the PVC
+  annotations: {}
+  # -- Path where volume is mounted inside container
+  mountPath: /app/data
+  # -- Name of an existing PVC to use
+  existingClaim: ""
+
+# -- External Secrets Operator (ESO) integration
+externalSecrets:
+  # -- Enable ExternalSecret resource creation
+  enabled: false
+  # -- Refresh interval for synchronized secrets
+  refreshInterval: 1h
+  # -- Annotations to add to the ExternalSecret resource
+  annotations: {}
+  # -- Reference to the SecretStore or ClusterSecretStore
+  secretStoreRef:
+    name: ""
+    kind: SecretStore
+  # -- Target secret properties
+  target:
+    creationPolicy: Owner
+    deletionPolicy: Retain
+  # -- Secrets data mapping array
+  data: []
+  # -- Secrets dataFrom mapping array
+  dataFrom: []
+
+# -- Additional environment variables
+env: []
+# -- Additional environment variables from ConfigMaps or Secrets
+envFrom: []
+
+# -- Additional volume mounts
+volumeMounts: []
+# -- Additional volumes
+volumes: []
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

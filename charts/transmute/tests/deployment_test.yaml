@@ -1,0 +1,107 @@
+suite: deployment tests
+templates:
+  - deployment.yaml
+  - secret.yaml
+  - ingress.yaml
+  - httproute.yaml
+  - externalsecret.yaml
+tests:
+  - it: renders deployment with defaults
+    template: deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/transmute-app/transmute:1.0.0
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8080
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.capabilities.drop[0]
+          value: ALL
+
+  - it: enables OIDC environment variables when configured
+    template: deployment.yaml
+    set:
+      oidc:
+        enabled: true
+        providerUrl: "https://auth.example.com"
+        clientId: "transmute-client"
+        redirectUri: "https://transmute.example.com/api/auth/oidc/callback"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_ENABLED
+            value: "true"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_PROVIDER_URL
+            value: "https://auth.example.com"
+
+  - it: renders ingress when enabled
+    template: ingress.yaml
+    set:
+      ingress:
+        enabled: true
+        className: "nginx"
+        hosts:
+          - host: "transmute.example.com"
+            paths:
+              - path: /
+                pathType: Prefix
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+      - equal:
+          path: spec.rules[0].host
+          value: transmute.example.com
+
+  - it: renders httpRoute when enabled
+    template: httproute.yaml
+    set:
+      httpRoute:
+        enabled: true
+        hostnames:
+          - "transmute.example.com"
+        parentRefs:
+          - name: default-gateway
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: spec.hostnames[0]
+          value: transmute.example.com
+      - equal:
+          path: spec.parentRefs[0].name
+          value: default-gateway
+
+  - it: renders externalsecret when enabled
+    template: externalsecret.yaml
+    set:
+      externalSecrets:
+        enabled: true
+        secretStoreRef:
+          name: "vault-backend"
+        data:
+          - secretKey: TRANSMUTE_SECRET_KEY
+            remoteRef:
+              key: secret/transmute
+              property: secretKey
+    asserts:
+      - isKind:
+          of: ExternalSecret
+      - equal:
+          path: spec.secretStoreRef.name
+          value: vault-backend
+      - equal:
+          path: spec.data[0].secretKey
+          value: TRANSMUTE_SECRET_KEY
