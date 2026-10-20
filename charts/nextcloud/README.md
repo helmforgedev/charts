@@ -12,7 +12,7 @@ PostgreSQL, Redis, managed background jobs and coordinated S3 backups.
 - An existing private S3-compatible bucket and credential Secret for backups.
 - External Secrets Operator only when that integration is enabled.
 
-The application defaults to `nextcloud:35.0.1-apache`, with verified amd64 and
+The application defaults to `nextcloud:35.0.2-apache`, with verified amd64 and
 arm64 support. The chart is Apache-2.0 licensed; Nextcloud Server is AGPL-3.0.
 One replica and Recreate updates provide an explicit single-writer operating
 model. Backups and upgrades have scheduled downtime.
@@ -161,7 +161,7 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md).
 | `fullnameOverride` | Override the release resource name. | `""` |
 | `commonLabels` | Extra labels on resources. | `{}` |
 | `image.repository` | Official image repository. | `"docker.io/library/nextcloud"` |
-| `image.tag` | Pinned application release. | `"35.0.1-apache"` |
+| `image.tag` | Pinned application release. | `"35.0.2-apache"` |
 | `image.pullPolicy` | Image pull policy. | `"IfNotPresent"` |
 | `imagePullSecrets` | Registry authentication Secret references. | `[]` |
 | `nextcloud.adminUser` | Initial administrator login; changing this does not rename existing users. | `"admin"` |
