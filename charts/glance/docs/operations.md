@@ -7,7 +7,7 @@ check a private dashboard without carrying a user password. A successful probe
 means the HTTP application initialized; it does not prove every external feed is
 available. Verify important widgets separately and inspect application logs.
 Use an existing blackbox exporter to monitor availability through the public TLS
-endpoint. No native Prometheus metrics endpoint was identified in v0.8.6, so this
+endpoint. No native Prometheus metrics endpoint was identified in v0.8.7, so this
 chart does not create a misleading ServiceMonitor.
 
 ## Upgrades

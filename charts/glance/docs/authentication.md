@@ -18,7 +18,7 @@ credentials on shell command lines, in Git or in Helm values files.
 Generate a compatible signing value with the pinned upstream image:
 
 ~~~sh
-docker run --rm docker.io/glanceapp/glance:v0.8.6 secret:make
+docker run --rm docker.io/glanceapp/glance:v0.8.7 secret:make
 ~~~
 
 The command produces secret material. Store its output directly in your trusted
