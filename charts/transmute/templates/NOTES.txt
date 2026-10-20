@@ -1,20 +1,82 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-Transmute has been deployed!
+--------------------------------------------------------------------
+Transmute Video Transcoding Platform has been successfully deployed!
+--------------------------------------------------------------------
 
-Get the application URL by running these commands:
+1. Installation Summary
+   - Release Name:   {{ .Release.Name }}
+   - Namespace:      {{ .Release.Namespace }}
+   - Chart:          {{ .Chart.Name }}-{{ .Chart.Version }}
+   - AppVersion:     {{ .Chart.AppVersion }}
+   - Image:          {{ include "transmute.image" . }}
+   - Replicas:       {{ .Values.replicaCount }}
+   - ServiceAccount: {{ include "transmute.serviceAccountName" . }}
+
+2. Service Access
 {{- if .Values.ingress.enabled }}
-{{- range $host := .Values.ingress.hosts }}
-  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}
-{{- end }}
-{{- else if .Values.httpRoute.enabled }}
-{{- range $host := .Values.httpRoute.hostnames }}
-  http://{{ $host }}
-{{- end }}
+   Web Ingress is enabled. Access Transmute at:
+  {{- range .Values.ingress.hosts }}
+   - http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}/
+  {{- end }}
+{{- else if and .Values.gatewayAPI.enabled .Values.gatewayAPI.httpRoutes }}
+   Gateway API HTTPRoute is enabled. Access Transmute at:
+  {{- range .Values.gatewayAPI.httpRoutes }}
+    {{- range .hostnames }}
+   - http://{{ . }}/
+    {{- end }}
+  {{- end }}
 {{- else }}
-  export POD_NAME=$(kubectl get pods --namespace {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "transmute.name" . }},app.kubernetes.io/instance={{ .Release.Name }}" -o jsonpath="{.items[0].metadata.name}")
-  export CONTAINER_PORT=$(kubectl get pod --namespace {{ .Release.Namespace }} $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
-  echo "Visit http://127.0.0.1:8080 to use your application"
-  kubectl --namespace {{ .Release.Namespace }} port-forward $POD_NAME 8080:$CONTAINER_PORT
+   Port-forward the Transmute service to localhost:
+   $ kubectl port-forward svc/{{ include "transmute.fullname" . }} 8080:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+   Then browse to: http://127.0.0.1:8080/
 {{- end }}
+
+3. Credentials and Security
+{{- if .Values.auth.existingSecret }}
+   - Credentials Source: Existing Secret '{{ .Values.auth.existingSecret }}'
+{{- else if and .Values.externalSecrets .Values.externalSecrets.enabled }}
+   - Credentials Source: External Secrets Operator (SecretStore: {{ .Values.externalSecrets.secretStoreRef.name }})
+{{- else }}
+   - Credentials Source: Auto-generated in chart Secret.
+   {{- if .Values.auth.initialAdmin.email }}
+   - Admin Email: {{ .Values.auth.initialAdmin.email }}
+   {{- end }}
+   {{- if .Values.auth.initialAdmin.password }}
+   - Admin Password: Configured via values.yaml
+   {{- else }}
+   - Retrieve generated Admin Password:
+     $ kubectl get secret {{ include "transmute.secretName" . }} -n {{ .Release.Namespace }} -o jsonpath='{.data.INITIAL_ADMIN_PASSWORD}' | base64 -d && echo
+   {{- end }}
+   - Retrieve Transmute Secret Key:
+     $ kubectl get secret {{ include "transmute.secretName" . }} -n {{ .Release.Namespace }} -o jsonpath='{.data.TRANSMUTE_SECRET_KEY}' | base64 -d && echo
+{{- end }}
+
+4. Application Configuration and Storage
+   - Data Directory:     {{ .Values.config.dataDir }}
+   - Storage Directory:  {{ .Values.config.storageDir }}
+   - Queue Concurrency:  {{ .Values.config.queueConcurrency }} job(s)
+   - Job Timeout:        {{ .Values.config.jobTimeout }}s
+   - Persistence:        {{ if .Values.persistence.enabled }}Enabled (PVC: {{ include "transmute.claimName" . }}, Size: {{ .Values.persistence.size }}){{ else }}Disabled (Ephemeral storage){{ end }}
+   - OIDC Integration:   {{ if .Values.oidc.enabled }}Enabled{{ else }}Disabled{{ end }}
+
+5. Health Verification
+   Verify pod rollout status:
+   $ kubectl rollout status deployment/{{ include "transmute.fullname" . }} -n {{ .Release.Namespace }}
+
+   Check running workload:
+   $ kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+
+6. Logs and Diagnostics
+   Inspect application logs:
+   $ kubectl logs -f deployment/{{ include "transmute.fullname" . }} -n {{ .Release.Namespace }}
+
+   Check pod events:
+   $ kubectl describe pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+
+7. Documentation and Support
+   - Transmute Official Website:  https://transmute.sh/
+   - Transmute Source Repository: https://github.com/transmute-app/transmute
+   - HelmForge Documentation:    https://helmforge.dev/docs/charts/transmute
+   - Report Issues:              https://github.com/helmforgedev/charts/issues
 
 Happy Helmforging :)

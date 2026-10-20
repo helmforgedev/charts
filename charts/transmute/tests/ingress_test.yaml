@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: ingress tests
+templates:
+  - ingress.yaml
+tests:
+  - it: should not render ingress by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render ingress when enabled
+    set:
+      ingress:
+        enabled: true
+        hosts:
+          - host: transmute.example.com
+            paths:
+              - path: /
+                pathType: Prefix
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: spec.rules[0].host
+          value: transmute.example.com
+      - equal:
+          path: spec.rules[0].http.paths[0].path
+          value: /
+
+  - it: should render TLS config when specified
+    set:
+      ingress:
+        enabled: true
+        tls:
+          - secretName: transmute-tls
+            hosts:
+              - transmute.example.com
+    asserts:
+      - equal:
+          path: spec.tls[0].secretName
+          value: transmute-tls
+      - equal:
+          path: spec.tls[0].hosts[0]
+          value: transmute.example.com

@@ -19,3 +19,16 @@ app.kubernetes.io/part-of: helmforge
 {{- define "transmute.image" -}}{{- printf "%s:%s" .Values.image.repository (default .Chart.AppVersion .Values.image.tag) -}}{{- end -}}
 {{- define "transmute.secretName" -}}{{- default (printf "%s-auth" (include "transmute.fullname" . | trunc 58 | trimSuffix "-")) .Values.auth.existingSecret -}}{{- end -}}
 {{- define "transmute.claimName" -}}{{- default (include "transmute.fullname" .) .Values.persistence.existingClaim -}}{{- end -}}
+
+{{/*
+HTTPRoute name helper
+*/}}
+{{- define "transmute.httpRouteName" -}}
+{{- if .route.name -}}
+{{- printf "%s-%s" (include "transmute.fullname" .root) .route.name | trunc 63 | trimSuffix "-" -}}
+{{- else if eq (len .root.Values.gatewayAPI.httpRoutes) 1 -}}
+{{- include "transmute.fullname" .root -}}
+{{- else -}}
+{{- printf "%s-%d" (include "transmute.fullname" .root) .index | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}

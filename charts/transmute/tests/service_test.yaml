@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: service tests
+templates:
+  - service.yaml
+tests:
+  - it: should render default service correctly
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.type
+          value: ClusterIP
+      - equal:
+          path: spec.ports[0].port
+          value: 8080
+      - equal:
+          path: spec.ports[0].targetPort
+          value: http
+
+  - it: should allow custom service type and port
+    set:
+      service:
+        type: NodePort
+        port: 9000
+    asserts:
+      - equal:
+          path: spec.type
+          value: NodePort
+      - equal:
+          path: spec.ports[0].port
+          value: 9000
+
+  - it: should render custom annotations
+    set:
+      service:
+        annotations:
+          custom-annotation: custom-value
+    asserts:
+      - isSubset:
+          path: metadata.annotations
+          content:
+            custom-annotation: custom-value
