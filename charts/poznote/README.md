@@ -71,7 +71,7 @@ ingress:
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `image.repository` | Image repository | `ghcr.io/timothepoznanski/poznote` |
-| `image.tag` | Image tag | `6.115.0` |
+| `image.tag` | Image tag | `6.121.0` |
 | `image.pullPolicy` | Pull policy | `IfNotPresent` |
 
 #### Application Parameters
@@ -142,6 +142,15 @@ This chart intentionally does NOT:
 - Bundle the MCP server container (separate deployment concern)
 
 ## Upgrade Notes
+
+### Upgrading to 6.121.0
+
+Poznote 6.121.0 includes bug fixes, stability, and performance improvements.
+No breaking configuration or values changes are introduced in this release.
+
+Review the [official 6.121.0 release](https://github.com/timothepoznanski/poznote/releases/tag/6.121.0).
+
+### Upgrading to 6.115.0
 
 The upgrade range from Poznote `6.100.0` through `6.115.0` adds scheduled local
 backup archives, revisions, richer Markdown editing and repeating tasks. The
