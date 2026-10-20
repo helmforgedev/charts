@@ -42,7 +42,7 @@ endorsed by Interactive Brokers.
 
 ## Image provenance
 
-The default image is `ghcr.io/gnzsnz/ib-gateway:10.50.1f`, pinned to manifest
+The default image is `ghcr.io/gnzsnz/ib-gateway:10.51`, pinned to manifest
 digest `sha256:1e2236804ac949b789197c225a048c0c891c9958f948c87166226e5b647ff581`.
 The Linux amd64 and arm64 manifests were verified on 2026-10-12.
 
@@ -97,7 +97,7 @@ is valuable; account and trading state remain external to this chart. See
 
 | Value | Default | Purpose |
 | --- | --- | --- |
-| `image.tag` | `10.50.1f` | Exact upstream release |
+| `image.tag` | `10.51` | Exact upstream release |
 | `replicaCount` | `1` | Enforced singleton session owner |
 | `gateway.tradingMode` | `paper` | `paper`, `live`, or `both` |
 | `gateway.readOnlyApi` | `true` | Disable order-changing API calls |
