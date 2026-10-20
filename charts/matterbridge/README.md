@@ -55,7 +55,7 @@ Only use it on a trusted node and protect the administrative frontend.
 ## Features
 
 - Official, pinned multi-architecture Matterbridge image
-- Stable chart with upstream Matterbridge `3.10.13`
+- Stable chart with upstream Matterbridge `3.10.14`
 - StatefulSet singleton with explicit validation against unsafe scaling
 - One retained PVC for plugins, fabrics, certificates and configuration
 - Non-root UID/GID 1000, read-only root filesystem and all capabilities dropped
@@ -297,6 +297,9 @@ Do not publish commissioning codes from logs. They grant access to an
 uncommissioned Matter bridge.
 
 ## Upgrades
+
+Matterbridge 3.10.14 contains upstream stability fixes.
+Review the [official release notes](https://github.com/Luligu/matterbridge/releases/tag/3.10.14).
 
 Matterbridge 3.10.13 updates the frontend and runtime dependencies, improves
 worker-thread shutdown, fixes server-mode bridged endpoint removal, and corrects
