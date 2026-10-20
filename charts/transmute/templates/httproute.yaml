@@ -1,0 +1,30 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.httpRoute.enabled }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "transmute.fullname" . }}
+  labels:
+    {{- include "transmute.labels" . | nindent 4 }}
+  {{- with .Values.httpRoute.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.httpRoute.parentRefs }}
+  parentRefs:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.httpRoute.hostnames }}
+  hostnames:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: {{ .Values.httpRoute.path | default "/" }}
+      backendRefs:
+        - name: {{ include "transmute.fullname" . }}
+          port: {{ .Values.service.port }}
+{{- end }}
