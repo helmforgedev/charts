@@ -69,6 +69,12 @@ AI providers and hosted function execution are outside the tested integration se
 See [dependencies](docs/dependencies.md), [storage](docs/storage.md), [SMTP](docs/smtp.md) and
 [observability](docs/observability.md).
 
+## Upgrading to 2.49.0
+
+Twenty 2.49.0 includes minor upstream performance improvements, bug fixes and updated workspace drivers. Database migrations run automatically on server Pod startup. No manual migration or breaking values changes required.
+
+Upstream release notes: [v2.49.0](https://github.com/twentyhq/twenty/releases/tag/twenty%2Fv2.49.0).
+
 ## Upgrading to 2.46.0
 
 Twenty 2.46 includes the 2.44-2.46 native migrations and breaking API changes.
