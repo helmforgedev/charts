@@ -97,7 +97,8 @@ account for its new `AES/GCM/NoPadding` default before a rolling upgrade.
 | --- | --- | --- |
 | `replicaCount` | `1` | Number of Tomcat pods when HPA is disabled. |
 | `image.repository` | `docker.io/library/tomcat` | Tomcat image repository. |
-| `image.tag` | `11.0.26-jdk17-temurin-noble` | Tomcat image tag. |
+| `image.tag` | string | `"11.0.27-jdk17-temurin-noble"` | Tomcat image tag |
+| `image.digest` | string | `"sha256:494191316b2520aa7f38038933f93806fbf448f7d983eeb557b7f167667d4f93"` | Multi-arch image digest |
 | `service.type` | `ClusterIP` | Kubernetes Service type. |
 | `service.ipFamilyPolicy` | `null` | Optional Service dual-stack policy. |
 | `service.ipFamilies` | `[]` | Optional Service IP family ordering. |
