@@ -184,6 +184,13 @@ externalSecrets:
 
 ## Upgrade Notes
 
+### Upgrading to v0.64.2
+
+Metabase `v0.64.2` is a patch release fixing analytics regressions and query optimizations.
+Review the [official v0.64.2 release notes](https://github.com/metabase/metabase/releases/tag/v0.64.2).
+
+### Upgrading to v0.64.1
+
 Metabase `v0.64.1` is the first public maintenance release in the 0.64 line. Back up the Metabase application
 database and review the [official Metabase 64 changelog](https://www.metabase.com/changelog/64#metabase-641)
 before upgrading. Keep the encryption key stable and validate the `/api/health`
