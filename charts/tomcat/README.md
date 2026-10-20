@@ -4,7 +4,7 @@ Apache Tomcat chart for Kubernetes using the official `docker.io/library/tomcat`
 
 ## Highlights
 
-- Official Tomcat image, pinned by default to `11.0.26-jdk17-temurin-noble`.
+- Official Tomcat image, pinned by default to `11.0.27-jdk17-temurin-noble`.
 - Stable default install with an optional ROOT health webapp for deterministic probes and Helm tests.
 - Preserves WARs or exploded applications baked into immutable Tomcat images before mounting the writable webapps volume.
 - Non-root runtime with writable `webapps`, `logs`, `temp`, and `work` volumes.
@@ -75,6 +75,12 @@ For authenticated or TLS-secured JMX, mount the required files with `extraVolume
 When `jmx.rmiPort` differs from `jmx.port`, the chart exposes the RMI endpoint
 through `service.ports.jmxRmi` so the registry and RMI Service ports stay unique.
 
+## Upgrading to 11.0.27
+
+Tomcat 11.0.27 contains bug fixes, dependency updates and stability improvements. No breaking configuration or values changes are introduced.
+
+Upstream release notes: [11.0.27](https://tomcat.apache.org/tomcat-11.0-doc/changelog.html#Tomcat_11.0.27).
+
 Tomcat 11.0.26 improves RewriteValve, TLS/OCSP/ALPN, WebSocket timeout, async
 dispatch and DIGEST authentication behavior. Tomcat 11.0.25 required an authority on every HTTP/2 request, reset EL parser
 state before reuse, and limits buffering in the bundled WebSocket chat example.
@@ -97,8 +103,7 @@ account for its new `AES/GCM/NoPadding` default before a rolling upgrade.
 | --- | --- | --- |
 | `replicaCount` | `1` | Number of Tomcat pods when HPA is disabled. |
 | `image.repository` | `docker.io/library/tomcat` | Tomcat image repository. |
-| `image.tag` | string | `"11.0.27-jdk17-temurin-noble"` | Tomcat image tag |
-| `image.digest` | string | `"sha256:494191316b2520aa7f38038933f93806fbf448f7d983eeb557b7f167667d4f93"` | Multi-arch image digest |
+| `image.tag` | `11.0.27-jdk17-temurin-noble` | Tomcat image tag. |
 | `service.type` | `ClusterIP` | Kubernetes Service type. |
 | `service.ipFamilyPolicy` | `null` | Optional Service dual-stack policy. |
 | `service.ipFamilies` | `[]` | Optional Service IP family ordering. |
