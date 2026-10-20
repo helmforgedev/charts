@@ -143,7 +143,7 @@ externalSecrets:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/n8nio/n8n` | n8n container image repository |
-| `image.tag` | `2.43.4` | n8n container image tag |
+| `image.tag` | `2.44.4` | n8n container image tag |
 | `n8n.encryptionKey` | `""` | Encryption key for credentials (auto-generated) |
 | `n8n.webhookUrl` | `""` | Webhook URL (auto-detected from ingress) |
 | `n8n.logLevel` | `info` | Log level (info, warn, error, debug) |
@@ -184,6 +184,14 @@ externalSecrets:
 | `externalSecrets.data` | `[]` | Remote key mappings (must include `encryption-key` entry) |
 
 ## Upgrade Notes
+
+### Upgrading to 2.44.4
+
+n8n `2.44.4` is an upstream release containing new features, bug fixes, and stability improvements.
+Keep the main application and external task runners images aligned (`docker.io/n8nio/runners:2.44.4`).
+Review the [official 2.44.4 release notes](https://github.com/n8n-io/n8n/releases/tag/n8n%402.44.4).
+
+### Upgrading to 2.43.4
 
 n8n `2.43.4` includes the 2.42 and 2.43 maintenance lines and fixes duplicate
 Chat Hub segment handling in queue mode and deferred tool-call resumption for
