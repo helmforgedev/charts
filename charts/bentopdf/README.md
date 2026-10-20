@@ -27,7 +27,7 @@ localhost is an exception for testing.
 
 ## Deployment contract
 
-The official image is `ghcr.io/alam00000/bentopdf:2.8.8`, verified for Linux amd64 and arm64. Deploy at the domain root.
+The official image is `ghcr.io/alam00000/bentopdf:2.8.10`, verified for Linux amd64 and arm64. Deploy at the domain root.
 BASE_URL, branding and CSP build arguments cannot be changed through runtime environment variables.
 
 NGINX starts directly with configuration derived from the tagged upstream nginx.conf. Image-owned security-header
