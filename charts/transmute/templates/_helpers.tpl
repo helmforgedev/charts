@@ -25,10 +25,10 @@ HTTPRoute name helper
 */}}
 {{- define "transmute.httpRouteName" -}}
 {{- if .route.name -}}
-{{- printf "%s-%s" (include "transmute.fullname" .root) .route.name | trunc 63 | trimSuffix "-" -}}
+{{- printf "%s-%s" (include "transmute.fullname" .root | trunc 45 | trimSuffix "-") .route.name | trunc 63 | trimSuffix "-" -}}
 {{- else if eq (len .root.Values.gatewayAPI.httpRoutes) 1 -}}
 {{- include "transmute.fullname" .root -}}
 {{- else -}}
-{{- printf "%s-%d" (include "transmute.fullname" .root) .index | trunc 63 | trimSuffix "-" -}}
+{{- printf "%s-%d" (include "transmute.fullname" .root | trunc 55 | trimSuffix "-") .index | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 {{- end -}}

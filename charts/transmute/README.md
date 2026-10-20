@@ -30,7 +30,8 @@ helm install transmute helmforge/transmute --namespace media --create-namespace
 | `oidc.clientId` | OIDC Client ID | `""` |
 | `ingress.enabled` | Enable Kubernetes Ingress | `false` |
 | `ingress.ingressClassName` | Ingress class name | `""` |
-| `httpRoute.enabled` | Enable Gateway API HTTPRoute | `false` |
+| `gatewayAPI.enabled` | Enable canonical Gateway API HTTPRoutes | `false` |
+| `gatewayAPI.httpRoutes` | Gateway API route definitions with parentRefs, hostnames, rules, labels and annotations | `[]` |
 | `externalSecrets.enabled` | Enable External Secrets integration | `false` |
 | `persistence.enabled` | Enable persistent storage | `true` |
 | `persistence.size` | Storage volume size | `20Gi` |
