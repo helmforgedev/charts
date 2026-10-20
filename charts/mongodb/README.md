@@ -148,7 +148,7 @@ deciding constraint, and review the
 |-----------|-------------|---------|
 | `architecture` | `standalone`, `replicaset`, or `sharded` | `standalone` |
 | `image.repository` | MongoDB image | `mongo` |
-| `image.tag` | Image tag | `9.0.2` |
+| `image.tag` | Image tag | `9.0.4` |
 | `nameOverride` | Override chart name | `""` |
 | `fullnameOverride` | Override full release name | `""` |
 
@@ -285,6 +285,13 @@ See the [`examples/`](examples/) directory:
 - [`docs/backup-restore.md`](docs/backup-restore.md) — S3 backup strategy and restore guidance
 
 ## Upgrade Notes
+
+### Upgrading to 9.0.4
+
+MongoDB `9.0.4` contains stability improvements and bug fixes.
+Review the [official 9.0 release notes](https://www.mongodb.com/docs/manual/release-notes/9.0/).
+
+### Upgrading to 9.0.2
 
 MongoDB `9.0.2` is a patch in the MongoDB `9.0` rapid-release line. Before a
 binary upgrade from `8.3`, take a tested backup and confirm every member reports
