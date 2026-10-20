@@ -31,15 +31,15 @@ dependencies and configuring the external Secret contracts described in
 ## Image provenance
 
 The default is the official release image
-`docker.io/ghostfolio/ghostfolio:3.84.2`. Its manifest was verified for Linux
+`docker.io/ghostfolio/ghostfolio:3.88.0`. Its manifest was verified for Linux
 amd64, arm/v7, and arm64 on 2026-10-15.
 
-Ghostfolio 3.84.2 adds yearly performance views and experimental AI imports,
+Ghostfolio 3.88.0 adds yearly performance views and experimental AI imports,
 expands MCP sharing permissions, and improves historical market-data queries.
 It also fixes negative-UTC date ranges, benchmark dates, filtered cash balances,
 mobile overflow, and MCP access enforcement. Upstream documents no breaking
-configuration change between 3.82.0 and 3.84.2. Review the
-[3.84.2 release notes](https://github.com/ghostfolio/ghostfolio/releases/tag/3.84.2)
+configuration change between 3.82.0 and 3.88.0. Review the
+[3.88.0 release notes](https://github.com/ghostfolio/ghostfolio/releases/tag/3.88.0)
 before production rollout.
 
 ## Health contract
@@ -96,7 +96,7 @@ See [docs/operations.md](docs/operations.md) for rollout and recovery details.
 
 | Value | Default | Purpose |
 |---|---:|---|
-| `image.tag` | `3.84.2` | Pinned official application release |
+| `image.tag` | `3.88.0` | Pinned official application release |
 | `replicaCount` | `1` | Enforced singleton migration and cron owner |
 | `ghostfolio.rootUrl` | derived | Canonical external origin |
 | `ghostfolio.existingSecret` | `""` | Retained access-token salt and JWT secret |
