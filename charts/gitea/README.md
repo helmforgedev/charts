@@ -4,7 +4,7 @@
 
 Helm chart for deploying [Gitea](https://gitea.io/) self-hosted Git service on Kubernetes using the official [`gitea/gitea`](https://hub.docker.com/r/gitea/gitea) rootless Docker image.
 
-- **Current application version** `28.1.0`
+- **Current application version** `28.2.0`
 - **Default image** `docker.io/gitea/gitea:28.2.0-rootless`
 - **Chart lock policy** source chart does not commit `Chart.lock`; dependencies are resolved during packaging/validation
 - **Rootless storage** PVC paths are prepared for UID/GID 1000 by a small initContainer
@@ -206,7 +206,7 @@ requires `EGRESS_MODE = strict`. Configure replacements through
 Completed Actions runs now default to 400 days of retention. Set
 `GITEA__actions__RUN_RETENTION_DAYS` to `0` before the upgrade if all historical
 runs must be retained. Review the [v28.0.0 migration notes](https://github.com/go-gitea/gitea/releases/tag/v28.0.0)
-and the [v28.1.0 fixes](https://github.com/go-gitea/gitea/releases/tag/v28.1.0)
+and the [v28.2.0 fixes](https://github.com/go-gitea/gitea/releases/tag/v28.2.0)
 before production rollout. The rootless UID, ports, work directory, data path,
 and `GITEA_APP_INI` contract remain compatible with this chart.
 
