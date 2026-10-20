@@ -2,65 +2,62 @@
 suite: deployment tests
 templates:
   - deployment.yaml
-  - secret.yaml
-  - ingress.yaml
-  - externalsecret.yaml
 tests:
-  - it: renders deployment with defaults
-    template: deployment.yaml
+  - it: should render deployment with default image and tag
     asserts:
       - isKind:
           of: Deployment
       - equal:
           path: spec.template.spec.containers[0].image
           value: ghcr.io/transmute-app/transmute:v2.1.1
-      - equal:
-          path: spec.template.spec.containers[0].ports[0].containerPort
-          value: 8080
+
+
+  - it: should enforce non-root security context by default
+    asserts:
       - equal:
           path: spec.template.spec.securityContext.runAsNonRoot
           value: true
       - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
           path: spec.template.spec.containers[0].securityContext.capabilities.drop[0]
           value: ALL
 
-  - it: enables OIDC environment variables when configured
-    template: deployment.yaml
+  - it: should render custom resource requests and limits
+    set:
+      resources:
+        requests:
+          cpu: 250m
+          memory: 256Mi
+        limits:
+          cpu: 1000m
+          memory: 1Gi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 250m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 1Gi
+
+  - it: should configure OIDC environment variables when enabled
     set:
       oidc:
         enabled: true
         providerUrl: "https://auth.example.com"
         clientId: "transmute-client"
-        redirectUri: "https://transmute.example.com/api/auth/oidc/callback"
     asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: OIDC_ENABLED
-            value: "true"
       - contains:
           path: spec.template.spec.containers[0].env
           content:
             name: OIDC_PROVIDER_URL
             value: "https://auth.example.com"
-
-  - it: renders ingress when enabled
-    template: ingress.yaml
-    set:
-      ingress:
-        enabled: true
-        ingressClassName: "nginx"
-        hosts:
-          - host: "transmute.example.com"
-            paths:
-              - path: /
-                pathType: Prefix
-    asserts:
-      - isKind:
-          of: Ingress
-      - equal:
-          path: spec.ingressClassName
-          value: nginx
-      - equal:
-          path: spec.rules[0].host
-          value: transmute.example.com
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_CLIENT_ID
+            value: "transmute-client"

@@ -1,42 +1,31 @@
-# Transmute Helm Chart
+# Transmute
 
-Production-ready Helm chart for [Transmute](https://transmute.sh), a self-hosted audio and video transcoding and media conversion service with queue management and OIDC integration.
+Production-ready Helm chart for Transmute, a self-hosted audio and video
+transcoding and compression platform powered by FFmpeg, Libvips, and modern hardware acceleration.
 
-## Prerequisites
-
-- Kubernetes 1.26+
-- Helm 3.8.0+
-- Optional: External Secrets Operator, Gateway API CRDs
+[![Artifact HUB](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/helmforge)](https://artifacthub.io/packages/helm/helmforge/transmute)
 
 ## Installation
 
-```bash
-helm repo add helmforge https://repo.helmforge.dev
-helm repo update
-helm install transmute helmforge/transmute --namespace media --create-namespace
-```
+### HTTPS Repository
 
-## Configuration Parameters
+"helmforge" already exists with the same configuration, skipping
+Hang tight while we grab the latest from your chart repositories...
+...Successfully got an update from the "helmforge" chart repository
+Update Complete. ⎈Happy Helming!⎈
 
-| Parameter | Description | Default |
-| --------- | ----------- | ------- |
-| `image.repository` | Transmute container image | `ghcr.io/transmute-app/transmute` |
-| `image.tag` | Container image tag | `1.0.0` |
-| `auth.enabled` | Enable internal authentication | `true` |
-| `auth.initialAdmin.email` | Initial admin email address | `""` |
-| `auth.initialAdmin.password` | Initial admin password | `""` |
-| `oidc.enabled` | Enable OpenID Connect SSO | `false` |
-| `oidc.providerUrl` | OIDC Issuer / Discovery URL | `""` |
-| `oidc.clientId` | OIDC Client ID | `""` |
-| `ingress.enabled` | Enable Kubernetes Ingress | `false` |
-| `ingress.ingressClassName` | Ingress class name | `""` |
-| `gatewayAPI.enabled` | Enable canonical Gateway API HTTPRoutes | `false` |
-| `gatewayAPI.httpRoutes` | Gateway API route definitions with parentRefs, hostnames, rules, labels and annotations | `[]` |
-| `externalSecrets.enabled` | Enable External Secrets integration | `false` |
-| `persistence.enabled` | Enable persistent storage | `true` |
-| `persistence.size` | Storage volume size | `20Gi` |
+### OCI Registry
 
-## Security Scan
+## Quick Start
+
+## Features
+
+- **Audio & Video Transcoding** via FFmpeg and Libvips
+- **Single-writer Queue Architecture** with persistent state in
+- **OpenID Connect (OIDC)** native Single Sign-On integration
+- **Modern Exposure Patterns** via Ingress and canonical Gateway API
+- **External Secrets Operator (ESO)** integration with native secret fallback
+- **Hardened Security**: Non-root execution (),  capabilities dropped, and  seccomp
 
 ### Security Scan: `transmute`
 
@@ -47,3 +36,64 @@ helm install transmute helmforge/transmute --namespace media --create-namespace
 > Security posture acceptable.
 
 Measured using Kubescape 4.0.13 against default manifests. This assesses Kubernetes deployment configuration, not the absence of upstream application vulnerabilities.
+
+## Configuration
+
+### Minimal (Simple Setup)
+
+### Production (Full Setup)
+
+## Parameters
+
+### Image & Common
+
+| Parameter | Description | Default |
+|---|---|---|
+|  | Transmute container image |  |
+|  | Pinned upstream version |  |
+|  | Image pull policy |  |
+
+### Storage & Persistence
+
+| Parameter | Description | Default |
+|---|---|---|
+|  | Enable persistent storage for job queues |  |
+|  | Storage volume size |  |
+|  | Volume access mode |  |
+|  | Attach pre-existing PVC |  |
+
+### Networking & Traffic
+
+| Parameter | Description | Default |
+|---|---|---|
+|  | Kubernetes Service type |  |
+|  | Service HTTP port |  |
+|  | Enable standard Ingress |  |
+|  | Enable Gateway API HTTPRoutes |  |
+|  | List of HTTPRoute configurations |  |
+
+### Authentication & Secrets
+
+| Parameter | Description | Default |
+|---|---|---|
+|  | Name of existing secret for credentials |  |
+|  | Enable OpenID Connect SSO |  |
+|  | Enable External Secrets integration |  |
+
+## Upgrading
+
+### Upgrading to v2.1.1
+
+Version 2.x updates the upstream transcoding worker engine and standardizes Gateway API
+routing under the  key.
+
+## Connection & First Access
+
+### Port-Forward Access
+
+### Retrieve Admin Password
+
+## Architecture Guides
+
+- [Design and boundaries](DESIGN.md)
+- [Operations and integrations guide](docs/operations.md)
