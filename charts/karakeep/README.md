@@ -5,11 +5,11 @@ the official `ghcr.io/karakeep-app/karakeep` container image. Karakeep provides
 bookmark management, full-text archive search, web page capture, and optional AI
 tagging in a single-writer application pod.
 
-Current application version: `0.33.2`.
+Current application version: `0.34.0`.
 
 ## Features
 
-- Official Karakeep image pinned to `0.33.2`
+- Official Karakeep image pinned to `0.34.0`
 - Optional Meilisearch sidecar for full-text search
 - Optional browserless Chromium sidecar for screenshots and page archiving
 - SQLite and uploaded content stored on a PersistentVolumeClaim
@@ -125,7 +125,7 @@ chromium:
 | Key | Default | Description |
 | --- | --- | --- |
 | `image.repository` | `ghcr.io/karakeep-app/karakeep` | Main Karakeep image |
-| `image.tag` | `"0.33.2"` | Main Karakeep image tag |
+| `image.tag` | `"0.34.0"` | Main Karakeep image tag |
 | `karakeep.nextAuthUrl` | `""` | Public URL of the Karakeep instance |
 | `karakeep.browserConnectOnDemand` | `true` | Connect to Chromium only when crawling needs it |
 | `karakeep.existingSecret` | `""` | Existing secret with auth and Meilisearch keys |
@@ -157,7 +157,7 @@ baseline.
 
 ## Upgrade Notes
 
-Karakeep `0.33.2` improves SingleFile archive handling, custom Chrome migration,
+Karakeep `0.34.0` improves SingleFile archive handling, custom Chrome migration,
 favicon extraction, CLI uploads, and completion-token configuration. Back up
 the `/data` PVC before upgrading and review the upstream release notes for the
 complete migration guidance.
