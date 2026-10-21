@@ -196,3 +196,33 @@ tests:
           path: metadata.name
           value: test-redis-sentinel
         documentIndex: 2
+
+  - it: should omit wait-for-master init container resources by default
+    template: sentinel-node-statefulset.yaml
+    set:
+      architecture: sentinel
+    asserts:
+      - notExists:
+          path: spec.template.spec.initContainers[0].resources
+
+  - it: should configure resources for the wait-for-master init container
+    template: sentinel-node-statefulset.yaml
+    set:
+      architecture: sentinel
+      sentinel.waitForMaster.resources.requests.cpu: 100m
+      sentinel.waitForMaster.resources.requests.memory: 128Mi
+      sentinel.waitForMaster.resources.limits.cpu: 500m
+      sentinel.waitForMaster.resources.limits.memory: 512Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.cpu
+          value: 100m
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.memory
+          value: 128Mi
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.limits.cpu
+          value: 500m
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.limits.memory
+          value: 512Mi
