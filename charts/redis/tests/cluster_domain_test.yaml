@@ -71,3 +71,35 @@ tests:
       - notMatchRegex:
           path: spec.template.spec.containers[0].args[0]
           pattern: "svc\\.cluster\\.local"
+
+  - it: should omit init job resources by default
+    template: cluster-init-job.yaml
+    set:
+      architecture: cluster
+      clusterDomain: corp.internal
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].resources
+
+  - it: should configure resources for the init job
+    template: cluster-init-job.yaml
+    set:
+      architecture: cluster
+      clusterDomain: corp.internal
+      cluster.initJob.resources.requests.cpu: 100m
+      cluster.initJob.resources.requests.memory: 128Mi
+      cluster.initJob.resources.limits.cpu: 500m
+      cluster.initJob.resources.limits.memory: 512Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 100m
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 128Mi
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 500m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 512Mi
