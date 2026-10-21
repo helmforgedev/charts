@@ -1,0 +1,364 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# -- Override the chart name.
+nameOverride: ""
+# -- Override the fully qualified application name.
+fullnameOverride: ""
+# -- Labels added to all chart resources.
+commonLabels: {}
+
+frontend:
+  # -- Number of frontend replicas.
+  replicaCount: 2
+  autoscaling:
+    # -- Enable horizontal autoscaling for the stateless frontend.
+    enabled: false
+    # -- Minimum number of frontend replicas.
+    minReplicas: 2
+    # -- Maximum number of frontend replicas.
+    maxReplicas: 5
+    # -- Target average CPU utilization percentage.
+    targetCPUUtilizationPercentage: 70
+    # -- Target average memory utilization percentage. Empty disables the memory metric.
+    targetMemoryUtilizationPercentage: null
+  podDisruptionBudget:
+    # -- Protect frontend availability during voluntary disruptions.
+    enabled: true
+    # -- Minimum number of available frontend pods.
+    minAvailable: 1
+    # -- Maximum unavailable frontend pods. Empty uses `minAvailable`.
+    maxUnavailable: null
+  image:
+    # -- Official OpenSign frontend image repository.
+    repository: docker.io/opensign/opensign
+    # -- Immutable digest resolved from the upstream `main` release channel at v2.41.3.
+    digest: sha256:0ebc230eed21ced0d321a0df887c1a48e9f4bd423c2454fe865a262aec49f99a
+    # -- Image pull policy.
+    pullPolicy: IfNotPresent
+  # -- Frontend container resources.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  # -- Extra frontend environment variables.
+  extraEnv: []
+
+backend:
+  image:
+    # -- Official OpenSign backend image repository.
+    repository: docker.io/opensign/opensignserver
+    # -- Immutable digest resolved from the upstream `main` release channel at v2.41.3.
+    digest: sha256:cadfcaaa20bf40272aed43c91314362c1dac034b2a4651f50e5288d01c2b434d
+    # -- Image pull policy.
+    pullPolicy: IfNotPresent
+  # -- Backend container resources.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  # -- Extra backend environment variables.
+  extraEnv: []
+
+# -- Image pull secrets for both OpenSign workloads.
+imagePullSecrets: []
+
+config:
+  # -- Browser-visible frontend URL.
+  publicUrl: https://opensign.example.com
+  # -- Browser-visible API URL. Keep the `/app` suffix.
+  apiUrl: https://api.opensign.example.com/app
+  # -- Parse application identifier. Do not change after first installation.
+  appId: opensign
+  # -- Application name used in email templates.
+  appName: OpenSign
+
+secrets:
+  # -- Existing Secret containing sensitive OpenSign values. When empty, this chart creates one.
+  existingSecret: ""
+  # -- Key containing the Parse master key.
+  masterKeyKey: master-key
+  # -- Parse master key. Auto-generated and retained when empty.
+  masterKey: ""
+  # -- Key containing a base64-encoded PFX signing certificate.
+  pfxBase64Key: pfx-base64
+  # -- Base64-encoded PFX signing certificate.
+  pfxBase64: ""
+  # -- Key containing the PFX passphrase.
+  pfxPassphraseKey: pfx-passphrase
+  # -- PFX signing certificate passphrase.
+  pfxPassphrase: ""
+  # -- Key containing the SMTP password.
+  smtpPasswordKey: smtp-password
+  # -- SMTP password.
+  smtpPassword: ""
+  # -- Key containing the S3 access key ID.
+  objectStorageAccessKeyIdKey: object-storage-access-key-id
+  # -- S3 access key ID.
+  objectStorageAccessKeyId: ""
+  # -- Key containing the S3 secret access key.
+  objectStorageSecretAccessKeyKey: object-storage-secret-access-key
+  # -- S3 secret access key.
+  objectStorageSecretAccessKey: ""
+
+smtp:
+  # -- Enable SMTP delivery.
+  enabled: false
+  # -- SMTP server hostname.
+  host: ""
+  # -- SMTP server port. Port 465 enables implicit TLS in OpenSign.
+  port: 587
+  # -- SMTP username. OpenSign falls back to `fromAddress` when empty.
+  username: ""
+  # -- Sender email address.
+  fromAddress: ""
+
+storage:
+  # -- Storage backend: `local` or `s3`.
+  type: local
+  persistence:
+    # -- Persist files when local storage is selected.
+    enabled: true
+    # -- Existing PVC for `/usr/src/app/files`.
+    existingClaim: ""
+    # -- Storage class. Empty uses the cluster default.
+    storageClass: ""
+    # -- PVC access modes.
+    accessModes:
+      - ReadWriteOnce
+    # -- Requested storage size.
+    size: 10Gi
+    # -- Retain a chart-created PVC after uninstall.
+    retain: true
+  s3:
+    # -- S3-compatible bucket name.
+    bucket: ""
+    # -- S3-compatible endpoint, with or without a URL scheme.
+    endpoint: ""
+    # -- Public or CDN base URL for stored documents.
+    baseUrl: ""
+    # -- S3 region.
+    region: us-east-1
+
+externalMongodb:
+  # -- Use an external MongoDB instead of the bundled subchart.
+  enabled: false
+  # -- MongoDB URI. Prefer `existingSecret` in production.
+  uri: ""
+  # -- Existing Secret containing the MongoDB URI.
+  existingSecret: ""
+  # -- Key in the existing MongoDB Secret.
+  existingSecretUriKey: mongodb-uri
+  # -- MongoDB TCP port used by NetworkPolicy.
+  port: 27017
+  # -- NetworkPolicy peers allowed to reach an external MongoDB.
+  networkPolicyPeers: []
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount.
+  create: true
+  # -- ServiceAccount name override.
+  name: ""
+  # -- ServiceAccount annotations.
+  annotations: {}
+  # -- Disable automatic API token mounting.
+  automountServiceAccountToken: false
+
+service:
+  # -- Service type for both workloads.
+  type: ClusterIP
+  # -- Frontend Service port.
+  frontendPort: 80
+  # -- Backend API Service port.
+  backendPort: 8080
+  # -- Service annotations.
+  annotations: {}
+  # -- IP family policy.
+  ipFamilyPolicy: ""
+  # -- IP families.
+  ipFamilies: []
+
+ingress:
+  # -- Enable Ingress resources for frontend and API.
+  enabled: false
+  # -- Ingress class name.
+  ingressClassName: traefik
+  # -- Annotations shared by both Ingress resources.
+  annotations: {}
+  # -- Frontend hostname.
+  frontendHost: opensign.example.com
+  # -- API hostname.
+  apiHost: api.opensign.example.com
+  # -- TLS configuration shared by both Ingress resources.
+  tls: []
+
+gateway:
+  # -- Enable Gateway API HTTPRoutes.
+  enabled: false
+  # -- Parent Gateway references.
+  parentRefs: []
+  # -- Frontend route hostnames.
+  frontendHostnames: []
+  # -- API route hostnames.
+  apiHostnames: []
+
+probes:
+  frontend:
+    startup:
+      # -- Enable the frontend startup probe.
+      enabled: true
+      # -- Initial delay before the frontend startup probe.
+      initialDelaySeconds: 2
+      # -- Frontend startup probe period.
+      periodSeconds: 5
+      # -- Frontend startup probe timeout.
+      timeoutSeconds: 3
+      # -- Frontend startup probe failure threshold.
+      failureThreshold: 30
+    readiness:
+      # -- Enable the frontend readiness probe.
+      enabled: true
+      # -- Frontend readiness probe period.
+      periodSeconds: 10
+      # -- Frontend readiness probe timeout.
+      timeoutSeconds: 3
+      # -- Frontend readiness probe failure threshold.
+      failureThreshold: 3
+    liveness:
+      # -- Enable the frontend liveness probe.
+      enabled: true
+      # -- Frontend liveness probe period.
+      periodSeconds: 20
+      # -- Frontend liveness probe timeout.
+      timeoutSeconds: 3
+      # -- Frontend liveness probe failure threshold.
+      failureThreshold: 3
+  backend:
+    startup:
+      # -- Enable the backend startup probe.
+      enabled: true
+      # -- Initial delay before the backend startup probe.
+      initialDelaySeconds: 5
+      # -- Backend startup probe period.
+      periodSeconds: 5
+      # -- Backend startup probe timeout.
+      timeoutSeconds: 3
+      # -- Backend startup probe failure threshold.
+      failureThreshold: 60
+    readiness:
+      # -- Enable the backend readiness probe.
+      enabled: true
+      # -- Backend readiness probe period.
+      periodSeconds: 10
+      # -- Backend readiness probe timeout.
+      timeoutSeconds: 3
+      # -- Backend readiness probe failure threshold.
+      failureThreshold: 3
+    liveness:
+      # -- Enable the backend liveness probe.
+      enabled: true
+      # -- Backend liveness probe period.
+      periodSeconds: 20
+      # -- Backend liveness probe timeout.
+      timeoutSeconds: 3
+      # -- Backend liveness probe failure threshold.
+      failureThreshold: 3
+
+networkPolicy:
+  # -- Enable NetworkPolicies for both OpenSign workloads.
+  enabled: true
+  # -- Additional ingress rules appended to both policies.
+  extraIngress: []
+  # -- Additional egress rules appended to both policies.
+  extraEgress: []
+
+podSecurityContext:
+  # -- Run workload processes as a non-root user.
+  runAsNonRoot: true
+  # -- Default runtime UID.
+  runAsUser: 1000
+  # -- Default runtime GID.
+  runAsGroup: 1000
+  # -- Group applied to mounted volumes.
+  fsGroup: 1000
+  # -- Apply fsGroup only when the root directory ownership differs.
+  fsGroupChangePolicy: OnRootMismatch
+  # -- Seccomp profile.
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  # -- Prevent privilege escalation.
+  allowPrivilegeEscalation: false
+  # -- Read-only container root filesystem.
+  readOnlyRootFilesystem: true
+  # -- Linux capabilities configuration.
+  capabilities:
+    # -- Drop all Linux capabilities.
+    drop:
+      - ALL
+
+runtimeStorage:
+  # -- Size limit for writable application and temporary filesystems.
+  sizeLimit: 2Gi
+
+# -- Pod labels added without replacing selector labels.
+podLabels: {}
+# -- Pod annotations shared by both workloads.
+podAnnotations: {}
+# -- Node selector shared by both workloads.
+nodeSelector: {}
+# -- Tolerations shared by both workloads.
+tolerations: []
+# -- Affinity shared by both workloads.
+affinity: {}
+# -- Topology spread constraints shared by both workloads.
+topologySpreadConstraints: []
+# -- Priority class shared by both workloads.
+priorityClassName: ""
+# -- Graceful shutdown timeout.
+terminationGracePeriodSeconds: 60
+
+externalSecrets:
+  # -- Create an ExternalSecret for OpenSign credentials.
+  enabled: false
+  # -- External Secrets Operator API version.
+  apiVersion: external-secrets.io/v1
+  # -- Refresh interval. Use `0` for one-time retrieval.
+  refreshInterval: "0"
+  secretStoreRef:
+    # -- SecretStore or ClusterSecretStore name.
+    name: ""
+    # -- Secret store kind.
+    kind: ClusterSecretStore
+  target:
+    # -- ExternalSecret target creation policy.
+    creationPolicy: Owner
+  # -- Secret key mappings using `secretKey`, `remoteRef.key`, and optional `remoteRef.property`.
+  items: []
+
+mongodb:
+  # -- Deploy the HelmForge MongoDB subchart.
+  enabled: true
+  # -- MongoDB architecture.
+  architecture: standalone
+  auth:
+    # -- Enable MongoDB authentication.
+    enabled: true
+    # -- MongoDB root username.
+    rootUser: root
+    # -- MongoDB root password. Auto-generated when empty; explicit values must contain only URI-safe alphanumeric, `.`, `_`, `~`, or `-` characters.
+    rootPassword: ""
+  # -- MongoDB container resources.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi

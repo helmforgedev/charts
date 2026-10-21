@@ -1,0 +1,36 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.ingress.enabled }}
+{{- range $component := list "frontend" "backend" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "opensign.componentName" (dict "root" $ "component" $component) }}
+  labels:
+    {{- include "opensign.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+  {{- with $.Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with $.Values.ingress.ingressClassName }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with $.Values.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - host: {{ ternary $.Values.ingress.frontendHost $.Values.ingress.apiHost (eq $component "frontend") | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "opensign.componentName" (dict "root" $ "component" $component) }}
+                port:
+                  name: http
+{{- end }}
+{{- end }}

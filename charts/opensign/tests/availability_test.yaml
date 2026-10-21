@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: OpenSign frontend availability
+templates:
+  - templates/frontend-hpa.yaml
+  - templates/frontend-pdb.yaml
+tests:
+  - it: protects the default two-replica frontend
+    template: templates/frontend-pdb.yaml
+    asserts:
+      - isKind: { of: PodDisruptionBudget }
+      - equal: { path: spec.minAvailable, value: 1 }
+      - equal: { path: 'spec.selector.matchLabels["app.kubernetes.io/component"]', value: frontend }
+  - it: omits the PDB for an unscaled singleton
+    template: templates/frontend-pdb.yaml
+    set:
+      frontend.replicaCount: 1
+    asserts:
+      - hasDocuments: { count: 0 }
+  - it: renders an autoscaling v2 HPA
+    template: templates/frontend-hpa.yaml
+    set:
+      frontend.autoscaling.enabled: true
+    asserts:
+      - isKind: { of: HorizontalPodAutoscaler }
+      - equal: { path: apiVersion, value: autoscaling/v2 }
+      - equal: { path: spec.minReplicas, value: 2 }
+      - equal: { path: spec.maxReplicas, value: 5 }
+      - equal: { path: 'spec.scaleTargetRef.name', value: RELEASE-NAME-opensign-frontend }
+  - it: omits the PDB when autoscaling can reach a singleton
+    template: templates/frontend-pdb.yaml
+    set:
+      frontend.autoscaling.enabled: true
+      frontend.autoscaling.minReplicas: 1
+    asserts:
+      - hasDocuments: { count: 0 }

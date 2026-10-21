@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: OpenSign networking
+templates:
+  - templates/services.yaml
+  - templates/ingress.yaml
+  - templates/httproute.yaml
+  - templates/networkpolicy.yaml
+tests:
+  - it: renders dual-stack frontend and backend services
+    template: templates/services.yaml
+    set:
+      service.ipFamilyPolicy: PreferDualStack
+      service.ipFamilies: [IPv4, IPv6]
+    asserts:
+      - hasDocuments: { count: 2 }
+      - equal: { path: spec.ipFamilyPolicy, value: PreferDualStack }
+        documentIndex: 0
+      - equal: { path: 'spec.ipFamilies[1]', value: IPv6 }
+        documentIndex: 1
+  - it: exposes frontend and API on separate ingress hosts
+    template: templates/ingress.yaml
+    set:
+      ingress.enabled: true
+      ingress.frontendHost: sign.example.com
+      ingress.apiHost: api.sign.example.com
+    asserts:
+      - hasDocuments: { count: 2 }
+      - equal: { path: spec.ingressClassName, value: traefik }
+        documentIndex: 0
+      - equal: { path: 'spec.rules[0].host', value: sign.example.com }
+        documentIndex: 0
+      - equal: { path: 'spec.rules[0].host', value: api.sign.example.com }
+        documentIndex: 1
+  - it: renders separate Gateway API routes
+    template: templates/httproute.yaml
+    set:
+      gateway.enabled: true
+      gateway.parentRefs:
+        - name: public
+      gateway.frontendHostnames: [sign.example.com]
+      gateway.apiHostnames: [api.sign.example.com]
+    asserts:
+      - hasDocuments: { count: 2 }
+      - isKind: { of: HTTPRoute }
+        documentIndex: 0
+      - equal: { path: 'spec.hostnames[0]', value: api.sign.example.com }
+        documentIndex: 1
+  - it: permits MongoDB and configured SMTP egress from the backend
+    template: templates/networkpolicy.yaml
+    set:
+      smtp.enabled: true
+      smtp.host: smtp.example.com
+      smtp.fromAddress: signatures@example.com
+      secrets.smtpPassword: test-password
+    asserts:
+      - hasDocuments: { count: 2 }
+      - contains: { path: 'spec.egress[1].ports', content: { protocol: TCP, port: 27017 } }
+        documentIndex: 1
+      - contains: { path: 'spec.egress[2].ports', content: { protocol: TCP, port: 587 } }
+        documentIndex: 1

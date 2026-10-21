@@ -1,0 +1,94 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: OpenSign workloads
+templates:
+  - templates/frontend-deployment.yaml
+  - templates/backend-deployment.yaml
+tests:
+  - it: renders a scalable immutable frontend
+    template: templates/frontend-deployment.yaml
+    asserts:
+      - equal: { path: spec.replicas, value: 2 }
+      - equal: { path: spec.strategy.type, value: RollingUpdate }
+      - equal: { path: 'spec.template.spec.containers[0].image', value: 'docker.io/opensign/opensign@sha256:0ebc230eed21ced0d321a0df887c1a48e9f4bd423c2454fe865a262aec49f99a' }
+      - equal: { path: 'spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem', value: true }
+      - contains:
+          path: 'spec.template.spec.containers[0].env'
+          content: { name: REACT_APP_SERVERURL, value: 'https://api.opensign.example.com/app' }
+  - it: delegates frontend replicas to the HPA when autoscaling is enabled
+    template: templates/frontend-deployment.yaml
+    set:
+      frontend.autoscaling.enabled: true
+    asserts:
+      - notExists: { path: spec.replicas }
+  - it: keeps the migration-running backend singleton
+    template: templates/backend-deployment.yaml
+    asserts:
+      - equal: { path: spec.replicas, value: 1 }
+      - equal: { path: spec.strategy.type, value: Recreate }
+      - equal: { path: 'spec.template.spec.containers[0].image', value: 'docker.io/opensign/opensignserver@sha256:cadfcaaa20bf40272aed43c91314362c1dac034b2a4651f50e5288d01c2b434d' }
+      - equal: { path: spec.template.spec.securityContext.runAsUser, value: 1000 }
+      - contains:
+          path: 'spec.template.spec.containers[0].env'
+          content: { name: MONGODB_URI, value: 'mongodb://root:$(MONGODB_ROOT_PASSWORD)@RELEASE-NAME-mongodb:27017/opensign?authSource=admin' }
+      - contains:
+          path: 'spec.template.spec.containers[0].volumeMounts'
+          content: { name: files, mountPath: /usr/src/app/files }
+      - contains:
+          path: 'spec.template.spec.containers[0].volumeMounts'
+          content: { name: runtime-app, mountPath: /usr/src/app }
+      - equal: { path: 'spec.template.spec.volumes[0].emptyDir.sizeLimit', value: 2Gi }
+  - it: bounds ephemeral file storage when S3 is selected
+    template: templates/backend-deployment.yaml
+    set:
+      storage.type: s3
+      storage.s3.bucket: opensign-documents
+      storage.s3.endpoint: https://s3.example.com
+      storage.s3.baseUrl: https://documents.example.com
+      secrets.existingSecret: opensign-production
+    asserts:
+      - equal: { path: 'spec.template.spec.volumes[1].emptyDir.sizeLimit', value: 2Gi }
+  - it: follows MongoDB subchart naming when the release name contains mongodb
+    template: templates/backend-deployment.yaml
+    release:
+      name: mongodb-production
+    asserts:
+      - equal:
+          path: 'spec.template.spec.initContainers[0].command[3]'
+          value: mongodb-production
+      - contains:
+          path: 'spec.template.spec.containers[0].env'
+          content:
+            name: MONGODB_ROOT_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: mongodb-production
+                key: mongodb-root-password
+      - contains:
+          path: 'spec.template.spec.containers[0].env'
+          content:
+            name: MONGODB_URI
+            value: 'mongodb://root:$(MONGODB_ROOT_PASSWORD)@mongodb-production:27017/opensign?authSource=admin'
+  - it: adds the replica set name to the bundled MongoDB URI
+    template: templates/backend-deployment.yaml
+    set:
+      mongodb.architecture: replicaset
+      mongodb.replicaSet.name: opensign-rs
+    asserts:
+      - contains:
+          path: 'spec.template.spec.containers[0].env'
+          content:
+            name: MONGODB_URI
+            value: 'mongodb://root:$(MONGODB_ROOT_PASSWORD)@RELEASE-NAME-mongodb:27017/opensign?authSource=admin&replicaSet=opensign-rs'
+  - it: preserves selector labels when adding pod labels
+    template: templates/frontend-deployment.yaml
+    set:
+      podLabels.team: signatures
+    asserts:
+      - equal: { path: spec.template.metadata.labels.team, value: signatures }
+      - equal: { path: 'spec.template.metadata.labels["app.kubernetes.io/component"]', value: frontend }
+  - it: renders priority class without corrupting pod spec whitespace
+    template: templates/frontend-deployment.yaml
+    set:
+      priorityClassName: production-priority
+    asserts:
+      - equal: { path: spec.template.spec.priorityClassName, value: production-priority }

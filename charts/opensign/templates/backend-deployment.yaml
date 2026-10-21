@@ -1,0 +1,259 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "opensign.componentName" (dict "root" . "component" "backend") }}
+  labels:
+    {{- include "opensign.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "opensign.componentSelectorLabels" (dict "root" . "component" "backend") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "opensign.componentSelectorLabels" (dict "root" . "component" "backend") | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "opensign.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        {{- if .Values.mongodb.enabled }}
+        - name: wait-for-mongodb
+          image: {{ include "opensign.backendImage" . | quote }}
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          command:
+            - node
+            - -e
+            - >-
+              const net=require('net'); const host=process.argv[1];
+              const retry=()=>{const s=net.connect(27017,host,()=>process.exit(0));
+              s.on('error',()=>setTimeout(retry,1000));}; retry();
+            - {{ include "opensign.mongodbHost" . }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+        {{- end }}
+        - name: prepare-runtime-app
+          image: {{ include "opensign.backendImage" . | quote }}
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - cp -R /usr/src/app/. /runtime-app/
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: runtime-app
+              mountPath: /runtime-app
+            - name: tmp
+              mountPath: /tmp
+        - name: prepare-files
+          image: {{ include "opensign.backendImage" . | quote }}
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - >-
+              if [ ! -e /data/.opensign-initialized ]; then
+                cp -R /usr/src/app/files/. /data/;
+                touch /data/.opensign-initialized;
+              fi
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: files
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      containers:
+        - name: backend
+          image: {{ include "opensign.backendImage" . | quote }}
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            - name: APP_ID
+              value: {{ .Values.config.appId | quote }}
+            - name: appName
+              value: {{ .Values.config.appName | quote }}
+            - name: MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "opensign.secretName" . }}
+                  key: {{ .Values.secrets.masterKeyKey }}
+            {{- if .Values.mongodb.enabled }}
+            - name: MONGODB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "opensign.mongodbSecretName" . }}
+                  key: mongodb-root-password
+            - name: MONGODB_URI
+              {{- $mongodbUri := printf "mongodb://%s:$(MONGODB_ROOT_PASSWORD)@%s:27017/opensign?authSource=admin" .Values.mongodb.auth.rootUser (include "opensign.mongodbHost" .) }}
+              {{- if eq .Values.mongodb.architecture "replicaset" }}
+              value: {{ printf "%s&replicaSet=%s" $mongodbUri .Values.mongodb.replicaSet.name | quote }}
+              {{- else }}
+              value: {{ $mongodbUri | quote }}
+              {{- end }}
+            {{- else if .Values.externalMongodb.existingSecret }}
+            - name: MONGODB_URI
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.externalMongodb.existingSecret }}
+                  key: {{ .Values.externalMongodb.existingSecretUriKey }}
+            {{- else }}
+            - name: MONGODB_URI
+              value: {{ .Values.externalMongodb.uri | quote }}
+            {{- end }}
+            - name: PARSE_MOUNT
+              value: /app
+            - name: SERVER_URL
+              value: {{ trimSuffix "/" .Values.config.apiUrl | quote }}
+            - name: PUBLIC_URL
+              value: {{ trimSuffix "/" .Values.config.publicUrl | quote }}
+            - name: USE_LOCAL
+              value: {{ ternary "true" "false" (eq .Values.storage.type "local") | quote }}
+            - name: SMTP_ENABLE
+              value: {{ .Values.smtp.enabled | quote }}
+            - name: SMTP_HOST
+              value: {{ .Values.smtp.host | quote }}
+            - name: SMTP_PORT
+              value: {{ .Values.smtp.port | quote }}
+            - name: SMTP_USERNAME
+              value: {{ .Values.smtp.username | quote }}
+            - name: SMTP_USER_EMAIL
+              value: {{ .Values.smtp.fromAddress | quote }}
+            - name: SMTP_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "opensign.secretName" . }}
+                  key: {{ .Values.secrets.smtpPasswordKey }}
+                  optional: {{ not .Values.smtp.enabled }}
+            - name: PFX_BASE64
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "opensign.secretName" . }}
+                  key: {{ .Values.secrets.pfxBase64Key }}
+                  optional: true
+            - name: PASS_PHRASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "opensign.secretName" . }}
+                  key: {{ .Values.secrets.pfxPassphraseKey }}
+                  optional: true
+            - name: DO_SPACE
+              value: {{ .Values.storage.s3.bucket | quote }}
+            - name: DO_ENDPOINT
+              value: {{ .Values.storage.s3.endpoint | quote }}
+            - name: DO_BASEURL
+              value: {{ .Values.storage.s3.baseUrl | quote }}
+            - name: DO_REGION
+              value: {{ .Values.storage.s3.region | quote }}
+            - name: DO_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "opensign.secretName" . }}
+                  key: {{ .Values.secrets.objectStorageAccessKeyIdKey }}
+                  optional: {{ ne .Values.storage.type "s3" }}
+            - name: DO_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "opensign.secretName" . }}
+                  key: {{ .Values.secrets.objectStorageSecretAccessKeyKey }}
+                  optional: {{ ne .Values.storage.type "s3" }}
+            - name: HOME
+              value: /tmp
+            {{- with .Values.backend.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          {{- if .Values.probes.backend.startup.enabled }}
+          startupProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: {{ .Values.probes.backend.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.backend.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.backend.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.backend.startup.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.backend.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: {{ .Values.probes.backend.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.backend.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.backend.readiness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.backend.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: {{ .Values.probes.backend.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.backend.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.backend.liveness.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.backend.resources | nindent 12 }}
+          volumeMounts:
+            - name: runtime-app
+              mountPath: /usr/src/app
+            - name: files
+              mountPath: /usr/src/app/files
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: runtime-app
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeStorage.sizeLimit }}
+        - name: files
+          {{- if and (eq .Values.storage.type "local") .Values.storage.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "opensign.persistenceClaimName" . }}
+          {{- else }}
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeStorage.sizeLimit }}
+          {{- end }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeStorage.sizeLimit }}
+      {{ with .Values.priorityClassName -}}
+      priorityClassName: {{ . | quote }}
+      {{ end -}}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

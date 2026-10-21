@@ -1,0 +1,64 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.networkPolicy.enabled }}
+{{- range $component := list "frontend" "backend" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "opensign.componentName" (dict "root" $ "component" $component) }}
+  labels:
+    {{- include "opensign.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "opensign.componentSelectorLabels" (dict "root" $ "component" $component) | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: {{ ternary 3000 8080 (eq $component "frontend") }}
+    {{- with $.Values.networkPolicy.extraIngress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  egress:
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- if eq $component "backend" }}
+    {{- if $.Values.mongodb.enabled }}
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: mongodb
+              app.kubernetes.io/instance: {{ $.Release.Name }}
+              app.kubernetes.io/component: mongodb
+      ports:
+        - protocol: TCP
+          port: 27017
+    {{- else if $.Values.externalMongodb.networkPolicyPeers }}
+    - to:
+        {{- toYaml $.Values.externalMongodb.networkPolicyPeers | nindent 8 }}
+      ports:
+        - protocol: TCP
+          port: {{ $.Values.externalMongodb.port }}
+    {{- end }}
+    - ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+        {{- if $.Values.smtp.enabled }}
+        - protocol: TCP
+          port: {{ $.Values.smtp.port }}
+        {{- end }}
+    {{- end }}
+    {{- with $.Values.networkPolicy.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,139 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "opensign.componentName" (dict "root" . "component" "frontend") }}
+  labels:
+    {{- include "opensign.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  {{- if not .Values.frontend.autoscaling.enabled }}
+  replicas: {{ .Values.frontend.replicaCount }}
+  {{- end }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "opensign.componentSelectorLabels" (dict "root" . "component" "frontend") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "opensign.componentSelectorLabels" (dict "root" . "component" "frontend") | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "opensign.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: prepare-runtime-build
+          image: {{ include "opensign.frontendImage" . | quote }}
+          imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - cp -R /usr/src/app/build/. /runtime-build/
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: runtime-build
+              mountPath: /runtime-build
+            - name: tmp
+              mountPath: /tmp
+      containers:
+        - name: frontend
+          image: {{ include "opensign.frontendImage" . | quote }}
+          imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            - name: PUBLIC_URL
+              value: {{ trimSuffix "/" .Values.config.publicUrl | quote }}
+            - name: REACT_APP_SERVERURL
+              value: {{ trimSuffix "/" .Values.config.apiUrl | quote }}
+            - name: REACT_APP_APPID
+              value: {{ .Values.config.appId | quote }}
+            - name: HOME
+              value: /tmp
+            {{- with .Values.frontend.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          {{- if .Values.probes.frontend.startup.enabled }}
+          startupProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: {{ .Values.probes.frontend.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.frontend.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.frontend.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.frontend.startup.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.frontend.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: {{ .Values.probes.frontend.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.frontend.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.frontend.readiness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.frontend.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: {{ .Values.probes.frontend.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.frontend.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.frontend.liveness.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.frontend.resources | nindent 12 }}
+          volumeMounts:
+            - name: runtime-build
+              mountPath: /usr/src/app/build
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: runtime-build
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeStorage.sizeLimit }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeStorage.sizeLimit }}
+      {{ with .Values.priorityClassName -}}
+      priorityClassName: {{ . | quote }}
+      {{ end -}}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

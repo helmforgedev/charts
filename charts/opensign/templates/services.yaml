@@ -1,0 +1,31 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- range $component := list "frontend" "backend" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "opensign.componentName" (dict "root" $ "component" $component) }}
+  labels:
+    {{- include "opensign.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+  {{- with $.Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ $.Values.service.type }}
+  {{- with $.Values.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with $.Values.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  ports:
+    - name: http
+      port: {{ ternary $.Values.service.frontendPort $.Values.service.backendPort (eq $component "frontend") }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "opensign.componentSelectorLabels" (dict "root" $ "component" $component) | nindent 4 }}
+{{- end }}

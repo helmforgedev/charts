@@ -1,0 +1,136 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+OpenSign {{ .Chart.AppVersion }} has been installed.
+
+1. Installation summary
+=======================
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+Frontend image: {{ include "opensign.frontendImage" . }}
+Backend image: {{ include "opensign.backendImage" . }}
+Frontend replicas: {{ if .Values.frontend.autoscaling.enabled }}managed by HPA ({{ .Values.frontend.autoscaling.minReplicas }}-{{ .Values.frontend.autoscaling.maxReplicas }}){{ else }}{{ .Values.frontend.replicaCount }}{{ end }}
+Backend replicas: 1
+ServiceAccount: {{ include "opensign.serviceAccountName" . }}
+
+2. Access
+=========
+Frontend Service: {{ include "opensign.componentName" (dict "root" . "component" "frontend") }}:{{ .Values.service.frontendPort }}
+Backend Service: {{ include "opensign.componentName" (dict "root" . "component" "backend") }}:{{ .Values.service.backendPort }}
+{{- if .Values.ingress.enabled }}
+Frontend URL: {{ .Values.config.publicUrl }}
+API URL: {{ .Values.config.apiUrl }}
+Ingress class: {{ default "cluster default" .Values.ingress.ingressClassName }}
+{{- else if .Values.gateway.enabled }}
+Frontend URL: {{ .Values.config.publicUrl }}
+API URL: {{ .Values.config.apiUrl }}
+HTTPRoutes use the configured Gateway parent references.
+{{- else }}
+
+For local access, run:
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "opensign.componentName" (dict "root" . "component" "frontend") }} 3000:{{ .Values.service.frontendPort }}
+
+Open http://127.0.0.1:3000. The browser must also be able to reach
+{{ .Values.config.apiUrl }}. For a local-only test, port-forward the API and
+install with config.apiUrl=http://127.0.0.1:8080/app.
+{{- end }}
+
+3. Getting started
+==================
+Wait for both workloads:
+
+  kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "opensign.componentName" (dict "root" . "component" "frontend") }}
+  kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "opensign.componentName" (dict "root" . "component" "backend") }}
+
+Open the frontend and create the initial user through the application. Before
+accepting production documents, verify HTTPS, signing, SMTP, document storage,
+and a complete backup and restore test.
+
+4. Credentials and signing
+==========================
+Application Secret: {{ include "opensign.secretName" . }}
+Master key entry: {{ .Values.secrets.masterKeyKey }}
+PFX entry: {{ .Values.secrets.pfxBase64Key }}
+PFX passphrase entry: {{ .Values.secrets.pfxPassphraseKey }}
+{{- if .Values.secrets.existingSecret }}
+The chart uses the existing Secret and does not own its lifecycle.
+{{- else }}
+The chart generated and retained the application Secret. Back it up separately
+from the Helm release and keep the master key stable across upgrades.
+{{- end }}
+Provide the PKCS#12 certificate and passphrase together. Rotate them under a
+document-signing change procedure and test a disposable signature afterwards.
+
+5. Configuration summary
+========================
+MongoDB mode: {{ ternary "bundled HelmForge subchart" "external" .Values.mongodb.enabled }}
+Document storage: {{ .Values.storage.type }}
+{{- if eq .Values.storage.type "local" }}
+Document claim: {{ include "opensign.persistenceClaimName" . }}
+PVC retention: {{ .Values.storage.persistence.retain }}
+{{- else }}
+S3 bucket: {{ .Values.storage.s3.bucket }}
+S3 endpoint: {{ .Values.storage.s3.endpoint }}
+{{- end }}
+SMTP enabled: {{ .Values.smtp.enabled }}
+NetworkPolicy enabled: {{ .Values.networkPolicy.enabled }}
+Frontend disruption budget enabled: {{ .Values.frontend.podDisruptionBudget.enabled }}
+Frontend autoscaling enabled: {{ .Values.frontend.autoscaling.enabled }}
+
+The backend is intentionally a singleton with Recreate updates because upstream
+migrations execute during startup. Do not scale it without upstream evidence
+that migrations and the selected storage backend are concurrency-safe.
+
+6. Validation commands
+======================
+Release status:
+
+  helm -n {{ .Release.Namespace }} status {{ .Release.Name }}
+
+Workloads and endpoints:
+
+  kubectl -n {{ .Release.Namespace }} get deployment,pod,service,pvc
+  kubectl -n {{ .Release.Namespace }} get endpoints
+
+Wait for readiness:
+
+  kubectl -n {{ .Release.Namespace }} wait --for=condition=Available deployment/{{ include "opensign.componentName" (dict "root" . "component" "frontend") }} --timeout=10m
+  kubectl -n {{ .Release.Namespace }} wait --for=condition=Available deployment/{{ include "opensign.componentName" (dict "root" . "component" "backend") }} --timeout=10m
+
+Test the API from inside the cluster:
+
+  kubectl -n {{ .Release.Namespace }} run opensign-check --rm -i --restart=Never --image=curlimages/curl -- curl -fsS http://{{ include "opensign.componentName" (dict "root" . "component" "backend") }}:{{ .Values.service.backendPort }}/
+
+7. Troubleshooting
+==================
+Inspect pods and recent events:
+
+  kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl -n {{ .Release.Namespace }} get events --sort-by=.lastTimestamp
+
+Inspect current and previous logs:
+
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "opensign.componentName" (dict "root" . "component" "backend") }}
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "opensign.componentName" (dict "root" . "component" "backend") }} --previous
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "opensign.componentName" (dict "root" . "component" "frontend") }}
+
+If MongoDB authentication fails, verify the selected database mode, Secret key,
+URI authSource, TLS parameters, and NetworkPolicy egress. If uploads fail,
+verify the local PVC or S3 endpoint, bucket permissions, base URL, credentials,
+and private egress rules. If signing fails, verify that both PFX values exist
+and decode to a valid PKCS#12 certificate and passphrase.
+
+8. Backup, upgrade, and resources
+================================
+Back up MongoDB, documents, the application Secret, signing certificate, and
+integration credentials as one recovery set. Test restoration in an isolated
+namespace before depending on it.
+
+Before upgrading, read upstream release notes, verify both official image
+digests, back up state, and expect a brief backend interruption due to Recreate.
+
+HelmForge documentation: https://helmforge.dev/docs/charts/opensign
+Upstream source: https://github.com/OpenSignLabs/OpenSign
+Chart issues: https://github.com/helmforgedev/charts/issues
+
+Happy Helmforging :)

@@ -1,0 +1,22 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if and (eq .Values.storage.type "local") .Values.storage.persistence.enabled (not .Values.storage.persistence.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "opensign.fullname" . }}
+  labels:
+    {{- include "opensign.labels" . | nindent 4 }}
+  {{- if .Values.storage.persistence.retain }}
+  annotations:
+    helm.sh/resource-policy: keep
+  {{- end }}
+spec:
+  accessModes:
+    {{- toYaml .Values.storage.persistence.accessModes | nindent 4 }}
+  {{- with .Values.storage.persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.storage.persistence.size }}
+{{- end }}

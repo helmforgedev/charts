@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: OpenSign values validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: rejects simultaneous bundled and external MongoDB
+    set:
+      externalMongodb.enabled: true
+      externalMongodb.uri: mongodb://mongo.example/opensign
+    asserts:
+      - failedTemplate: { errorMessage: "exactly one of mongodb.enabled or externalMongodb.enabled must be true" }
+  - it: requires distinct ingress hosts
+    set:
+      ingress.enabled: true
+      ingress.frontendHost: sign.example.com
+      ingress.apiHost: sign.example.com
+    asserts:
+      - failedTemplate: { errorMessage: "ingress frontend and API hosts must differ because OpenSign exposes backend root routes" }
+  - it: rejects simultaneous Ingress and Gateway API exposure
+    set:
+      ingress.enabled: true
+      gateway.enabled: true
+    asserts:
+      - failedTemplate: { errorMessage: "ingress.enabled and gateway.enabled are mutually exclusive" }
+  - it: requires explicit external MongoDB egress peers
+    set:
+      mongodb.enabled: false
+      externalMongodb.enabled: true
+      externalMongodb.uri: mongodb://mongo.example/opensign
+    asserts:
+      - failedTemplate: { errorMessage: "externalMongodb.networkPolicyPeers or networkPolicy.extraEgress is required for external MongoDB when NetworkPolicy is enabled" }
+  - it: requires credentials for S3
+    set:
+      storage.type: s3
+      storage.s3.bucket: signatures
+      storage.s3.endpoint: https://s3.example.com
+      storage.s3.baseUrl: https://signatures.s3.example.com
+    asserts:
+      - failedTemplate: { errorMessage: "S3 credentials or secrets.existingSecret are required when storage.type=s3" }
+  - it: requires a master-key mapping for External Secrets
+    set:
+      secrets.existingSecret: opensign-identity
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: production
+      externalSecrets.items:
+        - secretKey: smtp-password
+          remoteRef:
+            key: opensign/smtp-password
+    asserts:
+      - failedTemplate: { errorMessage: 'externalSecrets.items must map the required key "master-key"' }

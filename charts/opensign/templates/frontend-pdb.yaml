@@ -1,0 +1,20 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- $replicaFloor := ternary (int .Values.frontend.autoscaling.minReplicas) (int .Values.frontend.replicaCount) .Values.frontend.autoscaling.enabled }}
+{{- if and .Values.frontend.podDisruptionBudget.enabled (gt $replicaFloor 1) }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "opensign.componentName" (dict "root" . "component" "frontend") }}
+  labels:
+    {{- include "opensign.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  selector:
+    matchLabels:
+      {{- include "opensign.componentSelectorLabels" (dict "root" . "component" "frontend") | nindent 6 }}
+  {{- if ne .Values.frontend.podDisruptionBudget.maxUnavailable nil }}
+  maxUnavailable: {{ .Values.frontend.podDisruptionBudget.maxUnavailable }}
+  {{- else }}
+  minAvailable: {{ .Values.frontend.podDisruptionBudget.minAvailable }}
+  {{- end }}
+{{- end }}
