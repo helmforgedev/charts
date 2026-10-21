@@ -1,0 +1,349 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# -- Override the chart name used in Kubernetes object names.
+nameOverride: ''
+# -- Override the full release name used in Kubernetes object names.
+fullnameOverride: ''
+# -- Extra labels applied to every chart-owned resource.
+commonLabels: {}
+
+# -- Number of Documenso replicas. More than one requires BullMQ and shared object storage.
+replicaCount: 1
+
+image:
+  # -- Official Documenso image repository.
+  repository: ghcr.io/documenso/documenso
+  # -- Pinned official Documenso release tag.
+  tag: v2.21.0
+  # -- Optional immutable manifest digest. When set, it takes precedence over tag.
+  digest: sha256:d9985f66c19c59128f64b1439f057683da0110deb0e518655b97f06e3141f173
+  # -- Kubernetes pull policy.
+  pullPolicy: IfNotPresent
+
+# -- Registry credentials for private mirrors.
+imagePullSecrets: []
+
+documenso:
+  # -- Canonical public URL. Empty derives from Ingress or the first HTTPRoute hostname.
+  publicUrl: ''
+  # -- Sender email address used by transactional mail.
+  mailFromAddress: noreply@example.com
+  # -- Sender display name used by transactional mail.
+  mailFromName: Documenso
+  # -- Background-job provider: local, bullmq, or inngest.
+  jobsProvider: local
+  # -- Existing Secret with authentication and encryption keys. Empty creates and retains one.
+  existingSecret: ''
+  # -- Key containing NEXTAUTH_SECRET.
+  nextAuthSecretKey: nextauth-secret
+  # -- Key containing NEXT_PRIVATE_ENCRYPTION_KEY.
+  encryptionKeyKey: encryption-key
+  # -- Key containing NEXT_PRIVATE_ENCRYPTION_SECONDARY_KEY.
+  encryptionSecondaryKeyKey: encryption-secondary-key
+  # -- Additional environment entries for supported advanced upstream settings.
+  extraEnv: []
+  # -- Additional envFrom sources such as Secret or ConfigMap references.
+  extraEnvFrom: []
+
+database:
+  external:
+    # -- Use an externally managed PostgreSQL database instead of the bundled subchart.
+    enabled: false
+    # -- Existing Secret containing complete, URL-encoded PostgreSQL URLs.
+    existingSecret: ''
+    # -- Key containing NEXT_PRIVATE_DATABASE_URL.
+    urlKey: database-url
+    # -- Key containing NEXT_PRIVATE_DIRECT_DATABASE_URL.
+    directUrlKey: direct-database-url
+    # -- Whether the direct URL key exists in the Secret.
+    directUrlEnabled: false
+    # -- TCP host used by dependency waiting and NetworkPolicy.
+    host: ''
+    # -- PostgreSQL TCP port.
+    port: 5432
+    # -- NetworkPolicy peers allowed to the external database.
+    networkPolicyPeers: []
+
+# -- Maintained HelmForge PostgreSQL dependency. Prefer managed PostgreSQL for production.
+postgresql:
+  # -- Deploy PostgreSQL with this release.
+  enabled: true
+  # -- PostgreSQL topology.
+  architecture: standalone
+  auth:
+    # -- Application database created on first initialization.
+    database: documenso
+    # -- Application database user.
+    username: documenso
+    # -- Application password. Empty lets the dependency generate and retain it.
+    password: ''
+    # -- Administrative password. Empty lets the dependency generate and retain it.
+    postgresPassword: ''
+  standalone:
+    persistence:
+      # -- Persist PostgreSQL data.
+      enabled: true
+      # -- Requested PostgreSQL PVC capacity.
+      size: 8Gi
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+      limits: { cpu: '1', memory: 1Gi }
+
+# -- BullMQ Redis dependency or external Redis connection.
+redis:
+  # -- Deploy Redis with this release. Required when documenso.jobsProvider is bullmq.
+  enabled: false
+  # -- Redis topology.
+  architecture: standalone
+  auth:
+    # -- Require password authentication.
+    enabled: true
+    # -- Redis password. Empty lets the dependency generate and retain it.
+    password: ''
+  standalone:
+    persistence:
+      # -- Persist queued jobs.
+      enabled: true
+      # -- Requested Redis PVC capacity.
+      size: 1Gi
+    resources:
+      requests: { cpu: 50m, memory: 128Mi }
+      limits: { cpu: 500m, memory: 512Mi }
+  external:
+    # -- Use an external Redis service.
+    enabled: false
+    # -- External Redis hostname.
+    host: ''
+    # -- External Redis port.
+    port: 6379
+    # -- Redis logical database.
+    database: 0
+    # -- Existing Secret containing the Redis password.
+    existingSecret: ''
+    # -- Key containing the Redis password.
+    passwordKey: redis-password
+    # -- NetworkPolicy peers allowed to external Redis.
+    networkPolicyPeers: []
+
+smtp:
+  # -- Enable authenticated SMTP configuration.
+  enabled: false
+  # -- SMTP hostname.
+  host: ''
+  # -- SMTP port.
+  port: 587
+  # -- Use implicit TLS.
+  secure: false
+  # -- Existing Secret containing SMTP credentials.
+  existingSecret: ''
+  # -- Key containing the SMTP username.
+  usernameKey: username
+  # -- Key containing the SMTP password.
+  passwordKey: password
+
+objectStorage:
+  # -- Storage provider: database or s3.
+  provider: database
+  s3:
+    # -- S3 bucket.
+    bucket: ''
+    # -- AWS region.
+    region: us-east-1
+    # -- Optional S3-compatible endpoint.
+    endpoint: ''
+    # -- Force path-style access for S3-compatible providers.
+    forcePathStyle: false
+    # -- Existing Secret containing S3 credentials.
+    existingSecret: ''
+    # -- Key containing the access key.
+    accessKeyKey: access-key
+    # -- Key containing the secret key.
+    secretKeyKey: secret-key
+
+certificate:
+  # -- Enable a PKCS#12 signing certificate mounted from a Secret.
+  enabled: false
+  # -- Existing Secret containing the certificate and passphrase.
+  existingSecret: ''
+  # -- Key containing the binary PKCS#12 certificate.
+  fileKey: signing-certificate.p12
+  # -- Key containing its passphrase.
+  passphraseKey: passphrase
+  # -- Mount path exposed through NEXT_PRIVATE_SIGNING_LOCAL_FILE_PATH.
+  mountPath: /var/run/documenso/certificate/signing-certificate.p12
+
+gotenberg:
+  # -- Enable an external Gotenberg document-conversion service.
+  enabled: false
+  # -- Gotenberg base URL.
+  url: ''
+  # -- Optional existing Secret containing Basic Auth credentials.
+  existingSecret: ''
+  # -- Username key in the Secret.
+  usernameKey: username
+  # -- Password key in the Secret.
+  passwordKey: password
+
+# -- Native External Secrets Operator resources for application and provider credentials.
+externalSecrets:
+  # -- Render ExternalSecret resources; install the operator and CRDs separately.
+  enabled: false
+  # -- Default refresh interval; an item may override it in spec.
+  refreshInterval: 1h
+  # -- Native ExternalSecret definitions using name/fullnameOverride and a complete spec.
+  items: []
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount.
+  create: true
+  # -- ServiceAccount name. Empty uses the chart fullname.
+  name: ''
+  # -- Additional ServiceAccount annotations.
+  annotations: {}
+  # -- Keep the Kubernetes API token unmounted.
+  automountServiceAccountToken: false
+
+service:
+  # -- Kubernetes Service type.
+  type: ClusterIP
+  # -- Service port.
+  port: 3000
+  # -- Additional Service annotations.
+  annotations: {}
+  # -- Service IP family policy. Empty inherits the cluster default.
+  ipFamilyPolicy: ''
+  # -- Ordered Service address families. Empty inherits the cluster default.
+  ipFamilies: []
+
+ingress:
+  # -- Enable Kubernetes Ingress.
+  enabled: false
+  # -- Explicit IngressClassName.
+  ingressClassName: ''
+  # -- Additional Ingress annotations.
+  annotations: {}
+  # -- Ingress host and path definitions.
+  hosts: []
+  # -- Ingress TLS definitions.
+  tls: []
+
+gatewayAPI:
+  # -- Render Gateway API HTTPRoutes.
+  enabled: false
+  # -- Scheme used when deriving documenso.publicUrl.
+  publicUrlScheme: https
+  # -- Route definitions with parentRefs, hostnames, rules, labels, and annotations.
+  httpRoutes: []
+
+probes:
+  startup:
+    # -- Enable startup probe through /api/health.
+    enabled: true
+    # -- Seconds before the first startup probe.
+    initialDelaySeconds: 5
+    # -- Seconds between startup probes.
+    periodSeconds: 5
+    # -- Timeout for one startup probe.
+    timeoutSeconds: 5
+    # -- Failures allowed while Prisma migrations complete.
+    failureThreshold: 60
+  liveness:
+    # -- Enable dependency-independent TCP liveness.
+    enabled: true
+    # -- Seconds before the first liveness probe.
+    initialDelaySeconds: 0
+    # -- Seconds between liveness probes.
+    periodSeconds: 20
+    # -- Timeout for one liveness probe.
+    timeoutSeconds: 5
+    # -- Consecutive failures before restart.
+    failureThreshold: 3
+  readiness:
+    # -- Enable readiness through /api/health.
+    enabled: true
+    # -- Seconds before the first readiness probe.
+    initialDelaySeconds: 0
+    # -- Seconds between readiness probes.
+    periodSeconds: 10
+    # -- Timeout for one readiness probe.
+    timeoutSeconds: 5
+    # -- Consecutive failures before traffic is withdrawn.
+    failureThreshold: 3
+
+waitForServices:
+  image:
+    # -- Official BusyBox image used to wait for state services.
+    repository: docker.io/library/busybox
+    # -- Pinned multi-platform BusyBox tag and digest.
+    tag: 1.37.0@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+    # -- Pull policy for the dependency wait image.
+    pullPolicy: IfNotPresent
+  # -- Maximum seconds each dependency wait loop may run.
+  timeoutSeconds: 180
+  # -- Resources for dependency wait init containers.
+  resources:
+    requests: { cpu: 10m, memory: 16Mi }
+    limits: { cpu: 100m, memory: 64Mi }
+
+# -- Kubernetes compute requests and limits for Documenso.
+resources:
+  requests: { cpu: 250m, memory: 512Mi }
+  limits: { cpu: '1', memory: 1Gi }
+
+# -- Pod-level non-root identity and syscall filtering.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  fsGroup: 1001
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Container-level privilege and filesystem restrictions.
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# -- EmptyDir capacity shared by writable runtime paths.
+runtimeStorage:
+  sizeLimit: 512Mi
+
+# -- Grace period for in-flight requests and background jobs.
+terminationGracePeriodSeconds: 60
+
+networkPolicy:
+  # -- Restrict ingress and egress.
+  enabled: true
+  # -- Enforce egress isolation.
+  egressIsolation: true
+  # -- Ingress peers. Empty allows Pods in the release namespace.
+  ingressFrom: []
+  # -- DNS peers. Empty permits port 53 without a peer selector.
+  dnsEgress: []
+  # -- Permit public IPv4 and IPv6 HTTP/HTTPS for email, storage, OAuth, webhooks, and conversion.
+  allowPublicInternet: true
+  # -- Additional native NetworkPolicy egress rules.
+  extraEgress: []
+
+# -- Additional pod labels.
+podLabels: {}
+# -- Additional pod annotations.
+podAnnotations: {}
+# -- Node labels required for scheduling.
+nodeSelector: {}
+# -- Node taints tolerated by the pod.
+tolerations: []
+# -- Pod scheduling affinity.
+affinity: {}
+# -- Topology spread constraints.
+topologySpreadConstraints: []
+# -- Optional PriorityClass name.
+priorityClassName: ''
+# -- Additional volumes.
+extraVolumes: []
+# -- Additional volume mounts.
+extraVolumeMounts: []

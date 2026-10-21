@@ -1,0 +1,62 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+1. Check the rollout
+
+   kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "documenso.fullname" . }}
+   kubectl -n {{ .Release.Namespace }} get pod,svc -l app.kubernetes.io/instance={{ .Release.Name }}
+
+2. Open Documenso
+
+{{- if or .Values.ingress.enabled .Values.gatewayAPI.enabled }}
+   Visit {{ include "documenso.publicUrl" . }}
+{{- else }}
+   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "documenso.fullname" . }} 3000:{{ .Values.service.port }}
+   Open http://127.0.0.1:3000
+{{- end }}
+
+3. Verify health
+
+   curl --fail {{ include "documenso.publicUrl" . }}/api/health
+   curl --fail {{ include "documenso.publicUrl" . }}/api/certificate-status
+
+   Readiness includes PostgreSQL and certificate checks. Liveness uses TCP so a
+   temporary database outage does not create a restart storm.
+
+4. Protect application identity
+
+   Preserve NEXTAUTH_SECRET and both encryption keys for the installation life.
+   Use documenso.existingSecret or externalSecrets.items for deterministic GitOps.
+   Rotating encryption keys without a migration can make stored data unreadable.
+
+5. Configure signing and mail
+
+   A production signing certificate is supplied with certificate.existingSecret.
+   SMTP credentials belong in smtp.existingSecret. Keep both out of values files.
+   Protect public registration until the initial administrator is established.
+
+6. Operate state services
+
+   PostgreSQL is the system of record. BullMQ production queues require Redis.
+   Multiple replicas require BullMQ and S3-compatible shared object storage.
+   Back up PostgreSQL, object storage, signing certificate, and identity secrets.
+
+7. Review networking
+
+   NetworkPolicy permits namespace-local HTTP ingress, DNS, selected state
+   services, and public HTTP/HTTPS. Private external endpoints require explicit
+   networkPolicyPeers or networkPolicy.extraEgress rules.
+
+{{- with .Values.service.ipFamilyPolicy }}
+   Service IP family policy: {{ . }}{{ with $.Values.service.ipFamilies }} ({{ join ", " . }}){{ end }}
+{{- end }}
+
+8. Upgrade and troubleshoot
+
+   Back up state before upgrades because the upstream entrypoint applies Prisma
+   migrations automatically.
+
+   kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "documenso.fullname" . }}
+   kubectl -n {{ .Release.Namespace }} get events --sort-by=.lastTimestamp
+
+   Documentation: https://helmforge.dev/docs/charts/documenso
+
+Happy Helmforging :)

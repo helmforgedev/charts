@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Documenso deployment
+templates:
+  - templates/deployment.yaml
+tests:
+  - it: renders the immutable official image and upstream health contract
+    asserts:
+      - equal: { path: 'spec.template.spec.containers[0].image', value: 'ghcr.io/documenso/documenso@sha256:d9985f66c19c59128f64b1439f057683da0110deb0e518655b97f06e3141f173' }
+      - equal: { path: 'spec.template.spec.containers[0].startupProbe.httpGet.path', value: /api/health }
+      - equal: { path: 'spec.template.spec.containers[0].livenessProbe.tcpSocket.port', value: http }
+      - equal: { path: 'spec.template.spec.containers[0].readinessProbe.httpGet.path', value: /api/health }
+  - it: uses the upstream non-root identity and a read-only root filesystem
+    asserts:
+      - equal: { path: 'spec.template.spec.automountServiceAccountToken', value: false }
+      - equal: { path: 'spec.template.spec.securityContext.runAsUser', value: 1001 }
+      - equal: { path: 'spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem', value: true }
+      - contains: { path: 'spec.template.spec.containers[0].securityContext.capabilities.drop', content: ALL }
+  - it: preserves the official migration entrypoint and wires bundled PostgreSQL
+    asserts:
+      - notExists: { path: 'spec.template.spec.containers[0].command' }
+      - contains:
+          path: 'spec.template.spec.containers[0].env'
+          content: { name: NEXT_PRIVATE_JOBS_PROVIDER, value: local }
+      - contains:
+          path: 'spec.template.spec.containers[0].env'
+          content: { name: NEXT_PRIVATE_DATABASE_URL, value: "postgresql://documenso:$(DATABASE_PASSWORD)@RELEASE-NAME-postgresql:5432/documenso?connect_timeout=300" }
+  - it: renders BullMQ and bundled Redis only when selected
+    set:
+      documenso.jobsProvider: bullmq
+      redis.enabled: true
+    asserts:
+      - equal: { path: 'spec.template.spec.initContainers[1].name', value: wait-for-redis }
+      - contains:
+          path: 'spec.template.spec.containers[0].env'
+          content: { name: NEXT_PRIVATE_REDIS_URL, value: "redis://:$(REDIS_PASSWORD)@RELEASE-NAME-redis-client:6379/0" }

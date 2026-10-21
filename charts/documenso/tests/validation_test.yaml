@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Documenso values validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: rejects two database providers
+    set:
+      database.external.enabled: true
+      database.external.host: pg.example
+      database.external.existingSecret: pg
+    asserts:
+      - failedTemplate: { errorMessage: "documenso: database.external.enabled and postgresql.enabled are mutually exclusive" }
+  - it: requires Redis for BullMQ
+    set:
+      documenso.jobsProvider: bullmq
+    asserts:
+      - failedTemplate: { errorMessage: "documenso: BullMQ requires bundled or external Redis" }
+  - it: requires shared jobs and storage before scaling
+    set:
+      replicaCount: 2
+    asserts:
+      - failedTemplate: { errorMessage: "documenso: multiple replicas require jobsProvider=bullmq" }
+  - it: rejects simultaneous Ingress and Gateway API
+    set:
+      ingress.enabled: true
+      gatewayAPI.enabled: true
+    asserts:
+      - failedTemplate: { errorMessage: "documenso: enable either ingress or gatewayAPI, not both" }

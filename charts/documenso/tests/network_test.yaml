@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Documenso service and routes
+templates:
+  - templates/service.yaml
+  - templates/ingress.yaml
+  - templates/gateway-httproute.yaml
+tests:
+  - it: supports explicit dual-stack services
+    template: templates/service.yaml
+    set:
+      service.ipFamilyPolicy: PreferDualStack
+      service.ipFamilies: [IPv4, IPv6]
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+      - equal:
+          path: spec.ipFamilies[1]
+          value: IPv6
+  - it: renders ingressClassName
+    template: templates/ingress.yaml
+    set:
+      ingress.enabled: true
+      ingress.ingressClassName: traefik
+      ingress.hosts:
+        - host: sign.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: traefik
+  - it: renders a canonical HTTPRoute
+    template: templates/gateway-httproute.yaml
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - name: web
+          parentRefs:
+            - name: shared
+          hostnames:
+            - sign.example.com
+    asserts:
+      - isKind:
+          of: HTTPRoute

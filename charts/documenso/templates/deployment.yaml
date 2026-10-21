@@ -1,0 +1,253 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "documenso.fullname" . }}
+  labels:
+    {{- include "documenso.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    {{- if eq (int .Values.replicaCount) 1 }}
+    type: Recreate
+    {{- else }}
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+    {{- end }}
+  selector:
+    matchLabels:
+      {{- include "documenso.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "documenso.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}{{- toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "documenso.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}priorityClassName: {{ . }}{{- end }}
+      initContainers:
+        - name: wait-for-postgresql
+          image: {{ include "documenso.waitImage" . | quote }}
+          imagePullPolicy: {{ .Values.waitForServices.image.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          resources:
+            {{- toYaml .Values.waitForServices.resources | nindent 12 }}
+          command: [sh, -c]
+          args:
+            - >-
+              timeout {{ .Values.waitForServices.timeoutSeconds }} sh -c
+              'until nc -z -w 2 "$1" "$2"; do sleep 2; done' --
+              {{ include "documenso.databaseHost" . | quote }} {{ include "documenso.databasePort" . | quote }}
+        {{- if eq .Values.documenso.jobsProvider "bullmq" }}
+        - name: wait-for-redis
+          image: {{ include "documenso.waitImage" . | quote }}
+          imagePullPolicy: {{ .Values.waitForServices.image.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          resources:
+            {{- toYaml .Values.waitForServices.resources | nindent 12 }}
+          command: [sh, -c]
+          args:
+            - >-
+              timeout {{ .Values.waitForServices.timeoutSeconds }} sh -c
+              'until nc -z -w 2 "$1" "$2"; do sleep 2; done' --
+              {{ include "documenso.redisHost" . | quote }} {{ include "documenso.redisPort" . | quote }}
+        {{- end }}
+      containers:
+        - name: documenso
+          image: {{ include "documenso.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - { name: http, containerPort: 3000, protocol: TCP }
+          env:
+            - { name: NODE_ENV, value: production }
+            - { name: PORT, value: '3000' }
+            - name: NEXT_PUBLIC_WEBAPP_URL
+              value: {{ include "documenso.publicUrl" . | quote }}
+            - name: NEXT_PRIVATE_INTERNAL_WEBAPP_URL
+              value: {{ printf "http://127.0.0.1:%d" 3000 | quote }}
+            - name: NEXT_PRIVATE_SMTP_FROM_ADDRESS
+              value: {{ .Values.documenso.mailFromAddress | quote }}
+            - name: NEXT_PRIVATE_SMTP_FROM_NAME
+              value: {{ .Values.documenso.mailFromName | quote }}
+            - name: NEXT_PRIVATE_JOBS_PROVIDER
+              value: {{ .Values.documenso.jobsProvider | quote }}
+            - name: NEXTAUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "documenso.applicationSecretName" . | quote }}
+                  key: {{ .Values.documenso.nextAuthSecretKey | quote }}
+            - name: NEXT_PRIVATE_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "documenso.applicationSecretName" . | quote }}
+                  key: {{ .Values.documenso.encryptionKeyKey | quote }}
+            - name: NEXT_PRIVATE_ENCRYPTION_SECONDARY_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "documenso.applicationSecretName" . | quote }}
+                  key: {{ .Values.documenso.encryptionSecondaryKeyKey | quote }}
+            {{- if .Values.database.external.enabled }}
+            - name: NEXT_PRIVATE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "documenso.databaseSecretName" . | quote }}
+                  key: {{ .Values.database.external.urlKey | quote }}
+            {{- if .Values.database.external.directUrlEnabled }}
+            - name: NEXT_PRIVATE_DIRECT_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "documenso.databaseSecretName" . | quote }}
+                  key: {{ .Values.database.external.directUrlKey | quote }}
+            {{- end }}
+            {{- else }}
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "documenso.databaseSecretName" . | quote }}
+                  key: {{ include "documenso.databaseSecretKey" . | quote }}
+            - name: NEXT_PRIVATE_DATABASE_URL
+              value: {{ printf "postgresql://%s:$(DATABASE_PASSWORD)@%s:%s/%s?connect_timeout=300" .Values.postgresql.auth.username (include "documenso.databaseHost" .) (include "documenso.databasePort" .) .Values.postgresql.auth.database | quote }}
+            - name: NEXT_PRIVATE_DIRECT_DATABASE_URL
+              value: {{ printf "postgresql://%s:$(DATABASE_PASSWORD)@%s:%s/%s?connect_timeout=300" .Values.postgresql.auth.username (include "documenso.databaseHost" .) (include "documenso.databasePort" .) .Values.postgresql.auth.database | quote }}
+            {{- end }}
+            {{- if eq .Values.documenso.jobsProvider "bullmq" }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "documenso.redisSecretName" . | quote }}
+                  key: {{ include "documenso.redisSecretKey" . | quote }}
+            - name: NEXT_PRIVATE_REDIS_URL
+              value: {{ printf "redis://:$(REDIS_PASSWORD)@%s:%s/%d" (include "documenso.redisHost" .) (include "documenso.redisPort" .) (int .Values.redis.external.database) | quote }}
+            - { name: NEXT_PRIVATE_REDIS_PREFIX, value: documenso }
+            {{- end }}
+            {{- if .Values.smtp.enabled }}
+            - { name: NEXT_PRIVATE_SMTP_TRANSPORT, value: smtp-auth }
+            - { name: NEXT_PRIVATE_SMTP_HOST, value: {{ .Values.smtp.host | quote }} }
+            - { name: NEXT_PRIVATE_SMTP_PORT, value: {{ .Values.smtp.port | quote }} }
+            - { name: NEXT_PRIVATE_SMTP_SECURE, value: {{ .Values.smtp.secure | quote }} }
+            - name: NEXT_PRIVATE_SMTP_USERNAME
+              valueFrom: { secretKeyRef: { name: {{ .Values.smtp.existingSecret | quote }}, key: {{ .Values.smtp.usernameKey | quote }} } }
+            - name: NEXT_PRIVATE_SMTP_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ .Values.smtp.existingSecret | quote }}, key: {{ .Values.smtp.passwordKey | quote }} } }
+            {{- end }}
+            {{- if eq .Values.objectStorage.provider "s3" }}
+            - { name: NEXT_PRIVATE_UPLOAD_BUCKET, value: {{ .Values.objectStorage.s3.bucket | quote }} }
+            - { name: NEXT_PRIVATE_UPLOAD_REGION, value: {{ .Values.objectStorage.s3.region | quote }} }
+            - { name: NEXT_PRIVATE_UPLOAD_ENDPOINT, value: {{ .Values.objectStorage.s3.endpoint | quote }} }
+            - { name: NEXT_PRIVATE_UPLOAD_FORCE_PATH_STYLE, value: {{ .Values.objectStorage.s3.forcePathStyle | quote }} }
+            - name: NEXT_PRIVATE_UPLOAD_ACCESS_KEY_ID
+              valueFrom: { secretKeyRef: { name: {{ .Values.objectStorage.s3.existingSecret | quote }}, key: {{ .Values.objectStorage.s3.accessKeyKey | quote }} } }
+            - name: NEXT_PRIVATE_UPLOAD_SECRET_ACCESS_KEY
+              valueFrom: { secretKeyRef: { name: {{ .Values.objectStorage.s3.existingSecret | quote }}, key: {{ .Values.objectStorage.s3.secretKeyKey | quote }} } }
+            {{- end }}
+            {{- if .Values.certificate.enabled }}
+            - { name: NEXT_PRIVATE_SIGNING_TRANSPORT, value: local }
+            - { name: NEXT_PRIVATE_SIGNING_LOCAL_FILE_PATH, value: {{ .Values.certificate.mountPath | quote }} }
+            - name: NEXT_PRIVATE_SIGNING_PASSPHRASE
+              valueFrom: { secretKeyRef: { name: {{ .Values.certificate.existingSecret | quote }}, key: {{ .Values.certificate.passphraseKey | quote }} } }
+            {{- end }}
+            {{- if .Values.gotenberg.enabled }}
+            - { name: NEXT_PRIVATE_DOCUMENT_CONVERSION_URL, value: {{ .Values.gotenberg.url | quote }} }
+            {{- if .Values.gotenberg.existingSecret }}
+            - name: NEXT_PRIVATE_DOCUMENT_CONVERSION_USERNAME
+              valueFrom: { secretKeyRef: { name: {{ .Values.gotenberg.existingSecret | quote }}, key: {{ .Values.gotenberg.usernameKey | quote }} } }
+            - name: NEXT_PRIVATE_DOCUMENT_CONVERSION_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ .Values.gotenberg.existingSecret | quote }}, key: {{ .Values.gotenberg.passwordKey | quote }} } }
+            {{- end }}
+            {{- end }}
+            {{- with .Values.documenso.extraEnv }}{{- toYaml . | nindent 12 }}{{- end }}
+          {{- with .Values.documenso.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.probes.startup.enabled }}
+          startupProbe:
+            httpGet: { path: /api/health, port: http }
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            tcpSocket: { port: http }
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet: { path: /api/health, port: http }
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - { name: runtime-tmp, mountPath: /tmp }
+            - { name: npm-cache, mountPath: /home/nodejs/.npm }
+            {{- if .Values.certificate.enabled }}
+            - name: signing-certificate
+              mountPath: {{ .Values.certificate.mountPath }}
+              subPath: {{ .Values.certificate.fileKey }}
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}{{- toYaml . | nindent 12 }}{{- end }}
+      volumes:
+        - name: runtime-tmp
+          emptyDir: { sizeLimit: {{ .Values.runtimeStorage.sizeLimit }} }
+        - name: npm-cache
+          emptyDir: { sizeLimit: {{ .Values.runtimeStorage.sizeLimit }} }
+        {{- if .Values.certificate.enabled }}
+        - name: signing-certificate
+          secret:
+            secretName: {{ .Values.certificate.existingSecret }}
+            items:
+              - { key: {{ .Values.certificate.fileKey }}, path: {{ .Values.certificate.fileKey }} }
+        {{- end }}
+        {{- with .Values.extraVolumes }}{{- toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

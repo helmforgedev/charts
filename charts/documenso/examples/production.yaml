@@ -1,0 +1,68 @@
+# SPDX-License-Identifier: Apache-2.0
+replicaCount: 2
+
+documenso:
+  publicUrl: https://sign.example.com
+  jobsProvider: bullmq
+  existingSecret: documenso-identity
+  mailFromAddress: signatures@example.com
+
+postgresql:
+  enabled: false
+database:
+  external:
+    enabled: true
+    host: postgres.database.svc
+    existingSecret: documenso-database
+    directUrlEnabled: true
+    networkPolicyPeers:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: database
+
+redis:
+  enabled: false
+  external:
+    enabled: true
+    host: redis.cache.svc
+    existingSecret: documenso-redis
+    networkPolicyPeers:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: cache
+
+objectStorage:
+  provider: s3
+  s3:
+    bucket: production-documents
+    region: us-east-1
+    endpoint: https://s3.example.com
+    forcePathStyle: true
+    existingSecret: documenso-s3
+
+smtp:
+  enabled: true
+  host: smtp.example.com
+  existingSecret: documenso-smtp
+
+certificate:
+  enabled: true
+  existingSecret: documenso-signing
+
+gatewayAPI:
+  enabled: true
+  httpRoutes:
+    - name: web
+      parentRefs:
+        - name: public
+          namespace: gateway-system
+      hostnames:
+        - sign.example.com
+
+networkPolicy:
+  extraEgress:
+    - to:
+        - ipBlock:
+            cidr: 203.0.113.10/32
+      ports:
+        - { protocol: TCP, port: 587 }
