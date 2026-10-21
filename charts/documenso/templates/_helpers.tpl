@@ -19,7 +19,9 @@ helm.sh/chart: {{ include "documenso.chart" . }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/part-of: helmforge
-{{- with .Values.commonLabels }}{{ toYaml . }}{{- end }}
+{{- with .Values.commonLabels }}
+{{ toYaml . }}
+{{- end }}
 {{- end -}}
 
 {{- define "documenso.serviceAccountName" -}}{{- if .Values.serviceAccount.create -}}{{- default (include "documenso.fullname" .) .Values.serviceAccount.name -}}{{- else -}}{{- default "default" .Values.serviceAccount.name -}}{{- end -}}{{- end -}}
@@ -63,9 +65,14 @@ app.kubernetes.io/part-of: helmforge
 {{- else if or .Values.redis.enabled .Values.redis.external.enabled }}{{ fail "documenso: Redis may only be configured when jobsProvider is bullmq" }}{{ end -}}
 {{- if and (gt (int .Values.replicaCount) 1) (ne .Values.documenso.jobsProvider "bullmq") }}{{ fail "documenso: multiple replicas require jobsProvider=bullmq" }}{{ end -}}
 {{- if and (gt (int .Values.replicaCount) 1) (ne .Values.objectStorage.provider "s3") }}{{ fail "documenso: multiple replicas require shared S3 object storage" }}{{ end -}}
+{{- if and .Values.autoscaling.enabled (ne .Values.documenso.jobsProvider "bullmq") }}{{ fail "documenso: autoscaling requires jobsProvider=bullmq" }}{{ end -}}
+{{- if and .Values.autoscaling.enabled (ne .Values.objectStorage.provider "s3") }}{{ fail "documenso: autoscaling requires shared S3 object storage" }}{{ end -}}
+{{- if and .Values.autoscaling.enabled (lt (int .Values.autoscaling.maxReplicas) (int .Values.autoscaling.minReplicas)) }}{{ fail "documenso: autoscaling.maxReplicas must be greater than or equal to minReplicas" }}{{ end -}}
 {{- if and (eq .Values.objectStorage.provider "s3") (or (not .Values.objectStorage.s3.bucket) (not .Values.objectStorage.s3.existingSecret)) }}{{ fail "documenso: S3 storage requires bucket and existingSecret" }}{{ end -}}
 {{- if .Values.smtp.enabled }}{{- if not .Values.smtp.host }}{{ fail "documenso: smtp.host is required" }}{{ end -}}{{- if not .Values.smtp.existingSecret }}{{ fail "documenso: smtp.existingSecret is required" }}{{ end -}}{{- end -}}
 {{- if .Values.certificate.enabled }}{{- if not .Values.certificate.existingSecret }}{{ fail "documenso: certificate.existingSecret is required" }}{{ end -}}{{- end -}}
 {{- if .Values.gotenberg.enabled }}{{- if not .Values.gotenberg.url }}{{ fail "documenso: gotenberg.url is required" }}{{ end -}}{{- end -}}
 {{- if and .Values.ingress.enabled .Values.gatewayAPI.enabled }}{{ fail "documenso: enable either ingress or gatewayAPI, not both" }}{{ end -}}
+{{- if and .Values.networkPolicy.enabled .Values.networkPolicy.egressIsolation .Values.database.external.enabled (not .Values.database.external.networkPolicyPeers) (not .Values.networkPolicy.extraEgress) }}{{ fail "documenso: database.external.networkPolicyPeers or networkPolicy.extraEgress is required with egress isolation" }}{{ end -}}
+{{- if and .Values.networkPolicy.enabled .Values.networkPolicy.egressIsolation .Values.redis.external.enabled (not .Values.redis.external.networkPolicyPeers) (not .Values.networkPolicy.extraEgress) }}{{ fail "documenso: redis.external.networkPolicyPeers or networkPolicy.extraEgress is required with egress isolation" }}{{ end -}}
 {{- end -}}

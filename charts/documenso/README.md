@@ -22,10 +22,13 @@ The official entrypoint applies Prisma migrations and starts the Node.js
 application on port 3000. The chart waits for PostgreSQL but does not replace
 the authenticated migration or health checks with a TCP test.
 
-The default topology is a complete single-replica installation with HelmForge
-PostgreSQL and database-backed local jobs. Production scale-out requires
+The default topology is a basic single-replica installation with HelmForge
+PostgreSQL and database-backed local jobs. It starts the application, but
+document signing remains unavailable until a PKCS#12 certificate is configured.
+Production scale-out requires
 `documenso.jobsProvider=bullmq`, shared Redis, and S3-compatible storage. The
-chart enforces those prerequisites when `replicaCount` is greater than one.
+chart enforces those prerequisites when `replicaCount` is greater than one or
+autoscaling is enabled.
 
 ## Image provenance
 
@@ -90,6 +93,8 @@ document access, and signing, and only then perform an upgrade.
 | `image.tag` | `v2.21.0` | Human-readable upstream release |
 | `image.digest` | pinned | Immutable official multi-platform manifest |
 | `replicaCount` | `1` | Application replicas |
+| `autoscaling.enabled` | `false` | CPU-based HPA with scale-out safeguards |
+| `podDisruptionBudget.enabled` | `true` | Protect voluntary disruption availability |
 | `documenso.jobsProvider` | `local` | PostgreSQL, BullMQ, or Inngest jobs |
 | `documenso.existingSecret` | `""` | Persistent identity keys |
 | `postgresql.enabled` | `true` | Bundled HelmForge PostgreSQL |
@@ -105,7 +110,7 @@ Every value is documented in [values.yaml](values.yaml) and checked by
 
 The chart tests the default topology, BullMQ with Redis, Ingress, Gateway API,
 dual-stack Service, native External Secrets, immutable identity keys, external
-service invariants, and scale-out safety. The k3d smoke verifies application
+service invariants, disruption protection, autoscaling, and scale-out safety. The k3d smoke verifies application
 health, the upstream UID, generated identity, clean events/logs, and stable
 rollout.
 

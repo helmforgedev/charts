@@ -10,7 +10,8 @@ stored in a Secret. Redis is rendered only for the BullMQ job provider.
 ## Identity and secret lifecycle
 
 NextAuth and both encryption keys form persistent application identity. The
-chart-created Secret uses Helm `lookup` to retain generated values on upgrade.
+chart-created Secret uses Helm `lookup` to retain generated values on upgrade
+and `helm.sh/resource-policy: keep` to survive uninstall.
 Production and GitOps installations should supply `documenso.existingSecret`
 or materialize it with `externalSecrets.items`. Database, Redis, SMTP, S3,
 Gotenberg, and PKCS#12 credentials are referenced from Secrets.
@@ -21,7 +22,9 @@ The supported upstream entrypoint runs `prisma migrate deploy` on boot. A
 non-root init container waits for PostgreSQL before that entrypoint starts.
 Single-replica installs use Recreate. Scale-out requires BullMQ and S3 so jobs
 and documents are shared. Operators must size PostgreSQL connection capacity
-for every application replica.
+for every application replica. The default PodDisruptionBudget preserves one
+available pod during voluntary disruptions. The optional HPA is accepted only
+when BullMQ and S3 make horizontal scaling safe.
 
 Startup and readiness use `/api/health`. TCP liveness avoids restart storms
 during a database outage. No ServiceMonitor is rendered because Documenso has

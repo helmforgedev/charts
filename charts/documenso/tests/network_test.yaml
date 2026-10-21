@@ -4,6 +4,7 @@ templates:
   - templates/service.yaml
   - templates/ingress.yaml
   - templates/gateway-httproute.yaml
+  - templates/networkpolicy.yaml
 tests:
   - it: supports explicit dual-stack services
     template: templates/service.yaml
@@ -44,3 +45,13 @@ tests:
     asserts:
       - isKind:
           of: HTTPRoute
+  - it: permits the configured public SMTP port
+    template: templates/networkpolicy.yaml
+    set:
+      smtp.enabled: true
+      smtp.host: smtp.example.com
+      smtp.existingSecret: smtp
+    asserts:
+      - contains:
+          path: spec.egress[2].ports
+          content: { protocol: TCP, port: 587 }

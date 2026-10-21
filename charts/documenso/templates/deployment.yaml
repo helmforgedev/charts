@@ -6,9 +6,11 @@ metadata:
   labels:
     {{- include "documenso.labels" . | nindent 4 }}
 spec:
+  {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
+  {{- end }}
   strategy:
-    {{- if eq (int .Values.replicaCount) 1 }}
+    {{- if and (not .Values.autoscaling.enabled) (eq (int .Values.replicaCount) 1) }}
     type: Recreate
     {{- else }}
     type: RollingUpdate
@@ -36,7 +38,9 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.priorityClassName }}priorityClassName: {{ . }}{{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
       initContainers:
         - name: wait-for-postgresql
           image: {{ include "documenso.waitImage" . | quote }}
@@ -157,6 +161,7 @@ spec:
               valueFrom: { secretKeyRef: { name: {{ .Values.smtp.existingSecret | quote }}, key: {{ .Values.smtp.passwordKey | quote }} } }
             {{- end }}
             {{- if eq .Values.objectStorage.provider "s3" }}
+            - { name: NEXT_PUBLIC_UPLOAD_TRANSPORT, value: s3 }
             - { name: NEXT_PRIVATE_UPLOAD_BUCKET, value: {{ .Values.objectStorage.s3.bucket | quote }} }
             - { name: NEXT_PRIVATE_UPLOAD_REGION, value: {{ .Values.objectStorage.s3.region | quote }} }
             - { name: NEXT_PRIVATE_UPLOAD_ENDPOINT, value: {{ .Values.objectStorage.s3.endpoint | quote }} }

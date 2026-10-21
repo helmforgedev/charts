@@ -33,3 +33,30 @@ tests:
       - contains:
           path: 'spec.template.spec.containers[0].env'
           content: { name: NEXT_PRIVATE_REDIS_URL, value: "redis://:$(REDIS_PASSWORD)@RELEASE-NAME-redis-client:6379/0" }
+  - it: renders common labels and priority class without corrupting YAML
+    set:
+      commonLabels.team: signatures
+      priorityClassName: production-high
+    asserts:
+      - equal: { path: metadata.labels.team, value: signatures }
+      - equal: { path: spec.template.spec.priorityClassName, value: production-high }
+  - it: selects S3 as the upload transport
+    set:
+      objectStorage.provider: s3
+      objectStorage.s3.bucket: signatures
+      objectStorage.s3.existingSecret: object-storage
+    asserts:
+      - contains:
+          path: 'spec.template.spec.containers[0].env'
+          content: { name: NEXT_PUBLIC_UPLOAD_TRANSPORT, value: s3 }
+  - it: omits fixed replicas and uses rolling updates with autoscaling
+    set:
+      autoscaling.enabled: true
+      documenso.jobsProvider: bullmq
+      redis.enabled: true
+      objectStorage.provider: s3
+      objectStorage.s3.bucket: signatures
+      objectStorage.s3.existingSecret: object-storage
+    asserts:
+      - notExists: { path: spec.replicas }
+      - equal: { path: spec.strategy.type, value: RollingUpdate }

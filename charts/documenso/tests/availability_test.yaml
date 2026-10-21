@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Documenso availability controls
+templates:
+  - templates/pdb.yaml
+  - templates/hpa.yaml
+tests:
+  - it: protects the default singleton from voluntary disruption
+    template: templates/pdb.yaml
+    asserts:
+      - isKind: { of: PodDisruptionBudget }
+      - equal: { path: spec.minAvailable, value: 1 }
+  - it: renders autoscaling only with scalable dependencies
+    template: templates/hpa.yaml
+    set:
+      autoscaling.enabled: true
+      documenso.jobsProvider: bullmq
+      redis.enabled: true
+      objectStorage.provider: s3
+      objectStorage.s3.bucket: signatures
+      objectStorage.s3.existingSecret: object-storage
+    asserts:
+      - isKind: { of: HorizontalPodAutoscaler }
+      - equal: { path: spec.minReplicas, value: 2 }
+      - equal: { path: spec.maxReplicas, value: 5 }

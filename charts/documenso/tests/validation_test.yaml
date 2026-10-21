@@ -26,3 +26,28 @@ tests:
       gatewayAPI.enabled: true
     asserts:
       - failedTemplate: { errorMessage: "documenso: enable either ingress or gatewayAPI, not both" }
+  - it: requires explicit egress for an external database
+    set:
+      postgresql.enabled: false
+      database.external.enabled: true
+      database.external.host: pg.example
+      database.external.existingSecret: pg
+    asserts:
+      - failedTemplate: { errorMessage: "documenso: database.external.networkPolicyPeers or networkPolicy.extraEgress is required with egress isolation" }
+  - it: requires scalable jobs before enabling autoscaling
+    set:
+      autoscaling.enabled: true
+    asserts:
+      - failedTemplate: { errorMessage: "documenso: autoscaling requires jobsProvider=bullmq" }
+  - it: rejects an autoscaling maximum below its minimum
+    set:
+      autoscaling.enabled: true
+      autoscaling.minReplicas: 4
+      autoscaling.maxReplicas: 3
+      documenso.jobsProvider: bullmq
+      redis.enabled: true
+      objectStorage.provider: s3
+      objectStorage.s3.bucket: signatures
+      objectStorage.s3.existingSecret: object-storage
+    asserts:
+      - failedTemplate: { errorMessage: "documenso: autoscaling.maxReplicas must be greater than or equal to minReplicas" }
