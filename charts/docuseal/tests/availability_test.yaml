@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: DocuSeal availability
+templates:
+  - templates/pdb.yaml
+tests:
+  - it: omits a meaningless PDB for one replica
+    asserts:
+      - hasDocuments: { count: 0 }
+  - it: protects an HA deployment
+    set:
+      replicaCount: 2
+      postgresql.enabled: false
+      database.external.enabled: true
+      database.external.host: postgres.database.svc
+      database.external.existingSecret: external-services
+      database.external.networkPolicyPeers: [{ namespaceSelector: {} }]
+      redis.enabled: false
+      redisExternal.enabled: true
+      redisExternal.host: redis.cache.svc
+      redisExternal.existingSecret: external-services
+      redisExternal.networkPolicyPeers: [{ namespaceSelector: {} }]
+      storage.type: s3
+      storage.s3.bucket: signatures
+      docuseal.existingSecret: docuseal-identity
+    asserts:
+      - isKind: { of: PodDisruptionBudget }
+      - equal: { path: spec.minAvailable, value: 1 }

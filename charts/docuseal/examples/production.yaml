@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: Apache-2.0
+replicaCount: 2
+
+docuseal:
+  appUrl: https://signatures.example.com
+  forceSsl: true
+  existingSecret: docuseal-production
+
+postgresql:
+  enabled: false
+database:
+  external:
+    enabled: true
+    host: postgres.database.svc.cluster.local
+    database: docuseal
+    username: docuseal
+    existingSecret: docuseal-database
+    networkPolicyPeers:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: database
+
+redis:
+  enabled: false
+redisExternal:
+  enabled: true
+  host: redis.cache.svc.cluster.local
+  existingSecret: docuseal-redis
+  networkPolicyPeers:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: cache
+
+storage:
+  type: s3
+  s3:
+    bucket: company-signatures
+    endpoint: https://s3.example.com
+    region: us-east-1
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  hosts:
+    - host: signatures.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: signatures-tls
+      hosts: [signatures.example.com]
+
+externalSecrets:
+  enabled: true
+  secretStoreRef:
+    name: production-secrets
+  items:
+    - secretKey: secret-key-base
+      remoteRef: { key: docuseal, property: secret-key-base }
+    - secretKey: encryption-secret
+      remoteRef: { key: docuseal, property: encryption-secret }
+    - secretKey: aws-access-key-id
+      remoteRef: { key: docuseal, property: aws-access-key-id }
+    - secretKey: aws-secret-access-key
+      remoteRef: { key: docuseal, property: aws-secret-access-key }

@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: DocuSeal deployment
+templates:
+  - templates/deployment.yaml
+tests:
+  - it: renders the immutable official image and upstream health endpoint
+    asserts:
+      - equal: { path: 'spec.template.spec.containers[0].image', value: 'docker.io/docuseal/docuseal@sha256:28d0ca583860e2c73e5b068756023a93a325799a22da1f788355d566865dd051' }
+      - equal: { path: 'spec.template.spec.containers[0].startupProbe.httpGet.path', value: /up }
+      - equal: { path: 'spec.template.spec.containers[0].readinessProbe.httpGet.path', value: /up }
+  - it: uses the upstream non-root identity and hardened container defaults
+    asserts:
+      - equal: { path: 'spec.template.spec.automountServiceAccountToken', value: false }
+      - equal: { path: 'spec.template.spec.securityContext.runAsUser', value: 2000 }
+      - equal: { path: 'spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem', value: true }
+      - contains: { path: 'spec.template.spec.containers[0].securityContext.capabilities.drop', content: ALL }
+  - it: wires bundled PostgreSQL and Redis through Secret references
+    asserts:
+      - contains:
+          path: 'spec.template.spec.containers[0].env'
+          content: { name: DATABASE_URL, value: 'postgresql://docuseal:$(DATABASE_PASSWORD)@RELEASE-NAME-postgresql:5432/docuseal' }
+      - contains:
+          path: 'spec.template.spec.containers[0].env'
+          content: { name: REDIS_URL, value: 'redis://:$(REDIS_PASSWORD)@RELEASE-NAME-redis-client:6379/0' }
+  - it: uses rolling updates only for a production HA topology
+    set:
+      replicaCount: 2
+      postgresql.enabled: false
+      database.external.enabled: true
+      database.external.host: postgres.database.svc
+      database.external.existingSecret: external-services
+      database.external.networkPolicyPeers: [{ namespaceSelector: {} }]
+      redis.enabled: false
+      redisExternal.enabled: true
+      redisExternal.host: redis.cache.svc
+      redisExternal.existingSecret: external-services
+      redisExternal.networkPolicyPeers: [{ namespaceSelector: {} }]
+      storage.type: s3
+      storage.s3.bucket: signatures
+      docuseal.existingSecret: docuseal-identity
+    asserts:
+      - equal: { path: spec.replicas, value: 2 }
+      - equal: { path: spec.strategy.type, value: RollingUpdate }

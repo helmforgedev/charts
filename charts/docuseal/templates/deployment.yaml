@@ -1,0 +1,150 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "docuseal.fullname" . }}
+  labels:
+    {{- include "docuseal.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: {{ ternary "RollingUpdate" "Recreate" (gt (int .Values.replicaCount) 1) }}
+    {{- if gt (int .Values.replicaCount) 1 }}
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+    {{- end }}
+  selector:
+    matchLabels:
+      {{- include "docuseal.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "docuseal.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "docuseal.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.migrations.enabled }}
+      initContainers:
+        - name: migrate
+          image: {{ include "docuseal.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          workingDir: /app
+          command: [/bin/sh, -ec]
+          args:
+            - |
+              until ruby -rsocket -e 'TCPSocket.new(ARGV[0], Integer(ARGV[1])).close' "$DATABASE_HOST" "$DATABASE_PORT" 2>/dev/null; do sleep 2; done
+              until ruby -rsocket -e 'TCPSocket.new(ARGV[0], Integer(ARGV[1])).close' "$REDIS_HOST" "$REDIS_PORT" 2>/dev/null; do sleep 2; done
+              bundle exec rails db:prepare
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            {{- include "docuseal.env" (dict "root" . "runMigrations" "false") | nindent 12 }}
+            - name: DATABASE_HOST
+              value: {{ include "docuseal.databaseHost" . | quote }}
+            - name: DATABASE_PORT
+              value: {{ include "docuseal.databasePort" . | quote }}
+            - name: REDIS_HOST
+              value: {{ include "docuseal.redisHost" . | quote }}
+            - name: REDIS_PORT
+              value: {{ include "docuseal.redisPort" . | quote }}
+          resources:
+            {{- toYaml .Values.migrations.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data/docuseal
+            - name: tmp
+              mountPath: /tmp
+            - name: app-tmp
+              mountPath: /app/tmp
+            - name: app-log
+              mountPath: /app/log
+      {{- end }}
+      containers:
+        - name: docuseal
+          image: {{ include "docuseal.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          workingDir: /app
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            {{- include "docuseal.env" (dict "root" . "runMigrations" "false") | nindent 12 }}
+            {{- with .Values.docuseal.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          {{- range $name := list "startup" "readiness" "liveness" }}
+          {{- $probe := index $.Values.probes $name }}
+          {{- if $probe.enabled }}
+          {{ $name }}Probe:
+            httpGet: { path: /up, port: http }
+            {{- with $probe.initialDelaySeconds }}
+            initialDelaySeconds: {{ . }}
+            {{- end }}
+            periodSeconds: {{ $probe.periodSeconds }}
+            timeoutSeconds: {{ $probe.timeoutSeconds }}
+            failureThreshold: {{ $probe.failureThreshold }}
+          {{- end }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data/docuseal
+            - name: tmp
+              mountPath: /tmp
+            - name: app-tmp
+              mountPath: /app/tmp
+            - name: app-log
+              mountPath: /app/log
+      volumes:
+        - name: data
+          {{- if and (eq .Values.storage.type "local") .Values.storage.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "docuseal.pvcName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeStorage.tmpSizeLimit }}
+        - name: app-tmp
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeStorage.tmpSizeLimit }}
+        - name: app-log
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeStorage.tmpSizeLimit }}
+      {{ with .Values.priorityClassName -}}
+      priorityClassName: {{ . | quote }}
+      {{ end -}}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

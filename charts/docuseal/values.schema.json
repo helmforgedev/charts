@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DocuSeal chart values",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "global": { "type": "object", "additionalProperties": true },
+    "nameOverride": { "type": "string", "maxLength": 63 },
+    "fullnameOverride": { "type": "string", "maxLength": 63 },
+    "commonLabels": { "type": "object", "additionalProperties": { "type": "string" } },
+    "replicaCount": { "type": "integer", "minimum": 1 },
+    "image": { "$ref": "#/$defs/image" },
+    "imagePullSecrets": { "type": "array", "items": { "type": "object" } },
+    "docuseal": {
+      "type": "object", "additionalProperties": false,
+      "required": ["appUrl", "forceSsl", "railsMaxThreads", "sidekiqThreads", "extraEnv", "existingSecret", "secretKeyBaseKey", "secretKeyBase", "encryptionSecretKey", "encryptionSecret"],
+      "properties": {
+        "appUrl": { "type": "string", "pattern": "^https?://" },
+        "forceSsl": { "type": "boolean" },
+        "railsMaxThreads": { "type": "integer", "minimum": 1 },
+        "sidekiqThreads": { "type": "integer", "minimum": 1 },
+        "extraEnv": { "type": "array", "items": { "type": "object" } },
+        "existingSecret": { "type": "string" },
+        "secretKeyBaseKey": { "$ref": "#/$defs/secretKey" },
+        "secretKeyBase": { "type": "string" },
+        "encryptionSecretKey": { "$ref": "#/$defs/secretKey" },
+        "encryptionSecret": { "type": "string" }
+      }
+    },
+    "database": {
+      "type": "object", "additionalProperties": false, "required": ["external"],
+      "properties": { "external": { "$ref": "#/$defs/externalService" } }
+    },
+    "redisExternal": { "$ref": "#/$defs/externalRedis" },
+    "storage": {
+      "type": "object", "additionalProperties": false, "required": ["type", "persistence", "s3"],
+      "properties": {
+        "type": { "type": "string", "enum": ["local", "s3"] },
+        "persistence": {
+          "type": "object", "additionalProperties": false,
+          "required": ["enabled", "existingClaim", "storageClass", "accessModes", "size", "retain"],
+          "properties": {
+            "enabled": { "type": "boolean" }, "existingClaim": { "type": "string" }, "storageClass": { "type": "string" },
+            "accessModes": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+            "size": { "type": "string", "minLength": 1 }, "retain": { "type": "boolean" }
+          }
+        },
+        "s3": {
+          "type": "object", "additionalProperties": false,
+          "required": ["bucket", "endpoint", "region", "public", "accessKeyIdKey", "secretAccessKeyKey"],
+          "properties": {
+            "bucket": { "type": "string" }, "endpoint": { "type": "string" }, "region": { "type": "string", "minLength": 1 },
+            "public": { "type": "boolean" }, "accessKeyIdKey": { "$ref": "#/$defs/secretKey" }, "secretAccessKeyKey": { "$ref": "#/$defs/secretKey" }
+          }
+        }
+      }
+    },
+    "smtp": {
+      "type": "object", "additionalProperties": false,
+      "required": ["enabled", "address", "port", "domain", "username", "from", "passwordKey", "starttls"],
+      "properties": {
+        "enabled": { "type": "boolean" }, "address": { "type": "string" }, "port": { "$ref": "#/$defs/port" },
+        "domain": { "type": "string" }, "username": { "type": "string" }, "from": { "type": "string" },
+        "passwordKey": { "$ref": "#/$defs/secretKey" }, "starttls": { "type": "boolean" }
+      }
+    },
+    "migrations": {
+      "type": "object", "additionalProperties": false, "required": ["enabled", "resources"],
+      "properties": {
+        "enabled": { "type": "boolean" }, "resources": { "type": "object" }
+      }
+    },
+    "serviceAccount": {
+      "type": "object", "additionalProperties": false, "required": ["create", "name", "annotations", "automountServiceAccountToken"],
+      "properties": { "create": { "type": "boolean" }, "name": { "type": "string" }, "annotations": { "type": "object" }, "automountServiceAccountToken": { "type": "boolean" } }
+    },
+    "service": {
+      "type": "object", "additionalProperties": false, "required": ["type", "port", "annotations", "ipFamilyPolicy", "ipFamilies"],
+      "properties": {
+        "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"] }, "port": { "$ref": "#/$defs/port" },
+        "annotations": { "type": "object" }, "ipFamilyPolicy": { "type": "string", "enum": ["", "SingleStack", "PreferDualStack", "RequireDualStack"] },
+        "ipFamilies": { "type": "array", "maxItems": 2, "items": { "type": "string", "enum": ["IPv4", "IPv6"] } }
+      }
+    },
+    "ingress": {
+      "type": "object", "additionalProperties": false, "required": ["enabled", "ingressClassName", "annotations", "hosts", "tls"],
+      "properties": { "enabled": { "type": "boolean" }, "ingressClassName": { "type": "string" }, "annotations": { "type": "object" }, "hosts": { "type": "array", "items": { "type": "object" } }, "tls": { "type": "array", "items": { "type": "object" } } }
+    },
+    "gatewayAPI": {
+      "type": "object", "additionalProperties": false, "required": ["enabled", "httpRoutes"],
+      "properties": { "enabled": { "type": "boolean" }, "httpRoutes": { "type": "array", "items": { "type": "object" } } }
+    },
+    "probes": {
+      "type": "object", "additionalProperties": false, "required": ["startup", "readiness", "liveness"],
+      "properties": { "startup": { "$ref": "#/$defs/probe" }, "readiness": { "$ref": "#/$defs/probe" }, "liveness": { "$ref": "#/$defs/probe" } }
+    },
+    "resources": { "type": "object" }, "podSecurityContext": { "type": "object" }, "securityContext": { "type": "object" },
+    "runtimeStorage": { "type": "object", "additionalProperties": false, "required": ["tmpSizeLimit"], "properties": { "tmpSizeLimit": { "type": "string", "minLength": 1 } } },
+    "podDisruptionBudget": {
+      "type": "object", "additionalProperties": false, "required": ["enabled", "minAvailable"],
+      "properties": { "enabled": { "type": "boolean" }, "minAvailable": { "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "string", "pattern": "^(100|[1-9]?[0-9])%$" }] } }
+    },
+    "networkPolicy": {
+      "type": "object", "additionalProperties": false, "required": ["enabled", "allowPublicInternet", "extraIngress", "extraEgress"],
+      "properties": { "enabled": { "type": "boolean" }, "allowPublicInternet": { "type": "boolean" }, "extraIngress": { "type": "array", "items": { "type": "object" } }, "extraEgress": { "type": "array", "items": { "type": "object" } } }
+    },
+    "podLabels": { "type": "object", "additionalProperties": { "type": "string" } }, "podAnnotations": { "type": "object" },
+    "nodeSelector": { "type": "object" }, "tolerations": { "type": "array", "items": { "type": "object" } }, "affinity": { "type": "object" },
+    "topologySpreadConstraints": { "type": "array", "items": { "type": "object" } }, "priorityClassName": { "type": "string" },
+    "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0 },
+    "externalSecrets": {
+      "type": "object", "additionalProperties": false,
+      "required": ["enabled", "apiVersion", "refreshInterval", "secretStoreRef", "target", "items"],
+      "properties": {
+        "enabled": { "type": "boolean" }, "apiVersion": { "type": "string", "enum": ["external-secrets.io/v1", "external-secrets.io/v1beta1"] },
+        "refreshInterval": { "type": "string" },
+        "secretStoreRef": { "type": "object", "additionalProperties": false, "required": ["name", "kind"], "properties": { "name": { "type": "string" }, "kind": { "type": "string", "enum": ["SecretStore", "ClusterSecretStore"] } } },
+        "target": { "type": "object", "additionalProperties": false, "required": ["creationPolicy"], "properties": { "creationPolicy": { "type": "string", "enum": ["Owner", "Orphan", "Merge", "None"] } } },
+        "items": { "type": "array", "items": { "$ref": "#/$defs/externalSecretItem" } }
+      }
+    },
+    "postgresql": { "type": "object", "additionalProperties": true },
+    "redis": { "type": "object", "additionalProperties": true }
+  },
+  "$defs": {
+    "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+    "secretKey": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+    "image": {
+      "type": "object", "additionalProperties": false, "required": ["repository", "tag", "digest", "pullPolicy"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 }, "tag": { "type": "string", "not": { "enum": ["latest", "main", "master", "dev", "nightly", "edge", "stable"] } },
+        "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }, "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+      }
+    },
+    "externalService": {
+      "type": "object", "additionalProperties": false,
+      "required": ["enabled", "host", "port", "database", "username", "existingSecret", "passwordKey", "networkPolicyPeers"],
+      "properties": {
+        "enabled": { "type": "boolean" }, "host": { "type": "string" }, "port": { "$ref": "#/$defs/port" }, "database": { "type": "string" },
+        "username": { "type": "string" }, "existingSecret": { "type": "string" }, "passwordKey": { "$ref": "#/$defs/secretKey" },
+        "networkPolicyPeers": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "externalRedis": {
+      "type": "object", "additionalProperties": false,
+      "required": ["enabled", "host", "port", "database", "existingSecret", "passwordKey", "networkPolicyPeers"],
+      "properties": {
+        "enabled": { "type": "boolean" }, "host": { "type": "string" }, "port": { "$ref": "#/$defs/port" }, "database": { "type": "integer", "minimum": 0 },
+        "existingSecret": { "type": "string" }, "passwordKey": { "$ref": "#/$defs/secretKey" }, "networkPolicyPeers": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "probe": {
+      "type": "object", "additionalProperties": false, "required": ["enabled", "periodSeconds", "timeoutSeconds", "failureThreshold"],
+      "properties": { "enabled": { "type": "boolean" }, "initialDelaySeconds": { "type": "integer", "minimum": 0 }, "periodSeconds": { "type": "integer", "minimum": 1 }, "timeoutSeconds": { "type": "integer", "minimum": 1 }, "failureThreshold": { "type": "integer", "minimum": 1 } }
+    },
+    "externalSecretItem": {
+      "type": "object", "additionalProperties": false, "required": ["secretKey", "remoteRef"],
+      "properties": { "secretKey": { "$ref": "#/$defs/secretKey" }, "remoteRef": { "type": "object", "additionalProperties": false, "required": ["key"], "properties": { "key": { "type": "string", "minLength": 1 }, "property": { "type": "string" } } } }
+    }
+  }
+}

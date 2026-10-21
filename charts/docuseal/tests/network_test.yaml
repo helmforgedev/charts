@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: DocuSeal exposure
+templates:
+  - templates/ingress.yaml
+  - templates/gateway-httproute.yaml
+tests:
+  - it: renders no public route by default
+    asserts:
+      - hasDocuments: { count: 0 }
+  - it: renders an Ingress when selected
+    set:
+      ingress.enabled: true
+      ingress.hosts[0].host: docuseal.example.test
+      ingress.hosts[0].paths[0].path: /
+      ingress.hosts[0].paths[0].pathType: Prefix
+    template: templates/ingress.yaml
+    asserts:
+      - isKind: { of: Ingress }
+      - equal: { path: spec.ingressClassName, value: traefik }
+  - it: renders an HTTPRoute when selected
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes[0].name: public
+      gatewayAPI.httpRoutes[0].parentRefs[0].name: shared-gateway
+      gatewayAPI.httpRoutes[0].hostnames[0]: docuseal.example.test
+    template: templates/gateway-httproute.yaml
+    asserts:
+      - isKind: { of: HTTPRoute }

@@ -1,0 +1,302 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# -- Override the chart name.
+nameOverride: ""
+# -- Override the fully qualified application name.
+fullnameOverride: ""
+# -- Labels added to chart resources.
+commonLabels: {}
+
+# -- Number of DocuSeal replicas. Multiple replicas require external PostgreSQL, external Redis, and S3.
+replicaCount: 1
+
+image:
+  # -- Official DocuSeal image repository.
+  repository: docker.io/docuseal/docuseal
+  # -- Reviewed upstream release tag.
+  tag: "3.3.3"
+  # -- Immutable multi-platform manifest digest.
+  digest: sha256:28d0ca583860e2c73e5b068756023a93a325799a22da1f788355d566865dd051
+  # -- Image pull policy.
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets.
+imagePullSecrets: []
+
+docuseal:
+  # -- Canonical public application URL.
+  appUrl: http://docuseal.local
+  # -- Force HTTPS URL generation.
+  forceSsl: false
+  # -- Rails maximum threads per process.
+  railsMaxThreads: 15
+  # -- Embedded Sidekiq threads per process.
+  sidekiqThreads: 5
+  # -- Additional environment variables.
+  extraEnv: []
+  # -- Existing Secret containing identity and integration credentials.
+  existingSecret: ""
+  # -- Secret key containing SECRET_KEY_BASE.
+  secretKeyBaseKey: secret-key-base
+  # -- Bootstrap SECRET_KEY_BASE. Auto-generated and retained when empty.
+  secretKeyBase: ""
+  # -- Secret key containing ENCRYPTION_SECRET.
+  encryptionSecretKey: encryption-secret
+  # -- Bootstrap ENCRYPTION_SECRET. Auto-generated and retained when empty.
+  encryptionSecret: ""
+
+database:
+  external:
+    # -- Use an external PostgreSQL service.
+    enabled: false
+    # -- PostgreSQL hostname.
+    host: ""
+    # -- PostgreSQL port.
+    port: 5432
+    # -- Database name.
+    database: docuseal
+    # -- Database username.
+    username: docuseal
+    # -- Existing Secret containing the database password.
+    existingSecret: ""
+    # -- Password key in the database Secret.
+    passwordKey: password
+    # -- NetworkPolicy peers allowed to reach external PostgreSQL.
+    networkPolicyPeers: []
+
+redisExternal:
+  # -- Use an external Redis service.
+  enabled: false
+  # -- Redis hostname.
+  host: ""
+  # -- Redis port.
+  port: 6379
+  # -- Redis logical database.
+  database: 0
+  # -- Existing Secret containing the Redis password.
+  existingSecret: ""
+  # -- Password key in the Redis Secret.
+  passwordKey: redis-password
+  # -- NetworkPolicy peers allowed to reach external Redis.
+  networkPolicyPeers: []
+
+storage:
+  # -- Attachment backend: `local` or `s3`.
+  type: local
+  persistence:
+    # -- Persist local attachments.
+    enabled: true
+    # -- Existing PVC for `/data/docuseal`.
+    existingClaim: ""
+    # -- Storage class. Empty uses the cluster default.
+    storageClass: ""
+    # -- PVC access modes.
+    accessModes: [ReadWriteOnce]
+    # -- Requested capacity.
+    size: 10Gi
+    # -- Retain chart-created storage after uninstall.
+    retain: true
+  s3:
+    # -- S3 attachment bucket.
+    bucket: ""
+    # -- S3-compatible endpoint.
+    endpoint: ""
+    # -- AWS region.
+    region: us-east-1
+    # -- Make Active Storage objects public.
+    public: false
+    # -- Secret key containing the access key ID.
+    accessKeyIdKey: aws-access-key-id
+    # -- Secret key containing the secret access key.
+    secretAccessKeyKey: aws-secret-access-key
+
+smtp:
+  # -- Enable SMTP delivery.
+  enabled: false
+  # -- SMTP server address.
+  address: ""
+  # -- SMTP port.
+  port: 587
+  # -- SMTP domain.
+  domain: ""
+  # -- SMTP username.
+  username: ""
+  # -- Sender address.
+  from: ""
+  # -- Secret key containing the SMTP password.
+  passwordKey: smtp-password
+  # -- Enable STARTTLS.
+  starttls: true
+
+migrations:
+  # -- Run database preparation before each application Pod starts.
+  enabled: true
+  # -- Migration resources.
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: "1", memory: 1Gi }
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount.
+  create: true
+  # -- ServiceAccount name override.
+  name: ""
+  # -- ServiceAccount annotations.
+  annotations: {}
+  # -- Disable automatic API token mounting.
+  automountServiceAccountToken: false
+
+service:
+  # -- Service type.
+  type: ClusterIP
+  # -- Service port.
+  port: 3000
+  # -- Service annotations.
+  annotations: {}
+  # -- IP family policy.
+  ipFamilyPolicy: ""
+  # -- IP families.
+  ipFamilies: []
+
+ingress:
+  # -- Enable Kubernetes Ingress.
+  enabled: false
+  # -- Ingress class name.
+  ingressClassName: traefik
+  # -- Ingress annotations.
+  annotations: {}
+  # -- Ingress hosts and paths.
+  hosts: []
+  # -- TLS entries.
+  tls: []
+
+gatewayAPI:
+  # -- Enable Gateway API HTTPRoutes.
+  enabled: false
+  # -- HTTPRoute definitions.
+  httpRoutes: []
+
+probes:
+  # -- Startup probe settings.
+  startup: { enabled: true, initialDelaySeconds: 5, periodSeconds: 10, timeoutSeconds: 5, failureThreshold: 60 }
+  # -- Readiness probe settings.
+  readiness: { enabled: true, periodSeconds: 10, timeoutSeconds: 5, failureThreshold: 3 }
+  # -- Liveness probe settings.
+  liveness: { enabled: true, periodSeconds: 20, timeoutSeconds: 5, failureThreshold: 3 }
+
+resources:
+  # -- CPU and memory requests.
+  requests: { cpu: 250m, memory: 1Gi }
+  # -- CPU and memory limits.
+  limits: { cpu: "2", memory: 4Gi }
+
+podSecurityContext:
+  # -- Run as the upstream DocuSeal UID.
+  runAsNonRoot: true
+  # -- Runtime UID.
+  runAsUser: 2000
+  # -- Runtime GID.
+  runAsGroup: 2000
+  # -- Volume group.
+  fsGroup: 2000
+  # -- Avoid recursive ownership changes when possible.
+  fsGroupChangePolicy: OnRootMismatch
+  # -- Seccomp profile.
+  seccompProfile: { type: RuntimeDefault }
+
+securityContext:
+  # -- Prevent privilege escalation.
+  allowPrivilegeEscalation: false
+  # -- Keep the image root filesystem read-only.
+  readOnlyRootFilesystem: true
+  # -- Drop all Linux capabilities.
+  capabilities: { drop: [ALL] }
+
+runtimeStorage:
+  # -- Size limit for `/tmp`.
+  tmpSizeLimit: 2Gi
+
+podDisruptionBudget:
+  # -- Enable disruption protection when replicas exceed one.
+  enabled: true
+  # -- Minimum available pods.
+  minAvailable: 1
+
+networkPolicy:
+  # -- Enable ingress and egress isolation.
+  enabled: true
+  # -- Permit public IPv4/IPv6 HTTP and HTTPS while excluding private ranges.
+  allowPublicInternet: true
+  # -- Additional ingress rules.
+  extraIngress: []
+  # -- Additional complete egress rules.
+  extraEgress: []
+
+# -- Additional pod labels.
+podLabels: {}
+# -- Pod annotations.
+podAnnotations: {}
+# -- Node selector.
+nodeSelector: {}
+# -- Tolerations.
+tolerations: []
+# -- Affinity.
+affinity: {}
+# -- Topology spread constraints.
+topologySpreadConstraints: []
+# -- PriorityClass name.
+priorityClassName: ""
+# -- Graceful termination timeout.
+terminationGracePeriodSeconds: 60
+
+externalSecrets:
+  # -- Create an ExternalSecret for DocuSeal identity and integrations.
+  enabled: false
+  # -- External Secrets API version.
+  apiVersion: external-secrets.io/v1
+  # -- Refresh interval.
+  refreshInterval: "0"
+  secretStoreRef:
+    # -- SecretStore name.
+    name: ""
+    # -- SecretStore kind.
+    kind: ClusterSecretStore
+  target:
+    # -- Target Secret creation policy.
+    creationPolicy: Owner
+  # -- Secret key mappings.
+  items: []
+
+postgresql:
+  # -- Deploy HelmForge PostgreSQL.
+  enabled: true
+  # -- PostgreSQL architecture.
+  architecture: standalone
+  auth:
+    # -- Application database.
+    database: docuseal
+    # -- Application username.
+    username: docuseal
+    # -- Application password. Generated when empty.
+    password: ""
+  standalone:
+    persistence: { enabled: true, size: 8Gi }
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+      limits: { cpu: "1", memory: 1Gi }
+
+redis:
+  # -- Deploy HelmForge Redis.
+  enabled: true
+  # -- Redis architecture.
+  architecture: standalone
+  auth:
+    # -- Require Redis authentication.
+    enabled: true
+    # -- Redis password. Generated when empty.
+    password: ""
+  standalone:
+    persistence: { enabled: true, size: 1Gi }
+    resources:
+      requests: { cpu: 50m, memory: 128Mi }
+      limits: { cpu: 500m, memory: 512Mi }

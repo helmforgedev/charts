@@ -1,0 +1,72 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+DocuSeal {{ .Chart.AppVersion }} has been installed.
+
+1. Installation summary
+=======================
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Image: {{ include "docuseal.image" . }}
+Replicas: {{ .Values.replicaCount }}
+ServiceAccount: {{ include "docuseal.serviceAccountName" . }}
+
+2. Access
+=========
+Service: {{ include "docuseal.fullname" . }}:{{ .Values.service.port }}
+Public URL: {{ .Values.docuseal.appUrl }}
+{{- if not (or .Values.ingress.enabled .Values.gatewayAPI.enabled) }}
+For local access, run:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "docuseal.fullname" . }} 3000:{{ .Values.service.port }}
+Then open http://127.0.0.1:3000/setup.
+{{- end }}
+
+3. Getting started
+==================
+Wait for the migration Job and Deployment:
+  kubectl -n {{ .Release.Namespace }} wait --for=condition=complete job/{{ include "docuseal.fullname" . }}-migrate --timeout=10m
+  kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "docuseal.fullname" . }}
+Create the first administrator through /setup. No administrator password is
+stored in chart values.
+
+4. Credentials
+==============
+Application Secret: {{ include "docuseal.secretName" . }}
+SECRET_KEY_BASE key: {{ .Values.docuseal.secretKeyBaseKey }}
+ENCRYPTION_SECRET key: {{ .Values.docuseal.encryptionSecretKey }}
+Keep both values stable and include them in disaster-recovery backups.
+
+5. Configuration summary
+========================
+PostgreSQL: {{ ternary "bundled HelmForge subchart" "external" .Values.postgresql.enabled }}
+Redis: {{ ternary "bundled HelmForge subchart" "external" .Values.redis.enabled }}
+Attachments: {{ .Values.storage.type }}
+SMTP enabled: {{ .Values.smtp.enabled }}
+NetworkPolicy enabled: {{ .Values.networkPolicy.enabled }}
+Migration hook enabled: {{ .Values.migrations.enabled }}
+
+6. Validation commands
+======================
+  helm -n {{ .Release.Namespace }} status {{ .Release.Name }}
+  kubectl -n {{ .Release.Namespace }} get deploy,pod,service,pvc,job
+  kubectl -n {{ .Release.Namespace }} get endpoints
+  kubectl -n {{ .Release.Namespace }} exec deploy/{{ include "docuseal.fullname" . }} -- ruby -rnet/http -e 'abort unless Net::HTTP.get_response(URI("http://127.0.0.1:3000/up")).is_a?(Net::HTTPSuccess)'
+
+7. Troubleshooting
+==================
+  kubectl -n {{ .Release.Namespace }} get events --sort-by=.lastTimestamp
+  kubectl -n {{ .Release.Namespace }} logs job/{{ include "docuseal.fullname" . }}-migrate
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "docuseal.fullname" . }}
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "docuseal.fullname" . }} --previous
+Check database, Redis, storage, SMTP, Secret keys, and private egress peers.
+
+8. Backup, upgrade, and resources
+================================
+Back up PostgreSQL, attachments, Redis queues, and the application Secret as
+one recovery set. Test restoration in an isolated namespace. The pre-upgrade
+migration hook can change the database schema, so an image rollback alone is
+not a complete rollback procedure.
+
+Documentation: https://helmforge.dev/docs/charts/docuseal
+Upstream: https://github.com/docusealco/docuseal
+Issues: https://github.com/helmforgedev/charts/issues
+
+Happy Helmforging :)

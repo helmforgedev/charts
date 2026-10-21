@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: DocuSeal values validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: rejects two PostgreSQL providers
+    set:
+      database.external.enabled: true
+      database.external.host: pg.example
+      database.external.existingSecret: pg
+    asserts:
+      - failedTemplate: { errorMessage: 'exactly one of postgresql.enabled or database.external.enabled must be true' }
+  - it: rejects two Redis providers
+    set:
+      redisExternal.enabled: true
+      redisExternal.host: redis.example
+      redisExternal.existingSecret: redis
+    asserts:
+      - failedTemplate: { errorMessage: 'exactly one of redis.enabled or redisExternal.enabled must be true' }
+  - it: requires shared state before scaling
+    set:
+      replicaCount: 2
+    asserts:
+      - failedTemplate: { errorMessage: 'replicaCount greater than one requires external PostgreSQL, external Redis, S3 storage, and docuseal.existingSecret' }
+  - it: rejects simultaneous Ingress and Gateway API
+    set:
+      ingress.enabled: true
+      gatewayAPI.enabled: true
+    asserts:
+      - failedTemplate: { errorMessage: 'ingress.enabled and gatewayAPI.enabled are mutually exclusive' }
+  - it: requires explicit egress for external PostgreSQL
+    set:
+      postgresql.enabled: false
+      database.external.enabled: true
+      database.external.host: pg.example
+      database.external.existingSecret: pg
+    asserts:
+      - failedTemplate: { errorMessage: 'external PostgreSQL requires networkPolicyPeers or networkPolicy.extraEgress' }
