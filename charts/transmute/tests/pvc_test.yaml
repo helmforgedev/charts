@@ -1,23 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
-suite: pvc tests
-templates:
-  - pvc.yaml
+suite: persistence contract
+templates: [pvc.yaml]
 tests:
-  - it: should render default PVC
+  - it: creates a ReadWriteOnce claim
     asserts:
-      - isKind:
-          of: PersistentVolumeClaim
-      - equal:
-          path: spec.accessModes[0]
-          value: ReadWriteOnce
-      - equal:
-          path: spec.resources.requests.storage
-          value: 20Gi
-
-  - it: should not render PVC when persistence is disabled
-    set:
-      persistence:
-        enabled: false
-    asserts:
-      - hasDocuments:
-          count: 0
+      - isKind: { of: PersistentVolumeClaim }
+      - equal: { path: "spec.accessModes[0]", value: ReadWriteOnce }
+  - it: requests the configured capacity
+    set: { persistence: { size: 50Gi } }
+    asserts: [{ equal: { path: "spec.resources.requests.storage", value: 50Gi } }]
+  - it: disables dynamic provisioning with dash
+    set: { persistence: { storageClass: "-" } }
+    asserts: [{ equal: { path: "spec.storageClassName", value: "" } }]
+  - it: reuses an existing claim
+    set: { persistence: { existingClaim: shared-data } }
+    asserts: [{ hasDocuments: { count: 0 } }]

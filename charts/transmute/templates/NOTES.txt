@@ -1,82 +1,98 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
---------------------------------------------------------------------
-Transmute Video Transcoding Platform has been successfully deployed!
---------------------------------------------------------------------
+Transmute is installed.
 
-1. Installation Summary
-   - Release Name:   {{ .Release.Name }}
-   - Namespace:      {{ .Release.Namespace }}
-   - Chart:          {{ .Chart.Name }}-{{ .Chart.Version }}
-   - AppVersion:     {{ .Chart.AppVersion }}
-   - Image:          {{ include "transmute.image" . }}
-   - Replicas:       {{ .Values.replicaCount }}
-   - ServiceAccount: {{ include "transmute.serviceAccountName" . }}
+1. Installation summary
 
-2. Service Access
+   Release: {{ .Release.Name }}
+   Namespace: {{ .Release.Namespace }}
+   Chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+   Application: {{ .Chart.AppVersion }}
+   Image: {{ include "transmute.image" . }}
+   Update strategy: Recreate
+
+2. Access
+
 {{- if .Values.ingress.enabled }}
-   Web Ingress is enabled. Access Transmute at:
+   Ingress endpoints:
   {{- range .Values.ingress.hosts }}
-   - http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}/
+   - http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
   {{- end }}
 {{- else if and .Values.gatewayAPI.enabled .Values.gatewayAPI.httpRoutes }}
-   Gateway API HTTPRoute is enabled. Access Transmute at:
+   Gateway API endpoints:
+  {{- if .Values.config.appUrl }}
+   - {{ .Values.config.appUrl }}
+  {{- else }}
   {{- range .Values.gatewayAPI.httpRoutes }}
     {{- range .hostnames }}
-   - http://{{ . }}/
+   - {{ . }}
     {{- end }}
   {{- end }}
+  {{- end }}
 {{- else }}
-   Port-forward the Transmute service to localhost:
-   $ kubectl port-forward svc/{{ include "transmute.fullname" . }} 8080:{{ .Values.service.port }} -n {{ .Release.Namespace }}
-   Then browse to: http://127.0.0.1:8080/
+   Start a local port-forward:
+
+     kubectl port-forward --namespace {{ .Release.Namespace }} service/{{ include "transmute.fullname" . }} 8080:{{ .Values.service.port }}
+
+   Open http://127.0.0.1:8080/.
 {{- end }}
 
-3. Credentials and Security
-{{- if .Values.auth.existingSecret }}
-   - Credentials Source: Existing Secret '{{ .Values.auth.existingSecret }}'
-{{- else if and .Values.externalSecrets .Values.externalSecrets.enabled }}
-   - Credentials Source: External Secrets Operator (SecretStore: {{ .Values.externalSecrets.secretStoreRef.name }})
-{{- else }}
-   - Credentials Source: Auto-generated in chart Secret.
-   {{- if .Values.auth.initialAdmin.email }}
-   - Admin Email: {{ .Values.auth.initialAdmin.email }}
-   {{- end }}
-   {{- if .Values.auth.initialAdmin.password }}
-   - Admin Password: Configured via values.yaml
-   {{- else }}
-   - Retrieve generated Admin Password:
-     $ kubectl get secret {{ include "transmute.secretName" . }} -n {{ .Release.Namespace }} -o jsonpath='{.data.INITIAL_ADMIN_PASSWORD}' | base64 -d && echo
-   {{- end }}
-   - Retrieve Transmute Secret Key:
-     $ kubectl get secret {{ include "transmute.secretName" . }} -n {{ .Release.Namespace }} -o jsonpath='{.data.TRANSMUTE_SECRET_KEY}' | base64 -d && echo
+3. First administrator
+
+   Transmute does not support administrator bootstrap environment variables.
+   On a new data volume, the first account created through the application
+   becomes the administrator. Protect external access until that account exists.
+
+4. Authentication and OIDC
+
+   JWT signing key Secret: {{ include "transmute.secretName" . }}
+   JWT signing key field: {{ .Values.auth.secretKeyKey }}
+   OIDC: {{ if .Values.oidc.enabled }}enabled{{ else }}disabled{{ end }}
+{{- if .Values.oidc.enabled }}
+   Public application URL: {{ .Values.config.appUrl }}
+   Issuer: {{ .Values.oidc.issuerUrl }}
+   Callback URI: {{ trimSuffix "/" .Values.config.appUrl }}/api/oidc/callback
 {{- end }}
 
-4. Application Configuration and Storage
-   - Data Directory:     {{ .Values.config.dataDir }}
-   - Storage Directory:  {{ .Values.config.storageDir }}
-   - Queue Concurrency:  {{ .Values.config.queueConcurrency }} job(s)
-   - Job Timeout:        {{ .Values.config.jobTimeout }}s
-   - Persistence:        {{ if .Values.persistence.enabled }}Enabled (PVC: {{ include "transmute.claimName" . }}, Size: {{ .Values.persistence.size }}){{ else }}Disabled (Ephemeral storage){{ end }}
-   - OIDC Integration:   {{ if .Values.oidc.enabled }}Enabled{{ else }}Disabled{{ end }}
+5. Persistence and backup
 
-5. Health Verification
-   Verify pod rollout status:
-   $ kubectl rollout status deployment/{{ include "transmute.fullname" . }} -n {{ .Release.Namespace }}
+   Claim: {{ include "transmute.claimName" . }}
+   Mount: {{ .Values.persistence.mountPath }}
+   Requested capacity: {{ .Values.persistence.size }}
 
-   Check running workload:
-   $ kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+   All durable state is under {{ .Values.config.dataDir }}. Back up the PVC with
+   a CSI snapshot or a file-level backup while application writes are quiesced.
 
-6. Logs and Diagnostics
-   Inspect application logs:
-   $ kubectl logs -f deployment/{{ include "transmute.fullname" . }} -n {{ .Release.Namespace }}
+6. Health and tests
 
-   Check pod events:
-   $ kubectl describe pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+   Wait for the rollout:
 
-7. Documentation and Support
-   - Transmute Official Website:  https://transmute.sh/
-   - Transmute Source Repository: https://github.com/transmute-app/transmute
-   - HelmForge Documentation:    https://helmforge.dev/docs/charts/transmute
-   - Report Issues:              https://github.com/helmforgedev/charts/issues
+     kubectl rollout status --namespace {{ .Release.Namespace }} deployment/{{ include "transmute.fullname" . }}
+
+   Run the chart connection test:
+
+     helm test {{ .Release.Name }} --namespace {{ .Release.Namespace }}
+
+   Readiness endpoint: /api/health/ready
+   Liveness endpoint: /api/health/live
+
+7. Operations
+
+   Follow application logs:
+
+     kubectl logs --namespace {{ .Release.Namespace }} --follow deployment/{{ include "transmute.fullname" . }}
+
+   Transmute uses SQLite and a ReadWriteOnce data volume. replicaCount must
+   remain 1. Recreate prevents two versions from writing the same database
+   during an upgrade.
+{{- with .Values.service.ipFamilyPolicy }}
+   Service IP family policy: {{ . }}{{ with $.Values.service.ipFamilies }} ({{ join ", " . }}){{ end }}
+{{- end }}
+
+8. Documentation and support
+
+   HelmForge chart documentation: https://helmforge.dev/docs/charts/transmute
+   Transmute documentation: https://transmute.sh/docs/
+   Transmute source: https://github.com/transmute-app/transmute
+   Chart issues: https://github.com/helmforgedev/charts/issues
 
 Happy Helmforging :)

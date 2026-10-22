@@ -7,6 +7,8 @@ metadata:
     {{- include "transmute.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       {{- include "transmute.selectorLabels" . | nindent 6 }}
@@ -22,7 +24,16 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       serviceAccountName: {{ include "transmute.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
@@ -33,63 +44,68 @@ spec:
             {{- toYaml .Values.securityContext | nindent 12 }}
           ports:
             - name: http
-              containerPort: 8080
+              containerPort: {{ .Values.containerPorts.http }}
               protocol: TCP
           env:
             - name: PORT
-              value: "8080"
+              value: {{ .Values.containerPorts.http | quote }}
+            - name: HOME
+              value: /tmp/home
+            - name: XDG_CACHE_HOME
+              value: /tmp/cache
             - name: DATA_DIR
               value: {{ .Values.config.dataDir | quote }}
-            - name: STORAGE_DIR
-              value: {{ .Values.config.storageDir | quote }}
-            - name: QUEUE_CONCURRENCY
-              value: {{ .Values.config.queueConcurrency | quote }}
-            - name: JOB_TIMEOUT
-              value: {{ .Values.config.jobTimeout | quote }}
-            - name: AUTH_ENABLED
-              value: {{ .Values.auth.enabled | quote }}
-            - name: ALLOW_REGISTRATION
-              value: {{ .Values.auth.allowRegistration | quote }}
-            {{- if .Values.auth.enabled }}
-            - name: TRANSMUTE_SECRET_KEY
+            - name: CONVERSION_WORKER_CONCURRENCY
+              value: {{ .Values.config.conversionWorkerConcurrency | quote }}
+            - name: CONVERSION_JOB_STALE_AFTER_MINUTES
+              value: {{ .Values.config.conversionJobStaleAfterMinutes | quote }}
+            - name: COMPRESSION_WORKER_CONCURRENCY
+              value: {{ .Values.config.compressionWorkerConcurrency | quote }}
+            - name: INVALIDATE_PDF_DIGITAL_SIGNATURES
+              value: {{ .Values.config.invalidatePdfDigitalSignatures | quote }}
+            - name: MAX_CHUNK_SIZE
+              value: {{ .Values.config.maxChunkSize | quote }}
+            - name: ALLOW_UNAUTHENTICATED
+              value: {{ .Values.config.allowUnauthenticated | quote }}
+            - name: AUTH_ALGORITHM
+              value: {{ .Values.auth.algorithm | quote }}
+            - name: AUTH_ACCESS_TOKEN_EXPIRE_MINUTES
+              value: {{ .Values.auth.accessTokenExpireMinutes | quote }}
+            - name: AUTH_SECRET_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "transmute.secretName" . }}
-                  key: TRANSMUTE_SECRET_KEY
-            - name: INITIAL_ADMIN_EMAIL
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "transmute.secretName" . }}
-                  key: INITIAL_ADMIN_EMAIL
-                  optional: true
-            - name: INITIAL_ADMIN_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "transmute.secretName" . }}
-                  key: INITIAL_ADMIN_PASSWORD
-                  optional: true
+                  key: {{ .Values.auth.secretKeyKey }}
+            {{- with .Values.config.appUrl }}
+            - name: APP_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.config.domainAuthConfigPath }}
+            - name: DOMAIN_AUTH_CONFIG_PATH
+              value: {{ . | quote }}
             {{- end }}
             {{- if .Values.oidc.enabled }}
-            - name: OIDC_ENABLED
-              value: "true"
-            - name: OIDC_PROVIDER_URL
-              value: {{ .Values.oidc.providerUrl | quote }}
+            - name: OIDC_ISSUER_URL
+              value: {{ .Values.oidc.issuerUrl | quote }}
+            {{- with .Values.oidc.internalUrl }}
+            - name: OIDC_INTERNAL_URL
+              value: {{ . | quote }}
+            {{- end }}
             - name: OIDC_CLIENT_ID
               value: {{ .Values.oidc.clientId | quote }}
             - name: OIDC_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ include "transmute.secretName" . }}
-                  key: OIDC_CLIENT_SECRET
-                  optional: true
-            - name: OIDC_REDIRECT_URI
-              value: {{ .Values.oidc.redirectUri | quote }}
-            - name: OIDC_SCOPES
-              value: {{ .Values.oidc.scopes | quote }}
-            - name: OIDC_AUTO_REGISTER
-              value: {{ .Values.oidc.autoRegister | quote }}
-            - name: OIDC_DISABLE_LOCAL_AUTH
-              value: {{ .Values.oidc.disableLocalAuth | quote }}
+                  key: {{ .Values.oidc.clientSecretKey }}
+            - name: OIDC_DISPLAY_NAME
+              value: {{ .Values.oidc.displayName | quote }}
+            - name: OIDC_USERNAME_CLAIM
+              value: {{ .Values.oidc.usernameClaim | quote }}
+            - name: OIDC_AUTO_CREATE_USERS
+              value: {{ .Values.oidc.autoCreateUsers | quote }}
+            - name: OIDC_AUTO_LAUNCH
+              value: {{ .Values.oidc.autoLaunch | quote }}
             {{- end }}
             {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}
@@ -113,19 +129,19 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
-            {{- if .Values.persistence.enabled }}
             - name: data
               mountPath: {{ .Values.persistence.mountPath }}
-            {{- end }}
+            - name: tmp
+              mountPath: /tmp
             {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
       volumes:
-        {{- if .Values.persistence.enabled }}
         - name: data
           persistentVolumeClaim:
             claimName: {{ include "transmute.claimName" . }}
-        {{- end }}
+        - name: tmp
+          emptyDir: {}
         {{- with .Values.volumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -139,5 +155,9 @@ spec:
       {{- end }}
       {{- with .Values.tolerations }}
       tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
         {{- toYaml . | nindent 8 }}
       {{- end }}

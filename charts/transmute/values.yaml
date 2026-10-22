@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
-# Default values for transmute.
-# This is a YAML-formatted file.
-# Declare variables to be passed into your templates.
+global: {}
 
+# Transmute stores its users, jobs, uploads and outputs in one local data
+# directory backed by SQLite. Horizontal replicas are intentionally unsupported.
 replicaCount: 1
 
 image:
@@ -19,6 +19,8 @@ imagePullSecrets: []
 nameOverride: ""
 # -- Override full release name
 fullnameOverride: ""
+# -- Labels added to every chart resource
+commonLabels: {}
 
 serviceAccount:
   # -- Specifies whether a service account should be created
@@ -47,13 +49,17 @@ podSecurityContext:
 # -- Container security context
 securityContext:
   allowPrivilegeEscalation: false
-  readOnlyRootFilesystem: false
+  readOnlyRootFilesystem: true
   runAsNonRoot: true
   runAsUser: 1000
   runAsGroup: 1000
   capabilities:
     drop:
       - ALL
+
+containerPorts:
+  # -- HTTP port exposed by the Transmute process
+  http: 8080
 
 service:
   # -- Kubernetes Service type
@@ -62,51 +68,69 @@ service:
   port: 8080
   # -- Annotations for the Service
   annotations: {}
+  # -- IP family policy. Omit for the cluster default.
+  # ipFamilyPolicy: PreferDualStack
+  # -- Ordered Service IP families. Omit for the cluster default.
+  # ipFamilies:
+  #   - IPv4
+  #   - IPv6
 
 # -- Application runtime configuration
 config:
-  # -- Path to persistent data directory
+  # -- Public URL used for OIDC callbacks and generated links
+  appUrl: ""
+  # -- Path to persistent application data
   dataDir: /app/data
-  # -- Path for file storage (uploads, outputs, temporary work)
-  storageDir: /app/data/storage
-  # -- Number of concurrent transcoding jobs in the queue
-  queueConcurrency: 1
-  # -- Maximum execution timeout in seconds for a single transcoding job
-  jobTimeout: 86400
+  # -- Number of concurrent conversion workers
+  conversionWorkerConcurrency: 5
+  # -- Minutes before a conversion job is considered stale
+  conversionJobStaleAfterMinutes: 60
+  # -- Number of concurrent compression workers
+  compressionWorkerConcurrency: 5
+  # -- Allow conversions that invalidate PDF digital signatures
+  invalidatePdfDigitalSignatures: false
+  # -- Maximum upload chunk size in bytes; 0 uses the upstream default
+  maxChunkSize: 0
+  # -- Allow requests without authentication
+  allowUnauthenticated: false
+  # -- Optional path to a domain authentication configuration file
+  domainAuthConfigPath: ""
 
 # -- Authentication settings
 auth:
-  # -- Enable or disable user authentication
-  enabled: true
-  # -- Secret key used for signing session cookies and tokens (min 32 chars). Leave empty to autogenerate
+  # -- JWT signing key. Leave empty to generate and preserve a 64-character key in a Secret
   secretKey: ""
-  # -- Name of existing Secret containing TRANSMUTE_SECRET_KEY, INITIAL_ADMIN_EMAIL, INITIAL_ADMIN_PASSWORD
+  # -- Existing Secret containing the JWT signing key and, when OIDC is enabled, the OIDC client secret
   existingSecret: ""
-  # -- Allow user self-registration via web UI
-  allowRegistration: false
-  # -- Initial administrator credentials
-  initialAdmin:
-    email: ""
-    password: ""
+  # -- Key in auth.existingSecret containing the JWT signing key
+  secretKeyKey: AUTH_SECRET_KEY
+  # -- JWT signing algorithm
+  algorithm: HS256
+  # -- Access-token lifetime in minutes
+  accessTokenExpireMinutes: 60
 
 # -- OpenID Connect (OIDC) Single Sign-On configuration
 oidc:
   # -- Enable OIDC authentication
   enabled: false
-  # -- OIDC Issuer / Discovery URL
-  providerUrl: ""
+  # -- Public issuer URL used for browser redirects and discovery
+  issuerUrl: ""
+  # -- Optional internal issuer URL used for pod-to-provider communication
+  internalUrl: ""
   # -- OIDC Client ID
   clientId: ""
-  # -- OIDC Client Secret (can also be provided via secret or External Secrets)
+  # -- OIDC client secret; prefer auth.existingSecret in production
   clientSecret: ""
-  # -- Public redirect callback URI
-  redirectUri: ""
-  # -- OIDC scopes to request
-  scopes: "openid profile email"
-  # -- Automatically create local account upon successful OIDC login
-  autoRegister: true
-  # -- Disable password login when OIDC is active
-  disableLocalAuth: false
+  # -- Key in auth.existingSecret containing the OIDC client secret
+  clientSecretKey: OIDC_CLIENT_SECRET
+  # -- Label displayed on the SSO button
+  displayName: SSO
+  # -- Claim used as the local username
+  usernameClaim: preferred_username
+  # -- Automatically create users after successful OIDC login
+  autoCreateUsers: true
+  # -- Automatically start OIDC from the authentication page
+  autoLaunch: false
 
 ingress:
   # -- Enable ingress record generation
@@ -141,7 +165,7 @@ resources:
 # -- Liveness probe configuration
 livenessProbe:
   httpGet:
-    path: /api/health
+    path: /api/health/live
     port: http
   initialDelaySeconds: 15
   periodSeconds: 20
@@ -151,7 +175,7 @@ livenessProbe:
 # -- Readiness probe configuration
 readinessProbe:
   httpGet:
-    path: /api/health
+    path: /api/health/ready
     port: http
   initialDelaySeconds: 5
   periodSeconds: 10
@@ -161,7 +185,7 @@ readinessProbe:
 # -- Startup probe configuration
 startupProbe:
   httpGet:
-    path: /api/health
+    path: /api/health/ready
     port: http
   initialDelaySeconds: 5
   periodSeconds: 10
@@ -169,7 +193,7 @@ startupProbe:
   failureThreshold: 30
 
 persistence:
-  # -- Enable persistence using Persistent Volume Claims
+  # -- Enable persistence. Transmute v2 requires this to remain true
   enabled: true
   # -- PVC storage access mode
   accessModes:
@@ -189,22 +213,12 @@ persistence:
 externalSecrets:
   # -- Enable ExternalSecret resource creation
   enabled: false
-  # -- Refresh interval for synchronized secrets
+  # -- ExternalSecret API version
+  apiVersion: external-secrets.io/v1
+  # -- Default refresh interval for items that omit spec.refreshInterval
   refreshInterval: 1h
-  # -- Annotations to add to the ExternalSecret resource
-  annotations: {}
-  # -- Reference to the SecretStore or ClusterSecretStore
-  secretStoreRef:
-    name: ""
-    kind: SecretStore
-  # -- Target secret properties
-  target:
-    creationPolicy: Owner
-    deletionPolicy: Retain
-  # -- Secrets data mapping array
-  data: []
-  # -- Secrets dataFrom mapping array
-  dataFrom: []
+  # -- ExternalSecret definitions. Each item accepts metadata and a complete spec
+  items: []
 
 # -- Additional environment variables
 env: []
@@ -216,6 +230,19 @@ volumeMounts: []
 # -- Additional volumes
 volumes: []
 
+networkPolicy:
+  # -- Create a NetworkPolicy for the Transmute pod
+  enabled: false
+  # -- Peers allowed to connect to the HTTP port; empty allows same-namespace pods
+  ingressFrom: []
+  # -- Isolate egress. OIDC requires DNS and provider egress rules in extraEgress
+  egressIsolation: false
+  # -- Explicit egress rules used when egressIsolation is true
+  extraEgress: []
+
 nodeSelector: {}
 tolerations: []
 affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 30

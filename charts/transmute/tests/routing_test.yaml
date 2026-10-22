@@ -1,0 +1,84 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: HTTP routing
+templates: [ingress.yaml, gateway-httproute.yaml]
+tests:
+  - it: renders neither API by default
+    asserts: [{ hasDocuments: { count: 0 } }]
+  - it: renders ingressClassName and backend
+    template: ingress.yaml
+    set:
+      {
+        ingress:
+          {
+            enabled: true,
+            ingressClassName: nginx,
+            hosts:
+              [
+                {
+                  host: transmute.example.com,
+                  paths: [{ path: "/", pathType: Prefix }],
+                },
+              ],
+          },
+      }
+    asserts:
+      - equal: { path: "spec.ingressClassName", value: nginx }
+      - equal: { path: "spec.rules[0].http.paths[0].backend.service.port.number", value: 8080 }
+  - it: renders ingress TLS
+    template: ingress.yaml
+    set:
+      {
+        ingress:
+          {
+            enabled: true,
+            tls:
+              [{ secretName: transmute-tls, hosts: [transmute.example.com] }],
+          },
+      }
+    asserts: [{ equal: { path: "spec.tls[0].secretName", value: transmute-tls } }]
+  - it: renders a route with default backend
+    template: gateway-httproute.yaml
+    set:
+      {
+        gatewayAPI:
+          {
+            enabled: true,
+            httpRoutes:
+              [
+                {
+                  name: public,
+                  parentRefs: [{ name: shared }],
+                  hostnames: [transmute.example.com],
+                },
+              ],
+          },
+      }
+    asserts:
+      - isKind: { of: HTTPRoute }
+      - equal: { path: "spec.rules[0].backendRefs[0].name", value: RELEASE-NAME-transmute }
+  - it: accepts an empty parentRefs list for schema validation scenarios
+    template: gateway-httproute.yaml
+    set:
+      {
+        gatewayAPI:
+          { enabled: true, httpRoutes: [{ name: schema, parentRefs: [] }] },
+      }
+    asserts: [{ notExists: { path: "spec.parentRefs" } }]
+  - it: renders a custom route backend
+    template: gateway-httproute.yaml
+    set:
+      {
+        gatewayAPI:
+          {
+            enabled: true,
+            httpRoutes:
+              [
+                {
+                  name: custom,
+                  parentRefs: [{ name: shared }],
+                  rules: [{ backendRefs: [{ name: alternate, port: 9000 }] }],
+                },
+              ],
+          },
+      }
+    asserts: [{ equal: { path: "spec.rules[0].backendRefs[0].name", value: alternate } }]

@@ -1,42 +1,31 @@
 # SPDX-License-Identifier: Apache-2.0
-suite: service tests
-templates:
-  - service.yaml
+suite: service contract
+templates: [service.yaml]
 tests:
-  - it: should render default service correctly
+  - it: renders a ClusterIP Service
     asserts:
-      - isKind:
-          of: Service
-      - equal:
-          path: spec.type
-          value: ClusterIP
-      - equal:
-          path: spec.ports[0].port
-          value: 8080
-      - equal:
-          path: spec.ports[0].targetPort
-          value: http
-
-  - it: should allow custom service type and port
+      - isKind: { of: Service }
+      - equal: { path: "spec.type", value: ClusterIP }
+  - it: routes the configured port to the named container port
+    set: { service: { port: 9090 } }
+    asserts:
+      - equal: { path: "spec.ports[0].port", value: 9090 }
+      - equal: { path: "spec.ports[0].targetPort", value: http }
+  - it: omits IP family settings by default
+    asserts:
+      - notExists: { path: "spec.ipFamilyPolicy" }
+      - notExists: { path: "spec.ipFamilies" }
+  - it: renders SingleStack
+    set: { service: { ipFamilyPolicy: SingleStack } }
+    asserts: [{ equal: { path: "spec.ipFamilyPolicy", value: SingleStack } }]
+  - it: renders PreferDualStack
+    set: { service: { ipFamilyPolicy: PreferDualStack } }
+    asserts: [{ equal: { path: "spec.ipFamilyPolicy", value: PreferDualStack } }]
+  - it: preserves IP family order
     set:
-      service:
-        type: NodePort
-        port: 9000
+      {
+        service: { ipFamilyPolicy: RequireDualStack, ipFamilies: [IPv6, IPv4] },
+      }
     asserts:
-      - equal:
-          path: spec.type
-          value: NodePort
-      - equal:
-          path: spec.ports[0].port
-          value: 9000
-
-  - it: should render custom annotations
-    set:
-      service:
-        annotations:
-          custom-annotation: custom-value
-    asserts:
-      - isSubset:
-          path: metadata.annotations
-          content:
-            custom-annotation: custom-value
+      - equal: { path: "spec.ipFamilyPolicy", value: RequireDualStack }
+      - equal: { path: "spec.ipFamilies", value: [IPv6, IPv4] }

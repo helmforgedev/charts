@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: supporting resources
+templates: [serviceaccount.yaml, tests/test-connection.yaml]
+tests:
+  - it: creates a ServiceAccount by default
+    template: serviceaccount.yaml
+    asserts: [{ isKind: { of: ServiceAccount } }]
+  - it: omits the ServiceAccount when disabled
+    template: serviceaccount.yaml
+    set: { serviceAccount: { create: false } }
+    asserts: [{ hasDocuments: { count: 0 } }]
+  - it: renders a Helm test hook
+    template: tests/test-connection.yaml
+    asserts:
+      - isKind: { of: Pod }
+      - equal: { path: 'metadata.annotations["helm.sh/hook"]', value: test }
+  - it: tests the canonical readiness endpoint
+    template: tests/test-connection.yaml
+    asserts: [{ matchRegex: { path: "spec.containers[0].args[0]", pattern: "/api/health/ready$" } }]
+  - it: passes registry credentials to the Helm test pod
+    template: tests/test-connection.yaml
+    set: { imagePullSecrets: [{ name: registry-auth }] }
+    asserts:
+      - equal: { path: "spec.imagePullSecrets[0].name", value: registry-auth }

@@ -1,63 +1,155 @@
 # SPDX-License-Identifier: Apache-2.0
-suite: deployment tests
+suite: deployment contract
 templates:
   - deployment.yaml
 tests:
-  - it: should render deployment with default image and tag
+  - it: renders the pinned official image
     asserts:
-      - isKind:
-          of: Deployment
-      - equal:
-          path: spec.template.spec.containers[0].image
-          value: ghcr.io/transmute-app/transmute:v2.1.1
-
-
-  - it: should enforce non-root security context by default
+      - isKind: { of: Deployment }
+      - equal: { path: "spec.template.spec.containers[0].image", value: "ghcr.io/transmute-app/transmute:v2.1.1" }
+  - it: enforces a single replica with Recreate
     asserts:
-      - equal:
-          path: spec.template.spec.securityContext.runAsNonRoot
-          value: true
-      - equal:
-          path: spec.template.spec.securityContext.runAsUser
-          value: 1000
-      - equal:
-          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
-          value: false
-      - equal:
-          path: spec.template.spec.containers[0].securityContext.capabilities.drop[0]
-          value: ALL
-
-  - it: should render custom resource requests and limits
+      - equal: { path: "spec.replicas", value: 1 }
+      - equal: { path: "spec.strategy.type", value: Recreate }
+  - it: disables service account token mounting
+    asserts:
+      - equal: { path: "spec.template.spec.automountServiceAccountToken", value: false }
+  - it: uses the upstream readiness endpoint
+    asserts:
+      - equal: { path: "spec.template.spec.containers[0].readinessProbe.httpGet.path", value: /api/health/ready }
+  - it: uses the upstream liveness endpoint
+    asserts:
+      - equal: { path: "spec.template.spec.containers[0].livenessProbe.httpGet.path", value: /api/health/live }
+  - it: configures the application listener from containerPorts.http
+    set: { containerPorts: { http: 9080 } }
+    asserts:
+      - equal: { path: "spec.template.spec.containers[0].ports[0].containerPort", value: 9080 }
+      - contains: { path: "spec.template.spec.containers[0].env", content: { name: PORT, value: "9080" } }
+  - it: applies restricted container defaults
+    asserts:
+      - equal: { path: "spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem", value: true }
+      - equal: { path: "spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation", value: false }
+      - equal: { path: "spec.template.spec.containers[0].securityContext.capabilities.drop[0]", value: ALL }
+  - it: mounts persistent data
+    asserts:
+      - equal: { path: "spec.template.spec.containers[0].volumeMounts[0].mountPath", value: /app/data }
+      - equal: { path: "spec.template.spec.volumes[0].persistentVolumeClaim.claimName", value: RELEASE-NAME-transmute }
+  - it: provides writable cache under tmp
+    asserts:
+      - contains: { path: "spec.template.spec.containers[0].env", content: { name: HOME, value: /tmp/home } }
+      - contains:
+          { path: "spec.template.spec.containers[0].env", content: { name: XDG_CACHE_HOME, value: /tmp/cache } }
+      - equal: { path: "spec.template.spec.containers[0].volumeMounts[1].mountPath", value: /tmp }
+  - it: maps conversion settings to real upstream variables
     set:
-      resources:
-        requests:
-          cpu: 250m
-          memory: 256Mi
-        limits:
-          cpu: 1000m
-          memory: 1Gi
+      {
+        config:
+          {
+            conversionWorkerConcurrency: 9,
+            conversionJobStaleAfterMinutes: 75,
+            compressionWorkerConcurrency: 4,
+          },
+      }
     asserts:
-      - equal:
-          path: spec.template.spec.containers[0].resources.requests.cpu
-          value: 250m
-      - equal:
-          path: spec.template.spec.containers[0].resources.limits.memory
-          value: 1Gi
-
-  - it: should configure OIDC environment variables when enabled
+      - contains:
+          {
+            path: "spec.template.spec.containers[0].env",
+            content: { name: CONVERSION_WORKER_CONCURRENCY, value: "9" },
+          }
+      - contains:
+          {
+            path: "spec.template.spec.containers[0].env",
+            content: { name: CONVERSION_JOB_STALE_AFTER_MINUTES, value: "75" },
+          }
+      - contains:
+          {
+            path: "spec.template.spec.containers[0].env",
+            content: { name: COMPRESSION_WORKER_CONCURRENCY, value: "4" },
+          }
+  - it: maps authentication settings
+    set: { auth: { algorithm: HS512, accessTokenExpireMinutes: 120 } }
+    asserts:
+      - contains: { path: "spec.template.spec.containers[0].env", content: { name: AUTH_ALGORITHM, value: HS512 } }
+      - contains:
+          {
+            path: "spec.template.spec.containers[0].env",
+            content: { name: AUTH_ACCESS_TOKEN_EXPIRE_MINUTES, value: "120" },
+          }
+  - it: reads the signing key from a configurable existing Secret
+    set: { auth: { existingSecret: shared-auth, secretKeyKey: jwt-key } }
+    asserts:
+      - contains:
+          {
+            path: "spec.template.spec.containers[0].env",
+            content:
+              {
+                name: AUTH_SECRET_KEY,
+                valueFrom:
+                  { secretKeyRef: { name: shared-auth, key: jwt-key } },
+              },
+          }
+  - it: maps the complete OIDC contract
     set:
+      config: { appUrl: "https://transmute.example.com" }
       oidc:
-        enabled: true
-        providerUrl: "https://auth.example.com"
-        clientId: "transmute-client"
+        {
+          enabled: true,
+          issuerUrl: "https://id.example.com/realms/main",
+          internalUrl: "http://keycloak.identity.svc/realms/main",
+          clientId: transmute,
+          clientSecret: test-secret,
+          displayName: Company,
+          usernameClaim: email,
+          autoCreateUsers: false,
+          autoLaunch: true,
+        }
     asserts:
       - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: OIDC_PROVIDER_URL
-            value: "https://auth.example.com"
+          {
+            path: "spec.template.spec.containers[0].env",
+            content: { name: APP_URL, value: "https://transmute.example.com" },
+          }
       - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: OIDC_CLIENT_ID
-            value: "transmute-client"
+          {
+            path: "spec.template.spec.containers[0].env",
+            content:
+              {
+                name: OIDC_ISSUER_URL,
+                value: "https://id.example.com/realms/main",
+              },
+          }
+      - contains:
+          {
+            path: "spec.template.spec.containers[0].env",
+            content:
+              {
+                name: OIDC_INTERNAL_URL,
+                value: "http://keycloak.identity.svc/realms/main",
+              },
+          }
+      - contains:
+          {
+            path: "spec.template.spec.containers[0].env",
+            content: { name: OIDC_AUTO_CREATE_USERS, value: "false" },
+          }
+      - contains:
+          { path: "spec.template.spec.containers[0].env", content: { name: OIDC_AUTO_LAUNCH, value: "true" } }
+  - it: omits OIDC variables by default
+    asserts:
+      - notContains: { path: "spec.template.spec.containers[0].env", content: { name: OIDC_ISSUER_URL } }
+  - it: appends custom environment variables
+    set: { env: [{ name: CUSTOM_SETTING, value: enabled }] }
+    asserts:
+      - contains:
+          { path: "spec.template.spec.containers[0].env", content: { name: CUSTOM_SETTING, value: enabled } }
+  - it: renders scheduling controls
+    set:
+      {
+        priorityClassName: critical,
+        terminationGracePeriodSeconds: 45,
+        nodeSelector: { kubernetes.io/os: linux },
+      }
+    asserts:
+      - equal: { path: "spec.template.spec.priorityClassName", value: critical }
+      - equal: { path: "spec.template.spec.terminationGracePeriodSeconds", value: 45 }
+      - equal: { path: 'spec.template.spec.nodeSelector["kubernetes.io/os"]', value: linux }

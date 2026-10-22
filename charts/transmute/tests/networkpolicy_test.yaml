@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: network policy
+templates: [networkpolicy.yaml]
+tests:
+  - it: is disabled by default
+    asserts: [{ hasDocuments: { count: 0 } }]
+  - it: allows same-namespace ingress by default
+    set: { networkPolicy: { enabled: true } }
+    asserts:
+      - isKind: { of: NetworkPolicy }
+      - equal: { path: "spec.ingress[0].from[0].podSelector", value: {} }
+  - it: uses configured ingress peers
+    set:
+      {
+        networkPolicy:
+          {
+            enabled: true,
+            ingressFrom:
+              [{ namespaceSelector: { matchLabels: { access: allowed } } }],
+          },
+      }
+    asserts: [{ equal: { path: "spec.ingress[0].from[0].namespaceSelector.matchLabels.access", value: allowed } }]
+  - it: enables explicit egress isolation
+    set:
+      {
+        networkPolicy:
+          {
+            enabled: true,
+            egressIsolation: true,
+            extraEgress: [{ to: [{ namespaceSelector: {} }] }],
+          },
+      }
+    asserts:
+      - contains: { path: "spec.policyTypes", content: Egress }
+      - exists: { path: "spec.egress[0]" }

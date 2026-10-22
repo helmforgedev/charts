@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: fail-fast validation
+templates:
+  - validate.yaml
+tests:
+  - it: requires ingress hosts
+    set:
+      ingress.enabled: true
+      ingress.hosts: []
+    asserts:
+      - failedTemplate:
+          errorMessage: ingress.hosts must contain at least one host when ingress.enabled=true
+  - it: requires Gateway API routes
+    set:
+      gatewayAPI.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: gatewayAPI.httpRoutes must contain at least one route when gatewayAPI.enabled=true
+  - it: requires ExternalSecret items
+    set:
+      externalSecrets.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: externalSecrets.items must contain at least one item when externalSecrets.enabled=true
+  - it: requires the public application URL for OIDC
+    set:
+      oidc.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: config.appUrl is required when oidc.enabled=true
+  - it: rejects matching inline JWT and OIDC Secret field names
+    set:
+      config.appUrl: https://transmute.example.com
+      oidc.enabled: true
+      oidc.issuerUrl: https://id.example.com/realms/main
+      oidc.clientId: transmute
+      oidc.clientSecret: oidc-secret
+      oidc.clientSecretKey: shared-key
+      auth.secretKeyKey: shared-key
+    asserts:
+      - failedTemplate:
+          errorMessage: auth.secretKeyKey and oidc.clientSecretKey must differ when inline OIDC is configured
+  - it: requires application state to remain on the PVC
+    set:
+      config.dataDir: /tmp/transmute
+    asserts:
+      - failedTemplate:
+          errorMessage: config.dataDir must equal persistence.mountPath so all application state remains on the PVC

@@ -1,0 +1,37 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "transmute.fullname" . }}-test-connection
+  labels:
+    {{- include "transmute.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  {{- with .Values.imagePullSecrets }}
+  imagePullSecrets:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: health
+      image: {{ include "transmute.image" . | quote }}
+      imagePullPolicy: {{ .Values.image.pullPolicy }}
+      command: ["sh", "-c"]
+      args:
+        - wget -q -O /dev/null --tries=1 http://{{ include "transmute.fullname" . }}:{{ .Values.service.port }}/api/health/ready
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        capabilities:
+          drop: ["ALL"]
