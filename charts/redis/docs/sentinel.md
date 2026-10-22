@@ -74,6 +74,7 @@ Data node pod names are role-neutral: `-node-0` is only the seed master at cold 
 | `sentinel.quorum` | Quorum for failover decisions |
 | `pdb.enabled` | Protection against planned disruption |
 | `metrics.enabled` | Exporter for monitoring |
+| `sentinel.waitForMaster.resources` | Resources for the `wait-for-master` init container on data nodes (default `{}`, none rendered) |
 
 `auth.sentinel=false` keeps the Sentinel control plane unauthenticated while
 Redis data nodes remain protected by `auth.enabled`. Set it to `true` when
@@ -110,6 +111,22 @@ node:
 sentinel:
   replicaCount: 3
   quorum: 2
+```
+
+Init container resources for quota-enforced namespaces that require explicit requests and limits:
+
+```yaml
+sentinel:
+  replicaCount: 3
+  quorum: 2
+  waitForMaster:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
 ```
 
 ## Resilience and trade-offs

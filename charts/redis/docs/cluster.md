@@ -67,6 +67,7 @@ Common cases:
 | `cluster.persistence.enabled` | PVC on each node |
 | `cluster.persistence.size` | Volume size per node |
 | `metrics.enabled` | Exporter for monitoring |
+| `cluster.initJob.resources` | Resources for the bootstrap Job's `redis-cli` container (default `{}`, none rendered) |
 
 ## Example
 
@@ -84,6 +85,14 @@ cluster:
   persistence:
     enabled: true
     size: 20Gi
+  initJob:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
 ```
 
 ## When not to use

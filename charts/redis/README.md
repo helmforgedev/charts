@@ -201,6 +201,37 @@ For HA-oriented modes, configure:
 
 The chart exposes scheduling knobs but does not enforce a single cluster layout. Match these values to your node topology and maintenance policy.
 
+### Helper container resources
+
+Besides the main Redis containers, two short-lived helper containers accept their own resources:
+
+- `sentinel.waitForMaster.resources`: the `wait-for-master` init container on each Sentinel data node
+- `cluster.initJob.resources`: the `redis-cli` container of the Redis Cluster bootstrap Job
+
+Both default to `{}`, so no `resources` block is rendered. Set them when a namespace `ResourceQuota` or `LimitRange` requires every container to declare requests and limits:
+
+```yaml
+sentinel:
+  waitForMaster:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+cluster:
+  initJob:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+```
+
 ## Extension points
 
 Use the generic extension values when platform-specific integration is needed:
@@ -240,8 +271,10 @@ Use the generic extension values when platform-specific integration is needed:
 | `sentinel.gracefulFailover.enabled` | Request failover before voluntary master shutdown | `true` |
 | `sentinel.gracefulFailover.replicaSyncTimeoutSeconds` | Seconds the master keeps trying to hand over to an in-sync replica that Sentinel accepts | `15` |
 | `sentinel.startupFailoverGuard.enabled` | Prevent an empty recreated node from resuming as master | `true` |
+| `sentinel.waitForMaster.resources` | Resource requests and limits for the `wait-for-master` init container on Sentinel data nodes | `{}` |
 | `cluster.nodes` | Number of Redis Cluster nodes | `6` |
 | `cluster.replicasPerMaster` | Redis Cluster replicas per master | `1` |
+| `cluster.initJob.resources` | Resource requests and limits for the `redis-cli` container in the Redis Cluster bootstrap Job | `{}` |
 | `service.type` | Client Service type where applicable | `ClusterIP` |
 | `service.ipFamilyPolicy` | Service IP family policy for dual-stack clusters | `null` |
 | `service.ipFamilies` | Service IP families for dual-stack clusters | `[]` |
