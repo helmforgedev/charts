@@ -8,7 +8,7 @@ metadata:
   labels:
     {{- include "elasticsearch.componentLabels" (dict "root" . "component" "hot") | nindent 4 }}
 spec:
-  serviceName: {{ include "elasticsearch.fullname" . }}-data-headless
+  serviceName: {{ include "elasticsearch.fullname" . }}-hot-headless
   replicas: {{ .Values.dataTiers.hot.replicas }}
   podManagementPolicy: Parallel
   updateStrategy:
@@ -20,6 +20,7 @@ spec:
     metadata:
       labels:
         {{- include "elasticsearch.componentLabels" (dict "root" . "component" "hot") | nindent 8 }}
+        {{- include "elasticsearch.nodeGroupLabel" . | nindent 8 }}
       annotations:
         checksum/config: {{ toYaml .Values | sha256sum }}
         {{- with .Values.dataTiers.hot.podAnnotations }}
@@ -35,8 +36,9 @@ spec:
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
-      {{- if .Values.sysctlInit.enabled }}
+      {{- if or .Values.sysctlInit.enabled (eq (include "elasticsearch.backupEnabled" .) "true") }}
       initContainers:
+        {{- if .Values.sysctlInit.enabled }}
         - name: sysctl
           image: {{ printf "%s:%s" .Values.sysctlInit.image.repository .Values.sysctlInit.image.tag }}
           imagePullPolicy: {{ .Values.sysctlInit.image.pullPolicy }}
@@ -45,6 +47,8 @@ spec:
             privileged: true
             runAsUser: 0
             runAsNonRoot: false
+        {{- end }}
+        {{- include "elasticsearch.backupKeystoreInitContainer" . | nindent 8 }}
       {{- end }}
       containers:
         - name: elasticsearch
@@ -54,10 +58,10 @@ spec:
             {{- toYaml .Values.securityContext | nindent 12 }}
           ports:
             - name: http
-              containerPort: 9200
+              containerPort: {{ .Values.containerPorts.http }}
               protocol: TCP
             - name: transport
-              containerPort: 9300
+              containerPort: {{ .Values.containerPorts.transport }}
               protocol: TCP
           env:
             - name: node.name
@@ -88,23 +92,42 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /usr/share/elasticsearch/data
+            {{- include "elasticsearch.configVolumeMount" . | nindent 12 }}
+            {{- include "elasticsearch.backupKeystoreVolumeMount" . | nindent 12 }}
             {{- if eq (include "elasticsearch.security.enabled" .) "true" }}
             - name: tls-certs
               mountPath: /usr/share/elasticsearch/config/certs
               readOnly: true
             {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- include "elasticsearch.exporterContainer" . | nindent 8 }}
       volumes:
+        {{- include "elasticsearch.configVolume" . | nindent 8 }}
+        {{- include "elasticsearch.backupKeystoreVolume" . | nindent 8 }}
         {{- if eq (include "elasticsearch.security.enabled" .) "true" }}
         - name: tls-certs
           secret:
             secretName: {{ include "elasticsearch.tlsSecretName" . }}
         {{- end }}
-      {{- with .Values.dataTiers.hot.nodeSelector }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with (.Values.dataTiers.hot.nodeSelector | default .Values.nodeSelector) }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.dataTiers.hot.tolerations }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with (.Values.dataTiers.hot.tolerations | default .Values.tolerations) }}
       tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- with .Values.priorityClassName }}

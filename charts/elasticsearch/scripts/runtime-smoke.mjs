@@ -12,12 +12,15 @@ const ready = p => !p.metadata.deletionTimestamp && p.status.conditions?.some(c 
 const server = pods.find(p => ready(p) && p.spec.containers.some(c => c.image.includes('/elasticsearch:')));
 assert.ok(server);
 const container = server.spec.containers.find(c => c.image.includes('/elasticsearch:'));
-const secure = container.env.some(e => e.name === 'xpack.security.enabled' && e.value === 'true');
-const curl = 'if [ "$1" = true ]; then curl -skf --max-time 20 -u "elastic:$ELASTIC_PASSWORD" -H "Content-Type: application/json" -X "$2" "https://localhost:9200$3" -d "$4"; else curl -sf --max-time 20 -H "Content-Type: application/json" -X "$2" "http://localhost:9200$3" -d "$4"; fi';
-const request = (route, method = 'GET', body) => JSON.parse(k(['exec', server.metadata.name, '-c', container.name, '--', 'sh', '-ec', curl, 'sh', String(secure), method, route, body ? JSON.stringify(body) : '']));
+const passwordEnv = container.env.find(e => e.name === 'ELASTIC_PASSWORD');
+const secure = passwordEnv?.valueFrom?.secretKeyRef?.optional === false;
+const httpPort = container.ports.find(p => p.name === 'http')?.containerPort;
+assert.ok(Number.isInteger(httpPort), 'Elasticsearch container must expose a named http port');
+const curl = 'if [ "$1" = true ]; then curl -skf --max-time 20 -u "elastic:$ELASTIC_PASSWORD" -H "Content-Type: application/json" -X "$2" "$3://localhost:$4$5" -d "$6"; else curl -sf --max-time 20 -H "Content-Type: application/json" -X "$2" "$3://localhost:$4$5" -d "$6"; fi';
+const request = (route, method = 'GET', body) => JSON.parse(k(['exec', server.metadata.name, '-c', container.name, '--', 'sh', '-ec', curl, 'sh', String(secure), method, secure ? 'https' : 'http', String(httpPort), route, body ? JSON.stringify(body) : '']));
 assert.equal(request('/').version.number, version);
 if (secure) {
-  const code = k(['exec', server.metadata.name, '-c', container.name, '--', 'curl', '-sk', '--max-time', '10', '-o', '/dev/null', '-w', '%{http_code}', 'https://localhost:9200/']);
+  const code = k(['exec', server.metadata.name, '-c', container.name, '--', 'curl', '-sk', '--max-time', '10', '-o', '/dev/null', '-w', '%{http_code}', `https://localhost:${httpPort}/`]);
   assert.equal(code, '401', 'Anonymous Elasticsearch access must be denied');
 }
 const health = request('/_cluster/health?wait_for_status=yellow&timeout=15s');
@@ -40,7 +43,10 @@ request(index + '/_flush', 'POST');
 const kibana = pods.find(p => ready(p) && p.spec.containers.some(c => c.name === 'kibana'));
 if (kibana) {
   const address = kibana.status.podIP.includes(':') ? `[${kibana.status.podIP}]` : kibana.status.podIP;
-  const status = JSON.parse(k(['exec', server.metadata.name, '-c', container.name, '--', 'curl', '-sf', '--max-time', '15', `http://${address}:5601/api/status`]));
+  const kibanaContainer = kibana.spec.containers.find(c => c.name === 'kibana');
+  const kibanaPort = kibanaContainer.ports.find(p => p.name === 'http')?.containerPort;
+  assert.ok(Number.isInteger(kibanaPort), 'Kibana container must expose a named http port');
+  const status = JSON.parse(k(['exec', server.metadata.name, '-c', container.name, '--', 'curl', '-sf', '--max-time', '15', `http://${address}:${kibanaPort}/api/status`]));
   // Unauthenticated status deliberately redacts version metadata.
   const packageInfo = JSON.parse(k(['exec', kibana.metadata.name, '-c', 'kibana', '--', 'cat', '/usr/share/kibana/package.json']));
   assert.equal(packageInfo.version, version);

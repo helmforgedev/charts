@@ -1,29 +1,54 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-{{- if .Values.gateway.enabled }}
-{{- include "elasticsearch.assertGatewayAPICRDs" . }}
-{{- if not .Values.gateway.parentRefs }}
-  {{- fail "gateway.parentRefs is required when gateway.enabled=true" }}
-{{- end }}
+{{- if .Values.gatewayAPI.enabled }}
+{{- range $index, $route := .Values.gatewayAPI.httpRoutes | default list }}
+---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: {{ include "elasticsearch.fullname" . }}
-  namespace: {{ include "elasticsearch.namespace" . }}
+  name: {{ include "elasticsearch.httpRouteName" (dict "root" $ "route" $route "index" $index) }}
+  namespace: {{ include "elasticsearch.namespace" $ }}
   labels:
-    {{- include "elasticsearch.labels" . | nindent 4 }}
+    {{- include "elasticsearch.labels" $ | nindent 4 }}
+    {{- with $route.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with $route.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
+  {{- with $route.parentRefs }}
   parentRefs:
-    {{- toYaml .Values.gateway.parentRefs | nindent 4 }}
-  {{- if .Values.gateway.hostnames }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $route.hostnames }}
   hostnames:
-    {{- toYaml .Values.gateway.hostnames | nindent 4 }}
+    {{- toYaml . | nindent 4 }}
   {{- end }}
   rules:
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /
+  {{- if $route.rules }}
+    {{- range $rule := $route.rules }}
+    - {{- with $rule.matches }}
+      matches:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $rule.filters }}
+      filters:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if $rule.backendRefs }}
       backendRefs:
-        - name: {{ include "elasticsearch.fullname" . }}
-          port: {{ .Values.service.httpPort }}
+        {{- toYaml $rule.backendRefs | nindent 8 }}
+      {{- else if not $rule.omitDefaultBackend }}
+      backendRefs:
+        - name: {{ include "elasticsearch.fullname" $ }}
+          port: {{ $.Values.service.port }}
+      {{- end }}
+    {{- end }}
+  {{- else }}
+    - backendRefs:
+        - name: {{ include "elasticsearch.fullname" $ }}
+          port: {{ $.Values.service.port }}
+  {{- end }}
+{{- end }}
 {{- end }}

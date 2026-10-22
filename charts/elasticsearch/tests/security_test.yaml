@@ -57,41 +57,35 @@ tests:
       - hasDocuments:
           count: 0
 
-  - it: security enabled sets xpack.security.enabled=true in env
+  - it: security enabled sets xpack.security.enabled=true in mounted config
     set:
       security:
         enabled: true
-    template: templates/statefulset-master.yaml
+    template: templates/configmap.yaml
     asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: xpack.security.enabled
-            value: "true"
+      - matchRegex:
+          path: data["elasticsearch.yml"]
+          pattern: 'xpack.security.enabled: true'
 
-  - it: security disabled sets xpack.security.enabled=false in env
+  - it: security disabled sets xpack.security.enabled=false in mounted config
     set:
       clusterProfile: dev
       security:
         enabled: false
-    template: templates/statefulset-master.yaml
+    template: templates/configmap.yaml
     asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: xpack.security.enabled
-            value: "false"
+      - matchRegex:
+          path: data["elasticsearch.yml"]
+          pattern: 'xpack.security.enabled: false'
 
   - it: production-ha profile auto-enables security
     set:
       clusterProfile: production-ha
-    template: templates/statefulset-master.yaml
+    template: templates/configmap.yaml
     asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: xpack.security.enabled
-            value: "true"
+      - matchRegex:
+          path: data["elasticsearch.yml"]
+          pattern: 'xpack.security.enabled: true'
 
   - it: security enabled mounts TLS certificate volume
     set:

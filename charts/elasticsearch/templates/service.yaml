@@ -1,10 +1,9 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-{{/* Client-facing service */}}
 apiVersion: v1
 kind: Service
 metadata:
   name: {{ include "elasticsearch.fullname" . }}
-  namespace: {{ (include "elasticsearch.namespace" .) }}
+  namespace: {{ include "elasticsearch.namespace" . }}
   labels:
     {{- include "elasticsearch.labels" . | nindent 4 }}
   {{- with .Values.service.annotations }}
@@ -22,12 +21,40 @@ spec:
   {{- end }}
   ports:
     - name: http
-      port: {{ .Values.service.httpPort }}
+      port: {{ .Values.service.port }}
       targetPort: http
       protocol: TCP
-    - name: transport
-      port: {{ .Values.service.transportPort }}
-      targetPort: transport
+  selector:
+    {{- include "elasticsearch.componentSelectorLabels" (dict "root" . "component" (include "elasticsearch.clientComponent" .)) | nindent 4 }}
+{{- if .Values.monitoring.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "elasticsearch.fullname" . }}-metrics
+  namespace: {{ include "elasticsearch.namespace" . }}
+  labels:
+    {{- include "elasticsearch.labels" . | nindent 4 }}
+    app.kubernetes.io/component: metrics
+  {{- with .Values.monitoring.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: ClusterIP
+  {{- with .Values.monitoring.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.monitoring.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  ports:
+    - name: metrics
+      port: {{ .Values.monitoring.service.port }}
+      targetPort: metrics
       protocol: TCP
   selector:
     {{- include "elasticsearch.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component-group: elasticsearch
+{{- end }}

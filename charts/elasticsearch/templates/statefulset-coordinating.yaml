@@ -20,6 +20,7 @@ spec:
     metadata:
       labels:
         {{- include "elasticsearch.componentLabels" (dict "root" . "component" "coordinating") | nindent 8 }}
+        {{- include "elasticsearch.nodeGroupLabel" . | nindent 8 }}
       annotations:
         checksum/config: {{ toYaml .Values | sha256sum }}
         {{- with .Values.coordinating.podAnnotations }}
@@ -35,8 +36,9 @@ spec:
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
-      {{- if .Values.sysctlInit.enabled }}
+      {{- if or .Values.sysctlInit.enabled (eq (include "elasticsearch.backupEnabled" .) "true") }}
       initContainers:
+        {{- if .Values.sysctlInit.enabled }}
         - name: sysctl
           image: {{ printf "%s:%s" .Values.sysctlInit.image.repository .Values.sysctlInit.image.tag }}
           imagePullPolicy: {{ .Values.sysctlInit.image.pullPolicy }}
@@ -45,6 +47,8 @@ spec:
             privileged: true
             runAsUser: 0
             runAsNonRoot: false
+        {{- end }}
+        {{- include "elasticsearch.backupKeystoreInitContainer" . | nindent 8 }}
       {{- end }}
       containers:
         - name: elasticsearch
@@ -54,10 +58,10 @@ spec:
             {{- toYaml .Values.securityContext | nindent 12 }}
           ports:
             - name: http
-              containerPort: 9200
+              containerPort: {{ .Values.containerPorts.http }}
               protocol: TCP
             - name: transport
-              containerPort: 9300
+              containerPort: {{ .Values.containerPorts.transport }}
               protocol: TCP
           env:
             - name: node.name
@@ -75,27 +79,36 @@ spec:
           resources:
             {{- include "elasticsearch.coordinating.resources" . | nindent 12 }}
           volumeMounts:
+            {{- include "elasticsearch.configVolumeMount" . | nindent 12 }}
             {{- include "elasticsearch.tlsVolumeMounts" . | nindent 12 }}
+            {{- include "elasticsearch.backupKeystoreVolumeMount" . | nindent 12 }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+        {{- include "elasticsearch.exporterContainer" . | nindent 8 }}
       volumes:
+        {{- include "elasticsearch.configVolume" . | nindent 8 }}
+        {{- include "elasticsearch.backupKeystoreVolume" . | nindent 8 }}
         {{- include "elasticsearch.tlsVolumes" . | nindent 8 }}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.coordinating.nodeSelector }}
+      {{- with (.Values.coordinating.nodeSelector | default .Values.nodeSelector) }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.coordinating.affinity }}
+      {{- if or .Values.coordinating.affinity .Values.affinity }}
       affinity:
-        {{- toYaml .Values.coordinating.affinity | nindent 8 }}
+        {{- toYaml (.Values.coordinating.affinity | default .Values.affinity) | nindent 8 }}
       {{- else }}
       {{- include "elasticsearch.antiAffinity" (dict "root" . "component" "coordinating") | nindent 6 }}
       {{- end }}
-      {{- with .Values.coordinating.tolerations }}
+      {{- with (.Values.coordinating.tolerations | default .Values.tolerations) }}
       tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- with .Values.priorityClassName }}

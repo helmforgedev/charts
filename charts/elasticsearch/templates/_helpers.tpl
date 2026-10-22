@@ -66,6 +66,21 @@ Component-specific full labels (including helm.sh/chart etc.).
 app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 
+{{/* Label shared only by Elasticsearch node pods, excluding Kibana. */}}
+{{- define "elasticsearch.nodeGroupLabel" -}}
+app.kubernetes.io/component-group: elasticsearch
+{{- end -}}
+
+{{/* Resolve the node role that receives client Service traffic. */}}
+{{- define "elasticsearch.clientComponent" -}}
+{{- if gt (int (include "elasticsearch.coordinating.replicaCount" .)) 0 -}}coordinating
+{{- else if gt (int (include "elasticsearch.data.replicaCount" .)) 0 -}}data
+{{- else if and .Values.dataTiers.hot.enabled (ne (include "elasticsearch.profile" .) "dev") -}}hot
+{{- else if and .Values.dataTiers.warm.enabled (ne (include "elasticsearch.profile" .) "dev") -}}warm
+{{- else -}}master
+{{- end -}}
+{{- end -}}
+
 {{- define "elasticsearch.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
 {{- default (include "elasticsearch.fullname" .) .Values.serviceAccount.name -}}
@@ -369,6 +384,27 @@ Credentials secret name
 {{- end -}}
 {{- end -}}
 
+{{/* Canonical ExternalSecret resource name with a credentials-integrated default. */}}
+{{- define "elasticsearch.externalSecretName" -}}
+{{- if .item.fullnameOverride -}}
+{{- .item.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $suffix := .item.name | default "credentials" | trunc 32 | trimSuffix "-" -}}
+{{- printf "%s-%s" ((include "elasticsearch.fullname" .root) | trunc (int (sub 62 (len $suffix))) | trimSuffix "-") $suffix | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Canonical Gateway API HTTPRoute name. */}}
+{{- define "elasticsearch.httpRouteName" -}}
+{{- if .route.name -}}
+{{- printf "%s-%s" (include "elasticsearch.fullname" .root) .route.name | trunc 63 | trimSuffix "-" -}}
+{{- else if gt .index 0 -}}
+{{- printf "%s-%d" (include "elasticsearch.fullname" .root) .index | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- include "elasticsearch.fullname" .root -}}
+{{- end -}}
+{{- end -}}
+
 {{/*
 TLS secret name
 */}}
@@ -415,8 +451,29 @@ Split-brain quorum validation: master count must be odd and >= 3 for production-
 {{- if and (eq $p "production-ha") (lt $replicas 3) -}}
   {{- fail "production-ha profile requires at least 3 master nodes for split-brain prevention" -}}
 {{- end -}}
+
 {{- if and (gt $replicas 1) (eq (mod $replicas 2) 0) -}}
   {{- fail (printf "master.replicaCount must be an odd number (got %d) to prevent split-brain" $replicas) -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Validate process listener ports that share the Elasticsearch pod network. */}}
+{{- define "elasticsearch.validatePorts" -}}
+{{- if eq (int .Values.containerPorts.http) (int .Values.containerPorts.transport) -}}
+  {{- fail "containerPorts.http and containerPorts.transport must be different" -}}
+{{- end -}}
+{{- if and .Values.monitoring.enabled (or (eq (int .Values.monitoring.containerPort) (int .Values.containerPorts.http)) (eq (int .Values.monitoring.containerPort) (int .Values.containerPorts.transport))) -}}
+  {{- fail "monitoring.containerPort must differ from Elasticsearch HTTP and transport ports" -}}
+{{- end -}}
+{{- range .Values.extraVolumeMounts -}}
+  {{- if eq .mountPath "/usr/share/elasticsearch/config/elasticsearch.yml" -}}
+    {{- fail "extraVolumeMounts must not mount /usr/share/elasticsearch/config/elasticsearch.yml; configure extraConfig instead" -}}
+  {{- end -}}
+{{- end -}}
+{{- range .Values.extraVolumes -}}
+  {{- if eq .name "elasticsearch-config" -}}
+    {{- fail "extraVolumes name 'elasticsearch-config' is reserved by the chart" -}}
+  {{- end -}}
 {{- end -}}
 {{- end -}}
 
@@ -458,52 +515,118 @@ Build the initial_master_nodes list (comma-separated pod names)
 Common Elasticsearch environment variables
 */}}
 {{- define "elasticsearch.commonEnv" -}}
-- name: cluster.name
-  value: {{ .Values.clusterName | quote }}
-- name: network.host
-  value: "0.0.0.0"
-{{- $masterReplicas := int (include "elasticsearch.master.replicaCount" .) -}}
-{{- $coordReplicas := int (include "elasticsearch.coordinating.replicaCount" .) -}}
-{{- $hasDedicatedData := eq (include "elasticsearch.hasDedicatedDataNodes" .) "true" -}}
-{{- if and (eq $masterReplicas 1) (eq $coordReplicas 0) (not $hasDedicatedData) }}
-- name: discovery.type
-  value: single-node
-{{- else }}
-- name: discovery.seed_hosts
-  value: {{ printf "%s-master-headless" (include "elasticsearch.fullname" .) | quote }}
-- name: cluster.initial_master_nodes
-  value: {{ include "elasticsearch.initialMasterNodes" . | quote }}
-{{- end }}
 - name: ELASTIC_PASSWORD
   valueFrom:
     secretKeyRef:
       name: {{ include "elasticsearch.credentialsSecretName" . }}
       key: elastic-password
       optional: {{ eq (include "elasticsearch.security.enabled" .) "false" }}
-- name: xpack.security.enabled
-  value: {{ include "elasticsearch.security.enabled" . | quote }}
-{{- if eq (include "elasticsearch.security.enabled" .) "true" }}
-- name: xpack.security.transport.ssl.enabled
-  value: "true"
-- name: xpack.security.transport.ssl.verification_mode
-  value: "certificate"
-- name: xpack.security.transport.ssl.key
-  value: /usr/share/elasticsearch/config/certs/tls.key
-- name: xpack.security.transport.ssl.certificate
-  value: /usr/share/elasticsearch/config/certs/tls.crt
-- name: xpack.security.transport.ssl.certificate_authorities
-  value: /usr/share/elasticsearch/config/certs/ca.crt
-- name: xpack.security.http.ssl.enabled
-  value: "true"
-- name: xpack.security.http.ssl.key
-  value: /usr/share/elasticsearch/config/certs/tls.key
-- name: xpack.security.http.ssl.certificate
-  value: /usr/share/elasticsearch/config/certs/tls.crt
-- name: xpack.security.http.ssl.certificate_authorities
-  value: /usr/share/elasticsearch/config/certs/ca.crt
-{{- end }}
 {{- with .Values.extraEnv }}
 {{ toYaml . }}
+{{- end }}
+{{- end -}}
+
+{{- define "elasticsearch.configVolumeMount" -}}
+- name: elasticsearch-config
+  mountPath: /usr/share/elasticsearch/config/elasticsearch.yml
+  subPath: elasticsearch.yml
+  readOnly: true
+{{- end -}}
+
+{{- define "elasticsearch.configVolume" -}}
+- name: elasticsearch-config
+  configMap:
+    name: {{ include "elasticsearch.fullname" . }}-config
+{{- end -}}
+
+{{- define "elasticsearch.backupKeystoreInitContainer" -}}
+{{- if eq (include "elasticsearch.backupEnabled" .) "true" }}
+- name: keystore-s3
+  image: {{ include "elasticsearch.image" . }}
+  imagePullPolicy: {{ .Values.image.pullPolicy }}
+  command:
+    - sh
+    - -c
+    - |
+      set -e
+      cp -r /usr/share/elasticsearch/config/. /keystore-config/
+      ES_PATH_CONF=/keystore-config elasticsearch-keystore create -s -v 2>/dev/null || true
+      echo "$S3_ACCESS_KEY" | ES_PATH_CONF=/keystore-config elasticsearch-keystore add -f -x s3.client.default.access_key
+      echo "$S3_SECRET_KEY" | ES_PATH_CONF=/keystore-config elasticsearch-keystore add -f -x s3.client.default.secret_key
+  env:
+    - name: S3_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: {{ include "elasticsearch.backupSecretName" . }}
+          key: {{ .Values.backup.s3.existingSecretAccessKeyKey }}
+    - name: S3_SECRET_KEY
+      valueFrom:
+        secretKeyRef:
+          name: {{ include "elasticsearch.backupSecretName" . }}
+          key: {{ .Values.backup.s3.existingSecretSecretKeyKey }}
+  volumeMounts:
+    - name: keystore-config
+      mountPath: /keystore-config
+  securityContext:
+    {{- toYaml .Values.securityContext | nindent 4 }}
+{{- end }}
+{{- end -}}
+
+{{- define "elasticsearch.backupKeystoreVolumeMount" -}}
+{{- if eq (include "elasticsearch.backupEnabled" .) "true" }}
+- name: keystore-config
+  mountPath: /usr/share/elasticsearch/config
+{{- end }}
+{{- end -}}
+
+{{- define "elasticsearch.backupKeystoreVolume" -}}
+{{- if eq (include "elasticsearch.backupEnabled" .) "true" }}
+- name: keystore-config
+  emptyDir: {}
+{{- end }}
+{{- end -}}
+
+{{- define "elasticsearch.exporterContainer" -}}
+{{- if .Values.monitoring.enabled }}
+- name: exporter
+  image: {{ include "elasticsearch.exporter.image" . }}
+  imagePullPolicy: {{ .Values.monitoring.image.pullPolicy }}
+  args:
+    - --es.uri={{ ternary "https" "http" (eq (include "elasticsearch.security.enabled" .) "true") }}://localhost:{{ .Values.containerPorts.http }}
+    - --web.listen-address=:{{ .Values.monitoring.containerPort }}
+    {{- if eq (include "elasticsearch.security.enabled" .) "true" }}
+    - --es.ca=/usr/share/elasticsearch/config/certs/ca.crt
+    - --es.ssl-skip-verify
+    {{- end }}
+  ports:
+    - name: metrics
+      containerPort: {{ .Values.monitoring.containerPort }}
+      protocol: TCP
+  {{- if eq (include "elasticsearch.security.enabled" .) "true" }}
+  env:
+    - name: ES_USERNAME
+      value: elastic
+    - name: ES_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: {{ include "elasticsearch.credentialsSecretName" . }}
+          key: elastic-password
+  volumeMounts:
+    {{- include "elasticsearch.tlsVolumeMounts" . | nindent 4 }}
+  {{- end }}
+  resources:
+    {{- if .Values.monitoring.resources }}
+    {{- toYaml .Values.monitoring.resources | nindent 4 }}
+    {{- else }}
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+    {{- end }}
+  securityContext:
+    {{- toYaml .Values.securityContext | nindent 4 }}
 {{- end }}
 {{- end -}}
 
@@ -535,8 +658,14 @@ Liveness probe for ES HTTP endpoint
 {{- define "elasticsearch.livenessProbe" -}}
 {{- if .Values.livenessProbe.enabled -}}
 livenessProbe:
-  tcpSocket:
+  {{- if eq (include "elasticsearch.security.enabled" .) "true" }}
+  exec:
+    command: ["/bin/sh", "-c", "curl -sk -u elastic:${ELASTIC_PASSWORD} https://localhost:{{ .Values.containerPorts.http }}/ --fail >/dev/null"]
+  {{- else }}
+  httpGet:
+    path: /
     port: http
+  {{- end }}
   initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
   periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
   timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
@@ -557,7 +686,7 @@ readinessProbe:
       - -c
       - |
         curl -sk -u elastic:${ELASTIC_PASSWORD} \
-          https://localhost:9200/_cluster/health?local=true \
+          https://localhost:{{ .Values.containerPorts.http }}/_cluster/health?local=true \
           --fail || exit 1
   {{- else }}
   httpGet:
@@ -577,8 +706,14 @@ Startup probe
 {{- define "elasticsearch.startupProbe" -}}
 {{- if .Values.startupProbe.enabled -}}
 startupProbe:
-  tcpSocket:
+  {{- if eq (include "elasticsearch.security.enabled" .) "true" }}
+  exec:
+    command: ["/bin/sh", "-c", "curl -sk -u elastic:${ELASTIC_PASSWORD} https://localhost:{{ .Values.containerPorts.http }}/ --fail >/dev/null"]
+  {{- else }}
+  httpGet:
+    path: /
     port: http
+  {{- end }}
   initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
   periodSeconds: {{ .Values.startupProbe.periodSeconds }}
   timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
@@ -712,55 +847,6 @@ To suppress check (use when cert-manager is managed externally):
     {{- /* Only fail when cluster responded (non-nil) but CRD is missing (no metadata) */ -}}
     {{- if and $crd (not (hasKey $crd "metadata")) -}}
       {{- fail "ERROR: cert-manager CRDs not found in cluster.\n\ncert-manager is required for security.tls.certManager.enabled=true.\n\nOptions:\n  1. Install cert-manager manually:\n     https://cert-manager.io/docs/installation/\n\n  2. Use self-signed TLS (no cert-manager needed):\n     --set security.tls.certManager.enabled=false \\\n     --set security.tls.selfSignedInit.enabled=true" -}}
-    {{- end -}}
-  {{- end -}}
-{{- end -}}
-{{- end -}}
-
-{{/*
-Assert External Secrets Operator CRDs are present in the cluster.
-Uses the same lookup pattern as assertCertManagerCRDs:
-  - offline / unit-test: lookup returns nil → check skipped silently
-  - live cluster, CRD present: lookup returns object with metadata → ok
-  - live cluster, CRD absent: lookup returns empty map {} → fail with instructions
-
-To suppress: externalSecrets.skipCRDCheck: true
-*/}}
-{{- define "elasticsearch.assertExternalSecretsCRDs" -}}
-{{- if .Values.externalSecrets.enabled -}}
-  {{- if not .Values.externalSecrets.skipCRDCheck -}}
-    {{- $crd := lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "externalsecrets.external-secrets.io" -}}
-    {{- /*
-      helm template / unit-test: lookup returns {} (falsy) → and short-circuits → no fail (correct).
-      live cluster, CRD present: lookup returns full object (truthy) → hasKey "metadata" → no fail.
-      live cluster, CRD absent: lookup returns {} (falsy) → and short-circuits → no fail.
-      Helm's lookup cannot distinguish offline from absent, so this is best-effort: it only fires
-      if somehow a non-empty response arrives without metadata, which does not occur in practice.
-      The check provides an actionable error when CRDs are definitively confirmed missing.
-    */ -}}
-    {{- if and $crd (not (hasKey $crd "metadata")) -}}
-      {{- fail "ERROR: External Secrets Operator CRDs not found in cluster.\n\nESO is required for externalSecrets.enabled=true.\n\nOptions:\n  1. Install ESO:\n     https://external-secrets.io/latest/introduction/getting-started/\n\n  2. Skip this check (if CRDs are managed externally):\n     --set externalSecrets.skipCRDCheck=true" -}}
-    {{- end -}}
-  {{- end -}}
-{{- end -}}
-{{- end -}}
-
-{{/*
-Assert Gateway API CRDs are present in the cluster.
-Uses the same lookup pattern as assertCertManagerCRDs:
-  - offline / unit-test: lookup returns nil → check skipped silently
-  - live cluster, CRD present: lookup returns object with metadata → ok
-  - live cluster, CRD absent: lookup returns empty map {} → fail with instructions
-
-To suppress: gateway.skipCRDCheck: true
-*/}}
-{{- define "elasticsearch.assertGatewayAPICRDs" -}}
-{{- if .Values.gateway.enabled -}}
-  {{- if not .Values.gateway.skipCRDCheck -}}
-    {{- $crd := lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "httproutes.gateway.networking.k8s.io" -}}
-    {{- /* Same best-effort pattern as assertExternalSecretsCRDs — see comment there. */ -}}
-    {{- if and $crd (not (hasKey $crd "metadata")) -}}
-      {{- fail "ERROR: Gateway API CRDs not found in cluster.\n\nGateway API is required for gateway.enabled=true.\n\nOptions:\n  1. Install Gateway API CRDs:\n     kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml\n\n  2. Skip this check (if CRDs are managed externally):\n     --set gateway.skipCRDCheck=true" -}}
     {{- end -}}
   {{- end -}}
 {{- end -}}

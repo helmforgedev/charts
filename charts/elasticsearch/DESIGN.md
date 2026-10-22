@@ -33,8 +33,8 @@ The dev profile keeps the deployment small for local clusters and chart validati
 flowchart LR
   client[Client] --> edge[Ingress or HTTPRoute]
   edge --> svc[HTTP Service]
-  svc --> master[Master StatefulSet]
   svc --> data0[Data StatefulSet]
+  data0 --> master[Master StatefulSet]
   master --> masterPvc[(Master PVC)]
   data0 --> dataPvc[(Data PVCs)]
   pdb[Data PDB] --> data0
@@ -67,6 +67,12 @@ Operators should still own capacity planning, shard strategy, snapshots, restore
 - Use the official Elasticsearch and Kibana images.
 - Keep chart defaults lightweight while exposing production profiles through `clusterProfile`.
 - Generate role-specific StatefulSets instead of using a single generic pod template.
+- Generate one authoritative `elasticsearch.yml`, mount it into every node role, and reserve cluster, discovery,
+  security, and listener keys for the chart.
+- Separate process listener ports from Kubernetes Service ports. Services always use named target ports.
+- Route client traffic to coordinating nodes when present, then data nodes, then an enabled data tier, and only use
+  master nodes for the all-in-one development topology.
+- Expose transport only through role-specific headless Services used for cluster communication.
 - Keep Kibana optional and version-aligned with Elasticsearch.
 - Render Gateway API and External Secrets only when explicitly enabled.
 - Use cert-manager integration when TLS is managed by the cluster, and self-signed hook jobs for clusters without it.
@@ -83,6 +89,7 @@ Before production use, operators should define:
 - backup bucket, retention, and restore runbooks
 - monitoring, alert routing, and dashboard ownership
 - upgrade sequencing for Elasticsearch, Kibana, plugins, index templates, and ILM policies
+- node-level `vm.max_map_count=262144`; the privileged init container is an explicit compatibility fallback
 
 ## Explicit Non-Goals
 

@@ -3,6 +3,9 @@ suite: elasticsearch - backup
 templates:
   - templates/cronjob-backup.yaml
   - templates/secret-s3.yaml
+  - templates/statefulset-master.yaml
+  - templates/statefulset-data.yaml
+  - templates/statefulset-coordinating.yaml
 
 tests:
   - it: backup disabled should have no CronJob
@@ -50,6 +53,10 @@ tests:
       - matchRegex:
           path: data["mc-init.sh"]
           pattern: "/tmp/.mc"
+        documentIndex: 0
+      - matchRegex:
+          path: data["mc-init.sh"]
+          pattern: 'S3_ENDPOINT:-https://s3.amazonaws.com'
         documentIndex: 0
       - equal:
           path: spec.jobTemplate.spec.template.spec.automountServiceAccountToken
@@ -117,3 +124,62 @@ tests:
           path: spec.suspend
           value: true
         documentIndex: 1
+
+  - it: installs S3 secure settings on every Elasticsearch node role
+    set:
+      clusterProfile: production-ha
+      security.existingTlsSecret: test-tls
+      backup:
+        enabled: true
+        s3:
+          bucket: test-bucket
+          accessKey: key
+          secretKey: secret
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers
+          content:
+            name: keystore-s3
+            image: docker.io/library/elasticsearch:9.5.5
+            imagePullPolicy: IfNotPresent
+            command:
+              - sh
+              - -c
+              - |
+                set -e
+                cp -r /usr/share/elasticsearch/config/. /keystore-config/
+                ES_PATH_CONF=/keystore-config elasticsearch-keystore create -s -v 2>/dev/null || true
+                echo "$S3_ACCESS_KEY" | ES_PATH_CONF=/keystore-config elasticsearch-keystore add -f -x s3.client.default.access_key
+                echo "$S3_SECRET_KEY" | ES_PATH_CONF=/keystore-config elasticsearch-keystore add -f -x s3.client.default.secret_key
+            env:
+              - name: S3_ACCESS_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: RELEASE-NAME-elasticsearch-backup
+                    key: access-key
+              - name: S3_SECRET_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: RELEASE-NAME-elasticsearch-backup
+                    key: secret-key
+            volumeMounts:
+              - name: keystore-config
+                mountPath: /keystore-config
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                  - ALL
+        template: templates/statefulset-master.yaml
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: keystore-config
+            emptyDir: {}
+        template: templates/statefulset-data.yaml
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: keystore-config
+            mountPath: /usr/share/elasticsearch/config
+        template: templates/statefulset-coordinating.yaml

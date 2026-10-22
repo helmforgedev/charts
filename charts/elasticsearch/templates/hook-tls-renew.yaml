@@ -126,24 +126,31 @@ spec:
 
                   echo "Certificate expires in ${DAYS_LEFT} days - renewing..."
 
-                  cat > "${TMPDIR}/san.cnf" << 'SANCNF'
+                  cat > "${TMPDIR}/san.cnf" << SANCNF
                   [req]
                   distinguished_name = req_distinguished_name
                   x509_extensions = v3_req
                   prompt = no
                   [req_distinguished_name]
-                  CN = elasticsearch
+                  CN = ${FULLNAME}
                   O = HelmForge Elasticsearch
                   [v3_req]
                   subjectAltName = @alt_names
                   keyUsage = critical, digitalSignature, keyEncipherment
                   extendedKeyUsage = serverAuth, clientAuth
                   [alt_names]
-                  DNS.1 = localhost
+                  DNS.1 = ${FULLNAME}
+                  DNS.2 = ${FULLNAME}.${NAMESPACE}
+                  DNS.3 = ${FULLNAME}.${NAMESPACE}.svc
+                  DNS.4 = ${FULLNAME}.${NAMESPACE}.svc.cluster.local
+                  DNS.5 = *.${FULLNAME}-master-headless.${NAMESPACE}.svc.cluster.local
+                  DNS.6 = *.${FULLNAME}-data-headless.${NAMESPACE}.svc.cluster.local
+                  DNS.7 = *.${FULLNAME}-coordinating-headless.${NAMESPACE}.svc.cluster.local
+                  DNS.8 = *.${FULLNAME}-hot-headless.${NAMESPACE}.svc.cluster.local
+                  DNS.9 = *.${FULLNAME}-warm-headless.${NAMESPACE}.svc.cluster.local
+                  DNS.10 = localhost
                   IP.1 = 127.0.0.1
                   SANCNF
-
-                  sed -i "s/CN = elasticsearch/CN = ${FULLNAME}/" "${TMPDIR}/san.cnf"
 
                   openssl genrsa -out "${TMPDIR}/ca.key" 4096 2>/dev/null
                   openssl req -new -x509 -days "${DAYS}" \

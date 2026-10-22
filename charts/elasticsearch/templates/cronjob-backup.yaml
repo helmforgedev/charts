@@ -15,27 +15,32 @@ data:
     echo "=== Configuring MinIO/S3 alias ==="
     export MC_CONFIG_DIR="${MC_CONFIG_DIR:-/tmp/.mc}"
     mkdir -p "${MC_CONFIG_DIR}"
-    mc alias set minio "${S3_ENDPOINT}" "${S3_ACCESS_KEY}" "${S3_SECRET_KEY}" --api S3v4
+    ENDPOINT="${S3_ENDPOINT:-https://s3.amazonaws.com}"
+    mc alias set minio "${ENDPOINT}" "${S3_ACCESS_KEY}" "${S3_SECRET_KEY}" --api S3v4
     echo "=== Ensuring bucket exists: ${S3_BUCKET} ==="
     mc mb --ignore-existing "minio/${S3_BUCKET}"
     echo "=== Bucket ready ==="
 
   # Executed by main container (curlimages/curl) - calls ES Snapshot API
-  # repository-s3 is a built-in module in Elasticsearch 8.x - no plugin install needed
+  # repository-s3 is built into supported Elasticsearch releases; no plugin install is needed
   backup.sh: |
     #!/bin/sh
     set -e
     SCHEME="{{ if eq (include "elasticsearch.security.enabled" .) "true" }}https{{ else }}http{{ end }}"
     ES_HOST="{{ include "elasticsearch.fullname" . }}.{{ (include "elasticsearch.namespace" .) }}.svc.cluster.local"
-    ES_PORT="{{ .Values.service.httpPort }}"
+    ES_PORT="{{ .Values.service.port }}"
     BASE_URL="${SCHEME}://${ES_HOST}:${ES_PORT}"
     REPO_NAME="helmforge-s3"
     SNAPSHOT_NAME="snapshot-$(date +%Y%m%d-%H%M%S)"
     RETENTION_DAYS="{{ .Values.backup.retention.days }}"
     SSL_FLAGS="{{ if eq (include "elasticsearch.security.enabled" .) "true" }}-k{{ end }}"
     AUTH_FLAGS="{{ if eq (include "elasticsearch.security.enabled" .) "true" }}-u elastic:${ELASTIC_PASSWORD}{{ end }}"
+    REPOSITORY_SETTINGS="\"bucket\":\"${S3_BUCKET}\",\"region\":\"${S3_REGION}\",\"base_path\":\"${S3_PREFIX}\""
+    if [ -n "${S3_ENDPOINT}" ]; then
+      REPOSITORY_SETTINGS="${REPOSITORY_SETTINGS},\"endpoint\":\"${S3_ENDPOINT}\",\"path_style_access\":true"
+    fi
     echo "=== Registering S3 snapshot repository ==="
-    curl -sf ${SSL_FLAGS} ${AUTH_FLAGS} -X PUT "${BASE_URL}/_snapshot/${REPO_NAME}" -H "Content-Type: application/json" -d "{\"type\":\"s3\",\"settings\":{\"bucket\":\"${S3_BUCKET}\",\"region\":\"${S3_REGION}\",\"endpoint\":\"${S3_ENDPOINT}\",\"path_style_access\":true,\"base_path\":\"${S3_PREFIX}\"}}"
+    curl -sf ${SSL_FLAGS} ${AUTH_FLAGS} -X PUT "${BASE_URL}/_snapshot/${REPO_NAME}" -H "Content-Type: application/json" -d "{\"type\":\"s3\",\"settings\":{${REPOSITORY_SETTINGS}}}"
     echo "=== Registered ==="
     echo "=== Creating snapshot: ${SNAPSHOT_NAME} ==="
     curl -sf ${SSL_FLAGS} ${AUTH_FLAGS} -X PUT "${BASE_URL}/_snapshot/${REPO_NAME}/${SNAPSHOT_NAME}?wait_for_completion=true" -H "Content-Type: application/json" -d "{\"include_global_state\":true}"
@@ -79,11 +84,15 @@ spec:
           restartPolicy: OnFailure
           serviceAccountName: {{ include "elasticsearch.serviceAccountName" . }}
           automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
           # Step 1: mc ensures the S3 bucket exists before ES can write snapshots to it
           initContainers:
             - name: ensure-bucket
               image: {{ printf "%s:%s" .Values.backup.image.repository .Values.backup.image.tag }}
               imagePullPolicy: {{ .Values.backup.image.pullPolicy }}
+              securityContext:
+                {{- toYaml .Values.securityContext | nindent 16 }}
               # tr strips Windows CRLF (\r) - sed is unavailable in the helmforge/mc image
               command: ["/bin/sh", "-c", "tr -d '\\r' < /scripts/mc-init.sh > /tmp/init.sh && /bin/sh /tmp/init.sh"]
               env:
@@ -104,11 +113,13 @@ spec:
               volumeMounts:
                 - name: backup-script
                   mountPath: /scripts
-          # Step 2: curl calls the ES Snapshot API (repository-s3 is built-in to ES 8.x)
+          # Step 2: curl calls the ES Snapshot API (repository-s3 is built in)
           containers:
             - name: backup
               image: {{ printf "%s:%s" .Values.backup.curlImage.repository .Values.backup.curlImage.tag }}
               imagePullPolicy: {{ .Values.backup.curlImage.pullPolicy }}
+              securityContext:
+                {{- toYaml .Values.securityContext | nindent 16 }}
               # sed strips Windows CRLF before executing the script
               command: ["/bin/sh", "-c", "sed 's/\\r//g' /scripts/backup.sh | sh"]
               env:

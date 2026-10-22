@@ -20,6 +20,7 @@ spec:
     metadata:
       labels:
         {{- include "elasticsearch.componentLabels" (dict "root" . "component" "data") | nindent 8 }}
+        {{- include "elasticsearch.nodeGroupLabel" . | nindent 8 }}
       annotations:
         checksum/config: {{ toYaml .Values | sha256sum }}
         {{- with .Values.data.podAnnotations }}
@@ -35,8 +36,9 @@ spec:
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
-      {{- if .Values.sysctlInit.enabled }}
+      {{- if or .Values.sysctlInit.enabled (eq (include "elasticsearch.backupEnabled" .) "true") }}
       initContainers:
+        {{- if .Values.sysctlInit.enabled }}
         - name: sysctl
           image: {{ printf "%s:%s" .Values.sysctlInit.image.repository .Values.sysctlInit.image.tag }}
           imagePullPolicy: {{ .Values.sysctlInit.image.pullPolicy }}
@@ -45,6 +47,8 @@ spec:
             privileged: true
             runAsUser: 0
             runAsNonRoot: false
+        {{- end }}
+        {{- include "elasticsearch.backupKeystoreInitContainer" . | nindent 8 }}
       {{- end }}
       containers:
         - name: elasticsearch
@@ -54,10 +58,10 @@ spec:
             {{- toYaml .Values.securityContext | nindent 12 }}
           ports:
             - name: http
-              containerPort: 9200
+              containerPort: {{ .Values.containerPorts.http }}
               protocol: TCP
             - name: transport
-              containerPort: 9300
+              containerPort: {{ .Values.containerPorts.transport }}
               protocol: TCP
           env:
             - name: node.name
@@ -77,57 +81,46 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /usr/share/elasticsearch/data
+            {{- include "elasticsearch.configVolumeMount" . | nindent 12 }}
             {{- include "elasticsearch.tlsVolumeMounts" . | nindent 12 }}
+            {{- include "elasticsearch.backupKeystoreVolumeMount" . | nindent 12 }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-        {{- if .Values.monitoring.enabled }}
-        - name: metrics
-          image: {{ include "elasticsearch.exporter.image" . }}
-          imagePullPolicy: {{ .Values.monitoring.image.pullPolicy }}
-          args:
-            - {{ printf "--es.uri=%s://localhost:9200" (ternary "https" "http" (eq (include "elasticsearch.security.enabled" .) "true")) }}
-            {{- if eq (include "elasticsearch.security.enabled" .) "true" }}
-            - --es.ssl-skip-verify
-            {{- end }}
-          ports:
-            - name: metrics
-              containerPort: 9114
-              protocol: TCP
-          resources:
-            {{- if .Values.monitoring.resources }}
-            {{- toYaml .Values.monitoring.resources | nindent 12 }}
-            {{- else }}
-            requests:
-              cpu: 50m
-              memory: 64Mi
-            limits:
-              cpu: 200m
-              memory: 128Mi
-            {{- end }}
-        {{- end }}
+        {{- include "elasticsearch.exporterContainer" . | nindent 8 }}
       volumes:
+        {{- include "elasticsearch.configVolume" . | nindent 8 }}
+        {{- include "elasticsearch.backupKeystoreVolume" . | nindent 8 }}
+        {{- if not .Values.data.persistence.enabled }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
         {{- include "elasticsearch.tlsVolumes" . | nindent 8 }}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.data.nodeSelector }}
+      {{- with (.Values.data.nodeSelector | default .Values.nodeSelector) }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.data.affinity }}
+      {{- if or .Values.data.affinity .Values.affinity }}
       affinity:
-        {{- toYaml .Values.data.affinity | nindent 8 }}
+        {{- toYaml (.Values.data.affinity | default .Values.affinity) | nindent 8 }}
       {{- else }}
       {{- include "elasticsearch.antiAffinity" (dict "root" . "component" "data") | nindent 6 }}
       {{- end }}
-      {{- with .Values.data.tolerations }}
+      {{- with (.Values.data.tolerations | default .Values.tolerations) }}
       tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . | quote }}
       {{- end }}
+  {{- if .Values.data.persistence.enabled }}
   volumeClaimTemplates:
     - metadata:
         name: data
@@ -141,4 +134,5 @@ spec:
         resources:
           requests:
             storage: {{ include "elasticsearch.data.persistence.size" . }}
+  {{- end }}
 {{- end }}

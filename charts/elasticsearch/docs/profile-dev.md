@@ -32,7 +32,9 @@ Common cases:
 
 - single node with 2–4 GiB available memory
 - a default StorageClass for the master PVC, unless persistence is explicitly disabled
-- `vm.max_map_count=262144` on the host (handled automatically by `sysctlInit.enabled=true`)
+- `vm.max_map_count=262144` on the host. Configure it on cluster nodes; use
+  `sysctlInit.enabled=true` only as an opt-in fallback when privileged init
+  containers are allowed.
 
 ## Operational guidance
 

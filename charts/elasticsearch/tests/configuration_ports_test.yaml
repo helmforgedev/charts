@@ -1,0 +1,266 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: elasticsearch - configuration and port contract
+templates:
+  - templates/configmap.yaml
+  - templates/statefulset-master.yaml
+  - templates/statefulset-data.yaml
+  - templates/statefulset-coordinating.yaml
+  - templates/statefulset-data-hot.yaml
+  - templates/statefulset-data-warm.yaml
+  - templates/service.yaml
+  - templates/kibana.yaml
+  - templates/servicemonitor.yaml
+
+tests:
+  - it: mounts the generated elasticsearch.yml into every Elasticsearch node role
+    template: templates/statefulset-master.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: elasticsearch-config
+            mountPath: /usr/share/elasticsearch/config/elasticsearch.yml
+            subPath: elasticsearch.yml
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: elasticsearch-config
+            configMap:
+              name: RELEASE-NAME-elasticsearch-config
+
+  - it: mounts the generated config into data nodes
+    template: templates/statefulset-data.yaml
+    set:
+      clusterProfile: staging
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: elasticsearch-config
+            mountPath: /usr/share/elasticsearch/config/elasticsearch.yml
+            subPath: elasticsearch.yml
+            readOnly: true
+
+  - it: uses emptyDir and omits data PVC templates when persistence is disabled
+    template: templates/statefulset-data.yaml
+    set:
+      clusterProfile: staging
+      data.persistence.enabled: false
+    asserts:
+      - isNull:
+          path: spec.volumeClaimTemplates
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+
+  - it: mounts the generated config into coordinating nodes
+    template: templates/statefulset-coordinating.yaml
+    set:
+      clusterProfile: production-ha
+      security.existingTlsSecret: test-tls
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: elasticsearch-config
+            mountPath: /usr/share/elasticsearch/config/elasticsearch.yml
+            subPath: elasticsearch.yml
+            readOnly: true
+
+  - it: mounts the generated config into hot and warm tiers
+    set:
+      clusterProfile: staging
+      dataTiers.hot.enabled: true
+      dataTiers.warm.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: elasticsearch-config
+            mountPath: /usr/share/elasticsearch/config/elasticsearch.yml
+            subPath: elasticsearch.yml
+            readOnly: true
+        template: templates/statefulset-data-hot.yaml
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: elasticsearch-config
+            mountPath: /usr/share/elasticsearch/config/elasticsearch.yml
+            subPath: elasticsearch.yml
+            readOnly: true
+        template: templates/statefulset-data-warm.yaml
+
+  - it: renders extraConfig into the mounted configuration
+    template: templates/configmap.yaml
+    set:
+      extraConfig:
+        cluster.routing.allocation.disk.watermark.low: "82%"
+    asserts:
+      - matchRegex:
+          path: data["elasticsearch.yml"]
+          pattern: 'cluster.routing.allocation.disk.watermark.low: 82%'
+
+  - it: chart-managed settings take precedence over conflicting extraConfig
+    template: templates/configmap.yaml
+    set:
+      clusterName: authoritative
+      extraConfig:
+        cluster.name: ignored
+        http.port: 1
+    asserts:
+      - matchRegex:
+          path: data["elasticsearch.yml"]
+          pattern: 'cluster.name: authoritative'
+      - matchRegex:
+          path: data["elasticsearch.yml"]
+          pattern: 'http.port: 9200'
+      - notMatchRegex:
+          path: data["elasticsearch.yml"]
+          pattern: 'cluster.name: ignored'
+
+  - it: keeps initial master bootstrap settings off master-ineligible nodes
+    set:
+      clusterProfile: staging
+    asserts:
+      - notMatchRegex:
+          path: data["elasticsearch.yml"]
+          pattern: 'cluster.initial_master_nodes'
+        template: templates/configmap.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: cluster.initial_master_nodes
+            value: RELEASE-NAME-elasticsearch-master-0
+        template: templates/statefulset-master.yaml
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: cluster.initial_master_nodes
+            value: RELEASE-NAME-elasticsearch-master-0
+        template: templates/statefulset-data.yaml
+
+  - it: wires custom listener and service ports independently
+    set:
+      containerPorts:
+        http: 19200
+        transport: 19300
+      service:
+        port: 19201
+    asserts:
+      - matchRegex:
+          path: data["elasticsearch.yml"]
+          pattern: 'http.port: 19200'
+        template: templates/configmap.yaml
+      - matchRegex:
+          path: data["elasticsearch.yml"]
+          pattern: 'transport.port: 19300'
+        template: templates/configmap.yaml
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 19200
+        template: templates/statefulset-master.yaml
+      - equal:
+          path: spec.template.spec.containers[0].ports[1].containerPort
+          value: 19300
+        template: templates/statefulset-master.yaml
+      - equal:
+          path: spec.ports[0].port
+          value: 19201
+        template: templates/service.yaml
+
+  - it: client service selects master in dev and never Kibana
+    template: templates/service.yaml
+    set:
+      kibana.enabled: true
+    asserts:
+      - equal:
+          path: spec.selector["app.kubernetes.io/component"]
+          value: master
+
+  - it: client service selects coordinating nodes in production-ha
+    template: templates/service.yaml
+    set:
+      clusterProfile: production-ha
+      security.existingTlsSecret: test-tls
+    asserts:
+      - equal:
+          path: spec.selector["app.kubernetes.io/component"]
+          value: coordinating
+
+  - it: monitoring creates a metrics service and configures exporter listener
+    template: templates/service.yaml
+    set:
+      monitoring:
+        enabled: true
+        containerPort: 19114
+        service:
+          port: 19115
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: spec.ports[0].port
+          value: 19115
+        documentIndex: 1
+      - equal:
+          path: spec.selector["app.kubernetes.io/component-group"]
+          value: elasticsearch
+        documentIndex: 1
+
+  - it: ServiceMonitor discovers the metrics Service across namespaces
+    template: templates/servicemonitor.yaml
+    set:
+      namespaceOverride: elasticsearch-system
+      monitoring:
+        enabled: true
+        serviceMonitor:
+          enabled: true
+          namespace: monitoring-system
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: monitoring-system
+      - equal:
+          path: spec.namespaceSelector.matchNames[0]
+          value: elasticsearch-system
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/component"]
+          value: metrics
+
+  - it: configures Kibana process port separately from its Service
+    template: templates/kibana.yaml
+    set:
+      kibana:
+        enabled: true
+        containerPort: 15601
+        service:
+          type: ClusterIP
+          port: 15602
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 15601
+        documentIndex: 0
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SERVER_PORT
+            value: "15601"
+        documentIndex: 0
+      - equal:
+          path: spec.ports[0].port
+          value: 15602
+        documentIndex: 1
+
+  - it: rejects colliding Elasticsearch listener ports
+    set:
+      containerPorts:
+        http: 9200
+        transport: 9200
+    asserts:
+      - failedTemplate:
+          errorMessage: containerPorts.http and containerPorts.transport must be different
+        template: templates/statefulset-master.yaml

@@ -20,10 +20,10 @@ spec:
   publishNotReadyAddresses: true
   ports:
     - name: transport
-      port: {{ .Values.service.transportPort }}
+      port: {{ .Values.containerPorts.transport }}
       targetPort: transport
     - name: http
-      port: {{ .Values.service.httpPort }}
+      port: {{ .Values.containerPorts.http }}
       targetPort: http
   selector:
     {{- include "elasticsearch.componentSelectorLabels" (dict "root" . "component" "master") | nindent 4 }}
@@ -50,10 +50,42 @@ spec:
   publishNotReadyAddresses: true
   ports:
     - name: transport
-      port: {{ .Values.service.transportPort }}
+      port: {{ .Values.containerPorts.transport }}
       targetPort: transport
   selector:
     {{- include "elasticsearch.componentSelectorLabels" (dict "root" . "component" "data") | nindent 4 }}
+{{- end }}
+---
+{{/* Dedicated data-tier headless services provide stable StatefulSet DNS. */}}
+{{- range $tier := list "hot" "warm" }}
+{{- $tierValues := index $.Values.dataTiers $tier }}
+{{- if and $tierValues.enabled (ne (include "elasticsearch.profile" $) "dev") }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "elasticsearch.fullname" $ }}-{{ $tier }}-headless
+  namespace: {{ include "elasticsearch.namespace" $ }}
+  labels:
+    {{- include "elasticsearch.componentLabels" (dict "root" $ "component" $tier) | nindent 4 }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  {{- with $.Values.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with $.Values.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  publishNotReadyAddresses: true
+  ports:
+    - name: transport
+      port: {{ $.Values.containerPorts.transport }}
+      targetPort: transport
+  selector:
+    {{- include "elasticsearch.componentSelectorLabels" (dict "root" $ "component" $tier) | nindent 4 }}
+---
+{{- end }}
 {{- end }}
 ---
 {{/* Coordinating headless service */}}
@@ -78,7 +110,7 @@ spec:
   publishNotReadyAddresses: true
   ports:
     - name: transport
-      port: {{ .Values.service.transportPort }}
+      port: {{ .Values.containerPorts.transport }}
       targetPort: transport
   selector:
     {{- include "elasticsearch.componentSelectorLabels" (dict "root" . "component" "coordinating") | nindent 4 }}

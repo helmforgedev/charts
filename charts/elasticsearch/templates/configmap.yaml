@@ -1,50 +1,32 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- $masterReplicas := int (include "elasticsearch.master.replicaCount" .) -}}
+{{- $coordReplicas := int (include "elasticsearch.coordinating.replicaCount" .) -}}
+{{- $hasDedicatedData := eq (include "elasticsearch.hasDedicatedDataNodes" .) "true" -}}
+{{- $managed := dict "cluster.name" .Values.clusterName "network.host" "0.0.0.0" "http.port" .Values.containerPorts.http "transport.port" .Values.containerPorts.transport "bootstrap.memory_lock" false "xpack.security.enabled" (eq (include "elasticsearch.security.enabled" .) "true") "xpack.license.self_generated.type" "basic" -}}
+{{- if and (eq $masterReplicas 1) (eq $coordReplicas 0) (not $hasDedicatedData) -}}
+  {{- $_ := set $managed "discovery.type" "single-node" -}}
+{{- else -}}
+  {{- $_ := set $managed "discovery.seed_hosts" (list (printf "%s-master-headless" (include "elasticsearch.fullname" .))) -}}
+{{- end -}}
+{{- if eq (include "elasticsearch.security.enabled" .) "true" -}}
+  {{- $_ := set $managed "xpack.security.transport.ssl.enabled" true -}}
+  {{- $_ := set $managed "xpack.security.transport.ssl.verification_mode" "certificate" -}}
+  {{- $_ := set $managed "xpack.security.transport.ssl.key" "/usr/share/elasticsearch/config/certs/tls.key" -}}
+  {{- $_ := set $managed "xpack.security.transport.ssl.certificate" "/usr/share/elasticsearch/config/certs/tls.crt" -}}
+  {{- $_ := set $managed "xpack.security.transport.ssl.certificate_authorities" (list "/usr/share/elasticsearch/config/certs/ca.crt") -}}
+  {{- $_ := set $managed "xpack.security.http.ssl.enabled" true -}}
+  {{- $_ := set $managed "xpack.security.http.ssl.key" "/usr/share/elasticsearch/config/certs/tls.key" -}}
+  {{- $_ := set $managed "xpack.security.http.ssl.certificate" "/usr/share/elasticsearch/config/certs/tls.crt" -}}
+  {{- $_ := set $managed "xpack.security.http.ssl.certificate_authorities" (list "/usr/share/elasticsearch/config/certs/ca.crt") -}}
+{{- end -}}
+{{- $config := mergeOverwrite (deepCopy (.Values.extraConfig | default dict)) $managed -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ include "elasticsearch.fullname" . }}-config
-  namespace: {{ (include "elasticsearch.namespace" .) }}
+  namespace: {{ include "elasticsearch.namespace" . }}
   labels:
     {{- include "elasticsearch.labels" . | nindent 4 }}
 data:
   elasticsearch.yml: |
-    cluster.name: {{ .Values.clusterName | quote }}
-    network.host: "0.0.0.0"
-
-    # Discovery
-    {{- $masterReplicas := int (include "elasticsearch.master.replicaCount" .) }}
-    {{- $coordReplicas := int (include "elasticsearch.coordinating.replicaCount" .) }}
-    {{- $hasDedicatedData := eq (include "elasticsearch.hasDedicatedDataNodes" .) "true" }}
-    {{- if and (eq $masterReplicas 1) (eq $coordReplicas 0) (not $hasDedicatedData) }}
-    discovery.type: single-node
-    {{- else }}
-    discovery.seed_hosts: {{ printf "%s-master-headless" (include "elasticsearch.fullname" .) | quote }}
-    cluster.initial_master_nodes:
-      {{- $fullname := include "elasticsearch.fullname" . -}}
-      {{- range until $masterReplicas }}
-      - {{ printf "%s-master-%d" $fullname . | quote }}
-      {{- end }}
-    {{- end }}
-
-    # Memory
-    bootstrap.memory_lock: false
-
-    # X-Pack Security
-    xpack.security.enabled: {{ include "elasticsearch.security.enabled" . }}
-    xpack.license.self_generated.type: basic
-
-    {{ if eq (include "elasticsearch.security.enabled" .) "true" -}}
-    xpack.security.transport.ssl.enabled: true
-    xpack.security.transport.ssl.verification_mode: certificate
-    xpack.security.transport.ssl.key: /usr/share/elasticsearch/config/certs/tls.key
-    xpack.security.transport.ssl.certificate: /usr/share/elasticsearch/config/certs/tls.crt
-    xpack.security.transport.ssl.certificate_authorities: ["/usr/share/elasticsearch/config/certs/ca.crt"]
-    xpack.security.http.ssl.enabled: true
-    xpack.security.http.ssl.key: /usr/share/elasticsearch/config/certs/tls.key
-    xpack.security.http.ssl.certificate: /usr/share/elasticsearch/config/certs/tls.crt
-    xpack.security.http.ssl.certificate_authorities: ["/usr/share/elasticsearch/config/certs/ca.crt"]
-    {{- end }}
-
-    {{- with .Values.extraConfig }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
+    {{- toYaml $config | nindent 4 }}

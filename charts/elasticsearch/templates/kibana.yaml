@@ -25,20 +25,25 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      serviceAccountName: {{ include "elasticsearch.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       securityContext:
-        runAsUser: 1000
-        runAsNonRoot: true
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
         - name: kibana
           image: {{ include "elasticsearch.kibana.image" . }}
           imagePullPolicy: {{ .Values.kibana.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
           ports:
             - name: http
-              containerPort: 5601
+              containerPort: {{ .Values.kibana.containerPort }}
               protocol: TCP
           env:
             - name: ELASTICSEARCH_HOSTS
-              value: {{ printf "%s://%s.%s.svc.cluster.local:%d" (ternary "https" "http" (eq (include "elasticsearch.security.enabled" .) "true")) (include "elasticsearch.fullname" .) (include "elasticsearch.namespace" .) (int .Values.service.httpPort) | quote }}
+              value: {{ printf "%s://%s.%s.svc.cluster.local:%d" (ternary "https" "http" (eq (include "elasticsearch.security.enabled" .) "true")) (include "elasticsearch.fullname" .) (include "elasticsearch.namespace" .) (int .Values.service.port) | quote }}
+            - name: SERVER_PORT
+              value: {{ .Values.kibana.containerPort | quote }}
             - name: ELASTICSEARCH_USERNAME
               value: "kibana_system"
             {{- if eq (include "elasticsearch.security.enabled" .) "true" }}
@@ -95,6 +100,22 @@ spec:
           secret:
             secretName: {{ include "elasticsearch.tlsSecretName" . }}
       {{- end }}
+      {{- with .Values.kibana.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.kibana.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.kibana.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.kibana.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -103,8 +124,19 @@ metadata:
   namespace: {{ (include "elasticsearch.namespace" .) }}
   labels:
     {{- include "elasticsearch.componentLabels" (dict "root" . "component" "kibana") | nindent 4 }}
+  {{- with .Values.kibana.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   type: {{ .Values.kibana.service.type }}
+  {{- with .Values.kibana.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.kibana.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   ports:
     - name: http
       port: {{ .Values.kibana.service.port }}

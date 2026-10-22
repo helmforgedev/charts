@@ -1,5 +1,6 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- include "elasticsearch.validateMasterCount" . -}}
+{{- include "elasticsearch.validatePorts" . -}}
 {{- $secEnabled := include "elasticsearch.security.enabled" . -}}
 apiVersion: apps/v1
 kind: StatefulSet
@@ -21,6 +22,7 @@ spec:
     metadata:
       labels:
         {{- include "elasticsearch.componentLabels" (dict "root" . "component" "master") | nindent 8 }}
+        {{- include "elasticsearch.nodeGroupLabel" . | nindent 8 }}
       annotations:
         checksum/config: {{ toYaml .Values | sha256sum }}
         {{- with .Values.master.podAnnotations }}
@@ -48,38 +50,7 @@ spec:
             runAsUser: 0
             runAsNonRoot: false
         {{- end }}
-        {{- if eq (include "elasticsearch.backupEnabled" .) "true" }}
-        # Copies config dir to emptyDir and adds S3 credentials to ES keystore
-        # repository-s3 (built-in ES 8.x) reads from keystore at startup
-        - name: keystore-s3
-          image: {{ include "elasticsearch.image" . }}
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command:
-            - sh
-            - -c
-            - |
-              set -e
-              cp -r /usr/share/elasticsearch/config/. /keystore-config/
-              elasticsearch-keystore create -s -v 2>/dev/null || true
-              echo "$S3_ACCESS_KEY" | elasticsearch-keystore add -f -x s3.client.default.access_key
-              echo "$S3_SECRET_KEY" | elasticsearch-keystore add -f -x s3.client.default.secret_key
-          env:
-            - name: ES_PATH_CONF
-              value: /keystore-config
-            - name: S3_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "elasticsearch.backupSecretName" . }}
-                  key: {{ .Values.backup.s3.existingSecretAccessKeyKey }}
-            - name: S3_SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "elasticsearch.backupSecretName" . }}
-                  key: {{ .Values.backup.s3.existingSecretSecretKeyKey }}
-          volumeMounts:
-            - name: keystore-config
-              mountPath: /keystore-config
-        {{- end }}
+        {{- include "elasticsearch.backupKeystoreInitContainer" . | nindent 8 }}
       {{- end }}
       containers:
         - name: elasticsearch
@@ -89,10 +60,10 @@ spec:
             {{- toYaml .Values.securityContext | nindent 12 }}
           ports:
             - name: http
-              containerPort: 9200
+              containerPort: {{ .Values.containerPorts.http }}
               protocol: TCP
             - name: transport
-              containerPort: 9300
+              containerPort: {{ .Values.containerPorts.transport }}
               protocol: TCP
           env:
             - name: node.name
@@ -103,6 +74,11 @@ spec:
               value: {{ if eq (include "elasticsearch.hasDedicatedDataNodes" .) "true" }}"master"{{ else }}"master,data,ingest"{{ end }}
             - name: ES_JAVA_OPTS
               value: {{ printf "-Xms%s -Xmx%s" (include "elasticsearch.master.heapSize" .) (include "elasticsearch.master.heapSize" .) | quote }}
+            {{- $singleNode := and (eq (int (include "elasticsearch.master.replicaCount" .)) 1) (eq (int (include "elasticsearch.coordinating.replicaCount" .)) 0) (ne (include "elasticsearch.hasDedicatedDataNodes" .) "true") }}
+            {{- if not $singleNode }}
+            - name: cluster.initial_master_nodes
+              value: {{ include "elasticsearch.initialMasterNodes" . | quote }}
+            {{- end }}
             {{- include "elasticsearch.commonEnv" . | nindent 12 }}
           {{- include "elasticsearch.livenessProbe" . | nindent 10 }}
           {{- include "elasticsearch.readinessProbe" . | nindent 10 }}
@@ -112,44 +88,19 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /usr/share/elasticsearch/data
+            {{- include "elasticsearch.configVolumeMount" . | nindent 12 }}
             {{- if eq $secEnabled "true" }}
             - name: tls-certs
               mountPath: /usr/share/elasticsearch/config/certs
               readOnly: true
             {{- end }}
-            {{- if eq (include "elasticsearch.backupEnabled" .) "true" }}
-            - name: keystore-config
-              mountPath: /usr/share/elasticsearch/config
-            {{- end }}
+            {{- include "elasticsearch.backupKeystoreVolumeMount" . | nindent 12 }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-        {{- if .Values.monitoring.enabled }}
-        - name: metrics
-          image: {{ include "elasticsearch.exporter.image" . }}
-          imagePullPolicy: {{ .Values.monitoring.image.pullPolicy }}
-          args:
-            - {{ printf "--es.uri=%s://localhost:9200" (ternary "https" "http" (eq $secEnabled "true")) }}
-            {{- if eq $secEnabled "true" }}
-            - --es.ssl-skip-verify
-            {{- end }}
-          ports:
-            - name: metrics
-              containerPort: 9114
-              protocol: TCP
-          resources:
-            {{- if .Values.monitoring.resources }}
-            {{- toYaml .Values.monitoring.resources | nindent 12 }}
-            {{- else }}
-            requests:
-              cpu: 50m
-              memory: 64Mi
-            limits:
-              cpu: 200m
-              memory: 128Mi
-            {{- end }}
-        {{- end }}
+        {{- include "elasticsearch.exporterContainer" . | nindent 8 }}
       volumes:
+        {{- include "elasticsearch.configVolume" . | nindent 8 }}
         {{- if not .Values.master.persistence.enabled }}
         - name: data
           emptyDir: {}
@@ -159,25 +110,26 @@ spec:
           secret:
             secretName: {{ include "elasticsearch.tlsSecretName" . }}
         {{- end }}
-        {{- if eq (include "elasticsearch.backupEnabled" .) "true" }}
-        - name: keystore-config
-          emptyDir: {}
-        {{- end }}
+        {{- include "elasticsearch.backupKeystoreVolume" . | nindent 8 }}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.master.nodeSelector }}
+      {{- with (.Values.master.nodeSelector | default .Values.nodeSelector) }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.master.affinity }}
+      {{- if or .Values.master.affinity .Values.affinity }}
       affinity:
-        {{- toYaml .Values.master.affinity | nindent 8 }}
+        {{- toYaml (.Values.master.affinity | default .Values.affinity) | nindent 8 }}
       {{- else }}
       {{- include "elasticsearch.antiAffinity" (dict "root" . "component" "master") | nindent 6 }}
       {{- end }}
-      {{- with .Values.master.tolerations }}
+      {{- with (.Values.master.tolerations | default .Values.tolerations) }}
       tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- with .Values.priorityClassName }}
