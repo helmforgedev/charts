@@ -118,6 +118,7 @@ outside the image lifecycle.
 | `externalSecrets.enabled` | Render ExternalSecret resources | `false` |
 | `networkPolicy.enabled` | Render NetworkPolicy | `false` |
 | `service.ipFamilyPolicy` | Service dual-stack policy | `""` |
+| `containerPorts.http` | Web container port | `80` |
 
 ## Examples
 

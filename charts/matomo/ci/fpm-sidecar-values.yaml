@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: Apache-2.0
+# PHP-FPM image with an nginx sidecar on port 8080.
+image:
+  tag: "5.14.0-fpm-alpine"
+
+containerPorts:
+  http: 8080
+
+extraVolumes:
+  - name: nginx-config
+    configMap:
+      name: matomo-ci-nginx
+
+extraContainers:
+  - name: nginx
+    image: docker.io/nginxinc/nginx-unprivileged:1.31.7-alpine
+    command: ["nginx", "-g", "daemon off;"]
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
+    volumeMounts:
+      - name: matomo-data
+        mountPath: /var/www/html
+        readOnly: true
+      - name: nginx-config
+        mountPath: /etc/nginx/nginx.conf
+        subPath: nginx.conf
+        readOnly: true
+
+extraManifests:
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: matomo-ci-nginx
+    data:
+      nginx.conf: |
+        worker_processes 1;
+        pid /tmp/nginx.pid;
+        error_log stderr notice;
+        events {
+          worker_connections 256;
+        }
+        http {
+          include /etc/nginx/mime.types;
+          default_type application/octet-stream;
+          access_log /dev/stdout;
+          client_body_temp_path /tmp/client_temp;
+          proxy_temp_path /tmp/proxy_temp;
+          fastcgi_temp_path /tmp/fastcgi_temp;
+          uwsgi_temp_path /tmp/uwsgi_temp;
+          scgi_temp_path /tmp/scgi_temp;
+          server {
+            listen 8080;
+            root /var/www/html;
+            index index.php;
+            location ~ ^/(index|matomo|piwik|js/index)\.php$ {
+              include /etc/nginx/fastcgi_params;
+              fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+              fastcgi_param HTTP_PROXY "";
+              fastcgi_pass 127.0.0.1:9000;
+            }
+            location ~* \.php$ {
+              return 403;
+            }
+            location ~ ^/(config|tmp|core|lang)/ {
+              return 403;
+            }
+            location / {
+              try_files $uri $uri/ =404;
+            }
+          }
+        }

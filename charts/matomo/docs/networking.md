@@ -23,6 +23,13 @@ Set `service.ipFamilyPolicy=PreferDualStack` to request dual-stack service
 allocation without forcing explicit IP families. This keeps the values usable
 on single-stack clusters.
 
+## Container port
+
+`containerPorts.http` sets the web container port. Probes, the Service, and the
+NetworkPolicy use the named `http` port, so they follow it. The value does not
+change the web server configuration; see `ci/fpm-sidecar-values.yaml` for an
+nginx sidecar listening on 8080.
+
 <!-- @AI-METADATA
 type: chart-docs
 title: Matomo Networking Guide
