@@ -54,6 +54,8 @@ assigned a ZooKeeper server ID from its StatefulSet ordinal and renders
 - Keep NetworkPolicy opt-in so development clusters remain easy to test while
   production values can explicitly restrict client, quorum, metrics, and DNS
   traffic.
+- Use the `ruok` Four-Letter Word for more reliable liveness and startup
+  probes.
 
 ## Production Boundary
 

@@ -184,6 +184,9 @@ app.kubernetes.io/part-of: helmforge
 {{- if not (has "srvr" $commands) -}}
 {{- $commands = append $commands "srvr" -}}
 {{- end -}}
+{{- if not (has "ruok" $commands) -}}
+{{- $commands = append $commands "ruok" -}}
+{{- end -}}
 {{- join "," (uniq $commands) -}}
 {{- end -}}
 
