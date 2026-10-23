@@ -155,6 +155,34 @@ tests:
       - failedTemplate:
           errorMessage: externalSecrets.items produce duplicate ExternalSecret metadata.name "duplicate-secret"
 
+  - it: rejects duplicate effective target Secret names
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets:
+        enabled: true
+        items:
+          - name: first
+            spec:
+              secretStoreRef:
+                name: helmforge-fake-store
+              target:
+                name: shared-target
+              dataFrom:
+                - extract:
+                    key: first
+          - name: second
+            spec:
+              secretStoreRef:
+                name: helmforge-fake-store
+              target:
+                name: shared-target
+              dataFrom:
+                - extract:
+                    key: second
+    asserts:
+      - failedTemplate:
+          errorMessage: externalSecrets.items produce duplicate target Secret "shared-target"
+
   - it: external secrets disables the chart-generated credentials secret
     template: templates/secret-credentials.yaml
     set:
