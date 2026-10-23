@@ -75,8 +75,8 @@ app.kubernetes.io/component-group: elasticsearch
 {{- define "elasticsearch.clientComponent" -}}
 {{- if gt (int (include "elasticsearch.coordinating.replicaCount" .)) 0 -}}coordinating
 {{- else if gt (int (include "elasticsearch.data.replicaCount" .)) 0 -}}data
-{{- else if and .Values.dataTiers.hot.enabled (ne (include "elasticsearch.profile" .) "dev") -}}hot
-{{- else if and .Values.dataTiers.warm.enabled (ne (include "elasticsearch.profile" .) "dev") -}}warm
+{{- else if and .Values.dataTiers.hot.enabled (gt (int .Values.dataTiers.hot.replicas) 0) (ne (include "elasticsearch.profile" .) "dev") -}}hot
+{{- else if and .Values.dataTiers.warm.enabled (gt (int .Values.dataTiers.warm.replicas) 0) (ne (include "elasticsearch.profile" .) "dev") -}}warm
 {{- else -}}master
 {{- end -}}
 {{- end -}}

@@ -1,11 +1,17 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- if .Values.gatewayAPI.enabled }}
+{{- $routeNames := dict }}
 {{- range $index, $route := .Values.gatewayAPI.httpRoutes | default list }}
+{{- $routeName := include "elasticsearch.httpRouteName" (dict "root" $ "route" $route "index" $index) }}
+{{- if hasKey $routeNames $routeName }}
+{{- fail (printf "gatewayAPI.httpRoutes contains duplicate effective name %q" $routeName) }}
+{{- end }}
+{{- $_ := set $routeNames $routeName true }}
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: {{ include "elasticsearch.httpRouteName" (dict "root" $ "route" $route "index" $index) }}
+  name: {{ $routeName }}
   namespace: {{ include "elasticsearch.namespace" $ }}
   labels:
     {{- include "elasticsearch.labels" $ | nindent 4 }}

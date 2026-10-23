@@ -86,7 +86,53 @@ tests:
                     key: elasticsearch
     asserts:
       - failedTemplate:
-          errorMessage: externalSecrets.items[].spec.secretStoreRef.name or item sourceRef.storeRef.name/sourceRef.generatorRef.name is required when externalSecrets.enabled=true
+          errorMessage: every externalSecrets.items[].spec.data entry must define sourceRef when spec.secretStoreRef.name is absent
+
+  - it: requires every data entry to resolve a store without a top-level reference
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets:
+        enabled: true
+        items:
+          - name: credentials
+            spec:
+              data:
+                - secretKey: first
+                  remoteRef:
+                    key: first
+                  sourceRef:
+                    storeRef:
+                      name: first-store
+                - secretKey: second
+                  remoteRef:
+                    key: second
+    asserts:
+      - failedTemplate:
+          errorMessage: every externalSecrets.items[].spec.data entry must define sourceRef when spec.secretStoreRef.name is absent
+
+  - it: rejects duplicate effective ExternalSecret names
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets:
+        enabled: true
+        items:
+          - fullnameOverride: duplicate-secret
+            spec:
+              secretStoreRef:
+                name: helmforge-fake-store
+              dataFrom:
+                - extract:
+                    key: first
+          - fullnameOverride: duplicate-secret
+            spec:
+              secretStoreRef:
+                name: helmforge-fake-store
+              dataFrom:
+                - extract:
+                    key: second
+    asserts:
+      - failedTemplate:
+          errorMessage: externalSecrets.items produce duplicate ExternalSecret metadata.name "duplicate-secret"
 
   - it: external secrets disables the chart-generated credentials secret
     template: templates/secret-credentials.yaml
@@ -205,6 +251,22 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
+
+  - it: rejects duplicate effective HTTPRoute names
+    template: templates/httproute.yaml
+    set:
+      gatewayAPI:
+        enabled: true
+        httpRoutes:
+          - name: duplicate-route
+            parentRefs:
+              - name: shared
+          - name: duplicate-route
+            parentRefs:
+              - name: shared
+    asserts:
+      - failedTemplate:
+          errorMessage: gatewayAPI.httpRoutes contains duplicate effective name "RELEASE-NAME-elasticsearch-duplicate-route"
 
   - it: preserves route labels filters and explicit backend references
     template: templates/httproute.yaml
