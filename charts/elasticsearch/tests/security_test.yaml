@@ -105,3 +105,16 @@ tests:
             name: tls-certs
             secret:
               secretName: RELEASE-NAME-elasticsearch-tls
+
+  - it: keeps liveness independent from cluster health while readiness authenticates
+    set:
+      security:
+        enabled: true
+    template: templates/statefulset-master.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.tcpSocket.port
+          value: http
+      - matchRegex:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: 'curl -sk -u elastic:'

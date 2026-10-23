@@ -107,6 +107,72 @@ tests:
       - hasDocuments:
           count: 0
 
+  - it: ignores credential keys written to unrelated target Secrets
+    template: templates/externalsecret.yaml
+    set:
+      security.enabled: true
+      externalSecrets:
+        enabled: true
+        items:
+          - name: unrelated
+            spec:
+              secretStoreRef:
+                name: helmforge-fake-store
+              data:
+                - secretKey: elastic-password
+                  remoteRef:
+                    key: unrelated
+          - name: credentials
+            spec:
+              secretStoreRef:
+                name: helmforge-fake-store
+              data:
+                - secretKey: another-key
+                  remoteRef:
+                    key: elasticsearch
+    asserts:
+      - failedTemplate:
+          errorMessage: the ExternalSecret credentials item must provide elastic-password through data or dataFrom
+
+  - it: requires the Kibana system password in the credentials target
+    template: templates/externalsecret.yaml
+    set:
+      security.enabled: true
+      kibana.enabled: true
+      externalSecrets:
+        enabled: true
+        items:
+          - name: credentials
+            spec:
+              secretStoreRef:
+                name: helmforge-fake-store
+              data:
+                - secretKey: elastic-password
+                  remoteRef:
+                    key: elasticsearch
+    asserts:
+      - failedTemplate:
+          errorMessage: the ExternalSecret credentials item must provide kibana-system-password through data or dataFrom when Kibana is enabled
+
+  - it: accepts dataFrom for all credentials consumed by secured Kibana
+    template: templates/externalsecret.yaml
+    set:
+      security.enabled: true
+      kibana.enabled: true
+      externalSecrets:
+        enabled: true
+        items:
+          - name: credentials
+            spec:
+              secretStoreRef:
+                name: helmforge-fake-store
+              dataFrom:
+                - extract:
+                    key: elasticsearch
+    asserts:
+      - hasDocuments:
+          count: 1
+
   - it: renders multiple canonical HTTPRoutes with the configured service port
     template: templates/httproute.yaml
     set:

@@ -395,7 +395,7 @@ replaces ambiguous port values with an explicit process/Service contract:
 | Version 1 | Version 2 |
 |---|---|
 | `service.httpPort` | `service.port` |
-| `service.transportPort` | `containerPorts.transport` |
+| `service.transportPort` | removed; no direct replacement |
 | fixed HTTP listener `9200` | `containerPorts.http` |
 | fixed Kibana listener `5601` | `kibana.containerPort` |
 | fixed exporter listener `9114` | `monitoring.containerPort` |
@@ -408,6 +408,26 @@ Remove any manual `extraVolumes`/`extraVolumeMounts` workaround that mounted
 `extraConfig` before upgrading because those settings now take effect and cause
 a rolling restart. The client Service now exposes HTTP only and targets one
 intentional node role instead of every pod sharing the release labels.
+
+Version 1 `service.transportPort` changed only Service metadata while the
+Elasticsearch transport listener remained on `9300`. Do not copy a customized
+value into `containerPorts.transport`; set it only when you intentionally want
+to change the real inter-node listener and can coordinate that change across
+every node during the upgrade.
+
+For an existing non-dev release with `dataTiers.hot.enabled` or
+`dataTiers.warm.enabled`, recreate each enabled tier StatefulSet once before the
+upgrade because Kubernetes does not allow changing `spec.serviceName` in place:
+
+```bash
+kubectl delete statefulset <release>-elasticsearch-hot -n <namespace> --cascade=orphan
+kubectl delete statefulset <release>-elasticsearch-warm -n <namespace> --cascade=orphan
+```
+
+Run `helm upgrade` after deleting only the enabled tier StatefulSets. Orphan
+propagation keeps their pods running, and the replacement StatefulSets reuse
+those pods through unchanged selectors. Existing PVCs are reused by name; they
+are not adopted through StatefulSet ownership.
 
 For External Secrets, an item named `credentials` defaults its target Secret to
 `<release>-elasticsearch-credentials`, which is the Secret consumed by the

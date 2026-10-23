@@ -658,14 +658,8 @@ Liveness probe for ES HTTP endpoint
 {{- define "elasticsearch.livenessProbe" -}}
 {{- if .Values.livenessProbe.enabled -}}
 livenessProbe:
-  {{- if eq (include "elasticsearch.security.enabled" .) "true" }}
-  exec:
-    command: ["/bin/sh", "-c", "curl -sk -u elastic:${ELASTIC_PASSWORD} https://localhost:{{ .Values.containerPorts.http }}/ --fail >/dev/null"]
-  {{- else }}
-  httpGet:
-    path: /
+  tcpSocket:
     port: http
-  {{- end }}
   initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
   periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
   timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
