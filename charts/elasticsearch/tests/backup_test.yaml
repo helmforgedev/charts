@@ -97,6 +97,46 @@ tests:
           path: stringData.access-key
           value: MYTESTKEY
 
+  - it: generated S3 secret uses configured key names
+    template: templates/secret-s3.yaml
+    set:
+      backup:
+        enabled: true
+        s3:
+          bucket: test-bucket
+          accessKey: MYTESTKEY
+          secretKey: MYSECRETKEY
+          existingSecretAccessKeyKey: custom-access-key
+          existingSecretSecretKeyKey: custom-secret-key
+    asserts:
+      - equal:
+          path: stringData.custom-access-key
+          value: MYTESTKEY
+      - equal:
+          path: stringData.custom-secret-key
+          value: MYSECRETKEY
+
+  - it: Elasticsearch keystore init uses configured key names
+    template: templates/statefulset-master.yaml
+    set:
+      clusterProfile: production-ha
+      security.existingTlsSecret: test-tls
+      backup:
+        enabled: true
+        s3:
+          bucket: test-bucket
+          accessKey: MYTESTKEY
+          secretKey: MYSECRETKEY
+          existingSecretAccessKeyKey: custom-access-key
+          existingSecretSecretKeyKey: custom-secret-key
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].env[0].valueFrom.secretKeyRef.key
+          value: custom-access-key
+      - equal:
+          path: spec.template.spec.initContainers[0].env[1].valueFrom.secretKeyRef.key
+          value: custom-secret-key
+
   - it: backup with existingSecret skips Secret creation
     set:
       backup:

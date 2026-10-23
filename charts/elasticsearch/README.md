@@ -255,6 +255,8 @@ dataTiers:
 | `backup.s3.region` | AWS region | `us-east-1` |
 | `backup.s3.endpoint` | Custom endpoint (MinIO, GCS, etc.) | `""` |
 | `backup.s3.existingSecret` | Secret with access-key / secret-key | `""` |
+| `backup.s3.existingSecretAccessKeyKey` | Access-key field in the existing or generated Secret | `access-key` |
+| `backup.s3.existingSecretSecretKeyKey` | Secret-key field in the existing or generated Secret | `secret-key` |
 
 ### ILM Policies
 
