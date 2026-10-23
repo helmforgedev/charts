@@ -86,7 +86,7 @@ tests:
                     key: elasticsearch
     asserts:
       - failedTemplate:
-          errorMessage: every externalSecrets.items[].spec.data entry must define sourceRef when spec.secretStoreRef.name is absent
+          errorMessage: every externalSecrets.items[].spec.data entry must define sourceRef.storeRef.name when spec.secretStoreRef.name is absent
 
   - it: requires every data entry to resolve a store without a top-level reference
     template: templates/externalsecret.yaml
@@ -108,7 +108,28 @@ tests:
                     key: second
     asserts:
       - failedTemplate:
-          errorMessage: every externalSecrets.items[].spec.data entry must define sourceRef when spec.secretStoreRef.name is absent
+          errorMessage: every externalSecrets.items[].spec.data entry must define sourceRef.storeRef.name when spec.secretStoreRef.name is absent
+
+  - it: rejects generator references in data entries without a top-level store
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets:
+        enabled: true
+        items:
+          - name: generated
+            spec:
+              data:
+                - secretKey: password
+                  remoteRef:
+                    key: ignored
+                  sourceRef:
+                    generatorRef:
+                      apiVersion: generators.external-secrets.io/v1alpha1
+                      kind: Password
+                      name: password-generator
+    asserts:
+      - failedTemplate:
+          errorMessage: every externalSecrets.items[].spec.data entry must define sourceRef.storeRef.name when spec.secretStoreRef.name is absent
 
   - it: rejects duplicate effective ExternalSecret names
     template: templates/externalsecret.yaml
