@@ -11,7 +11,6 @@ data:
     persistence_location /mosquitto/data/
     log_dest stdout
     allow_anonymous {{ ternary "false" "true" .Values.auth.enabled }}
-    per_listener_settings false
 
     {{- if not .Values.broker.tls.enabled }}
     listener {{ .Values.broker.listeners.mqtt }}
@@ -36,10 +35,12 @@ data:
     {{- end }}
 
     {{- if .Values.auth.enabled }}
-    password_file /mosquitto/config/generated/passwordfile
+    global_plugin /usr/lib/mosquitto_password_file.so
+    plugin_opt_password_file /mosquitto/config/generated/passwordfile
     {{- end }}
     {{- if .Values.acl.enabled }}
-    acl_file /mosquitto/config/generated/aclfile
+    global_plugin /usr/lib/mosquitto_acl_file.so
+    plugin_opt_acl_file /mosquitto/config/generated/aclfile
     {{- end }}
     {{- if gt (int .Values.broker.limits.maxConnections) 0 }}
     max_connections {{ .Values.broker.limits.maxConnections }}

@@ -38,7 +38,7 @@ This is a valid Mosquitto architecture for broker federation, but it is not the 
 The chart can optionally deploy MQTTX Web as a companion browser client.
 
 - the chart computes and documents a default broker WebSocket URL
-- upstream version alignment for MQTTX Web must be checked against both Docker Hub and GitHub releases before pinning a strict image tag
+- MQTTX Web uses a pinned image tag and a configurable non-privileged process listener
 - if you want browser access, enable `websocketIngress` and expose a reachable host/path
 
 ## Scheduling Defaults

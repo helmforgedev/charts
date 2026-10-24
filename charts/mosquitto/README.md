@@ -22,8 +22,8 @@ helm install mosquitto oci://ghcr.io/helmforgedev/helm/mosquitto
 
 ## Features
 
-- **Official Mosquitto Image** — based on the official `eclipse-mosquitto` image
-  The default chart release now uses the official non-Alpine image tag `2.0.22`.
+- **Official Mosquitto Image** — the default uses the verified multi-architecture
+  `eclipse-mosquitto:2.1.2-alpine` image.
 - **Standalone or Federated Topology** — run a single broker or a bridged `StatefulSet` of brokers
 - **Kubernetes Placement Defaults** — optional anti-affinity and topology spread defaults for multi-replica broker pods
 - **WebSocket Listener** — browser-ready MQTT access through a dedicated listener
@@ -31,12 +31,21 @@ helm install mosquitto oci://ghcr.io/helmforgedev/helm/mosquitto
 - **Native MQTT TLS Listener** — optional TLS/mTLS listener using an existing Kubernetes Secret
 - **Broker Pressure Limits** — optional connection and queue/message size limits to reduce abuse impact
 - **MQTTX Web Companion** — optional browser client deployment for quick testing
+- **Secure Runtime Defaults** — non-root containers, read-only root filesystems,
+  dropped capabilities, RuntimeDefault seccomp, and disabled API token mounts
+- **Ingress NetworkPolicies** — listener-specific policies for broker and MQTTX pods
 - **Service exposure** — optional `externalIPs` and static Kubernetes `nodePort` values per listener (MQTT, WebSocket, MQTTS)
 - **Values Schema** — `values.schema.json` validates user-supplied values and improves ArtifactHub rendering
 
 ## Security Scan
 
-Security Scan: Kubescape local scan against MITRE,NSA,SOC2 reports a 74.24% resource summary score.
+### Security Scan: `mosquitto`
+
+| Framework | Score |
+| --- | --- |
+| MITRE + NSA + SOC2 | **93.93939%** |
+
+> Security posture acceptable.
 
 ## Important Notes
 
@@ -51,8 +60,20 @@ Security Scan: Kubescape local scan against MITRE,NSA,SOC2 reports a 74.24% reso
 - federated multi-replica installs automatically prefer spreading broker pods across nodes unless you provide custom `affinity` or `topologySpreadConstraints`
 - when `broker.tls.enabled=true`, set `broker.tls.certSecretName` to an existing Secret containing `tls.crt` and `tls.key` (and optionally `ca.crt` for mTLS)
 - when `broker.tls.enabled=true`, the chart disables the plain MQTT `1883` listener and Service port, serving MQTT only on `broker.tls.port` (default `8883`)
-- MQTTX Web upstream versioning currently requires verification against both Docker Hub and GitHub releases before pinning a strict default tag
-- the official Mosquitto image tag validated for this chart is `eclipse-mosquitto:2.0.22`
+- MQTTX Web is pinned to `emqx/mqttx-web:v1.13.1`, and its process listener is
+  controlled by `mqttxWeb.containerPort` independently from `mqttxWeb.service.port`
+- the official Mosquitto image tag validated for this chart is `eclipse-mosquitto:2.1.2-alpine`
+- Mosquitto 2.1 defaults `max_packet_size` to 2,000,000 bytes; set
+  `broker.limits.maxPacketSize` explicitly when clients require larger packets
+
+## Architecture
+
+Standalone mode runs one broker with one persistent data boundary. Federated
+mode runs two or more StatefulSet replicas and generates Mosquitto bridges
+between their stable headless-Service names. Federation relays matching topic
+traffic, but sessions, persistence, and retained state remain broker-local.
+MQTTX Web is an independent Deployment that reaches the broker through its
+WebSocket listener.
 
 ## Quick Start
 
@@ -150,7 +171,7 @@ broker:
     maxInflightMessages: 100
     maxQueuedMessages: 1000
     maxQueuedBytes: 1048576
-    messageSizeLimit: 262144
+    maxPacketSize: 262144
 ```
 
 ### Eliminating TLS health check log spam (OpenSSL EOF)
@@ -203,9 +224,32 @@ broker:
 | `service.externalTrafficPolicy` | `Cluster` | Used when `service.type` is `NodePort` or `LoadBalancer` |
 | `websocketIngress.enabled` | `false` | Expose broker WebSocket through ingress |
 | `mqttxWeb.enabled` | `false` | Deploy MQTTX Web companion UI |
+| `mqttxWeb.containerPort` | `8080` | Listener passed to the MQTTX Web `http-server` process |
+| `mqttxWeb.service.port` | `80` | Independent Kubernetes Service port for MQTTX Web |
+| `networkPolicy.enabled` | `true` | Restrict ingress to declared broker and MQTTX listeners |
+| `serviceAccount.automountServiceAccountToken` | `false` | Mount the Kubernetes API token into pods |
+
+## Security
+
+The chart applies a restricted container baseline by default, but the default
+broker permits anonymous clients for evaluation. Before public exposure, enable
+authentication, least-privilege ACL rules, TLS or mTLS, and explicit resource
+and broker pressure limits. See [Security](docs/security.md) for the trust
+boundaries and a production checklist.
+
+## Troubleshooting
+
+Use the commands printed by `helm get notes` to inspect pods, generated broker
+configuration, and logs. Listener failures usually indicate a port collision or
+TLS Secret mismatch. Authentication failures should be checked against the
+effective Secret keys and ACL rules. Federation problems should be diagnosed
+per broker because bridge connectivity and retained state are broker-local.
+See [Operations](docs/operations.md) for upgrade, backup, and recovery guidance.
 
 ## More Information
 
 - [Architecture Notes](docs/architecture.md)
+- [Security](docs/security.md)
+- [Operations](docs/operations.md)
 - [Examples](examples/federated.yaml)
 - [Source code and full values reference](https://github.com/helmforgedev/charts/tree/main/charts/mosquitto)

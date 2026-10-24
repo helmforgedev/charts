@@ -37,6 +37,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -62,11 +63,11 @@ spec:
               cp /config-template/mosquitto.conf.tmpl /work/mosquitto.conf
               {{- if .Values.auth.enabled }}
               mosquitto_passwd -b -c /work/passwordfile "$AUTH_USERNAME" "$AUTH_PASSWORD"
-              chown 1883:1883 /work/passwordfile
               chmod 0700 /work/passwordfile
               {{- end }}
               {{- if .Values.acl.enabled }}
               cp /acl-source/{{ .Values.acl.existingConfigMapKey }} /work/aclfile
+              chmod 0700 /work/aclfile
               {{- end }}
               {{- if eq .Values.architecture.mode "federated" }}
               ordinal="${HOSTNAME##*-}"
@@ -108,6 +109,10 @@ spec:
           env:
             - name: BROKER_REPLICA_COUNT
               value: {{ .Values.broker.replicaCount | quote }}
+          {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
           {{- end }}
           volumeMounts:
             - name: config-template

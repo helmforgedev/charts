@@ -10,6 +10,7 @@
 nameOverride: ""
 fullnameOverride: ""
 commonLabels: {}
+global: {}
 
 # -- Deployment architecture for Mosquitto brokers: standalone for a single broker, federated for bridged brokers.
 architecture:
@@ -21,8 +22,8 @@ clusterDomain: cluster.local
 image:
   # -- Mosquitto container image repository
   repository: docker.io/library/eclipse-mosquitto
-  # -- Mosquitto image tag validated on Docker Hub for the default non-Alpine release
-  tag: "2.0.22"
+  # -- Mosquitto image tag validated on Docker Hub
+  tag: "2.1.2-alpine"
   # -- Image pull policy
   pullPolicy: IfNotPresent
 
@@ -189,12 +190,14 @@ mqttxWeb:
   image:
     # -- MQTTX Web image repository
     repository: docker.io/emqx/mqttx-web
-    # -- MQTTX Web image tag. Keep empty to use the image's default tag while upstream release/tag mismatch is under review.
-    tag: ""
+    # -- MQTTX Web image tag
+    tag: "v1.13.1"
     # -- Image pull policy
     pullPolicy: IfNotPresent
   # -- Number of MQTTX Web replicas
   replicaCount: 1
+  # -- HTTP listener port used by the MQTTX Web process
+  containerPort: 8080
   service:
     # -- Service type for MQTTX Web
     type: ClusterIP
@@ -229,8 +232,28 @@ mqttxWeb:
     # -- Default connection name documented for users of the companion UI
     connectionName: Mosquitto
   resources: {}
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
   podLabels: {}
   podAnnotations: {}
+
+networkPolicy:
+  # -- Create ingress NetworkPolicies for the broker and, when enabled, MQTTX Web
+  enabled: true
+  # -- Additional ingress rules appended to the broker NetworkPolicy
+  extraIngress: []
+  # -- Additional ingress rules appended to the MQTTX Web NetworkPolicy
+  mqttxExtraIngress: []
 
 pdb:
   # -- Create a PodDisruptionBudget for broker pods
@@ -275,8 +298,20 @@ readinessProbe:
   failureThreshold: 3
 
 resources: {}
-podSecurityContext: {}
-securityContext: {}
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1883
+  runAsGroup: 1883
+  fsGroup: 1883
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
 
 serviceAccount:
   # -- Create a dedicated ServiceAccount
@@ -285,6 +320,8 @@ serviceAccount:
   name: ""
   # -- Annotations for the ServiceAccount
   annotations: {}
+  # -- Mount the Kubernetes API token into broker and MQTTX Web pods
+  automountServiceAccountToken: false
 
 nodeSelector: {}
 tolerations: []
