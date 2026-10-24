@@ -9,5 +9,7 @@ RUN docker-php-ext-install -j"$(nproc)" pdo_mysql \
     && php -m | grep -Fx pdo_mysql
 
 FROM ${WORDPRESS_CLI_IMAGE} AS cli
+USER root
 RUN docker-php-ext-install -j"$(nproc)" pdo_mysql \
     && php -m | grep -Fx pdo_mysql
+USER www-data

@@ -11,8 +11,8 @@ Both targets compile `pdo_mysql` at image build time. Copy `Dockerfile` and
 `.github/workflows/build-wordpress.yaml`. HelmForge does not build, publish, or
 operate these user images.
 
-The workflow builds a local image, blocks publication when Trivy finds an
-unfixed high or critical vulnerability, then publishes a commit-SHA tag with
+The workflow builds a local image, blocks publication when Trivy finds a
+fixable high or critical vulnerability, then publishes a commit-SHA tag with
 SBOM and provenance attestations. Use the digest printed in the workflow
 summary for immutable deployments.
 
@@ -40,3 +40,8 @@ If a custom image retains the official `/usr/src/wordpress` layout and shell
 utilities, set `coreSync.allowCustomImage=true` so chart-managed core
 synchronization remains enabled for existing PVCs. Validate this compatibility
 before production rollout.
+
+Custom repositories retain their own entrypoint and Apache configuration by
+default. Make the image listen on `containerPorts.http`, or set
+`image.configureApachePort=true` only when it retains the official
+`/etc/apache2` layout and should use chart-managed port configuration.

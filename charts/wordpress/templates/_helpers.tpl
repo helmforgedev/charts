@@ -72,6 +72,23 @@ Image string with tag fallback to appVersion.
 {{- end }}
 
 {{/*
+Whether the chart should prepare Apache configuration for a non-default port.
+Null auto-enables the behavior only for the official WordPress image. Custom
+images retain their own startup contract unless they explicitly opt in.
+*/}}
+{{- define "wordpress.apachePortConfigEnabled" -}}
+{{- if eq (int .Values.containerPorts.http) 80 -}}
+false
+{{- else if kindIs "bool" .Values.image.configureApachePort -}}
+{{- .Values.image.configureApachePort -}}
+{{- else if eq .Values.image.repository "docker.io/library/wordpress" -}}
+true
+{{- else -}}
+false
+{{- end -}}
+{{- end -}}
+
+{{/*
 ExternalSecret feature flags.
 */}}
 {{- define "wordpress.externalSecretAdminEnabled" -}}

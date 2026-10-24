@@ -401,6 +401,7 @@ The chart creates an `HTTPRoute` that sends traffic to the WordPress Service.
 | Key | Default | Description |
 |-----|---------|-------------|
 | `replicaCount` | `1` | WordPress replicas when HPA is disabled |
+| `image.configureApachePort` | `null` | Auto-configure non-default ports only for the official image; compatible custom Apache images may opt in |
 | `containerPorts.http` | `80` | Apache application listener port, independent from `service.port` |
 | `wordpress.siteUrl` | `""` | Full site URL |
 | `wordpress.siteTitle` | `WordPress` | Site title |

@@ -20,7 +20,9 @@ integration. It supports the bundled HelmForge MySQL dependency or an external M
 
 ## Design Decisions
 
-- The upstream official Apache image remains the default and its listener is configured from `containerPorts.http`.
+- The upstream official Apache image remains the default. For non-default ports, an init container copies and adjusts
+  its Apache configuration into a shared volume so the application container retains its image entrypoint and can run
+  as a non-root user. Custom repositories opt in only when they retain the official `/etc/apache2` layout.
 - `service.port` is independent from the application listener and targets the named `http` container port.
 - Mutable content uses a shared PVC; immutable images and external media storage are preferred for replicated production.
 - Bootstrap and plugin actions are idempotent Helm hooks with explicit timeouts and ReadWriteOnce-aware scheduling.

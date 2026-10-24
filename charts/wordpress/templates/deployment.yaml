@@ -152,6 +152,30 @@ spec:
             - name: wordpress-data
               mountPath: /var/www/html
         {{- end }}
+        {{- if eq (include "wordpress.apachePortConfigEnabled" .) "true" }}
+        - name: configure-apache-port
+          image: {{ include "wordpress.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - |
+              cp -a /etc/apache2/. /work/apache2/
+              sed -ri 's|^Listen 80$|Listen {{ .Values.containerPorts.http }}|' /work/apache2/ports.conf
+              sed -ri 's!<VirtualHost \*:80>!<VirtualHost *:{{ .Values.containerPorts.http }}>!' /work/apache2/sites-available/000-default.conf
+              grep -Fqx 'Listen {{ .Values.containerPorts.http }}' /work/apache2/ports.conf
+              grep -Fq '<VirtualHost *:{{ .Values.containerPorts.http }}>' /work/apache2/sites-available/000-default.conf
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: false
+            runAsUser: 0
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: apache-config
+              mountPath: /work/apache2
+        {{- end }}
         {{- with .Values.extraInitContainers }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -159,16 +183,6 @@ spec:
         - name: wordpress
           image: {{ include "wordpress.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command:
-            - sh
-            - -ec
-          args:
-            - |
-              if [ "$WORDPRESS_HTTP_PORT" != "80" ]; then
-                sed -ri "s|^Listen 80$|Listen ${WORDPRESS_HTTP_PORT}|" /etc/apache2/ports.conf
-                sed -ri "s!<VirtualHost \*:80>!<VirtualHost *:${WORDPRESS_HTTP_PORT}>!" /etc/apache2/sites-available/000-default.conf
-              fi
-              exec /usr/local/bin/docker-entrypoint.sh apache2-foreground
           {{- with .Values.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
@@ -258,6 +272,11 @@ spec:
               subPath: custom.ini
               readOnly: true
             {{- end }}
+            {{- if eq (include "wordpress.apachePortConfigEnabled" .) "true" }}
+            - name: apache-config
+              mountPath: /etc/apache2
+              readOnly: true
+            {{- end }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -290,6 +309,10 @@ spec:
             items:
               - key: custom.ini
                 path: custom.ini
+        {{- end }}
+        {{- if eq (include "wordpress.apachePortConfigEnabled" .) "true" }}
+        - name: apache-config
+          emptyDir: {}
         {{- end }}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}

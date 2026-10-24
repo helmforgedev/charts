@@ -85,7 +85,10 @@ also require the extension. The cron CronJob uses HTTP and its curl container do
 
 Use either Ingress or Gateway API. Do not enable both for the same hostname unless you intentionally want two routing paths.
 `containerPorts.http` configures the actual Apache listener, while `service.port` remains the client-facing Kubernetes
-Service port. The Service targets the named `http` port, so the two values do not need to match.
+Service port. The Service targets the named `http` port, so the two values do not need to match. For a non-default port,
+the official image receives a prepared Apache configuration without replacing its entrypoint. Custom repositories retain
+their own startup contract; make them listen on the selected port or set `image.configureApachePort: true` only when they
+retain the official `/etc/apache2` layout.
 
 ## NetworkPolicy
 

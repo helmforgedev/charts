@@ -51,6 +51,11 @@ The custom plugin contract enforces these controls:
 - ZIP entries with absolute paths, traversal, backslashes, symlinks, or the wrong top-level directory are rejected.
 - Download, checksum, archive, and activation failures are reported separately.
 - An already installed plugin is not downloaded again when `skipIfInstalled: true`.
+- `skipIfInstalled` defaults to `true`. Changing `url` or `sha256` does not trigger a download while the plugin
+  directory exists; set `skipIfInstalled: false` or remove that directory to install the new version.
+- Custom ZIP URLs must return the archive directly with an HTTP 2xx response. The downloader does not follow redirects.
+- The default 60-second `activeDeadlineSeconds` applies to the entire installer Job and all configured plugins. Increase
+  it when processing several or large archives.
 
 Provision the referenced Secret independently before installing the release. The values file contains only the Secret
 name and key, not the token. See [custom-plugins.yaml](../examples/custom-plugins.yaml) for a complete values example.
