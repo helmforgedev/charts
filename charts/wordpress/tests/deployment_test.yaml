@@ -348,6 +348,101 @@ tests:
             containerPort: 80
             protocol: TCP
 
+  - it: should configure Apache and the container port from one value
+    template: templates/deployment.yaml
+    set:
+      containerPorts.http: 8080
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http
+            containerPort: 8080
+            protocol: TCP
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WORDPRESS_HTTP_PORT
+            value: "8080"
+      - equal:
+          path: spec.template.spec.initContainers[2].name
+          value: configure-apache-port
+      - matchRegex:
+          path: spec.template.spec.initContainers[2].command[2]
+          pattern: 'Listen 8080'
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: apache-config
+            mountPath: /etc/apache2
+            readOnly: true
+      - isNull:
+          path: spec.template.spec.containers[0].command
+      - isNull:
+          path: spec.template.spec.containers[0].args
+
+  - it: should configure a non-default port when the main container runs as non-root
+    template: templates/deployment.yaml
+    set:
+      containerPorts.http: 8080
+      securityContext.runAsNonRoot: true
+      securityContext.runAsUser: 33
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[2].securityContext.runAsUser
+          value: 0
+      - isNull:
+          path: spec.template.spec.containers[0].command
+      - isNull:
+          path: spec.template.spec.containers[0].args
+
+  - it: should preserve a custom image entrypoint and port configuration by default
+    template: templates/deployment.yaml
+    set:
+      image.repository: example.com/custom-wordpress
+      containerPorts.http: 8080
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.initContainers
+          count: 1
+      - isNull:
+          path: spec.template.spec.containers[0].command
+      - isNull:
+          path: spec.template.spec.containers[0].args
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: apache-config
+            mountPath: /etc/apache2
+            readOnly: true
+
+  - it: should allow a compatible custom image to opt into Apache port configuration
+    template: templates/deployment.yaml
+    set:
+      image.repository: example.com/custom-wordpress
+      image.configureApachePort: true
+      containerPorts.http: 8080
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: configure-apache-port
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: apache-config
+            mountPath: /etc/apache2
+            readOnly: true
+
+  - it: should recognize the short official WordPress repository reference
+    template: templates/deployment.yaml
+    set:
+      image.repository: wordpress
+      containerPorts.http: 8080
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[2].name
+          value: configure-apache-port
+
   - it: should include wait-for-db init container
     template: templates/deployment.yaml
     asserts:

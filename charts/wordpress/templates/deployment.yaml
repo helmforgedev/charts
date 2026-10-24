@@ -65,7 +65,7 @@ spec:
               value: {{ include "wordpress.databaseHost" . | quote }}
             - name: DB_PORT
               value: {{ include "wordpress.databasePort" . | quote }}
-        {{- if and .Values.coreSync.enabled (or (eq .Values.image.repository "docker.io/library/wordpress") .Values.coreSync.allowCustomImage) }}
+        {{- if and .Values.coreSync.enabled (or (eq (include "wordpress.isOfficialImageRepository" .Values.image.repository) "true") .Values.coreSync.allowCustomImage) }}
         - name: sync-wordpress-core
           image: {{ include "wordpress.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
@@ -152,6 +152,30 @@ spec:
             - name: wordpress-data
               mountPath: /var/www/html
         {{- end }}
+        {{- if eq (include "wordpress.apachePortConfigEnabled" .) "true" }}
+        - name: configure-apache-port
+          image: {{ include "wordpress.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - |
+              cp -a /etc/apache2/. /work/apache2/
+              sed -ri 's|^Listen 80$|Listen {{ .Values.containerPorts.http }}|' /work/apache2/ports.conf
+              sed -ri 's!<VirtualHost \*:80>!<VirtualHost *:{{ .Values.containerPorts.http }}>!' /work/apache2/sites-available/000-default.conf
+              grep -Fqx 'Listen {{ .Values.containerPorts.http }}' /work/apache2/ports.conf
+              grep -Fq '<VirtualHost *:{{ .Values.containerPorts.http }}>' /work/apache2/sites-available/000-default.conf
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: false
+            runAsUser: 0
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: apache-config
+              mountPath: /work/apache2
+        {{- end }}
         {{- with .Values.extraInitContainers }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -192,6 +216,8 @@ spec:
             - name: WORDPRESS_CONFIG_EXTRA
               value: {{ include "wordpress.generatedConfigExtra" . | quote }}
             {{- end }}
+            - name: WORDPRESS_HTTP_PORT
+              value: {{ .Values.containerPorts.http | quote }}
             {{- with .Values.wordpress.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -201,7 +227,7 @@ spec:
           {{- end }}
           ports:
             - name: http
-              containerPort: 80
+              containerPort: {{ .Values.containerPorts.http }}
               protocol: TCP
           {{- if .Values.startupProbe.enabled }}
           startupProbe:
@@ -246,6 +272,11 @@ spec:
               subPath: custom.ini
               readOnly: true
             {{- end }}
+            {{- if eq (include "wordpress.apachePortConfigEnabled" .) "true" }}
+            - name: apache-config
+              mountPath: /etc/apache2
+              readOnly: true
+            {{- end }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -254,7 +285,7 @@ spec:
           image: "{{ .Values.metrics.image.repository }}:{{ .Values.metrics.image.tag }}"
           imagePullPolicy: {{ .Values.metrics.image.pullPolicy }}
           args:
-            - --scrape_uri=http://localhost:80/server-status?auto
+            - --scrape_uri=http://localhost:{{ .Values.containerPorts.http }}/server-status?auto
           ports:
             - name: metrics
               containerPort: {{ .Values.metrics.port }}
@@ -278,6 +309,10 @@ spec:
             items:
               - key: custom.ini
                 path: custom.ini
+        {{- end }}
+        {{- if eq (include "wordpress.apachePortConfigEnabled" .) "true" }}
+        - name: apache-config
+          emptyDir: {}
         {{- end }}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}

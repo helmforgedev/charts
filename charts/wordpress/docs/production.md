@@ -69,9 +69,26 @@ Enable `bootstrap.enabled` when Helm should perform the initial `wp core install
 Always set `wordpress.siteUrl` to the final public URL before enabling bootstrap.
 The bootstrap Job is idempotent by default and skips work when the database already contains an installed site.
 
+## Plugins and PHP Extensions
+
+For mutable PVC-based installations, `plugins.items` installs official WordPress.org slugs and `plugins.custom`
+installs HTTPS ZIPs only after verifying a required SHA-256 checksum. Private download tokens must come from an
+existing Secret. Prefer plugins baked into an immutable image for tightly controlled production environments.
+
+WordPress plugins and PHP extensions are different artifacts. The official image includes `mysqli`; requirements such
+as `pdo_mysql` or `memcached` need a derivative image built, scanned, and published before deployment. The chart never
+compiles extensions during startup. Configure matching custom WP-CLI images for bootstrap and plugin operations that
+also require the extension. The cron CronJob uses HTTP and its curl container does not load PHP extensions. See the
+[custom PHP image pipeline](../examples/custom-php-image/README.md).
+
 ## Routing
 
 Use either Ingress or Gateway API. Do not enable both for the same hostname unless you intentionally want two routing paths.
+`containerPorts.http` configures the actual Apache listener, while `service.port` remains the client-facing Kubernetes
+Service port. The Service targets the named `http` port, so the two values do not need to match. For a non-default port,
+the official image receives a prepared Apache configuration without replacing its entrypoint. Custom repositories retain
+their own startup contract; make them listen on the selected port or set `image.configureApachePort: true` only when they
+retain the official `/etc/apache2` layout.
 
 ## NetworkPolicy
 
@@ -87,7 +104,7 @@ HelmForge Memcached subchart only when the WordPress image includes the required
 type: chart-docs
 title: WordPress Production Guide
 description: Production deployment guidance for the WordPress Helm chart
-keywords: wordpress, production, kubernetes, helm, gateway-api, external-secrets, networkpolicy
+keywords: wordpress, production, kubernetes, helm, plugins, php-extensions, gateway-api, external-secrets, networkpolicy
 purpose: Production hardening guide for the wordpress Helm chart
 scope: Chart
 relations:
@@ -95,6 +112,6 @@ relations:
   - charts/wordpress/DESIGN.md
   - charts/wordpress/values.yaml
 path: charts/wordpress/docs/production.md
-version: 1.0
-date: 2026-05-06
+version: 1.1
+date: 2026-10-23
 -->

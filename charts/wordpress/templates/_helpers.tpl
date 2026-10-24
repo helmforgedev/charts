@@ -71,6 +71,29 @@ Image string with tag fallback to appVersion.
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag }}
 {{- end }}
 
+{{/* Recognize equivalent references that Docker normalizes to the official WordPress image. */}}
+{{- define "wordpress.isOfficialImageRepository" -}}
+{{- $officialRepositories := list "wordpress" "library/wordpress" "docker.io/wordpress" "docker.io/library/wordpress" "index.docker.io/wordpress" "index.docker.io/library/wordpress" -}}
+{{- if has . $officialRepositories -}}true{{- else -}}false{{- end -}}
+{{- end -}}
+
+{{/*
+Whether the chart should prepare Apache configuration for a non-default port.
+Null auto-enables the behavior only for the official WordPress image. Custom
+images retain their own startup contract unless they explicitly opt in.
+*/}}
+{{- define "wordpress.apachePortConfigEnabled" -}}
+{{- if eq (int .Values.containerPorts.http) 80 -}}
+false
+{{- else if kindIs "bool" .Values.image.configureApachePort -}}
+{{- .Values.image.configureApachePort -}}
+{{- else if eq (include "wordpress.isOfficialImageRepository" .Values.image.repository) "true" -}}
+true
+{{- else -}}
+false
+{{- end -}}
+{{- end -}}
+
 {{/*
 ExternalSecret feature flags.
 */}}
@@ -624,6 +647,43 @@ $memcached_servers = array(
     {{- fail "plugins.items[].activateSlug is not supported; use official WordPress.org plugin slugs only" -}}
   {{- end -}}
 {{- end -}}
+{{- range $i, $plugin := .Values.plugins.custom -}}
+  {{- $name := default "" $plugin.name -}}
+  {{- $url := default "" $plugin.url -}}
+  {{- $sha256 := default "" $plugin.sha256 -}}
+  {{- $allowInsecureHttp := default false $plugin.allowInsecureHttp -}}
+  {{- if not (regexMatch "^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$" $name) -}}
+    {{- fail (printf "plugins.custom[%d].name is required and must be a safe plugin directory name" $i) -}}
+  {{- end -}}
+  {{- range $.Values.plugins.items -}}
+    {{- if eq $name (default "" .slug) -}}
+      {{- fail (printf "plugins.custom[%d].name conflicts with plugins.items[].slug %s" $i $name) -}}
+    {{- end -}}
+  {{- end -}}
+  {{- if not (regexMatch "^[A-Fa-f0-9]{64}$" $sha256) -}}
+    {{- fail (printf "plugins.custom[%d].sha256 is required and must be a 64-character SHA-256 digest" $i) -}}
+  {{- end -}}
+  {{- if and (not (hasPrefix "https://" $url)) (not (and $allowInsecureHttp (hasPrefix "http://" $url))) -}}
+    {{- fail (printf "plugins.custom[%d].url must use https:// unless allowInsecureHttp=true" $i) -}}
+  {{- end -}}
+  {{- if or (contains "@" $url) (contains "?" $url) (contains "#" $url) -}}
+    {{- fail (printf "plugins.custom[%d].url must not contain inline credentials, query parameters, or fragments" $i) -}}
+  {{- end -}}
+  {{- $authentication := default dict $plugin.authentication -}}
+  {{- range $key, $_ := $authentication -}}
+    {{- if not (has $key (list "existingSecret" "tokenKey")) -}}
+      {{- fail (printf "plugins.custom[%d].authentication accepts only existingSecret and tokenKey; inline credentials are forbidden" $i) -}}
+    {{- end -}}
+  {{- end -}}
+  {{- if gt (len $authentication) 0 -}}
+    {{- if or (not (default "" $authentication.existingSecret)) (not (default "" $authentication.tokenKey)) -}}
+      {{- fail (printf "plugins.custom[%d].authentication requires existingSecret and tokenKey" $i) -}}
+    {{- end -}}
+    {{- if not (hasPrefix "https://" $url) -}}
+      {{- fail (printf "plugins.custom[%d].authentication requires an https:// URL" $i) -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
 {{- if .Values.objectCache.enabled -}}
   {{- if eq (include "wordpress.objectCacheProvider" .) "redis" -}}
     {{- if not (has .Values.objectCache.redis.mode (list "subchart" "external")) -}}
@@ -649,7 +709,7 @@ $memcached_servers = array(
     {{- if and (eq .Values.objectCache.memcached.mode "external") (not .Values.objectCache.memcached.external.host) -}}
       {{- fail "objectCache.memcached.external.host is required when objectCache.memcached.mode=external" -}}
     {{- end -}}
-    {{- if and (or (eq .Values.image.repository "docker.io/library/wordpress") (eq .Values.plugins.installer.image.repository "docker.io/library/wordpress")) (not .Values.objectCache.memcached.allowOfficialImageWithoutExtension) -}}
+    {{- if and (or (eq (include "wordpress.isOfficialImageRepository" .Values.image.repository) "true") (eq (include "wordpress.isOfficialImageRepository" .Values.plugins.installer.image.repository) "true")) (not .Values.objectCache.memcached.allowOfficialImageWithoutExtension) -}}
       {{- fail "objectCache.provider=memcached requires custom WordPress and installer images with the php-memcached extension, or set objectCache.memcached.allowOfficialImageWithoutExtension=true to acknowledge the official image limitation" -}}
     {{- end -}}
   {{- end -}}

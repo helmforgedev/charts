@@ -16,7 +16,7 @@ Namespace:  {{ .Release.Namespace }}
 {{- if .Values.gatewayAPI.enabled }}
 Gateway API HTTPRoute:
 {{- range .Values.gatewayAPI.hostnames }}
-  WEB:   http(s)://{{ . }}{{ $.Values.gatewayAPI.path }}
+  WEB:   http(s)://{{ . }}
   ADMIN: http(s)://{{ . }}/wp-admin
 {{- end }}
 {{- else if .Values.ingress.enabled }}
@@ -87,6 +87,7 @@ Deployment:
 Service:
   Type:         {{ .Values.service.type }}
   Port:         {{ .Values.service.port }}
+  Container:    {{ .Values.containerPorts.http }}
 {{- if .Values.service.ipFamilyPolicy }}
   IP policy:    {{ .Values.service.ipFamilyPolicy }}
 {{- end }}
@@ -115,6 +116,8 @@ Storage:
 Features:
   WP CronJob:   {{ .Values.wpCron.cronJob.enabled }}
   Plugins Job:  {{ .Values.plugins.installer.enabled }}
+  Official plugins: {{ len .Values.plugins.items }}
+  Custom plugins:   {{ len .Values.plugins.custom }}
   Object cache: {{ .Values.objectCache.enabled }}
   Metrics:      {{ .Values.metrics.enabled }}
   Backups:      {{ .Values.backup.enabled }}
@@ -159,6 +162,13 @@ Backup:
 
 5. For production, configure TLS routing, explicit credentials, backups, metrics, resource requests and limits, and a storage strategy before scaling replicas.
 
+6. Verify enabled bootstrap and plugin installer Jobs completed successfully:
+   kubectl get jobs -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+7. Test backup and restore procedures before relying on the installation for production data.
+
+8. Review warnings, recent events, and application logs after every upgrade.
+
 {{- if .Values.wpCron.cronJob.enabled }}
 --------------------------------------------------------------------
   WORDPRESS CRON
@@ -179,6 +189,9 @@ Check recent CronJob logs:
 --------------------------------------------------------------------
 
 The plugin installer Job runs after install and upgrade.
+Official WordPress.org slugs and checksum-verified custom ZIPs are supported.
+Private ZIP credentials must be supplied through an existing Secret.
+The chart does not compile PHP extensions at startup; use a prebuilt custom image when an extension is required.
 
 Inspect plugin installer Jobs:
   kubectl get jobs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=plugin-installer
