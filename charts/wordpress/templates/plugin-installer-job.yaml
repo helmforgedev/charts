@@ -279,7 +279,7 @@ spec:
               {{- if hasKey $plugin "skipIfInstalled" -}}{{- $skipIfInstalled = $plugin.skipIfInstalled -}}{{- end -}}
               {{- $tokenEnvironment := "" -}}
               {{- if $plugin.authentication -}}{{- $tokenEnvironment = printf "HELMFORGE_PLUGIN_TOKEN_%d" $i -}}{{- end -}}
-              install_custom_plugin {{ $plugin.name | quote }} {{ $plugin.url | quote }} {{ $plugin.sha256 | quote }} {{ $activate | quote }} {{ $skipIfInstalled | quote }} {{ $tokenEnvironment | quote }}
+              install_custom_plugin {{ $plugin.name | quote }} "$HELMFORGE_PLUGIN_URL_{{ $i }}" {{ $plugin.sha256 | quote }} {{ $activate | quote }} {{ $skipIfInstalled | quote }} {{ $tokenEnvironment | quote }}
               {{- end }}
               {{- if and .Values.objectCache.enabled .Values.objectCache.installPlugin }}
               {{- if eq (include "wordpress.objectCacheRedisEnabled" .) "true" }}
@@ -349,6 +349,8 @@ spec:
                   key: {{ include "wordpress.redisSecretKey" . }}
             {{- end }}
             {{- range $i, $plugin := .Values.plugins.custom }}
+            - name: {{ printf "HELMFORGE_PLUGIN_URL_%d" $i }}
+              value: {{ $plugin.url | quote }}
             {{- with $plugin.authentication }}
             - name: {{ printf "HELMFORGE_PLUGIN_TOKEN_%d" $i }}
               valueFrom:

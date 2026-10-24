@@ -53,11 +53,34 @@ tests:
     asserts:
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
-          pattern: 'install_custom_plugin "company-plugin" "https://artifacts.example.com/company-plugin.zip" "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" "true" "true" ""'
+          pattern: 'install_custom_plugin "company-plugin" "\$HELMFORGE_PLUGIN_URL_0" "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" "true" "true" ""'
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HELMFORGE_PLUGIN_URL_0
+            value: https://artifacts.example.com/company-plugin.zip
       - notContains:
           path: spec.template.spec.containers[0].env
           content:
             name: HELMFORGE_PLUGIN_TOKEN_0
+
+  - it: should preserve shell metacharacters in custom plugin URLs
+    set:
+      plugins.enabled: true
+      plugins.installer.enabled: true
+      plugins.custom:
+        - name: company-plugin
+          url: 'https://artifacts.example.com/$release/$(printf-injected)/`printf-backtick`.zip'
+          sha256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HELMFORGE_PLUGIN_URL_0
+            value: 'https://artifacts.example.com/$release/$(printf-injected)/`printf-backtick`.zip'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'install_custom_plugin "company-plugin" "\$HELMFORGE_PLUGIN_URL_0"'
 
   - it: should reference an authentication token from an existing Secret
     set:
