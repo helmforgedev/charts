@@ -22,6 +22,10 @@ spec:
             app.kubernetes.io/component: backup
         spec:
           restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
           {{- with .Values.imagePullSecrets }}
           imagePullSecrets:
             {{- toYaml . | nindent 12 }}
@@ -29,6 +33,17 @@ spec:
           initContainers:
             - name: archive
               image: {{ .Values.backup.images.archiver }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                runAsNonRoot: false
+                runAsUser: 0
+                runAsGroup: 0
+                capabilities:
+                  drop:
+                    - ALL
+                  add:
+                    - DAC_READ_SEARCH
               command:
                 - /bin/sh
                 - -c
@@ -52,6 +67,15 @@ spec:
           containers:
             - name: upload
               image: {{ .Values.backup.images.uploader }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                runAsUser: 65534
+                runAsGroup: 65534
+                capabilities:
+                  drop:
+                    - ALL
               command:
                 - /bin/sh
                 - -c
@@ -66,6 +90,8 @@ spec:
                   mc cp "${ARCHIVE}" "s3/${S3_BUCKET}/{{ .Values.backup.s3.prefix }}/${BASENAME}"
                   echo "Uploaded ${BASENAME} to s3/${S3_BUCKET}/{{ .Values.backup.s3.prefix }}/"
               env:
+                - name: MC_CONFIG_DIR
+                  value: /tmp/.mc
                 - name: S3_ENDPOINT
                   value: {{ .Values.backup.s3.endpoint | quote }}
                 - name: S3_BUCKET
@@ -84,6 +110,8 @@ spec:
                 - name: backup-staging
                   mountPath: /backup
                   readOnly: true
+                - name: backup-tmp
+                  mountPath: /tmp
               {{- with .Values.backup.resources }}
               resources:
                 {{- toYaml . | nindent 16 }}
@@ -93,5 +121,7 @@ spec:
               persistentVolumeClaim:
                 claimName: {{ .Values.persistence.existingClaim | default (include "heimdall.fullname" .) }}
             - name: backup-staging
+              emptyDir: {}
+            - name: backup-tmp
               emptyDir: {}
 {{- end }}

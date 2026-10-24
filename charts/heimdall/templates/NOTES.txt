@@ -1,54 +1,67 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-Heimdall has been successfully deployed.
+1. Summary
 
-Chart:      {{ .Chart.Name }}
-Version:    {{ .Chart.Version }}
-AppVersion: {{ .Chart.AppVersion }}
-Release:    {{ .Release.Name }}
-Namespace:  {{ .Release.Namespace }}
+   Heimdall {{ .Chart.AppVersion }} is deployed as release {{ .Release.Name }}
+   in namespace {{ .Release.Namespace }}. The application listener is port
+   {{ .Values.heimdall.containerPort }} and the Service exposes port {{ .Values.service.port }}.
 
-Access:
+2. Access
 
 {{- if .Values.ingress.enabled }}
 {{- range $host := .Values.ingress.hosts }}
-  Dashboard: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+   Dashboard: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
 {{- end }}
 {{- else }}
-  Port-forward to access Heimdall locally:
+   Start a local port-forward:
 
-    kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "heimdall.fullname" . }} 8080:{{ .Values.service.port | default 80 }}
+     kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "heimdall.fullname" . }} 8080:{{ .Values.service.port }}
 
-  Dashboard: http://localhost:8080/
+   Open http://localhost:8080/.
 {{- end }}
 
-Getting Started:
+3. Getting Started
 
-1. kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=heimdall -n {{ .Release.Namespace }} --timeout=300s
-2. kubectl get pods -l app.kubernetes.io/name=heimdall -n {{ .Release.Namespace }}
-3. kubectl logs -l app.kubernetes.io/name=heimdall -n {{ .Release.Namespace }} --all-containers --tail=50 -f
-4. Open the dashboard and add your application links
+   Wait for the server and then add application tiles in the dashboard:
 
-Troubleshooting:
+     kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/component=server -n {{ .Release.Namespace }} --timeout=300s
 
-  kubectl describe pod -l app.kubernetes.io/name=heimdall -n {{ .Release.Namespace }}
-  kubectl logs -l app.kubernetes.io/name=heimdall -n {{ .Release.Namespace }} --all-containers --tail=100
-  kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-  kubectl get pvc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+4. Credentials
 
-Warnings:
+   Heimdall has no chart-managed login credentials. Configure access controls
+   in Heimdall and protect external access with TLS and the controls provided by
+   your Ingress controller. Enhanced tiles may require upstream API keys.
 
-{{- if not .Values.persistence.enabled }}
+5. Configuration
 
-  Persistence is disabled. Heimdall configuration will be lost on pod restart.
+   Persistent application state is stored in /config.
+{{- if .Values.persistence.enabled }}
+   Persistence is enabled{{ with .Values.persistence.existingClaim }} with existing claim {{ . }}{{ end }}.
+{{- else }}
+   Persistence is disabled; dashboard state is disposable.
 {{- end }}
-{{- if not .Values.ingress.enabled }}
+   ServiceAccount token automount: {{ .Values.serviceAccount.automountServiceAccountToken }}.
+   Ingress NetworkPolicy enabled: {{ .Values.networkPolicy.enabled }}.
 
-  Ingress is not enabled. Access via port-forward.
-{{- end }}
+6. Validation
 
-Additional Resources:
+     kubectl get deployment,service,pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+     kubectl get networkpolicy -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+     kubectl exec -n {{ .Release.Namespace }} deploy/{{ include "heimdall.fullname" . }} -c heimdall -- grep 'listen {{ .Values.heimdall.containerPort }} default_server' /config/nginx/site-confs/default.conf
 
-Documentation:  https://helmforge.dev/docs/charts/heimdall
-Heimdall:       https://heimdall.site | https://github.com/linuxserver/Heimdall
+7. Troubleshooting
+
+     kubectl describe pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+     kubectl logs -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }} --all-containers --tail=100
+     kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
+
+   For write failures, confirm that heimdall.puid and heimdall.pgid can write to
+   the mounted /config volume.
+
+8. Resources
+
+   Operations: https://github.com/helmforgedev/charts/tree/main/charts/heimdall/docs/operations.md
+   Backup:     https://github.com/helmforgedev/charts/tree/main/charts/heimdall/docs/backup.md
+   Security:   https://github.com/helmforgedev/charts/tree/main/charts/heimdall/docs/security.md
+   Upstream:   https://docs.linuxserver.io/images/docker-heimdall/
 
 Happy Helmforging :)

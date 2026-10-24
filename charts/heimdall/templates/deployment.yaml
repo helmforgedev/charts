@@ -19,8 +19,9 @@ spec:
     metadata:
       labels:
         {{- include "heimdall.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: server
         {{- with .Values.podLabels }}
-        {{- toYaml . | nindent 8 }}
+        {{- omit . "app.kubernetes.io/name" "app.kubernetes.io/instance" "app.kubernetes.io/component" | toYaml | nindent 8 }}
         {{- end }}
       {{- with .Values.podAnnotations }}
       annotations:
@@ -32,6 +33,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "heimdall.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -44,13 +46,29 @@ spec:
         - name: heimdall
           image: {{ include "heimdall.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - |
+              sed -i -E \
+                -e 's/^[[:space:]]*listen [0-9]+ default_server;/    listen {{ .Values.heimdall.containerPort }} default_server;/' \
+                -e 's/^[[:space:]]*listen \[::\]:[0-9]+ default_server;/    listen [::]:{{ .Values.heimdall.containerPort }} default_server;/' \
+                /defaults/nginx/site-confs/default.conf.sample
+              if [ -f /config/nginx/site-confs/default.conf ]; then
+                sed -i -E \
+                  -e 's/^[[:space:]]*listen [0-9]+ default_server;/    listen {{ .Values.heimdall.containerPort }} default_server;/' \
+                  -e 's/^[[:space:]]*listen \[::\]:[0-9]+ default_server;/    listen [::]:{{ .Values.heimdall.containerPort }} default_server;/' \
+                  /config/nginx/site-confs/default.conf
+              fi
+              exec /init
           {{- with .Values.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           ports:
             - name: http
-              containerPort: 80
+              containerPort: {{ .Values.heimdall.containerPort }}
               protocol: TCP
           env:
             - name: PUID
@@ -59,6 +77,8 @@ spec:
               value: {{ .Values.heimdall.pgid | quote }}
             - name: TZ
               value: {{ .Values.heimdall.timezone | quote }}
+            - name: HELMFORGE_HTTP_PORT
+              value: {{ .Values.heimdall.containerPort | quote }}
             {{- with .Values.heimdall.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

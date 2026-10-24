@@ -25,12 +25,14 @@ helm install heimdall oci://ghcr.io/helmforgedev/helm/heimdall
 - **S3-Compatible Backup** — CronJob that creates a tar archive of `/config` and uploads to any S3 endpoint
 - **Ingress Support** — configurable ingress with TLS for HTTPS access
 - **PUID/PGID** — file ownership control for the container
+- **Hardened Defaults** — no API token, restricted capabilities, seccomp, and ingress NetworkPolicy
 
 ## Documentation
 
 - [Chart Design](DESIGN.md)
 - [Operations Guide](docs/operations.md)
 - [Backup Guide](docs/backup.md)
+- [Security Guide](docs/security.md)
 - [Heimdall Source](https://github.com/linuxserver/Heimdall)
 
 ### Security Scan: `heimdall`
@@ -44,6 +46,11 @@ helm install heimdall oci://ghcr.io/helmforgedev/helm/heimdall
 ## Configuration
 
 Set a non-empty `image.repository` and `image.tag`; the chart rejects empty values before creating a workload.
+
+`heimdall.containerPort` configures the real NGINX listener. It is independent
+from `service.port`, which controls only the Kubernetes Service port.
+
+## Examples
 
 ### Minimal
 
@@ -91,6 +98,7 @@ backup:
 | `heimdall.puid` | `1000` | User ID for file permissions |
 | `heimdall.pgid` | `1000` | Group ID for file permissions |
 | `heimdall.timezone` | `"UTC"` | Timezone |
+| `heimdall.containerPort` | `80` | HTTP port used by the Heimdall NGINX process |
 
 ### Persistence
 
@@ -126,6 +134,57 @@ backup:
 | `ingress.ingressClassName` | `""` | Ingress class (`traefik`, `nginx`, etc.) |
 | `ingress.hosts` | `[]` | Ingress hosts and paths |
 | `ingress.tls` | `[]` | TLS configuration |
+
+### Security
+
+The chart disables Kubernetes API token automount, applies `RuntimeDefault`
+seccomp, disables privilege escalation, minimizes Linux capabilities, and
+creates an ingress NetworkPolicy by default. The main process still starts as
+root because the LinuxServer `/init` sequence must prepare `/config` before
+switching to `PUID`/`PGID`; see the [Security Guide](docs/security.md) for the
+documented exception and network boundaries.
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `serviceAccount.create` | `false` | Create a dedicated ServiceAccount |
+| `serviceAccount.automountServiceAccountToken` | `false` | Mount a Kubernetes API token in the pod |
+| `networkPolicy.enabled` | `true` | Restrict server ingress to the named HTTP port |
+| `networkPolicy.extraIngress` | `[]` | Additional complete ingress rules |
+| `podSecurityContext.seccompProfile.type` | `RuntimeDefault` | Pod seccomp profile |
+| `securityContext.allowPrivilegeEscalation` | `false` | Permit privilege escalation |
+| `securityContext.readOnlyRootFilesystem` | `false` | Read-only root filesystem; disabled for s6-overlay compatibility |
+
+### Probes and Scheduling
+
+Startup, readiness, and liveness probes use the named `http` port and expose
+path, delay, period, timeout, and failure threshold settings in `values.yaml`.
+Resources, scheduling, labels, annotations, extra volumes, mounts, manifests,
+and image pull secrets remain fully operator-configurable. The complete values
+contract is documented inline in [`values.yaml`](values.yaml) and enforced by
+[`values.schema.json`](values.schema.json).
+
+## Architecture
+
+One Deployment runs LinuxServer's NGINX, PHP-FPM, and Heimdall processes. A
+single persistent `/config` volume contains SQLite data, settings, and assets;
+the Deployment therefore uses `Recreate` and intentionally does not expose a
+replica setting. The optional backup CronJob archives that same volume to S3.
+See [Chart Design](DESIGN.md) for boundaries and tradeoffs.
+
+## Troubleshooting
+
+Inspect readiness, logs, events, and the effective NGINX listener:
+
+```bash
+kubectl get pods -l app.kubernetes.io/instance=<release>
+kubectl logs -l app.kubernetes.io/instance=<release> --all-containers --tail=100
+kubectl get events --sort-by=.lastTimestamp
+kubectl exec deploy/<release>-heimdall -c heimdall -- grep 'listen .* default_server' /config/nginx/site-confs/default.conf
+```
+
+Write failures under `/config` usually mean `heimdall.puid` or `heimdall.pgid`
+does not match the volume's ownership. Connection failures on a custom listener
+should be checked against both `heimdall.containerPort` and `service.port`.
 
 ## Notes
 
