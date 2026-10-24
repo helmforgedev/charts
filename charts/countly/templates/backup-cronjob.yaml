@@ -21,6 +21,10 @@ spec:
             {{- include "countly.selectorLabels" . | nindent 12 }}
         spec:
           restartPolicy: Never
+          serviceAccountName: {{ include "countly.serviceAccountName" . }}
+          automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+          securityContext:
+            {{- toYaml .Values.backup.podSecurityContext | nindent 12 }}
           {{- with .Values.imagePullSecrets }}
           imagePullSecrets:
             {{- toYaml . | nindent 12 }}
@@ -41,11 +45,15 @@ spec:
             - name: mongodb-backup
               image: {{ .Values.backup.images.mongodb | quote }}
               command: ["/bin/sh", "/scripts/mongodb-backup.sh"]
+              {{- with .Values.backup.database.mongodumpArgs }}
+              args:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              securityContext:
+                {{- toYaml .Values.backup.securityContext | nindent 16 }}
               env:
                 - name: BACKUP_ARCHIVE_PREFIX
                   value: {{ .Values.backup.archivePrefix | quote }}
-                - name: MONGODUMP_EXTRA_ARGS
-                  value: {{ .Values.backup.database.mongodumpArgs | quote }}
                 {{- if not .Values.externalMongodb.enabled }}
                 - name: MONGODB_ROOT_PASSWORD
                   valueFrom:
@@ -54,7 +62,15 @@ spec:
                       key: mongodb-root-password
                 {{- end }}
                 - name: MONGODB_URI
+                  {{- $mongodbSecretName := include "countly.backupMongodbSecretName" . }}
+                  {{- if $mongodbSecretName }}
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $mongodbSecretName }}
+                      key: {{ include "countly.backupMongodbSecretKey" . }}
+                  {{- else }}
                   value: {{ include "countly.backupMongodbUri" . | quote }}
+                  {{- end }}
               resources:
                 {{- toYaml .Values.backup.resources | nindent 16 }}
               volumeMounts:
@@ -62,11 +78,17 @@ spec:
                   mountPath: /scripts
                 - name: backup-workdir
                   mountPath: /backup/out
+                - name: backup-tmp
+                  mountPath: /tmp
           containers:
             - name: upload
               image: {{ .Values.backup.images.uploader | quote }}
               command: ["/bin/sh", "/scripts/upload-backup.sh"]
+              securityContext:
+                {{- toYaml .Values.backup.securityContext | nindent 16 }}
               env:
+                - name: MC_CONFIG_DIR
+                  value: /tmp/.mc
                 - name: S3_ENDPOINT
                   value: {{ .Values.backup.s3.endpoint | quote }}
                 - name: S3_BUCKET
@@ -92,11 +114,15 @@ spec:
                   mountPath: /scripts
                 - name: backup-workdir
                   mountPath: /backup/out
+                - name: backup-tmp
+                  mountPath: /tmp
           volumes:
             - name: scripts
               configMap:
                 name: {{ include "countly.fullname" . }}-backup-scripts
                 defaultMode: 0755
             - name: backup-workdir
+              emptyDir: {}
+            - name: backup-tmp
               emptyDir: {}
 {{- end }}

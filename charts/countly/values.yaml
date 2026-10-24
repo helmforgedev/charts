@@ -60,11 +60,13 @@ externalMongodb:
 
 serviceAccount:
   # -- Create a ServiceAccount
-  create: false
+  create: true
   # -- ServiceAccount name
   name: ""
   # -- Annotations for the ServiceAccount
   annotations: {}
+  # -- Mount the Kubernetes API token into Countly and backup pods
+  automountServiceAccountToken: false
 
 # =============================================================================
 # Service
@@ -137,9 +139,32 @@ probes:
 
 resources: {}
 
-podSecurityContext: {}
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
 
-securityContext: {}
+securityContext:
+  # The upstream combined image starts its supervisor as root and drops to the
+  # countly user for Node.js processes. See DESIGN.md for the boundary.
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  runAsNonRoot: false
+  runAsUser: 0
+
+# =============================================================================
+# Network Policy
+# =============================================================================
+
+networkPolicy:
+  # -- Create a NetworkPolicy for Countly and its backup jobs
+  enabled: true
+  # -- Sources allowed to reach the dashboard and ingestion API. Empty allows
+  # all cluster sources; replace it to restrict ingress in production.
+  ingressFrom: []
+  # -- Egress rules for MongoDB, DNS, webhooks, email and plugin integrations.
+  # The default preserves upstream compatibility; replace it in production.
+  egress:
+    - {}
 
 # =============================================================================
 # S3 Backup
@@ -164,11 +189,27 @@ backup:
   archivePrefix: countly
   images:
     # -- Image used for MongoDB backup (must have mongodump)
-    mongodb: docker.io/library/mongo:8.0
+    mongodb: docker.io/library/mongo:8.0.34
     # -- Image used for S3 upload (MinIO client)
     uploader: docker.io/helmforge/mc:1.0.0
   # -- Resources for backup containers
   resources: {}
+  # -- Backup pod security context
+  podSecurityContext:
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+    seccompProfile:
+      type: RuntimeDefault
+  # -- Backup container security context
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
   s3:
     # -- S3-compatible endpoint URL
     endpoint: ""
@@ -192,7 +233,13 @@ backup:
   database:
     # -- Override MongoDB URI for backup (uses app URI if empty)
     uri: ""
-    mongodumpArgs: ""
+    # -- Existing Secret containing the backup MongoDB URI. Defaults to the
+    # externalMongodb Secret when that path is configured.
+    existingSecret: ""
+    # -- Key in backup.database.existingSecret containing the MongoDB URI
+    existingSecretUriKey: mongodb-uri
+    # -- Additional mongodump arguments passed without shell evaluation
+    mongodumpArgs: []
 
 # =============================================================================
 # Scheduling

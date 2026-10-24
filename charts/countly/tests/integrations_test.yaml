@@ -1,0 +1,70 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Integrations
+templates:
+  - templates/httproute.yaml
+  - templates/externalsecret.yaml
+  - templates/extra-manifests.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render the dashboard HTTPRoute
+    template: templates/httproute.yaml
+    set:
+      gateway.enabled: true
+      gateway.parentRefs:
+        - name: shared
+      gateway.hostnames:
+        - countly.example.com
+      service.port: 8080
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 8080
+      - equal:
+          path: spec.hostnames[0]
+          value: countly.example.com
+
+  - it: should render the MongoDB ExternalSecret
+    template: templates/externalsecret.yaml
+    set:
+      mongodb.enabled: false
+      externalMongodb.enabled: true
+      externalMongodb.existingSecret: countly-mongodb
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: production
+      externalSecrets.data:
+        - secretKey: mongodb-uri
+          remoteRef:
+            key: countly/mongodb-uri
+    asserts:
+      - isKind:
+          of: ExternalSecret
+      - equal:
+          path: spec.target.name
+          value: countly-mongodb
+      - equal:
+          path: spec.data[0].secretKey
+          value: mongodb-uri
+
+  - it: should render extra manifests unchanged
+    template: templates/extra-manifests.yaml
+    set:
+      extraManifests:
+        - apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: countly-extra
+          data:
+            mode: production
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: countly-extra
+      - equal:
+          path: data.mode
+          value: production

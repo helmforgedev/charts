@@ -67,6 +67,65 @@ tests:
             name: MONGODB_URI
             value: "mongodb://root:$(MONGODB_ROOT_PASSWORD)@test-mongodb:27017/countly?authSource=admin"
 
+  - it: should use the external MongoDB Secret URI for backup
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: http://minio:9000
+      backup.s3.bucket: backups
+      backup.s3.accessKey: admin
+      backup.s3.secretKey: admin123
+      mongodb.enabled: false
+      externalMongodb.enabled: true
+      externalMongodb.existingSecret: countly-mongodb
+      externalMongodb.existingSecretUriKey: mongodb-uri
+    template: backup-cronjob.yaml
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env
+          content:
+            name: MONGODB_URI
+            valueFrom:
+              secretKeyRef:
+                name: countly-mongodb
+                key: mongodb-uri
+
+  - it: should pass mongodump arguments without shell evaluation
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: http://minio:9000
+      backup.s3.bucket: backups
+      backup.s3.accessKey: admin
+      backup.s3.secretKey: admin123
+      backup.database.mongodumpArgs:
+        - --readPreference=secondaryPreferred
+    template: backup-cronjob.yaml
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].args[0]
+          value: --readPreference=secondaryPreferred
+
+  - it: should harden backup containers and disable API tokens
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: http://minio:9000
+      backup.s3.bucket: backups
+      backup.s3.accessKey: admin
+      backup.s3.secretKey: admin123
+    template: backup-cronjob.yaml
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].image
+          value: docker.io/library/mongo:8.0.34
+
   - it: should fail without s3 endpoint
     set:
       backup.enabled: true

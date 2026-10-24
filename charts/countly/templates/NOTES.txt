@@ -1,69 +1,60 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
---------------------------------------------------------------------
-  Countly has been successfully deployed!
---------------------------------------------------------------------
+1. Release status
 
-Chart:      {{ .Chart.Name }}
-Version:    {{ .Chart.Version }}
-AppVersion: {{ .Chart.AppVersion }}
-Release:    {{ .Release.Name }}
-Namespace:  {{ .Release.Namespace }}
-Image:      {{ include "countly.image" . }}
+   Countly {{ .Chart.AppVersion }} is installed as release
+   {{ .Release.Name }} in namespace {{ .Release.Namespace }}.
 
---------------------------------------------------------------------
-  ACCESS INFORMATION
---------------------------------------------------------------------
+2. Access
 
 {{- if .Values.ingress.enabled }}
-{{- range $host := .Values.ingress.hosts }}
-WEB UI:  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+{{- range .Values.ingress.hosts }}
+   Dashboard: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host | default "<ingress-address>" }}
+{{- end }}
+{{- else if .Values.gateway.enabled }}
+{{- range .Values.gateway.hostnames }}
+   Dashboard: http://{{ . }}
 {{- end }}
 {{- else }}
-Port-forward to access Countly locally:
-
-  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "countly.fullname" . }} 6001:{{ .Values.service.port }}
-
-  WEB UI:   http://localhost:6001/
+   kubectl -n {{ .Release.Namespace }} port-forward service/{{ include "countly.fullname" . }} 8080:{{ .Values.service.port }}
+   Dashboard: http://127.0.0.1:8080
 {{- end }}
 
---------------------------------------------------------------------
-  GETTING STARTED
---------------------------------------------------------------------
+3. Credentials
 
-1. kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=countly -n {{ .Release.Namespace }} --timeout=300s
-2. kubectl get pods -l app.kubernetes.io/name=countly -n {{ .Release.Namespace }}
-3. kubectl logs -l app.kubernetes.io/name=countly -n {{ .Release.Namespace }} --all-containers --tail=50 -f
+   Complete the initial Countly administrator setup in the dashboard.
+   MongoDB credentials are read from the bundled dependency or the Secret
+   configured by externalMongodb.existingSecret.
 
-Runtime configuration:
-  MongoDB subchart: {{ ternary "enabled" "disabled" .Values.mongodb.enabled }}
-  External MongoDB: {{ ternary "enabled" "disabled" .Values.externalMongodb.enabled }}
-  Backup CronJob:  {{ ternary "enabled" "disabled" .Values.backup.enabled }}
+4. Health
 
---------------------------------------------------------------------
-  TROUBLESHOOTING
---------------------------------------------------------------------
+   kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "countly.fullname" . }}
+   kubectl -n {{ .Release.Namespace }} get pods,service,endpoints
 
-  kubectl describe pod -l app.kubernetes.io/name=countly -n {{ .Release.Namespace }}
-  kubectl logs -l app.kubernetes.io/name=countly -n {{ .Release.Namespace }} --all-containers --tail=100
-  kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+5. Persistence
 
-{{- if .Values.mongodb.enabled }}
-View MongoDB logs:
-  kubectl logs -l app.kubernetes.io/name=mongodb -n {{ .Release.Namespace }} --all-containers --tail=50
-{{- end }}
+   All durable Countly data is stored in MongoDB. Confirm the MongoDB PVC or
+   managed database retention policy before sending production events.
+
+6. Backup and restore
 
 {{- if .Values.backup.enabled }}
-Check backup CronJob: kubectl get cronjob -n {{ .Release.Namespace }}
+   Backup schedule: {{ .Values.backup.schedule }}
+   Target: {{ .Values.backup.s3.endpoint }}/{{ .Values.backup.s3.bucket }}/{{ .Values.backup.s3.prefix }}
+   Run and verify an independent restore before relying on the schedule.
+{{- else }}
+   Scheduled backups are disabled. Enable backup.enabled or use the managed
+   MongoDB provider's backup service, then test a restore.
 {{- end }}
 
-Upgrade reminder:
-  Take a MongoDB backup before production upgrades and verify enabled Countly plugins after rollout.
+7. Upgrade
 
---------------------------------------------------------------------
-  ADDITIONAL RESOURCES
---------------------------------------------------------------------
+   Back up MongoDB, review Countly and plugin compatibility, then run:
+   helm upgrade {{ .Release.Name }} helmforge/countly -n {{ .Release.Namespace }} --reuse-values
 
-Documentation:   https://helmforge.dev/docs/charts/countly
-Countly:         https://count.ly | https://github.com/Countly/countly-server
+8. Security and documentation
+
+   Restrict networkPolicy ingress and egress for production, keep both public
+   listeners behind TLS, and store credentials in Secrets.
+   Documentation: https://helmforge.dev/docs/charts/countly
 
 Happy Helmforging :)

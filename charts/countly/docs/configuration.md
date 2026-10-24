@@ -1,43 +1,67 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# Countly — Configuration
+# Configuration
 
-Countly is a product-analytics platform (events, crash reporting, dashboards,
-plugins). This chart runs the Countly server (API + dashboard) backed entirely by
-**MongoDB** — there is no SQL datastore.
+## Application Listeners
 
-## Key values
+`countly.apiPort` and `countly.dashboardPort` configure the sockets opened by
+the Countly API and dashboard processes. `service.apiPort` and `service.port`
+configure the Kubernetes-facing ports independently. The Service targets the
+named container ports, so overrides remain aligned.
 
-| Value | Default | Purpose |
-|---|---|---|
-| `mongodb.enabled` | `true` | Bundle the HelmForge MongoDB subchart. |
-| `mongodb.auth.*` | — | MongoDB database/credentials for the bundled subchart. |
-| `image.tag` | appVersion | Countly server image. |
-| `ingress.*` | disabled | Expose the dashboard (Service on port 80). |
-| `plugins` / app settings | — | Countly plugin and runtime configuration. |
-
-## Datastore
-
-MongoDB is the single source of truth (events, app data, dashboards, plugin
-state). Use the bundled subchart for small installs, or point Countly at a
-managed MongoDB by disabling the subchart and supplying connection details. The
-MongoDB credentials come from the subchart/existing secret, never templated into
-a ConfigMap.
-
-On constrained or arm64 nodes the MongoDB readiness probe (a `mongosh` ping) can
-be slow to pass on first boot; an init/readiness gate keeps Countly from starting
-before MongoDB accepts connections.
-
-## Access
-
-With ingress disabled, port-forward the Service:
-
-```bash
-kubectl port-forward svc/<release>-countly 8080:80
-# open http://localhost:8080/  and complete the initial setup wizard
+```yaml
+countly:
+  apiPort: 3101
+  dashboardPort: 6101
+service:
+  apiPort: 3100
+  port: 8080
 ```
 
-## Persistence and scaling
+Ingress and HTTPRoute expose only the dashboard Service port. Create an explicit
+API route or LoadBalancer when SDK clients cannot reach the cluster Service.
 
-Countly's state lives in MongoDB (which has its own persistent volume via the
-subchart). Back up MongoDB — it holds all analytics data. Scale MongoDB (replica
-set) for resilience; the app tier fronts it.
+## MongoDB Modes
+
+The default deploys the HelmForge MongoDB dependency. Its generated root
+password is referenced from the dependency Secret and is not copied into a
+ConfigMap.
+
+For a managed service:
+
+```yaml
+mongodb:
+  enabled: false
+externalMongodb:
+  enabled: true
+  existingSecret: countly-mongodb
+  existingSecretUriKey: mongodb-uri
+```
+
+The Secret key contains the complete URI. Direct `externalMongodb.uri` values
+are supported for non-sensitive development environments but are retained in
+Helm release history.
+
+External Secrets renders the Secret named by
+`externalMongodb.existingSecret`. Its `externalSecrets.data` list must include
+the configured URI key.
+
+## Plugins and Environment
+
+`countly.plugins` replaces the upstream plugin list. Keep it empty to use the
+image default. `countly.extraEnv` accepts standard Kubernetes EnvVar objects for
+upstream settings not modeled by the chart. Do not override chart-managed
+MongoDB or listener variables through `extraEnv`.
+
+## Scheduling and Resources
+
+Set `resources` from measured event volume and dashboard load. Node selection,
+tolerations, affinity, topology spread, priority class, and termination grace
+are available at the top level. The chart intentionally keeps one application
+replica because it does not automate Countly clustering or validate every
+plugin's multi-process behavior.
+
+## Related Guides
+
+- [Operations](operations.md)
+- [Security](security.md)
+- [Backup and restore](backup-and-restore.md)
