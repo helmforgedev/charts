@@ -54,13 +54,16 @@ the public listener.
   `doctrine:migrations:migrate --allow-no-migration`, which is the upstream
   upgrade procedure.
 - **Initial super-admin from a Secret.** `wallabag:install` always creates the
-  `wallabag/wallabag` account. Right after a first install, the setup container
-  marks `wallabag_user` with the `helmforge:admin-pending` table comment,
-  renames the account to `wallabag.admin.username`, sets its email, applies the
-  password from `<release>-wallabag-admin` (or `wallabag.admin.existingSecret`),
-  and changes the comment to `helmforge:admin-done`. The marker makes the step
-  safe to retry after a partial failure and keeps databases that were installed
-  outside the chart untouched.
+  `wallabag/wallabag` account. Before a first install, the setup container
+  creates the `helmforge_admin_pending` sequence. While it exists, every start
+  renames the upstream account to `wallabag.admin.username` (or creates that
+  super-admin with `fos:user:create` when the installer left no user), sets its
+  email, applies the password from `<release>-wallabag-admin` (or
+  `wallabag.admin.existingSecret`), and then drops the sequence. The marker is
+  written before the installer, so an interrupted install is completed on the
+  next start, and databases installed outside the chart are left untouched. It
+  is a sequence because the installer skips schema creation when any table
+  already exists.
 - **Stable generated secrets.** The Symfony secret and the admin password are
   generated once and read back with `lookup` on upgrades, so sessions and
   credentials do not rotate on `helm upgrade`. Tools that render without

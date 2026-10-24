@@ -111,8 +111,12 @@ spec:
                 su -s /bin/sh nobody -c "php bin/console --env=prod --no-interaction $*"
               }
 
-              marker() {
-                psql -tAc "SELECT coalesce(obj_description('wallabag_user'::regclass, 'pg_class'), '')"
+              # Chart-owned "admin pending" marker, created before the installer runs so an
+              # interrupted first install still configures the super-admin on the next start.
+              # It is a sequence because the installer treats any existing table as a schema
+              # that must not be touched.
+              admin_pending() {
+                [ "$(psql -tAc "SELECT to_regclass('helmforge_admin_pending') IS NOT NULL")" = "t" ]
               }
 
               installed="$(psql -tAc "SELECT to_regclass('wallabag_internal_setting') IS NOT NULL")"
@@ -121,14 +125,18 @@ spec:
                 console doctrine:migrations:migrate --allow-no-migration
               else
                 echo "Wallabag schema not found; running the first install."
+                psql -v ON_ERROR_STOP=1 -qc "CREATE SEQUENCE IF NOT EXISTS helmforge_admin_pending"
                 console wallabag:install
-                psql -v ON_ERROR_STOP=1 -qc "COMMENT ON TABLE wallabag_user IS 'helmforge:admin-pending'"
+                if [ "$(psql -tAc "SELECT to_regclass('wallabag_user') IS NOT NULL")" != "t" ]; then
+                  echo "wallabag:install did not create the schema." >&2
+                  exit 1
+                fi
               fi
 
-              # The upstream installer always creates wallabag/wallabag. Replace it with the
-              # configured super-admin once; installs without the pending marker are untouched.
-              if [ "$(marker)" = "helmforge:admin-pending" ]; then
-                psql -v ON_ERROR_STOP=1 -q -v username="$WALLABAG_ADMIN_USERNAME" -v email="$WALLABAG_ADMIN_EMAIL" <<'SQL'
+              # The upstream installer creates wallabag/wallabag. Replace it with the configured
+              # super-admin once, or create that user when the installer left none behind.
+              if admin_pending; then
+                admin_count="$(psql -v ON_ERROR_STOP=1 -tA -v username="$WALLABAG_ADMIN_USERNAME" -v email="$WALLABAG_ADMIN_EMAIL" <<'SQL'
               UPDATE wallabag_user
                  SET username = :'username', username_canonical = lower(:'username')
                WHERE username = 'wallabag'
@@ -136,10 +144,17 @@ spec:
               UPDATE wallabag_user
                  SET email = :'email', email_canonical = lower(:'email')
                WHERE username_canonical = lower(:'username');
+              SELECT count(*) FROM wallabag_user WHERE username_canonical = lower(:'username');
               SQL
+              )"
+                admin_count="$(printf '%s\n' "$admin_count" | tail -n 1)"
+                if [ "$admin_count" = "0" ]; then
+                  echo "No installer user found; creating $WALLABAG_ADMIN_USERNAME."
+                  console fos:user:create "$WALLABAG_ADMIN_USERNAME" "$WALLABAG_ADMIN_EMAIL" "$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9')" --super-admin
+                fi
                 printf '%s\n' "$WALLABAG_ADMIN_PASSWORD" \
                   | su -s /bin/sh nobody -c 'php bin/console --env=prod fos:user:change-password "$WALLABAG_ADMIN_USERNAME"'
-                psql -v ON_ERROR_STOP=1 -qc "COMMENT ON TABLE wallabag_user IS 'helmforge:admin-done'"
+                psql -v ON_ERROR_STOP=1 -qc "DROP SEQUENCE helmforge_admin_pending"
                 echo "Initial super-admin $WALLABAG_ADMIN_USERNAME configured."
               fi
           env:

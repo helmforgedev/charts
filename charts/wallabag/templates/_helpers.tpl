@@ -338,4 +338,14 @@ true
 {{- end -}}
 {{- end -}}
 {{- end -}}
+{{- if .Values.gatewayAPI.enabled -}}
+{{- $routeNames := dict -}}
+{{- range .Values.gatewayAPI.httpRoutes -}}
+{{- $routeName := include "wallabag.httpRouteName" (dict "root" $ "route" .) -}}
+{{- if hasKey $routeNames $routeName -}}
+{{- fail (printf "gatewayAPI.httpRoutes renders the HTTPRoute name %q twice; give every route a unique name" $routeName) -}}
+{{- end -}}
+{{- $_ := set $routeNames $routeName true -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}
