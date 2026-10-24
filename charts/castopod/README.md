@@ -135,6 +135,11 @@ external databases, Redis, SMTP, and backups.
   to start), `RuntimeDefault` seccomp, and no ServiceAccount token.
 - The root filesystem stays writable because Caddy and the bootstrap write to
   the image tree.
+- The generated analytics salt and superadmin password are read back from
+  their Secrets with `lookup`. Renderers without cluster access, such as
+  client-side GitOps rendering, generate new values on every render: set
+  `analytics.salt` or `analytics.existingSecret`, and `castopod.admin.password`
+  or `castopod.admin.existingSecret`, in those setups.
 - Credentials come from Secrets and accept existing Secrets. The rendered
   `.env` is kept in a memory-backed volume, and the setup logs hide it.
 - Keep `castopod.admin.create=true` unless you complete `/cp-install` before

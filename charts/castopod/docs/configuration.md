@@ -20,6 +20,16 @@ When `castopod.baseURL` is empty, the chart uses the first Ingress host
 `CP_DISABLE_HTTPS=1`, because Castopod otherwise redirects every request to
 HTTPS. Federation requires HTTPS, so use `http://` only for local checks.
 
+## Generated secrets and offline rendering
+
+The analytics salt and the generated superadmin password are created once and
+read back from their Secrets with `lookup` on upgrade. Renderers that cannot
+reach the cluster (for example client-side GitOps rendering) cannot run
+`lookup` and generate new values on every render, which splits the analytics
+history and makes the admin Secret diverge from the existing account. In those
+setups set `analytics.salt` or `analytics.existingSecret`, and
+`castopod.admin.password` or `castopod.admin.existingSecret`.
+
 ## Superadmin
 
 The setup init container creates the superadmin once, when no owner exists:
