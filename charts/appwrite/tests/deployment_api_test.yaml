@@ -12,6 +12,9 @@ tests:
       - equal:
           path: metadata.name
           value: RELEASE-NAME-appwrite-api
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
 
   - it: should use appwrite image with appVersion
     template: templates/deployment-api.yaml
@@ -36,6 +39,20 @@ tests:
             name: http
             containerPort: 80
             protocol: TCP
+
+  - it: should configure the real API listener on a custom port
+    template: templates/deployment-api.yaml
+    set:
+      api.containerPort: 8080
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8080
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PORT
+            value: "8080"
 
   - it: should use the side-effect-free version endpoint for API probes
     template: templates/deployment-api.yaml
@@ -76,6 +93,8 @@ tests:
       - equal:
           path: spec.template.spec.initContainers[1].name
           value: wait-for-redis
+      - notExists:
+          path: spec.template.spec.initContainers[2]
 
   - it: should have component label
     template: templates/deployment-api.yaml

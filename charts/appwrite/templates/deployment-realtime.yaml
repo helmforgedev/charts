@@ -25,10 +25,11 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "appwrite.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
-      {{- include "appwrite.waitForServicesInitContainers" . | nindent 6 }}
+      {{- include "appwrite.waitForServicesInitContainers" (dict "root" . "waitForSchema" true) | nindent 6 }}
       containers:
         - name: realtime
           image: {{ include "appwrite.image" . }}
@@ -36,9 +37,11 @@ spec:
           command: ["php", "-e", "app/realtime.php", "-dopcache.preload=opcache.preload"]
           ports:
             - name: http
-              containerPort: 80
+              containerPort: {{ .Values.realtime.containerPort }}
               protocol: TCP
           env:
+            - name: PORT
+              value: {{ .Values.realtime.containerPort | quote }}
             {{- include "appwrite.commonEnv" . | nindent 12 }}
           volumeMounts:
             {{- include "appwrite.sharedVolumeMounts" . | nindent 12 }}

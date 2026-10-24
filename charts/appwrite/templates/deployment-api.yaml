@@ -25,10 +25,11 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "appwrite.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
-      {{- include "appwrite.waitForServicesInitContainers" . | nindent 6 }}
+      {{- include "appwrite.waitForServicesInitContainers" (dict "root" . "waitForSchema" false) | nindent 6 }}
       containers:
         - name: api
           image: {{ include "appwrite.image" . }}
@@ -36,9 +37,11 @@ spec:
           command: ["php", "-e", "app/http.php", "-dopcache.preload=opcache.preload"]
           ports:
             - name: http
-              containerPort: 80
+              containerPort: {{ .Values.api.containerPort }}
               protocol: TCP
           env:
+            - name: PORT
+              value: {{ .Values.api.containerPort | quote }}
             {{- include "appwrite.commonEnv" . | nindent 12 }}
           volumeMounts:
             {{- include "appwrite.sharedVolumeMounts" . | nindent 12 }}

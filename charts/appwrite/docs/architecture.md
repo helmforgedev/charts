@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
 # Appwrite Architecture
 
 ## Overview
@@ -8,15 +9,20 @@ Appwrite is deployed as a set of Kubernetes Deployments sharing a common contain
 
 ### API Server
 
-The main HTTP server handling all REST and GraphQL API requests. Runs `php -e app/http.php` and listens on port 80. Supports horizontal scaling via `api.replicaCount`.
+The main HTTP server handling all REST and GraphQL API requests. It runs
+`php -e app/http.php`, listens on `api.containerPort`, and supports horizontal
+scaling through `api.replicaCount`.
 
 ### Console
 
-The Appwrite web console (dashboard) is served by `appwrite/new` on port 3000 with same-origin API access. Always runs as a single replica.
+The Appwrite web console is served by `appwrite/new` on
+`console.containerPort` with same-origin API access. It runs as one replica.
 
 ### Realtime
 
-WebSocket server for real-time event subscriptions. Runs `php -e app/realtime.php` on port 80. Supports horizontal scaling via `realtime.replicaCount`.
+The WebSocket server runs `php -e app/realtime.php`, listens on
+`realtime.containerPort`, and supports horizontal scaling through
+`realtime.replicaCount`.
 
 ### Workers
 
@@ -60,29 +66,17 @@ Periodic housekeeping task that cleans expired sessions, logs, and other tempora
 
 ## Data Flow
 
-```text
-                    ┌─────────┐
-        Ingress ──> │ Console │  (/ paths)
-           │        └─────────┘
-           │        ┌─────────┐
-           ├──────> │   API   │  (/v1/* paths)
-           │        └────┬────┘
-           │             │ enqueues jobs
-           │        ┌────▼────┐
-           │        │  Redis  │ <── Schedulers
-           │        └────┬────┘
-           │             │ dequeues
-           │        ┌────▼────┐
-           │        │ Workers │ (15 types)
-           │        └────┬────┘
-           │             │
-           │        ┌────▼────┐
-           ├──────> │Realtime │  (/v1/realtime)
-           │        └─────────┘
-           │
-           │        ┌─────────┐
-           └──────> │ MariaDB │
-                    └─────────┘
+```mermaid
+flowchart LR
+  Ingress[Ingress or Gateway API] -->|root path| Console
+  Ingress -->|/v1| API
+  Ingress -->|/v1/realtime| Realtime
+  API --> MariaDB
+  API --> Redis
+  Realtime --> Redis
+  Schedulers --> Redis
+  Redis --> Workers
+  Workers --> MariaDB
 ```
 
 ## Shared Volumes

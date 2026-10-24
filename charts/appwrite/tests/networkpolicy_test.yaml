@@ -1,0 +1,82 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: networkpolicy
+templates:
+  - templates/networkpolicy.yaml
+tests:
+  - it: should isolate all workloads and allow only component listeners
+    documentSelector:
+      path: metadata.name
+      value: RELEASE-NAME-appwrite-workloads
+    asserts:
+      - hasDocuments:
+          count: 4
+      - equal:
+          path: spec.ingress
+          value: []
+
+  - it: should allow the API listener
+    documentSelector:
+      path: metadata.name
+      value: RELEASE-NAME-appwrite-api-ingress
+    asserts:
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 80
+
+  - it: should allow the Console listener
+    documentSelector:
+      path: metadata.name
+      value: RELEASE-NAME-appwrite-console-ingress
+    asserts:
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 3000
+
+  - it: should allow the realtime listener
+    documentSelector:
+      path: metadata.name
+      value: RELEASE-NAME-appwrite-realtime-ingress
+    asserts:
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 80
+
+  - it: should use a custom API listener port
+    set:
+      api.containerPort: 8080
+    documentSelector:
+      path: metadata.name
+      value: RELEASE-NAME-appwrite-api-ingress
+    asserts:
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 8080
+
+  - it: should use a custom Console listener port
+    set:
+      console.containerPort: 3100
+    documentSelector:
+      path: metadata.name
+      value: RELEASE-NAME-appwrite-console-ingress
+    asserts:
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 3100
+
+  - it: should use a custom realtime listener port
+    set:
+      realtime.containerPort: 8081
+    documentSelector:
+      path: metadata.name
+      value: RELEASE-NAME-appwrite-realtime-ingress
+    asserts:
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 8081
+
+  - it: should not render when disabled
+    set:
+      networkPolicy.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
