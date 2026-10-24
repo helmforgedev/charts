@@ -1,20 +1,31 @@
 # SPDX-License-Identifier: Apache-2.0
-# Countly against a managed MongoDB (no bundled subchart). MongoDB holds ALL
-# analytics data, so back it up.
-#
-#   helm install countly helmforge/countly -f external-mongodb.yaml
-#
-# Provide the managed MongoDB connection/credentials per the chart's mongodb /
-# external settings (host, port, database, user, existingSecret).
-
+# The Secret key mongodb-uri contains the complete managed MongoDB URI.
 mongodb:
   enabled: false
 
-# Point Countly at the managed MongoDB. Adjust keys to match your secret.
 externalMongodb:
-  host: mongodb.internal.example.com
-  port: 27017
-  database: countly
-  username: countly
+  enabled: true
   existingSecret: countly-mongodb
-  existingSecretPasswordKey: mongodb-password
+  existingSecretUriKey: mongodb-uri
+
+networkPolicy:
+  egress:
+    # DNS is required before Countly can resolve the managed MongoDB hostname.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: 10.20.30.40/32
+      ports:
+        - protocol: TCP
+          port: 27017

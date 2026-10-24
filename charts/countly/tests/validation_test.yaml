@@ -138,19 +138,34 @@ tests:
       - failedTemplate:
           errorMessage: "backup.s3.secretKey or backup.s3.existingSecret is required when backup.enabled is true"
 
-  - it: should fail when external secret MongoDB URI cannot be injected into backup
+  - it: should fail when backup URI and Secret are both configured
     set:
       backup.enabled: true
       backup.s3.endpoint: http://minio:9000
       backup.s3.bucket: backups
       backup.s3.accessKey: admin
       backup.s3.secretKey: admin123
-      mongodb.enabled: false
-      externalMongodb.enabled: true
-      externalMongodb.existingSecret: countly-mongodb
+      backup.database.uri: mongodb://mongodb.example.com:27017/countly
+      backup.database.existingSecret: countly-mongodb
     asserts:
       - failedTemplate:
-          errorMessage: "backup requires backup.database.uri when externalMongodb.existingSecret is set and externalMongodb.uri is empty (the URI is in the secret and cannot be injected into mongodump)"
+          errorMessage: "backup.database.uri and backup.database.existingSecret are mutually exclusive"
+
+  - it: should fail when application listeners collide
+    set:
+      countly.apiPort: 6001
+      countly.dashboardPort: 6001
+    asserts:
+      - failedTemplate:
+          errorMessage: "countly.apiPort and countly.dashboardPort must be different"
+
+  - it: should fail when Service ports collide
+    set:
+      service.port: 8080
+      service.apiPort: 8080
+    asserts:
+      - failedTemplate:
+          errorMessage: "service.port and service.apiPort must be different"
 
   - it: should fail when podLabels override selector labels
     set:

@@ -47,6 +47,12 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if and .Values.externalMongodb.enabled (not .Values.externalMongodb.uri) (not .Values.externalMongodb.existingSecret) -}}
 {{- fail "externalMongodb.uri or externalMongodb.existingSecret is required when externalMongodb.enabled=true" -}}
 {{- end -}}
+{{- if eq (int .Values.countly.apiPort) (int .Values.countly.dashboardPort) -}}
+{{- fail "countly.apiPort and countly.dashboardPort must be different" -}}
+{{- end -}}
+{{- if eq (int .Values.service.port) (int .Values.service.apiPort) -}}
+{{- fail "service.port and service.apiPort must be different" -}}
+{{- end -}}
 {{- if and .Values.ingress.enabled (not .Values.ingress.hosts) -}}
 {{- fail "ingress.hosts must contain at least one rule when ingress.enabled=true" -}}
 {{- end -}}
@@ -78,6 +84,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if .Values.backup.enabled -}}
   {{- $_ := include "countly.backupEnabled" . -}}
   {{- $_ := include "countly.backupMongodbUri" . -}}
+  {{- if and .Values.backup.database.uri .Values.backup.database.existingSecret -}}
+    {{- fail "backup.database.uri and backup.database.existingSecret are mutually exclusive" -}}
+  {{- end -}}
 {{- end -}}
 {{- $podLabels := .Values.podLabels | default dict -}}
 {{- $selectorLabels := include "countly.selectorLabels" . | fromYaml -}}
@@ -145,16 +154,31 @@ true
 {{- end -}}
 {{- end -}}
 
-{{/* Backup - MongoDB URI (hardcoded password for non-interactive dump) */}}
+{{/* Backup - MongoDB URI for non-Secret paths */}}
 {{- define "countly.backupMongodbUri" -}}
 {{- if .Values.backup.database.uri -}}
 {{- .Values.backup.database.uri -}}
 {{- else if .Values.externalMongodb.enabled -}}
-{{- if and .Values.externalMongodb.existingSecret (not .Values.externalMongodb.uri) -}}
-  {{- fail "backup requires backup.database.uri when externalMongodb.existingSecret is set and externalMongodb.uri is empty (the URI is in the secret and cannot be injected into mongodump)" -}}
-{{- end -}}
 {{- .Values.externalMongodb.uri -}}
 {{- else -}}
 {{- printf "mongodb://root:$(MONGODB_ROOT_PASSWORD)@%s-mongodb:27017/countly?authSource=admin" .Release.Name -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Backup - MongoDB URI Secret name */}}
+{{- define "countly.backupMongodbSecretName" -}}
+{{- if .Values.backup.database.existingSecret -}}
+{{- .Values.backup.database.existingSecret -}}
+{{- else if and .Values.externalMongodb.enabled .Values.externalMongodb.existingSecret (not .Values.backup.database.uri) -}}
+{{- .Values.externalMongodb.existingSecret -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Backup - MongoDB URI Secret key */}}
+{{- define "countly.backupMongodbSecretKey" -}}
+{{- if .Values.backup.database.existingSecret -}}
+{{- .Values.backup.database.existingSecretUriKey -}}
+{{- else -}}
+{{- .Values.externalMongodb.existingSecretUriKey -}}
 {{- end -}}
 {{- end -}}

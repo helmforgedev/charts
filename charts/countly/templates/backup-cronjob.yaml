@@ -21,6 +21,10 @@ spec:
             {{- include "countly.selectorLabels" . | nindent 12 }}
         spec:
           restartPolicy: Never
+          serviceAccountName: {{ include "countly.serviceAccountName" . }}
+          automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+          securityContext:
+            {{- toYaml .Values.backup.podSecurityContext | nindent 12 }}
           {{- with .Values.imagePullSecrets }}
           imagePullSecrets:
             {{- toYaml . | nindent 12 }}
@@ -41,20 +45,29 @@ spec:
             - name: mongodb-backup
               image: {{ .Values.backup.images.mongodb | quote }}
               command: ["/bin/sh", "/scripts/mongodb-backup.sh"]
+              {{- with .Values.backup.database.mongodumpArgs }}
+              args:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              securityContext:
+                {{- toYaml .Values.backup.securityContext | nindent 16 }}
               env:
                 - name: BACKUP_ARCHIVE_PREFIX
                   value: {{ .Values.backup.archivePrefix | quote }}
-                - name: MONGODUMP_EXTRA_ARGS
-                  value: {{ .Values.backup.database.mongodumpArgs | quote }}
-                {{- if not .Values.externalMongodb.enabled }}
-                - name: MONGODB_ROOT_PASSWORD
-                  valueFrom:
-                    secretKeyRef:
-                      name: {{ include "countly.mongodbSecretName" . }}
-                      key: mongodb-root-password
-                {{- end }}
+                {{- $mongodbSecretName := include "countly.backupMongodbSecretName" . }}
+                {{- if and (not $mongodbSecretName) (or .Values.backup.database.uri .Values.externalMongodb.enabled) }}
                 - name: MONGODB_URI
                   value: {{ include "countly.backupMongodbUri" . | quote }}
+                {{- else if not .Values.externalMongodb.enabled }}
+                - name: MONGODB_HOST
+                  value: {{ printf "%s-mongodb:27017" .Release.Name | quote }}
+                - name: MONGODB_USERNAME
+                  value: root
+                - name: MONGODB_AUTHENTICATION_DATABASE
+                  value: admin
+                - name: MONGODB_DATABASE
+                  value: countly
+                {{- end }}
               resources:
                 {{- toYaml .Values.backup.resources | nindent 16 }}
               volumeMounts:
@@ -62,11 +75,28 @@ spec:
                   mountPath: /scripts
                 - name: backup-workdir
                   mountPath: /backup/out
+                - name: backup-tmp
+                  mountPath: /tmp
+                - name: mongodump-config
+                  mountPath: /run/mongodump-config
+                {{- if $mongodbSecretName }}
+                - name: mongodb-uri
+                  mountPath: /run/secrets/mongodb-uri
+                  readOnly: true
+                {{- else if not .Values.externalMongodb.enabled }}
+                - name: mongodb-root-password
+                  mountPath: /run/secrets/mongodb-root-password
+                  readOnly: true
+                {{- end }}
           containers:
             - name: upload
               image: {{ .Values.backup.images.uploader | quote }}
               command: ["/bin/sh", "/scripts/upload-backup.sh"]
+              securityContext:
+                {{- toYaml .Values.backup.securityContext | nindent 16 }}
               env:
+                - name: MC_CONFIG_DIR
+                  value: /tmp/.mc
                 - name: S3_ENDPOINT
                   value: {{ .Values.backup.s3.endpoint | quote }}
                 - name: S3_BUCKET
@@ -92,6 +122,8 @@ spec:
                   mountPath: /scripts
                 - name: backup-workdir
                   mountPath: /backup/out
+                - name: backup-tmp
+                  mountPath: /tmp
           volumes:
             - name: scripts
               configMap:
@@ -99,4 +131,25 @@ spec:
                 defaultMode: 0755
             - name: backup-workdir
               emptyDir: {}
+            - name: backup-tmp
+              emptyDir: {}
+            - name: mongodump-config
+              emptyDir: {}
+            {{- if $mongodbSecretName }}
+            - name: mongodb-uri
+              secret:
+                secretName: {{ $mongodbSecretName }}
+                defaultMode: 0440
+                items:
+                  - key: {{ include "countly.backupMongodbSecretKey" . }}
+                    path: uri
+            {{- else if not .Values.externalMongodb.enabled }}
+            - name: mongodb-root-password
+              secret:
+                secretName: {{ include "countly.mongodbSecretName" . }}
+                defaultMode: 0440
+                items:
+                  - key: mongodb-root-password
+                    path: password
+            {{- end }}
 {{- end }}

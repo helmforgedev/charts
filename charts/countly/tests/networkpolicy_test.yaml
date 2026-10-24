@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: NetworkPolicy
+templates:
+  - templates/networkpolicy.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should create ingress and egress policy by default
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - contains:
+          path: spec.policyTypes
+          content: Ingress
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 6001
+      - equal:
+          path: spec.ingress[0].ports[1].port
+          value: 3001
+
+  - it: should not create policy when disabled
+    set:
+      networkPolicy.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render custom peers and listener ports
+    set:
+      countly.apiPort: 3101
+      countly.dashboardPort: 6101
+      networkPolicy.ingressFrom:
+        - namespaceSelector:
+            matchLabels:
+              access: countly
+      networkPolicy.egress:
+        - ports:
+            - protocol: TCP
+              port: 27017
+    asserts:
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 6101
+      - equal:
+          path: spec.ingress[0].ports[1].port
+          value: 3101
+      - equal:
+          path: spec.ingress[0].from[0].namespaceSelector.matchLabels.access
+          value: countly
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 27017
