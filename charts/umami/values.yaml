@@ -4,8 +4,14 @@
 # =============================================================================
 # Focus: privacy-first web analytics with PostgreSQL backend
 
+# -- Global values shared with subcharts
+global: {}
+
+# -- Override the chart name used in resource names
 nameOverride: ""
+# -- Override the full release name used in resource names
 fullnameOverride: ""
+# -- Labels added to every resource created by this chart
 commonLabels: {}
 
 # -- Number of Umami application replicas. Use external PostgreSQL before scaling above one.
@@ -85,7 +91,7 @@ database:
       # -- Prepare an external PostgreSQL database before Umami starts. Useful when the app user cannot create extensions.
       enabled: false
       # -- PostgreSQL client image used by the init container.
-      image: docker.io/library/postgres:18-alpine
+      image: docker.io/library/postgres:18.6-alpine
       # -- Administrative database user used only by the init container.
       adminUsername: postgres
       # -- Existing secret containing the administrative database password.
@@ -251,11 +257,25 @@ probes:
 # Resources and Security
 # =============================================================================
 
+# -- Resources for the Umami container and its init containers
 resources: {}
 
-podSecurityContext: {}
+# -- Pod security context (the image runs as nextjs, uid 1001)
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 65533
+  fsGroup: 65533
+  seccompProfile:
+    type: RuntimeDefault
 
-securityContext: {}
+# -- Container security context for Umami and its init containers. The root
+# filesystem stays writable because the upstream startup scripts write inside the image tree.
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
 
 # =============================================================================
 # NetworkPolicy
@@ -328,7 +348,7 @@ backup:
 
   images:
     # -- Image used for PostgreSQL backup (must have pg_dump)
-    postgresql: docker.io/library/postgres:18-alpine
+    postgresql: docker.io/library/postgres:18.6-alpine
     # -- Image used for S3 upload (MinIO client)
     uploader: docker.io/helmforge/mc:1.0.0
 

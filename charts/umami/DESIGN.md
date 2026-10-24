@@ -2,7 +2,11 @@
 
 This chart packages Umami as a single web Deployment backed by PostgreSQL. The chart keeps the default install small for local use while exposing the controls needed for production deployments.
 
-## Goals
+## Scope
+
+The chart runs Umami web analytics as one Deployment backed by the HelmForge PostgreSQL subchart or an external PostgreSQL server, with optional Ingress or Gateway API exposure, External Secrets, NetworkPolicy, PodDisruptionBudget, and S3 backups of the database.
+
+Goals:
 
 - Keep a working default install for development and demos.
 - Support production deployments without raw template overrides.
@@ -12,7 +16,9 @@ This chart packages Umami as a single web Deployment backed by PostgreSQL. The c
 - Support modern Kubernetes exposure through Gateway API while keeping Ingress.
 - Make network, availability, and backup controls explicit.
 
-## Default Architecture
+## Architecture
+
+### Default topology
 
 ```text
 ┌──────────────┐       ┌──────────────────────┐
@@ -33,7 +39,7 @@ This chart packages Umami as a single web Deployment backed by PostgreSQL. The c
 
 Default installs generate the application and database secrets and do not expose Umami publicly.
 
-## Production Architecture
+### Production topology
 
 ```text
 ┌───────────────┐
@@ -62,7 +68,7 @@ Default installs generate the application and database secrets and do not expose
 
 Recommended production values use a stable APP_SECRET, external PostgreSQL, explicit resource requests, Gateway API or Ingress TLS, a PDB, and egress-aware NetworkPolicy.
 
-## External Database Preparation
+### External database preparation
 
 Umami's first migration creates `pgcrypto`. Some PostgreSQL services allow the application owner to create extensions,
 while others require an administrative user. The chart supports an optional `prepare-external-db` init container for the
@@ -90,7 +96,7 @@ second case.
 
 This is opt-in and only active when `postgresql.enabled=false`. It lets operators keep the runtime Umami user least-privileged while still preparing required extensions during installation.
 
-## External Secrets Architecture
+### External Secrets
 
 ```text
 ┌────────────────────┐      sync       ┌──────────────────────┐
@@ -110,7 +116,7 @@ This is opt-in and only active when `postgresql.enabled=false`. It lets operator
 
 The chart renders `external-secrets.io/v1` resources only when enabled. It never requires External Secrets Operator for default installs.
 
-## Backup Architecture
+### Backups
 
 ```text
 ┌────────────────────┐       pg_dump       ┌──────────────────┐
@@ -128,7 +134,9 @@ The backup job is optional and designed for smaller self-hosted installations.
 Production teams should still validate restores and may prefer database-native backups from their PostgreSQL operator
 or managed database service.
 
-## Runtime Configuration
+## Design Choices
+
+### Runtime configuration
 
 The chart maps common Umami environment variables to structured values. This makes production values easier to review than large `extraEnv` blocks:
 
@@ -143,16 +151,29 @@ with `extraVolumes` and `extraVolumeMounts` for cases such as GeoIP databases or
 organization-owned assets.
 `BASE_PATH` is intentionally not modeled because Umami v3 treats it as a build-time setting for the stock image.
 
-## Security Posture
+## Security Boundary
 
-- The service account token is not mounted by default.
+- Pods run as the image user `nextjs` (uid 1001) with `runAsNonRoot`, no
+  privilege escalation, every capability dropped, `RuntimeDefault` seccomp,
+  and no ServiceAccount token. The root filesystem stays writable because the
+  upstream startup scripts write inside the image tree.
+- Umami's first migration creates the `admin` user with the upstream default
+  password `umami`. The chart cannot set it; change it immediately after the
+  first login and keep the instance private until then.
 - Secrets can be user-provided or managed by External Secrets Operator.
-- The container runs with the chart-defined security context.
 - NetworkPolicy is opt-in because clusters and CNIs vary.
 - Public exposure is opt-in through Ingress or Gateway API.
 - Production examples avoid embedding secret values in Helm values.
 
-## Availability
+## Observability Boundary
+
+- Startup, liveness, and readiness probes call `/api/heartbeat`, which
+  confirms the Next.js server answers; it does not check PostgreSQL.
+- Logs go to the container stdout; `umami.debug` enables upstream debug
+  namespaces.
+- Umami exposes no Prometheus endpoint, so the chart ships no ServiceMonitor.
+
+## Production Boundary
 
 Umami is stateless at the pod layer. Horizontal scaling depends on a shared PostgreSQL database and a stable APP_SECRET. Enable:
 
@@ -171,6 +192,22 @@ The Service supports `ipFamilyPolicy` and `ipFamilies`. The chart does not force
 Gateway API support renders an `HTTPRoute` using `gateway.networking.k8s.io/v1`.
 The chart expects the cluster to already provide Gateway API CRDs and a Gateway implementation.
 Ingress remains available for clusters that have not adopted Gateway API.
+
+## Current Gaps and Improvement Candidates
+
+- The initial `admin` password cannot be seeded from a Secret.
+- `gatewayAPI` renders a single HTTPRoute from `parentRefs`, `hostnames`, and
+  `matches` instead of the `gatewayAPI.httpRoutes` list used by newer charts.
+- The backup CronJob dumps PostgreSQL only and does not reuse the application
+  security context.
+
+## Explicit Non-Goals
+
+- Building custom Umami images, for example to change `BASE_PATH`.
+- Managing PostgreSQL high availability; use a PostgreSQL operator or a
+  managed service.
+- Installing Gateway API CRDs, a Gateway implementation, or External Secrets
+  Operator.
 
 ## Validation Strategy
 

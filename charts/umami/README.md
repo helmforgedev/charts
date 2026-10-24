@@ -266,6 +266,8 @@ For production, test restore procedures outside Helm. Backups without restore va
 | `pdb.enabled` | `false` | Render PodDisruptionBudget. |
 | `backup.enabled` | `false` | Enable S3-compatible backup CronJob. |
 | `serviceAccount.automountServiceAccountToken` | `false` | Control service account token mounting. |
+| `podSecurityContext` | uid 1001, `runAsNonRoot`, `RuntimeDefault` seccomp | Pod security context. |
+| `securityContext` | no escalation, drop `ALL` | Security context for Umami and its init containers. |
 | `initContainers.waitForDatabase.enabled` | `true` | Wait for the database socket before starting Umami. |
 | `initContainers.waitForDatabase.image` | `docker.io/library/busybox:1.37` | Image used by the database readiness check. |
 | `initContainers.waitForDatabase.pullPolicy` | `IfNotPresent` | Pull policy for the database readiness image. |
@@ -278,6 +280,16 @@ For production, test restore procedures outside Helm. Backups without restore va
 - `examples/external-postgresql.yaml` - managed database setup.
 - `examples/external-secrets.yaml` - External Secrets Operator integration.
 - `examples/gateway-api.yaml` - Gateway API HTTPRoute exposure.
+
+## Security
+
+- Pods run as the image user `nextjs` (uid 1001) with `runAsNonRoot`, no
+  privilege escalation, every capability dropped, `RuntimeDefault` seccomp,
+  and no ServiceAccount token.
+- The first migration creates `admin` with the upstream password `umami`.
+  Change it right after the first login and keep the instance private until
+  then.
+- Secrets accept existing Secrets or External Secrets Operator resources.
 
 ## Upgrade Notes
 
@@ -295,13 +307,13 @@ drift, event filtering and pagination, funnel metrics, and zero/false value resp
 - [HelmForge chart source](https://github.com/helmforgedev/charts/tree/main/charts/umami)
 - [Configuration guide](docs/configuration.md)
 
-### 🟢 Security Scan: `umami`
+### Security Scan: `umami`
 
 | Framework | Score |
 |---|---|
-| MITRE + NSA + SOC2 | **84.85%** |
+| MITRE + NSA + SOC2 | **89.393936%** |
 
-> ✅ Security posture acceptable.
+> Security posture acceptable.
 
 <!-- @AI-METADATA
 type: chart-readme
