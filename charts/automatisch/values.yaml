@@ -28,13 +28,30 @@ imagePullSecrets: []
 automatisch:
   # -- Public URL of the Automatisch web application
   webAppUrl: "http://localhost:3000"
+  # -- Address on which the HTTP server listens inside the pod
+  host: "0.0.0.0"
   # -- Application environment
   appEnv: production
+  # -- Application listener ports
+  containerPorts:
+    http: 3000
   # -- Extra environment variables for the container
   # -- @default -- `[]`
   extraEnv: []
     # - name: LOG_LEVEL
     #   value: "info"
+
+# =============================================================================
+# Worker
+# =============================================================================
+
+worker:
+  # -- Run the required Automatisch background worker
+  enabled: true
+  # -- Number of worker replicas
+  replicaCount: 1
+  # -- Resource requests and limits for the worker
+  resources: {}
 
 # =============================================================================
 # Database
@@ -62,8 +79,12 @@ redis_config:
   external:
     host: ""
     port: "6379"
-    # -- Existing secret containing the Redis password (not used by default)
+    # -- Redis password; prefer existingSecret in production
+    password: ""
+    # -- Existing secret containing the Redis password
     existingSecret: ""
+    # -- Key in the existing secret containing the Redis password
+    existingSecretPasswordKey: password
 
 # =============================================================================
 # Service Account
@@ -76,6 +97,8 @@ serviceAccount:
   name: ""
   # -- Annotations for the ServiceAccount
   annotations: {}
+  # -- Mount the Kubernetes API token into application pods
+  automountServiceAccountToken: false
 
 # =============================================================================
 # Service
@@ -142,9 +165,20 @@ probes:
 
 resources: {}
 
-podSecurityContext: {}
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
 
-securityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
 
 # =============================================================================
 # Scheduling
@@ -159,6 +193,20 @@ terminationGracePeriodSeconds: 30
 
 podLabels: {}
 podAnnotations: {}
+
+# =============================================================================
+# Network Policy
+# =============================================================================
+
+networkPolicy:
+  # -- Restrict inbound traffic to the HTTP listener. Egress remains open
+  # because Automatisch workflows connect to arbitrary third-party APIs.
+  enabled: true
+  # -- Additional ingress rules appended to the default HTTP rule
+  ingress: []
+  # -- Egress rules. The default permits arbitrary integration destinations.
+  egress:
+    - {}
 
 # =============================================================================
 # Extra

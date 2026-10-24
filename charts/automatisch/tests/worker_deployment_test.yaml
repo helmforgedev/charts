@@ -1,0 +1,98 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Worker Deployment
+templates:
+  - templates/worker-deployment.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render the required worker by default
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-automatisch-worker
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/component"]
+          value: worker
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WORKER
+            value: "true"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HOST
+            value: "0.0.0.0"
+
+  - it: should not render when the worker is disabled
+    set:
+      worker.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should scale worker replicas and resources
+    set:
+      worker.replicaCount: 3
+      worker.resources.requests.cpu: 200m
+      worker.resources.requests.memory: 256Mi
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 200m
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 256Mi
+
+  - it: should share datastore and secret configuration with the web process
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTGRES_HOST
+            value: test-postgresql
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_HOST
+            value: test-redis-client
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-redis-auth
+                key: redis-password
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ENCRYPTION_KEY
+            valueFrom:
+              secretKeyRef:
+                name: test-automatisch-app
+                key: encryption-key
+
+  - it: should apply hardened defaults
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL

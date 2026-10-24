@@ -31,6 +31,16 @@ app.kubernetes.io/name: {{ include "automatisch.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
+{{- define "automatisch.webSelectorLabels" -}}
+{{ include "automatisch.selectorLabels" . }}
+app.kubernetes.io/component: web
+{{- end -}}
+
+{{- define "automatisch.workerSelectorLabels" -}}
+{{ include "automatisch.selectorLabels" . }}
+app.kubernetes.io/component: worker
+{{- end -}}
+
 {{- define "automatisch.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
 {{- default (include "automatisch.fullname" .) .Values.serviceAccount.name -}}
@@ -61,7 +71,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- $selectorLabels := include "automatisch.selectorLabels" . | fromYaml -}}
 {{- range $key, $_ := .Values.podLabels -}}
-{{- if hasKey $selectorLabels $key -}}
+{{- if or (hasKey $selectorLabels $key) (eq $key "app.kubernetes.io/component") -}}
 {{- fail (printf "podLabels must not override selector label %q" $key) -}}
 {{- end -}}
 {{- end -}}
@@ -140,9 +150,31 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{/* Redis host */}}
 {{- define "automatisch.redisHost" -}}
 {{- if .Values.redis.enabled -}}
-{{- printf "%s-redis-master" .Release.Name -}}
+{{- printf "%s-redis-client" .Release.Name -}}
 {{- else -}}
 {{- .Values.redis_config.external.host -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Redis secret name */}}
+{{- define "automatisch.redisSecretName" -}}
+{{- if .Values.redis.enabled -}}
+{{- printf "%s-redis-auth" .Release.Name -}}
+{{- else if .Values.redis_config.external.existingSecret -}}
+{{- .Values.redis_config.external.existingSecret -}}
+{{- else -}}
+{{- printf "%s-redis" (include "automatisch.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Redis secret password key */}}
+{{- define "automatisch.redisSecretPasswordKey" -}}
+{{- if .Values.redis.enabled -}}
+{{- "redis-password" -}}
+{{- else if .Values.redis_config.external.existingSecret -}}
+{{- .Values.redis_config.external.existingSecretPasswordKey | default "password" -}}
+{{- else -}}
+{{- "password" -}}
 {{- end -}}
 {{- end -}}
 
