@@ -15,8 +15,8 @@ Appwrite is deployed.
   Configured domain: {{ include "appwrite.domain" . }}
 {{- if .Values.ingress.enabled }}
 {{- range $host := .Values.ingress.hosts }}
-  Console: https://{{ $host.host }}/
-  API:     https://{{ $host.host }}/v1/
+  Console: {{ if $.Values.ingress.tls }}https{{ else }}http{{ end }}://{{ $host.host }}/
+  API:     {{ if $.Values.ingress.tls }}https{{ else }}http{{ end }}://{{ $host.host }}/v1/
   Realtime uses the same origin at /v1/realtime.
 {{- end }}
 {{- else if .Values.gateway.enabled }}
@@ -72,9 +72,12 @@ Appwrite is deployed.
 
 6. Operations and upgrades
 
-  Before upgrading, back up MariaDB, every shared Appwrite PVC, and the
-  application Secret. Review the chart upgrade notes, pause traffic for schema
-  changes, upgrade, and then run the upstream migration:
+  Before upgrading, back up MariaDB, every shared Appwrite PVC, the application
+  Secret, and every existing Secret referenced by the selected values. This
+  includes database, Redis, SMTP, and backup S3 credentials when configured;
+  preserve externally managed Secrets through their own recovery process.
+  Review the chart upgrade notes, pause traffic for schema changes, upgrade,
+  and then run the upstream migration:
 
     helm upgrade {{ .Release.Name }} oci://ghcr.io/helmforgedev/helm/appwrite -n {{ .Release.Namespace }} --reuse-values
     kubectl exec -n {{ .Release.Namespace }} deploy/{{ include "appwrite.fullname" . }}-api -c api -- migrate

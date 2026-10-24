@@ -84,10 +84,12 @@ See [`values.yaml`](values.yaml) for the full configuration reference.
 
 ## Security
 
-The chart disables ServiceAccount token automount, drops Linux capabilities,
-disables privilege escalation, applies RuntimeDefault seccomp, and enables
-listener-specific NetworkPolicies by default. Appwrite credentials can be read
-from existing Secrets; plaintext values are intended only for development.
+The chart disables ServiceAccount token automount by default, drops Linux
+capabilities, disables privilege escalation, applies RuntimeDefault seccomp,
+and enables listener-specific NetworkPolicies by default. Token automount is
+configurable for Appwrite application workloads, but backup Pods always disable
+it. Appwrite credentials can be read from existing Secrets; plaintext values
+are intended only for development.
 
 The official Appwrite image requires writable runtime paths and is not forced to
 a non-root UID. Restrict `networkPolicy.egress` to the SMTP, OAuth, webhook,

@@ -67,9 +67,11 @@ connections. Those systems and their lifecycle are outside this chart.
 
 ## Security boundary
 
-The chart disables ServiceAccount token automount, drops Linux capabilities,
-disables privilege escalation, applies RuntimeDefault seccomp, and creates
-listener-specific NetworkPolicies. The official Appwrite runtime currently
+The chart disables ServiceAccount token automount by default, drops Linux
+capabilities, disables privilege escalation, applies RuntimeDefault seccomp,
+and creates listener-specific NetworkPolicies. Token automount remains
+configurable for Appwrite application workloads, while backup Pods always
+disable it. The official Appwrite runtime currently
 needs writable filesystem paths and is not forced to a non-root UID by this
 chart; the backup containers use a non-root, read-only filesystem profile.
 

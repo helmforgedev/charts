@@ -20,15 +20,18 @@ Check the API from inside its container with
 
 ## Upgrades
 
-Back up MariaDB, the application Secret, and all shared PVCs. Read the Appwrite
-release notes for every skipped version. Upgrade the chart with retained values,
-then run `migrate` in the API Deployment while traffic is paused. Verify the
-health endpoint, an existing account and project, worker logs, and persisted
-files before restoring traffic.
+Back up MariaDB, all shared PVCs, the application Secret, and every existing
+Secret referenced by the selected values. This includes external database,
+Redis, SMTP, and backup S3 credentials when configured. If those Secrets are
+managed by another system, include their separate restoration procedure in the
+recovery plan. Read the Appwrite release notes for every skipped version.
+Upgrade the chart with retained values, then run `migrate` in the API Deployment
+while traffic is paused. Verify the health endpoint, an existing account and
+project, worker logs, and persisted files before restoring traffic.
 
 Never treat `helm rollback` as a database rollback. Restore the matching
-database, Secret, PVC snapshots, and old images together when a migration must
-be reversed.
+database, referenced Secrets, PVC snapshots, and old images together when a
+migration must be reversed.
 
 ## Backup and restore boundary
 
