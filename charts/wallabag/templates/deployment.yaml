@@ -1,4 +1,45 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- define "wallabag.appEnv" -}}
+- name: SYMFONY__ENV__DATABASE_DRIVER
+  value: pdo_pgsql
+- name: SYMFONY__ENV__DATABASE_HOST
+  value: {{ include "wallabag.dbHost" . | quote }}
+- name: SYMFONY__ENV__DATABASE_PORT
+  value: {{ include "wallabag.dbPort" . | quote }}
+- name: SYMFONY__ENV__DATABASE_NAME
+  value: {{ include "wallabag.dbName" . | quote }}
+- name: SYMFONY__ENV__DATABASE_USER
+  value: {{ include "wallabag.dbUsername" . | quote }}
+- name: SYMFONY__ENV__DATABASE_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "wallabag.dbSecretName" . }}
+      key: {{ include "wallabag.dbSecretPasswordKey" . }}
+- name: SYMFONY__ENV__DOMAIN_NAME
+  value: {{ .Values.wallabag.domainName | quote }}
+- name: SYMFONY__ENV__SERVER_NAME
+  value: {{ .Values.wallabag.serverName | quote }}
+- name: SYMFONY__ENV__SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "wallabag.appSecretName" . }}
+      key: {{ include "wallabag.appSecretKey" . }}
+- name: SYMFONY__ENV__FOSUSER_REGISTRATION
+  value: {{ .Values.wallabag.registration | ternary "true" "false" | quote }}
+{{- if include "wallabag.redisEnabled" . }}
+- name: SYMFONY__ENV__REDIS_HOST
+  value: {{ include "wallabag.redisHost" . | quote }}
+- name: SYMFONY__ENV__REDIS_PORT
+  value: {{ include "wallabag.redisPort" . | quote }}
+{{- with include "wallabag.redisSecretName" . }}
+- name: SYMFONY__ENV__REDIS_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ . }}
+      key: {{ include "wallabag.redisSecretKey" $ }}
+{{- end }}
+{{- end }}
+{{- end -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -31,6 +72,7 @@ spec:
       {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "wallabag.serviceAccountName" . }}
       {{- end }}
+      automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . }}
       {{- end }}
@@ -39,62 +81,121 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- if .Values.setup.enabled }}
       initContainers:
-        - name: wait-for-db
-          image: docker.io/library/busybox:1.37
+        - name: setup
+          image: {{ include "wallabag.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           command:
-            - sh
-            - -c
+            - /bin/sh
+            - -ec
             - |
-              echo "Waiting for database at {{ include "wallabag.dbHost" . }}:{{ include "wallabag.dbPort" . }}..."
-              until nc -z -w2 {{ include "wallabag.dbHost" . }} {{ include "wallabag.dbPort" . }}; do
-                echo "Database not ready, retrying in 2s..."
+              cd /var/www/wallabag
+              export PGPASSWORD="$SYMFONY__ENV__DATABASE_PASSWORD"
+              export PGHOST="$SYMFONY__ENV__DATABASE_HOST" PGPORT="$SYMFONY__ENV__DATABASE_PORT"
+              export PGUSER="$SYMFONY__ENV__DATABASE_USER" PGDATABASE="$SYMFONY__ENV__DATABASE_NAME"
+
+              waited=0
+              until pg_isready -q; do
+                if [ "$waited" -ge "$DATABASE_WAIT_TIMEOUT" ]; then
+                  echo "PostgreSQL at $PGHOST:$PGPORT was not ready after ${DATABASE_WAIT_TIMEOUT}s." >&2
+                  exit 1
+                fi
+                echo "Waiting for PostgreSQL at $PGHOST:$PGPORT..."
                 sleep 2
+                waited=$((waited + 2))
               done
-              echo "Database is ready."
+
+              envsubst < /etc/wallabag/parameters.template.yml > app/config/parameters.yml
+              console() {
+                su -s /bin/sh nobody -c "php bin/console --env=prod --no-interaction $*"
+              }
+
+              marker() {
+                psql -tAc "SELECT coalesce(obj_description('wallabag_user'::regclass, 'pg_class'), '')"
+              }
+
+              installed="$(psql -tAc "SELECT to_regclass('wallabag_internal_setting') IS NOT NULL")"
+              if [ "$installed" = "t" ]; then
+                echo "Wallabag schema found; applying pending migrations."
+                console doctrine:migrations:migrate --allow-no-migration
+              else
+                echo "Wallabag schema not found; running the first install."
+                console wallabag:install
+                psql -v ON_ERROR_STOP=1 -qc "COMMENT ON TABLE wallabag_user IS 'helmforge:admin-pending'"
+              fi
+
+              # The upstream installer always creates wallabag/wallabag. Replace it with the
+              # configured super-admin once; installs without the pending marker are untouched.
+              if [ "$(marker)" = "helmforge:admin-pending" ]; then
+                psql -v ON_ERROR_STOP=1 -q -v username="$WALLABAG_ADMIN_USERNAME" -v email="$WALLABAG_ADMIN_EMAIL" <<'SQL'
+              UPDATE wallabag_user
+                 SET username = :'username', username_canonical = lower(:'username')
+               WHERE username = 'wallabag'
+                 AND NOT EXISTS (SELECT 1 FROM wallabag_user WHERE username_canonical = lower(:'username'));
+              UPDATE wallabag_user
+                 SET email = :'email', email_canonical = lower(:'email')
+               WHERE username_canonical = lower(:'username');
+              SQL
+                printf '%s\n' "$WALLABAG_ADMIN_PASSWORD" \
+                  | su -s /bin/sh nobody -c 'php bin/console --env=prod fos:user:change-password "$WALLABAG_ADMIN_USERNAME"'
+                psql -v ON_ERROR_STOP=1 -qc "COMMENT ON TABLE wallabag_user IS 'helmforge:admin-done'"
+                echo "Initial super-admin $WALLABAG_ADMIN_USERNAME configured."
+              fi
+          env:
+            {{- include "wallabag.appEnv" . | nindent 12 }}
+            - name: DATABASE_WAIT_TIMEOUT
+              value: {{ .Values.setup.databaseWaitTimeoutSeconds | quote }}
+            - name: WALLABAG_ADMIN_USERNAME
+              value: {{ .Values.wallabag.admin.username | quote }}
+            - name: WALLABAG_ADMIN_EMAIL
+              value: {{ .Values.wallabag.admin.email | quote }}
+            - name: WALLABAG_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "wallabag.adminSecretName" . }}
+                  key: {{ include "wallabag.adminSecretKey" . }}
+          {{- with .Values.setup.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/www/wallabag/data
+      {{- end }}
       containers:
         - name: wallabag
           image: {{ include "wallabag.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              sed -i "s/listen \[::\]:80 ipv6only=off;/listen [::]:${WALLABAG_PORT} ipv6only=off;/" /etc/nginx/nginx.conf
+              if ! grep -q "listen \[::\]:${WALLABAG_PORT} ipv6only=off;" /etc/nginx/nginx.conf; then
+                echo "Unable to configure the nginx listener on port ${WALLABAG_PORT}." >&2
+                exit 1
+              fi
+              exec /entrypoint.sh wallabag
           ports:
             - name: http
               containerPort: {{ .Values.wallabag.port }}
               protocol: TCP
           env:
-            - name: SYMFONY__ENV__DATABASE_DRIVER
-              value: pdo_pgsql
-            - name: SYMFONY__ENV__DATABASE_HOST
-              value: {{ include "wallabag.dbHost" . | quote }}
-            - name: SYMFONY__ENV__DATABASE_PORT
-              value: {{ include "wallabag.dbPort" . | quote }}
-            - name: SYMFONY__ENV__DATABASE_NAME
-              value: {{ include "wallabag.dbName" . | quote }}
-            - name: SYMFONY__ENV__DATABASE_USER
-              value: {{ include "wallabag.dbUsername" . | quote }}
-            - name: SYMFONY__ENV__DATABASE_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "wallabag.dbSecretName" . }}
-                  key: {{ include "wallabag.dbSecretPasswordKey" . }}
-            - name: SYMFONY__ENV__DOMAIN_NAME
-              value: {{ .Values.wallabag.domainName | quote }}
-            - name: SYMFONY__ENV__SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "wallabag.appSecretName" . }}
-                  key: {{ include "wallabag.appSecretKey" . }}
-            - name: SYMFONY__ENV__FOSUSER_REGISTRATION
-              value: {{ .Values.wallabag.registration | ternary "true" "false" | quote }}
-            {{- if or .Values.redis.enabled .Values.externalRedis.host }}
-            - name: SYMFONY__ENV__REDIS_HOST
-              value: {{ printf "redis://%s:%s" (include "wallabag.redisHost" .) (include "wallabag.redisPort" .) | quote }}
-            {{- end }}
+            {{- include "wallabag.appEnv" . | nindent 12 }}
+            - name: WALLABAG_PORT
+              value: {{ .Values.wallabag.port | quote }}
             {{- with .Values.wallabag.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- if .Values.probes.startup.enabled }}
           startupProbe:
-            tcpSocket:
+            httpGet:
+              path: {{ .Values.probes.path }}
               port: http
             initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.startup.periodSeconds }}
@@ -103,7 +204,8 @@ spec:
           {{- end }}
           {{- if .Values.probes.liveness.enabled }}
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: {{ .Values.probes.path }}
               port: http
             initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
@@ -112,7 +214,8 @@ spec:
           {{- end }}
           {{- if .Values.probes.readiness.enabled }}
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: {{ .Values.probes.path }}
               port: http
             initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}

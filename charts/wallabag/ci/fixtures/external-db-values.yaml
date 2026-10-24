@@ -1,0 +1,68 @@
+# SPDX-License-Identifier: Apache-2.0
+# Runtime fixture: standalone PostgreSQL that the external-db scenario connects to.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: wallabag-ci-db
+  labels:
+    helmforge.dev/runtime-fixture: "true"
+type: Opaque
+stringData:
+  password: fixture-only-wallabag-password
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wallabag-ci-postgresql
+  labels:
+    helmforge.dev/runtime-fixture: "true"
+spec:
+  selector:
+    app.kubernetes.io/name: wallabag-ci-postgresql
+  ports:
+    - name: postgresql
+      port: 5432
+      targetPort: postgresql
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wallabag-ci-postgresql
+  labels:
+    helmforge.dev/runtime-fixture: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: wallabag-ci-postgresql
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: wallabag-ci-postgresql
+    spec:
+      containers:
+        - name: postgresql
+          image: docker.io/library/postgres:18.1-alpine
+          ports:
+            - name: postgresql
+              containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: wallabag
+            - name: POSTGRES_USER
+              value: wallabag
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: wallabag-ci-db
+                  key: password
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "wallabag", "-d", "wallabag"]
+            periodSeconds: 5
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql
+      volumes:
+        - name: data
+          emptyDir: {}

@@ -6,27 +6,33 @@ release:
   name: test
   namespace: default
 tests:
-  - it: should render a Deployment by default
+  - it: should render a single-replica Deployment by default
     asserts:
       - isKind:
           of: Deployment
       - equal:
           path: metadata.name
           value: test-wallabag
+      - equal:
+          path: spec.replicas
+          value: 1
 
-  - it: should use Recreate strategy
+  - it: should use Recreate strategy for the RWO data volume
     asserts:
       - equal:
           path: spec.strategy.type
           value: Recreate
 
-  - it: should set the correct image
+  - it: should set the pinned official image on both containers
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
           value: "docker.io/wallabag/wallabag:2.6.14"
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: "docker.io/wallabag/wallabag:2.6.14"
 
-  - it: should set PostgreSQL env vars with subchart
+  - it: should set PostgreSQL env vars with the subchart
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
@@ -38,9 +44,6 @@ tests:
           content:
             name: SYMFONY__ENV__DATABASE_HOST
             value: test-postgresql
-
-  - it: should reference postgresql subchart secret
-    asserts:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
@@ -50,13 +53,103 @@ tests:
                 name: test-postgresql-auth
                 key: user-password
 
-  - it: should have wait-for-db init container
+  - it: should use external PostgreSQL credentials from an existing Secret
+    set:
+      postgresql.enabled: false
+      database.external.host: pg.example.internal
+      database.external.port: "6543"
+      database.external.existingSecret: wallabag-db
+      database.external.existingSecretPasswordKey: db-password
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SYMFONY__ENV__DATABASE_HOST
+            value: pg.example.internal
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SYMFONY__ENV__DATABASE_PORT
+            value: "6543"
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: SYMFONY__ENV__DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: wallabag-db
+                key: db-password
+
+  - it: should run the database setup init container by default
     asserts:
       - equal:
           path: spec.template.spec.initContainers[0].name
-          value: wait-for-db
+          value: setup
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "console wallabag:install"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "console doctrine:migrations:migrate --allow-no-migration"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "helmforge:admin-pending"
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: DATABASE_WAIT_TIMEOUT
+            value: "300"
 
-  - it: should not set Redis env when disabled
+  - it: should source the initial admin password from the generated Secret
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: WALLABAG_ADMIN_USERNAME
+            value: wallabag
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: WALLABAG_ADMIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-wallabag-admin
+                key: admin-password
+
+  - it: should source the initial admin password from an existing Secret
+    set:
+      wallabag.admin.username: reader
+      wallabag.admin.email: reader@example.com
+      wallabag.admin.existingSecret: wallabag-admin
+      wallabag.admin.existingSecretPasswordKey: password
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: WALLABAG_ADMIN_USERNAME
+            value: reader
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: WALLABAG_ADMIN_EMAIL
+            value: reader@example.com
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: WALLABAG_ADMIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: wallabag-admin
+                key: password
+
+  - it: should skip the setup init container when disabled
+    set:
+      setup.enabled: false
+    asserts:
+      - notExists:
+          path: spec.template.spec.initContainers
+
+  - it: should not set Redis env when Redis is disabled
     asserts:
       - notContains:
           path: spec.template.spec.containers[0].env
@@ -64,7 +157,7 @@ tests:
             name: SYMFONY__ENV__REDIS_HOST
           any: true
 
-  - it: should set Redis env when subchart enabled
+  - it: should wire the Redis subchart client Service and password
     set:
       redis.enabled: true
     asserts:
@@ -72,24 +165,187 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: SYMFONY__ENV__REDIS_HOST
-            value: "redis://test-redis:6379"
+            value: test-redis-client
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SYMFONY__ENV__REDIS_PORT
+            value: "6379"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SYMFONY__ENV__REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-redis-auth
+                key: redis-password
 
-  - it: should mount data volume
+  - it: should follow the Redis subchart naming when the release name contains redis
+    release:
+      name: app-redis
+    set:
+      redis.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SYMFONY__ENV__REDIS_HOST
+            value: app-redis-client
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SYMFONY__ENV__REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: app-redis-auth
+                key: redis-password
+
+  - it: should omit the Redis password when subchart auth is disabled
+    set:
+      redis.enabled: true
+      redis.auth.enabled: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SYMFONY__ENV__REDIS_PASSWORD
+          any: true
+
+  - it: should wire external Redis with an existing Secret
+    set:
+      externalRedis.host: redis.example.internal
+      externalRedis.port: "6380"
+      externalRedis.existingSecret: wallabag-redis
+      externalRedis.existingSecretPasswordKey: password
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SYMFONY__ENV__REDIS_HOST
+            value: redis.example.internal
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SYMFONY__ENV__REDIS_PORT
+            value: "6380"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SYMFONY__ENV__REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: wallabag-redis
+                key: password
+
+  - it: should configure the nginx listener on the default port
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0]
+          value:
+            name: http
+            containerPort: 80
+            protocol: TCP
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WALLABAG_PORT
+            value: "80"
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'listen \[::\]:\$\{WALLABAG_PORT\} ipv6only=off;'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "exec /entrypoint.sh wallabag"
+
+  - it: should propagate a custom listener port to the process and container port
+    set:
+      wallabag.port: 8080
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8080
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WALLABAG_PORT
+            value: "8080"
+
+  - it: should mount the data volume in both containers
     asserts:
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
             name: data
             mountPath: /var/www/wallabag/data
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /var/www/wallabag/data
+      - equal:
+          path: spec.template.spec.volumes[0].persistentVolumeClaim.claimName
+          value: test-wallabag-data
 
-  - it: should use TCP probes
+  - it: should use an emptyDir when persistence is disabled
+    set:
+      persistence.enabled: false
     asserts:
       - equal:
-          path: spec.template.spec.containers[0].startupProbe.tcpSocket.port
-          value: http
+          path: spec.template.spec.volumes[0].emptyDir
+          value: {}
+
+  - it: should use HTTP probes on the named port
+    asserts:
       - equal:
-          path: spec.template.spec.containers[0].livenessProbe.tcpSocket.port
-          value: http
+          path: spec.template.spec.containers[0].startupProbe.httpGet
+          value:
+            path: /api/info
+            port: http
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet
+          value:
+            path: /api/info
+            port: http
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet
+          value:
+            path: /api/info
+            port: http
+
+  - it: should allow disabling probes
+    set:
+      probes.startup.enabled: false
+      probes.liveness.enabled: false
+      probes.readiness.enabled: false
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].startupProbe
+      - notExists:
+          path: spec.template.spec.containers[0].livenessProbe
+      - notExists:
+          path: spec.template.spec.containers[0].readinessProbe
+
+  - it: should apply the hardened security defaults
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 65534
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          value:
+            - ALL
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.allowPrivilegeEscalation
+          value: false
 
   - it: should set registration to false by default
     asserts:
@@ -98,3 +354,46 @@ tests:
           content:
             name: SYMFONY__ENV__FOSUSER_REGISTRATION
             value: "false"
+
+  - it: should render scheduling and extra wiring
+    set:
+      nodeSelector:
+        kubernetes.io/os: linux
+      priorityClassName: reading
+      serviceAccount.create: true
+      podAnnotations:
+        example.com/owner: reading
+      extraVolumes:
+        - name: cache
+          emptyDir: {}
+      extraVolumeMounts:
+        - name: cache
+          mountPath: /cache
+      wallabag.extraEnv:
+        - name: PHP_MEMORY_LIMIT
+          value: 256M
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector
+          value:
+            kubernetes.io/os: linux
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: reading
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: test-wallabag
+      - equal:
+          path: spec.template.metadata.annotations
+          value:
+            example.com/owner: reading
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: cache
+            mountPath: /cache
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PHP_MEMORY_LIMIT
+            value: 256M

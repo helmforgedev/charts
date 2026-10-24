@@ -101,12 +101,99 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
-{{/* Redis host */}}
+{{/* Redis host (the HelmForge Redis subchart exposes clients through <release>-redis-client) */}}
+{{/* Full name of the Redis subchart, mirroring its own fullname logic */}}
+{{- define "wallabag.redisFullname" -}}
+{{- $override := dig "fullnameOverride" "" .Values.redis -}}
+{{- if $override -}}
+{{- $override | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $name := dig "nameOverride" "" .Values.redis | default "redis" -}}
+{{- if contains $name .Release.Name -}}
+{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "wallabag.redisHost" -}}
 {{- if .Values.redis.enabled -}}
-{{- printf "%s-redis" .Release.Name -}}
+{{- printf "%s-client" (include "wallabag.redisFullname" .) -}}
 {{- else -}}
 {{- .Values.externalRedis.host -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Redis is configured through the subchart or an external host */}}
+{{- define "wallabag.redisEnabled" -}}
+{{- if or .Values.redis.enabled .Values.externalRedis.host -}}true{{- end -}}
+{{- end -}}
+
+{{/* Redis password Secret name; empty when Redis runs without authentication */}}
+{{- define "wallabag.redisSecretName" -}}
+{{- if .Values.redis.enabled -}}
+{{- if dig "auth" "enabled" true .Values.redis -}}
+{{- dig "auth" "existingSecret" "" .Values.redis | default (printf "%s-auth" (include "wallabag.redisFullname" .)) -}}
+{{- end -}}
+{{- else if .Values.externalRedis.existingSecret -}}
+{{- .Values.externalRedis.existingSecret -}}
+{{- else if .Values.externalRedis.password -}}
+{{- printf "%s-redis" (include "wallabag.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Redis password Secret key */}}
+{{- define "wallabag.redisSecretKey" -}}
+{{- if .Values.redis.enabled -}}
+{{- dig "auth" "existingSecretPasswordKey" "redis-password" .Values.redis -}}
+{{- else if .Values.externalRedis.existingSecret -}}
+{{- .Values.externalRedis.existingSecretPasswordKey | default "redis-password" -}}
+{{- else -}}
+{{- "redis-password" -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Initial super-admin password Secret name */}}
+{{- define "wallabag.adminSecretName" -}}
+{{- if .Values.wallabag.admin.existingSecret -}}
+{{- .Values.wallabag.admin.existingSecret -}}
+{{- else -}}
+{{- printf "%s-admin" (include "wallabag.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Initial super-admin password Secret key */}}
+{{- define "wallabag.adminSecretKey" -}}
+{{- if .Values.wallabag.admin.existingSecret -}}
+{{- .Values.wallabag.admin.existingSecretPasswordKey | default "admin-password" -}}
+{{- else -}}
+{{- "admin-password" -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Reuse a generated value from an existing Secret so upgrades never rotate it */}}
+{{- define "wallabag.persistedSecretValue" -}}
+{{- $existing := lookup "v1" "Secret" .root.Release.Namespace .name -}}
+{{- if .value -}}
+{{- .value -}}
+{{- else if and $existing (index ($existing.data | default dict) .key) -}}
+{{- index $existing.data .key | b64dec -}}
+{{- else -}}
+{{- randAlphaNum 32 -}}
+{{- end -}}
+{{- end -}}
+
+{{/* HTTPRoute name */}}
+{{- define "wallabag.httpRouteName" -}}
+{{- $root := index . "root" -}}
+{{- $route := index . "route" -}}
+{{- $fullname := include "wallabag.fullname" $root -}}
+{{- $routeName := $route.name | default "" | trunc 32 | trimSuffix "-" -}}
+{{- if $routeName -}}
+{{- printf "%s-%s" ($fullname | trunc (int (sub 62 (len $routeName))) | trimSuffix "-") $routeName | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $fullname -}}
 {{- end -}}
 {{- end -}}
 
@@ -221,5 +308,34 @@ true
 {{- .Values.backup.database.existingSecretPasswordKey -}}
 {{- else -}}
 {{- include "wallabag.dbSecretPasswordKey" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Fail fast on unsupported value combinations */}}
+{{- define "wallabag.validate" -}}
+{{- if has .Values.image.tag (list "latest" "stable" "main" "master" "edge") -}}
+{{- fail "image.tag must be an immutable release tag" -}}
+{{- end -}}
+{{- if and (not .Values.postgresql.enabled) (not .Values.database.external.host) -}}
+{{- fail "database.external.host is required when postgresql.enabled=false" -}}
+{{- end -}}
+{{- if and (not .Values.postgresql.enabled) (not .Values.database.external.existingSecret) (not .Values.database.external.password) -}}
+{{- fail "database.external.password or database.external.existingSecret is required when postgresql.enabled=false" -}}
+{{- end -}}
+{{- if and .Values.redis.enabled .Values.externalRedis.host -}}
+{{- fail "set either redis.enabled=true or externalRedis.host, not both" -}}
+{{- end -}}
+{{- if and .Values.setup.enabled (not .Values.wallabag.admin.username) -}}
+{{- fail "wallabag.admin.username is required when setup.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.gatewayAPI.enabled (not .Values.gatewayAPI.httpRoutes) -}}
+{{- fail "gatewayAPI.httpRoutes must contain at least one route when gatewayAPI.enabled=true" -}}
+{{- end -}}
+{{- if .Values.gatewayAPI.enabled -}}
+{{- range .Values.gatewayAPI.httpRoutes -}}
+{{- if not .parentRefs -}}
+{{- fail "every gatewayAPI.httpRoutes[] entry requires parentRefs" -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}

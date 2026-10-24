@@ -1,48 +1,60 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# Wallabag — Backup & Restore
+# Wallabag Backup and Restore
 
-The wallabag database (PostgreSQL) is the source of truth — the PVC only holds
-re-downloadable article assets. Back up the database.
+PostgreSQL holds every entry, tag, annotation, user, and setting. The PVC holds
+downloaded article images, which Wallabag fetches again when an entry is
+reloaded and the source page is still available. Back up the database.
 
-## Scheduled backups (CronJob)
-
-Enable the bundled backup CronJob to `pg_dump` to S3-compatible storage:
+## Scheduled backups
 
 ```yaml
 backup:
   enabled: true
-  schedule: "0 3 * * *"   # daily 03:00 UTC
-  # S3 destination + credentials — see values.yaml backup.* for the full set
+  schedule: "0 3 * * *"
+  s3:
+    endpoint: https://s3.example.com
+    bucket: wallabag-backups
+    prefix: daily
+    existingSecret: wallabag-backup-s3
+    existingSecretAccessKeyKey: access-key
+    existingSecretSecretKeyKey: secret-key
 ```
 
-Each run dumps the wallabag database and uploads it to the configured bucket.
-Inspect runs:
+Each run writes `<archivePrefix>-postgresql-<UTC timestamp>.sql.gz` with
+`pg_dump` and uploads it to `s3://<bucket>/<prefix>/` with the MinIO client.
+Rendering fails when the endpoint, bucket, or credentials are missing.
+
+Run a backup immediately and follow it:
 
 ```bash
-kubectl get cronjob,job -l app.kubernetes.io/instance=<release>
-kubectl logs job/<backup-job> -n <namespace>
+kubectl create job --from=cronjob/<release>-wallabag-backup <release>-wallabag-backup-manual
+kubectl logs job/<release>-wallabag-backup-manual -c postgres-backup
+kubectl logs job/<release>-wallabag-backup-manual -c upload
 ```
 
 ## Restore
 
-1. Scale wallabag down (avoid writes during restore):
+1. Stop Wallabag so nothing writes during the restore:
 
    ```bash
    kubectl scale deploy/<release>-wallabag --replicas=0
    ```
 
-2. Restore the dump into PostgreSQL (bundled or external):
+2. Download the archive and restore it into an empty `public` schema. The
+   setup container already created the schema on first start, so drop it first:
 
    ```bash
-   # download dump from S3, then:
-   psql -h <pg-host> -U wallabag -d wallabag < wallabag-dump.sql
+   psql -h <pg-host> -U wallabag -d wallabag \
+     -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'
+   gunzip -c wallabag-postgresql-<timestamp>.sql.gz | psql -h <pg-host> -U wallabag -d wallabag
    ```
 
-3. Scale wallabag back up:
+3. Start Wallabag again. The setup container finds the restored schema and only
+   applies migrations that are newer than the backup:
 
    ```bash
    kubectl scale deploy/<release>-wallabag --replicas=1
    ```
 
-Article assets on the PVC are re-downloadable; the database restore is what
-recovers your saved entries, tags and annotations.
+The restored database keeps its own users and passwords; the chart's admin
+settings are not applied to it.
