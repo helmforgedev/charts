@@ -19,8 +19,15 @@ spec:
         metadata:
           labels:
             {{- include "open-webui.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: backup
         spec:
           restartPolicy: Never
+          automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+          serviceAccountName: {{ include "open-webui.serviceAccountName" . }}
+          {{- with .Values.podSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with .Values.imagePullSecrets }}
           imagePullSecrets:
             {{- toYaml . | nindent 12 }}
@@ -40,7 +47,12 @@ spec:
           initContainers:
             - name: postgres-backup
               image: {{ .Values.backup.images.postgresql | quote }}
+              imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "/scripts/postgres-backup.sh"]
+              {{- with .Values.securityContext }}
+              securityContext:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
               env:
                 - name: BACKUP_ARCHIVE_PREFIX
                   value: {{ .Values.backup.archivePrefix | quote }}
@@ -69,7 +81,12 @@ spec:
           containers:
             - name: upload
               image: {{ .Values.backup.images.uploader | quote }}
+              imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "/scripts/upload-backup.sh"]
+              {{- with .Values.securityContext }}
+              securityContext:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
               env:
                 - name: S3_ENDPOINT
                   value: {{ .Values.backup.s3.endpoint | quote }}
