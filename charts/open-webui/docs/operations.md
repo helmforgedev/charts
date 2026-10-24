@@ -37,8 +37,9 @@ pod from endpoints when the database is unavailable. Diagnose a readiness
 failure from inside the cluster:
 
 ```bash
+SERVICE_PORT=80 # Set this to service.port.
 kubectl port-forward --namespace open-webui \
-  service/open-webui-open-webui 8080:80
+  service/open-webui-open-webui 8080:"${SERVICE_PORT}"
 curl --fail http://127.0.0.1:8080/health
 curl --fail http://127.0.0.1:8080/health/db
 ```
