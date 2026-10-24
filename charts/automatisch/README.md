@@ -133,12 +133,21 @@ redis_config:
     existingSecretPasswordKey: password
 ```
 
-Create the referenced Secret before installation:
+Create both referenced Secrets before installation. Supply secure values that
+match the external services rather than copying a placeholder:
 
 ```bash
+read -rsp 'PostgreSQL password: ' POSTGRES_PASSWORD && echo
 kubectl create secret generic automatisch-db-credentials \
   --namespace automatisch \
-  --from-literal=password='replace-me'
+  --from-literal=password="$POSTGRES_PASSWORD"
+unset POSTGRES_PASSWORD
+
+read -rsp 'Redis password: ' REDIS_PASSWORD && echo
+kubectl create secret generic automatisch-redis-credentials \
+  --namespace automatisch \
+  --from-literal=password="$REDIS_PASSWORD"
+unset REDIS_PASSWORD
 ```
 
 The chart rejects an external database without a host or password source and
@@ -146,10 +155,11 @@ rejects an external Redis configuration without a host.
 
 ## Security
 
-Web and worker containers run as UID/GID 1000. Privilege escalation is disabled,
-all Linux capabilities are dropped, the root filesystem is read-only, and the
-runtime-default seccomp profile is enabled. Pods do not receive Kubernetes API
-tokens. The bundled datastore charts retain their own security contracts.
+By default, web and worker containers run as UID/GID 1000, privilege escalation
+is disabled, all Linux capabilities are dropped, the root filesystem is
+read-only, and runtime-default seccomp is enabled. Pods do not receive
+Kubernetes API tokens by default. Operators can override these settings; the
+bundled datastore charts retain their own security contracts.
 
 The default NetworkPolicy accepts inbound traffic only on the named HTTP port.
 Outbound traffic remains open because workflows must reach arbitrary external

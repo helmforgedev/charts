@@ -59,6 +59,9 @@ app.kubernetes.io/component: worker
 {{- if and (not .Values.redis.enabled) (not .Values.redis_config.external.host) -}}
 {{- fail "redis_config.external.host is required when redis.enabled is false" -}}
 {{- end -}}
+{{- if and .Values.redis.enabled (dig "tls" "enabled" false .Values.redis) -}}
+{{- fail "redis.tls.enabled is not supported by the Automatisch Redis client contract" -}}
+{{- end -}}
 {{- if and .Values.ingress.enabled (not .Values.ingress.hosts) -}}
 {{- fail "ingress.enabled requires ingress.hosts to contain at least one host" -}}
 {{- end -}}
@@ -147,10 +150,24 @@ app.kubernetes.io/component: worker
 {{/* Redis helpers                                                            */}}
 {{/* ======================================================================= */}}
 
+{{/* Redis subchart fullname, mirrored from Redis 3.1. */}}
+{{- define "automatisch.redisFullname" -}}
+{{- if .Values.redis.fullnameOverride -}}
+{{- .Values.redis.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $name := default "redis" .Values.redis.nameOverride -}}
+{{- if contains $name .Release.Name -}}
+{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{/* Redis host */}}
 {{- define "automatisch.redisHost" -}}
 {{- if .Values.redis.enabled -}}
-{{- printf "%s-redis-client" .Release.Name -}}
+{{- printf "%s-client" (include "automatisch.redisFullname" .) -}}
 {{- else -}}
 {{- .Values.redis_config.external.host -}}
 {{- end -}}
@@ -159,7 +176,11 @@ app.kubernetes.io/component: worker
 {{/* Redis secret name */}}
 {{- define "automatisch.redisSecretName" -}}
 {{- if .Values.redis.enabled -}}
-{{- printf "%s-redis-auth" .Release.Name -}}
+{{- if .Values.redis.auth.existingSecret -}}
+{{- .Values.redis.auth.existingSecret -}}
+{{- else -}}
+{{- printf "%s-auth" (include "automatisch.redisFullname" .) -}}
+{{- end -}}
 {{- else if .Values.redis_config.external.existingSecret -}}
 {{- .Values.redis_config.external.existingSecret -}}
 {{- else -}}
@@ -170,7 +191,7 @@ app.kubernetes.io/component: worker
 {{/* Redis secret password key */}}
 {{- define "automatisch.redisSecretPasswordKey" -}}
 {{- if .Values.redis.enabled -}}
-{{- "redis-password" -}}
+{{- .Values.redis.auth.existingSecretPasswordKey | default "redis-password" -}}
 {{- else if .Values.redis_config.external.existingSecret -}}
 {{- .Values.redis_config.external.existingSecretPasswordKey | default "password" -}}
 {{- else -}}

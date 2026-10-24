@@ -18,14 +18,18 @@ restart counts, error logs, Redis health, and end-to-end workflow execution.
 
 ## Backup and restore
 
-Back up PostgreSQL and the application Secret as one recovery unit. Redis queue
-state is operationally useful but PostgreSQL remains the durable application
-record. The application Secret contains encryption and verification keys; a
-database restored without its matching keys may contain unusable credentials.
+Back up PostgreSQL, the application Secret, and any Secrets referenced by
+`database.external.existingSecret` or `redis_config.external.existingSecret` as
+one recovery unit. When those Secrets come from an external secret manager,
+include its versioned recovery procedure. Redis queue state is operationally
+useful but PostgreSQL remains the durable application record. The application
+Secret contains encryption and verification keys; a database restored without
+its matching keys may contain unusable credentials.
 
 ```bash
-kubectl get secret -n automatisch automatisch-automatisch-app -o yaml \
-  > automatisch-app-secret.yaml
+kubectl get secret -n automatisch automatisch-automatisch-app -o yaml | \
+  age --encrypt --recipient "$AGE_RECIPIENT" \
+  > automatisch-app-secret.yaml.age
 ```
 
 Store Secret backups in an encrypted system and never commit them. Use the
@@ -63,7 +67,8 @@ and PostgreSQL:
 ```bash
 kubectl describe deployment -n automatisch automatisch-automatisch-worker
 kubectl logs -n automatisch deployment/automatisch-automatisch-worker --tail=200
-kubectl get pods -n automatisch -l app.kubernetes.io/component=worker
+kubectl get pods -n automatisch \
+  -l app.kubernetes.io/instance=automatisch,app.kubernetes.io/component=worker
 ```
 
 Scale workers only after resolving connection failures. More replicas do not

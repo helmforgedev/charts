@@ -100,11 +100,11 @@ enabled by this chart. Worker replicas can be increased independently.
 
 ## Security Boundary
 
-The application and worker run as UID/GID 1000 with privilege escalation
-disabled, all Linux capabilities dropped, a read-only root filesystem, and the
-runtime-default seccomp profile. Kubernetes API tokens are not mounted into
-application pods. The official image must continue to support these controls;
-the full k3d validation gate detects regressions when the image changes.
+By default, the application and worker run as UID/GID 1000 with privilege
+escalation disabled, all Linux capabilities dropped, a read-only root
+filesystem, and the runtime-default seccomp profile. Kubernetes API tokens are
+not mounted into application pods by default. Operators can override these
+settings; the full k3d validation gate detects image compatibility regressions.
 
 The chart stores sensitive material in Kubernetes Secrets, but Kubernetes
 Secrets are not encrypted automatically in every cluster. Production clusters
@@ -136,8 +136,8 @@ functional health signal.
   APIs; restrictive environments must supply explicit egress rules.
 - The generated application Secret is preserved by Helm lookup but is not an
   external backup. Operators must back it up independently.
-- Redis authentication and TLS are not currently modeled by the chart's
-  external Redis contract.
+- External Redis password authentication is modeled through an existing Secret
+  or inline password. Redis TLS is not currently modeled by the chart.
 - The chart does not manage a dead-letter queue or workflow-level retry policy.
 
 ## Explicit Non-Goals

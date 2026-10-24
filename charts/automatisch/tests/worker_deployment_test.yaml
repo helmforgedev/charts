@@ -96,3 +96,37 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].securityContext.capabilities.drop
           content: ALL
+
+  - it: should mount operator-provided volumes in worker pods
+    set:
+      extraVolumes:
+        - name: custom-ca
+          secret:
+            secretName: custom-ca
+      extraVolumeMounts:
+        - name: custom-ca
+          mountPath: /etc/custom-ca
+          readOnly: true
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: custom-ca
+            secret:
+              secretName: custom-ca
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: custom-ca
+            mountPath: /etc/custom-ca
+            readOnly: true
+
+  - it: should omit Redis password when bundled authentication is disabled
+    set:
+      redis.auth.enabled: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PASSWORD
+          any: true
