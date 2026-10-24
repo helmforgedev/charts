@@ -15,7 +15,7 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "automatisch.selectorLabels" . | nindent 8 }}
+        {{- include "automatisch.webSelectorLabels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -28,9 +28,8 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "automatisch.serviceAccountName" . }}
-      {{- end }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . }}
       {{- end }}
@@ -58,9 +57,13 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
-              containerPort: 3000
+              containerPort: {{ .Values.automatisch.containerPorts.http }}
               protocol: TCP
           env:
+            - name: HOST
+              value: {{ .Values.automatisch.host | quote }}
+            - name: PORT
+              value: {{ .Values.automatisch.containerPorts.http | quote }}
             - name: APP_ENV
               value: {{ .Values.automatisch.appEnv | quote }}
             - name: WEB_APP_URL
@@ -82,6 +85,13 @@ spec:
               value: {{ include "automatisch.redisHost" . | quote }}
             - name: REDIS_PORT
               value: {{ include "automatisch.redisPort" . | quote }}
+            {{- if or (and .Values.redis.enabled .Values.redis.auth.enabled) (and (not .Values.redis.enabled) (or .Values.redis_config.external.existingSecret .Values.redis_config.external.password)) }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "automatisch.redisSecretName" . }}
+                  key: {{ include "automatisch.redisSecretPasswordKey" . }}
+            {{- end }}
             - name: ENCRYPTION_KEY
               valueFrom:
                 secretKeyRef:
@@ -135,12 +145,20 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.extraVolumeMounts }}
           volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: logs
+              mountPath: /automatisch/packages/backend/logs
+          {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
-      {{- with .Values.extraVolumes }}
       volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: logs
+          emptyDir: {}
+      {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- with .Values.nodeSelector }}

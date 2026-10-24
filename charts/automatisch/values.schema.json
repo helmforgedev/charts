@@ -64,10 +64,31 @@
           "description": "Public URL of the Automatisch web application",
           "default": "http://localhost:3000"
         },
+        "host": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Address on which the HTTP server listens inside the pod",
+          "default": "0.0.0.0"
+        },
         "appEnv": {
           "type": "string",
           "description": "Application environment",
           "default": "production"
+        },
+        "containerPorts": {
+          "type": "object",
+          "description": "Application listener ports",
+          "additionalProperties": false,
+          "properties": {
+            "http": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535,
+              "description": "HTTP listener port passed to Automatisch through PORT",
+              "default": 3000
+            }
+          },
+          "required": ["http"]
         },
         "extraEnv": {
           "type": "array",
@@ -75,6 +96,28 @@
           "items": {
             "type": "object"
           }
+        }
+      }
+    },
+    "worker": {
+      "type": "object",
+      "description": "Automatisch background worker configuration",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Run the required background worker",
+          "default": true
+        },
+        "replicaCount": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of worker replicas",
+          "default": 1
+        },
+        "resources": {
+          "type": "object",
+          "description": "CPU and memory requests and limits for the worker"
         }
       }
     },
@@ -145,10 +188,20 @@
               "description": "Redis port",
               "default": "6379"
             },
+            "password": {
+              "type": "string",
+              "description": "Redis password; prefer an existing Secret in production",
+              "default": ""
+            },
             "existingSecret": {
               "type": "string",
               "description": "Existing secret containing the Redis password",
               "default": ""
+            },
+            "existingSecretPasswordKey": {
+              "type": "string",
+              "description": "Key in the existing secret containing the Redis password",
+              "default": "password"
             }
           }
         }
@@ -172,6 +225,11 @@
         "annotations": {
           "type": "object",
           "description": "Annotations for the ServiceAccount"
+        },
+        "automountServiceAccountToken": {
+          "type": "boolean",
+          "description": "Mount the Kubernetes API token into application pods",
+          "default": false
         }
       }
     },
@@ -336,6 +394,28 @@
     "podAnnotations": {
       "type": "object",
       "description": "Additional annotations for the pod"
+    },
+    "networkPolicy": {
+      "type": "object",
+      "description": "NetworkPolicy configuration",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Create a NetworkPolicy for Automatisch pods",
+          "default": true
+        },
+        "ingress": {
+          "type": "array",
+          "description": "Additional ingress rules appended to the default HTTP rule",
+          "items": { "type": "object" }
+        },
+        "egress": {
+          "type": "array",
+          "description": "Egress rules; defaults to unrestricted destinations for integrations",
+          "items": { "type": "object" }
+        }
+      }
     },
     "extraVolumes": {
       "type": "array",
