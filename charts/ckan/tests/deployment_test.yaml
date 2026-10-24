@@ -104,17 +104,52 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
-            name: CKAN_DATASTORE_READ_PASSWORD
+            name: HELMFORGE_CKAN_DATASTORE_READ_PASSWORD
             valueFrom:
               secretKeyRef:
                 name: test-ckan-database
                 key: datastore-read-password
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
-          pattern: 'ckan\.datastore\.write_url'
+          pattern: 'export CKAN_DATASTORE_WRITE_URL='
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
-          pattern: 'quote\(os\.environ\["CKAN_DATASTORE_READ_PASSWORD"\]'
+          pattern: 'HELMFORGE_CKAN_DATASTORE_READ_PASSWORD'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'export PGPASSFILE=/tmp/helmforge-pgpass'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'os\.chmod\(path, 0o600\)'
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'postgresql://\{\}:\{\}@'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'uri\.replace\("%", "%%"\)'
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'export CKAN_(?:SQLALCHEMY|REDIS)_URL='
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: '(?s)ckan config-tool.*HELMFORGE_CKAN_SQLALCHEMY_URL=.*ckan config-tool.*sqlalchemy\.url.*exec /srv/app/start_ckan\.sh'
+
+  - it: should match the PostgreSQL primary Service truncation contract
+    set:
+      postgresql.architecture: replication
+      postgresql.fullnameOverride: abcdefghijklmnopqrstuvwxyz-abcdefghijklmnopqrstuvwxyz-abcdef
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: WAIT_DB_HOST
+            value: abcdefghijklmnopqrstuvwxyz-abcdefghijklmnopqrstuvwxyz-a-primary
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HELMFORGE_CKAN_DB_HOST
+            value: abcdefghijklmnopqrstuvwxyz-abcdefghijklmnopqrstuvwxyz-a-primary
 
   - it: should use the hardened service account and container contexts
     template: templates/deployment.yaml
@@ -166,7 +201,7 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
-            name: CKAN_REDIS_SSL_CERT_REQS
+            name: HELMFORGE_CKAN_REDIS_SSL_CERT_REQS
             value: required
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]

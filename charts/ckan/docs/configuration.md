@@ -42,6 +42,11 @@ but an operator-owned Secret is safer for disaster recovery.
 host plus inline or Secret-backed credentials. Replication mode uses the
 writable primary Service.
 
+When `sslMode=verify-full`, mount the trusted PostgreSQL CA through
+`extraVolumes` and `extraVolumeMounts`, then set `PGSSLROOTCERT` to the
+mounted file with `ckan.extraEnv`. The value must be readable by the CKAN
+container.
+
 The chart configures DataStore write and read URLs when the `datastore` plugin
 is enabled. It deliberately does not create the separate database or roles.
 Prepare them with upstream `ckan datastore set-permissions` guidance first.
@@ -67,6 +72,13 @@ External Redis always requires a password. TLS verifies certificates by
 default; mount a private CA with `extraVolumes` and `extraVolumeMounts`, then
 set `sslCaCerts` to its container path. Replication topology uses the writable
 primary Service; standalone uses the client Service.
+
+At startup, the chart writes PostgreSQL credentials to a private `PGPASSFILE`
+with mode `0600`; database passwords are not embedded in command arguments or
+connection URLs. Redis credentials are URL-encoded before CKAN consumes them.
+Passwords containing reserved characters such as `@`, `/`, `%`, `:`, or `\`
+are supported. Raw credential variables use the chart-private `HELMFORGE_CKAN_`
+prefix so the CKAN environment plugin does not interpret them as settings.
 
 ## Solr and DataPusher
 

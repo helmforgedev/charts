@@ -159,7 +159,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if eq .Values.database.mode "external" -}}
 {{- .Values.database.external.host -}}
 {{- else if eq .Values.postgresql.architecture "replication" -}}
-{{- printf "%s-primary" (include "ckan.postgresqlFullname" .) -}}
+{{- printf "%s-primary" (include "ckan.postgresqlFullname" . | trunc 55 | trimSuffix "-") -}}
 {{- else -}}
 {{- include "ckan.postgresqlFullname" . -}}
 {{- end -}}
@@ -310,48 +310,48 @@ http://{{ include "ckan.fullname" . }}-datapusher:{{ .Values.datapusher.port }}
   value: {{ .Values.ckan.siteTitle | quote }}
 - name: UWSGI_OPTS
   value: {{ printf "--socket /tmp/uwsgi.sock --wsgi-file /srv/app/wsgi.py --module wsgi:application --http [::]:%v --master --enable-threads --lazy-apps -p %v -L -b 32768 --vacuum --harakiri %v" .Values.ckan.containerPort .Values.ckan.uwsgiProcesses .Values.ckan.uwsgiHarakiri | quote }}
-- name: CKAN_DB_PASSWORD
+- name: HELMFORGE_CKAN_DB_PASSWORD
   valueFrom:
     secretKeyRef:
       name: {{ include "ckan.databaseSecretName" . }}
       key: {{ include "ckan.databaseSecretKey" . }}
-- name: CKAN_DB_HOST
+- name: HELMFORGE_CKAN_DB_HOST
   value: {{ include "ckan.databaseHost" . | quote }}
-- name: CKAN_DB_PORT
+- name: HELMFORGE_CKAN_DB_PORT
   value: {{ include "ckan.databasePort" . | quote }}
-- name: CKAN_DB_NAME
+- name: HELMFORGE_CKAN_DB_NAME
   value: {{ include "ckan.databaseName" . | quote }}
-- name: CKAN_DB_USERNAME
+- name: HELMFORGE_CKAN_DB_USERNAME
   value: {{ include "ckan.databaseUsername" . | quote }}
-- name: CKAN_DB_SSLMODE
+- name: HELMFORGE_CKAN_DB_SSLMODE
   value: {{ include "ckan.databaseSslMode" . | quote }}
 {{- if has "datastore" (splitList " " .Values.ckan.plugins) }}
-- name: CKAN_DATASTORE_DB_NAME
+- name: HELMFORGE_CKAN_DATASTORE_DB_NAME
   value: {{ .Values.database.external.datastoreDatabase | quote }}
-- name: CKAN_DATASTORE_READ_USERNAME
+- name: HELMFORGE_CKAN_DATASTORE_READ_USERNAME
   value: {{ .Values.database.external.datastoreReadUsername | quote }}
-- name: CKAN_DATASTORE_READ_PASSWORD
+- name: HELMFORGE_CKAN_DATASTORE_READ_PASSWORD
   valueFrom:
     secretKeyRef:
       name: {{ include "ckan.databaseSecretName" . }}
       key: {{ include "ckan.datastoreReadSecretKey" . }}
 {{- end }}
-- name: CKAN_REDIS_PASSWORD
+- name: HELMFORGE_CKAN_REDIS_PASSWORD
   valueFrom:
     secretKeyRef:
       name: {{ include "ckan.redisSecretName" . }}
       key: {{ include "ckan.redisSecretKey" . }}
-- name: CKAN_REDIS_HOST
+- name: HELMFORGE_CKAN_REDIS_HOST
   value: {{ include "ckan.redisHost" . | quote }}
-- name: CKAN_REDIS_PORT
+- name: HELMFORGE_CKAN_REDIS_PORT
   value: {{ include "ckan.redisPort" . | quote }}
-- name: CKAN_REDIS_DATABASE
+- name: HELMFORGE_CKAN_REDIS_DATABASE
   value: {{ include "ckan.redisDatabase" . | quote }}
-- name: CKAN_REDIS_TLS
+- name: HELMFORGE_CKAN_REDIS_TLS
   value: {{ ternary "true" "false" (and (eq .Values.redisConfig.mode "external") .Values.redisConfig.external.tls) | quote }}
-- name: CKAN_REDIS_SSL_CERT_REQS
+- name: HELMFORGE_CKAN_REDIS_SSL_CERT_REQS
   value: {{ .Values.redisConfig.external.sslCertReqs | quote }}
-- name: CKAN_REDIS_SSL_CA_CERTS
+- name: HELMFORGE_CKAN_REDIS_SSL_CA_CERTS
   value: {{ .Values.redisConfig.external.sslCaCerts | quote }}
 - name: CKAN_SOLR_URL
   value: {{ include "ckan.solrUrl" . | quote }}
@@ -386,21 +386,21 @@ http://{{ include "ckan.fullname" . }}-datapusher:{{ .Values.datapusher.port }}
 # =============================================================================
 
 {{- define "ckan.startupCommand" -}}
-export CKAN_SQLALCHEMY_URL="$(python3 -c 'import os; from urllib.parse import quote; print("postgresql://{}:{}@{}:{}/{}?sslmode={}".format(quote(os.environ["CKAN_DB_USERNAME"], safe=""), quote(os.environ["CKAN_DB_PASSWORD"], safe=""), os.environ["CKAN_DB_HOST"], os.environ["CKAN_DB_PORT"], quote(os.environ["CKAN_DB_NAME"], safe=""), quote(os.environ["CKAN_DB_SSLMODE"], safe="")))')"
-export CKAN_REDIS_URL="$(python3 -c 'import os; from urllib.parse import quote, urlencode; scheme = "rediss" if os.environ["CKAN_REDIS_TLS"] == "true" else "redis"; params = {"ssl_cert_reqs": os.environ["CKAN_REDIS_SSL_CERT_REQS"]}; ca = os.environ["CKAN_REDIS_SSL_CA_CERTS"]; params.update({"ssl_ca_certs": ca}) if ca else None; query = "?" + urlencode(params) if scheme == "rediss" else ""; print("{}://:{}@{}:{}/{}{}".format(scheme, quote(os.environ["CKAN_REDIS_PASSWORD"], safe=""), os.environ["CKAN_REDIS_HOST"], os.environ["CKAN_REDIS_PORT"], os.environ["CKAN_REDIS_DATABASE"], query))')"
 INI=${CKAN_INI:-/srv/app/ckan.ini}
-ckan config-tool "$INI" "sqlalchemy.url = $CKAN_SQLALCHEMY_URL"
-ckan config-tool "$INI" "ckan.redis.url = $CKAN_REDIS_URL"
 ckan config-tool "$INI" "solr_url = $CKAN_SOLR_URL"
 ckan config-tool "$INI" "ckan.plugins = $CKAN__PLUGINS"
-{{- if has "datastore" (splitList " " .Values.ckan.plugins) }}
-export CKAN_DATASTORE_WRITE_URL="$(python3 -c 'import os; from urllib.parse import quote; print("postgresql://{}:{}@{}:{}/{}?sslmode={}".format(quote(os.environ["CKAN_DB_USERNAME"], safe=""), quote(os.environ["CKAN_DB_PASSWORD"], safe=""), os.environ["CKAN_DB_HOST"], os.environ["CKAN_DB_PORT"], quote(os.environ["CKAN_DATASTORE_DB_NAME"], safe=""), quote(os.environ["CKAN_DB_SSLMODE"], safe="")))')"
-export CKAN_DATASTORE_READ_URL="$(python3 -c 'import os; from urllib.parse import quote; print("postgresql://{}:{}@{}:{}/{}?sslmode={}".format(quote(os.environ["CKAN_DATASTORE_READ_USERNAME"], safe=""), quote(os.environ["CKAN_DATASTORE_READ_PASSWORD"], safe=""), os.environ["CKAN_DB_HOST"], os.environ["CKAN_DB_PORT"], quote(os.environ["CKAN_DATASTORE_DB_NAME"], safe=""), quote(os.environ["CKAN_DB_SSLMODE"], safe="")))')"
-ckan config-tool "$INI" "ckan.datastore.write_url = $CKAN_DATASTORE_WRITE_URL"
-ckan config-tool "$INI" "ckan.datastore.read_url = $CKAN_DATASTORE_READ_URL"
-{{- end }}
 {{- if .Values.datapusher.enabled }}
 ckan config-tool "$INI" "ckan.datapusher.url = $CKAN_DATAPUSHER_URL"
+{{- end }}
+export PGPASSFILE=/tmp/helmforge-pgpass
+python3 -c 'import os; from pathlib import Path; esc = lambda value: value.replace("\\", "\\\\").replace(":", "\\:"); main = (os.environ["HELMFORGE_CKAN_DB_HOST"], os.environ["HELMFORGE_CKAN_DB_PORT"], os.environ["HELMFORGE_CKAN_DB_NAME"], os.environ["HELMFORGE_CKAN_DB_USERNAME"], os.environ["HELMFORGE_CKAN_DB_PASSWORD"]); datastore = [(os.environ["HELMFORGE_CKAN_DB_HOST"], os.environ["HELMFORGE_CKAN_DB_PORT"], os.environ["HELMFORGE_CKAN_DATASTORE_DB_NAME"], os.environ["HELMFORGE_CKAN_DB_USERNAME"], os.environ["HELMFORGE_CKAN_DB_PASSWORD"]), (os.environ["HELMFORGE_CKAN_DB_HOST"], os.environ["HELMFORGE_CKAN_DB_PORT"], os.environ["HELMFORGE_CKAN_DATASTORE_DB_NAME"], os.environ["HELMFORGE_CKAN_DATASTORE_READ_USERNAME"], os.environ["HELMFORGE_CKAN_DATASTORE_READ_PASSWORD"])] if os.environ.get("HELMFORGE_CKAN_DATASTORE_DB_NAME") else []; path = Path(os.environ["PGPASSFILE"]); path.write_text("".join(":".join(esc(value) for value in row) + "\n" for row in [main, *datastore]), encoding="utf-8"); os.chmod(path, 0o600)'
+HELMFORGE_CKAN_SQLALCHEMY_URL="$(python3 -c 'import os; from urllib.parse import quote; print("postgresql://{}@{}:{}/{}?sslmode={}".format(quote(os.environ["HELMFORGE_CKAN_DB_USERNAME"], safe=""), os.environ["HELMFORGE_CKAN_DB_HOST"], os.environ["HELMFORGE_CKAN_DB_PORT"], quote(os.environ["HELMFORGE_CKAN_DB_NAME"], safe=""), quote(os.environ["HELMFORGE_CKAN_DB_SSLMODE"], safe="")))')"
+HELMFORGE_CKAN_REDIS_URL="$(python3 -c 'import os; from urllib.parse import quote, urlencode; scheme = "rediss" if os.environ["HELMFORGE_CKAN_REDIS_TLS"] == "true" else "redis"; params = {"ssl_cert_reqs": os.environ["HELMFORGE_CKAN_REDIS_SSL_CERT_REQS"]}; ca = os.environ["HELMFORGE_CKAN_REDIS_SSL_CA_CERTS"]; params.update({"ssl_ca_certs": ca}) if ca else None; query = "?" + urlencode(params) if scheme == "rediss" else ""; uri = "{}://:{}@{}:{}/{}{}".format(scheme, quote(os.environ["HELMFORGE_CKAN_REDIS_PASSWORD"], safe=""), os.environ["HELMFORGE_CKAN_REDIS_HOST"], os.environ["HELMFORGE_CKAN_REDIS_PORT"], os.environ["HELMFORGE_CKAN_REDIS_DATABASE"], query); print(uri.replace("%", "%%"))')"
+ckan config-tool "$INI" "sqlalchemy.url = $HELMFORGE_CKAN_SQLALCHEMY_URL"
+ckan config-tool "$INI" "ckan.redis.url = $HELMFORGE_CKAN_REDIS_URL"
+{{- if has "datastore" (splitList " " .Values.ckan.plugins) }}
+export CKAN_DATASTORE_WRITE_URL="$(python3 -c 'import os; from urllib.parse import quote; print("postgresql://{}@{}:{}/{}?sslmode={}".format(quote(os.environ["HELMFORGE_CKAN_DB_USERNAME"], safe=""), os.environ["HELMFORGE_CKAN_DB_HOST"], os.environ["HELMFORGE_CKAN_DB_PORT"], quote(os.environ["HELMFORGE_CKAN_DATASTORE_DB_NAME"], safe=""), quote(os.environ["HELMFORGE_CKAN_DB_SSLMODE"], safe="")))')"
+export CKAN_DATASTORE_READ_URL="$(python3 -c 'import os; from urllib.parse import quote; print("postgresql://{}@{}:{}/{}?sslmode={}".format(quote(os.environ["HELMFORGE_CKAN_DATASTORE_READ_USERNAME"], safe=""), os.environ["HELMFORGE_CKAN_DB_HOST"], os.environ["HELMFORGE_CKAN_DB_PORT"], quote(os.environ["HELMFORGE_CKAN_DATASTORE_DB_NAME"], safe=""), quote(os.environ["HELMFORGE_CKAN_DB_SSLMODE"], safe="")))')"
 {{- end }}
 exec /srv/app/start_ckan.sh
 {{- end -}}

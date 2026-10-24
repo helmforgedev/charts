@@ -115,6 +115,23 @@ database:
     sslMode: verify-full
 ```
 
+With `verify-full`, mount the trusted PostgreSQL CA and point libpq to it:
+
+```yaml
+ckan:
+  extraEnv:
+    - name: PGSSLROOTCERT
+      value: /etc/ckan/postgresql-ca/ca.crt
+extraVolumes:
+  - name: postgresql-ca
+    secret:
+      secretName: postgresql-ca
+extraVolumeMounts:
+  - name: postgresql-ca
+    mountPath: /etc/ckan/postgresql-ca
+    readOnly: true
+```
+
 ### External Redis
 
 ```yaml
