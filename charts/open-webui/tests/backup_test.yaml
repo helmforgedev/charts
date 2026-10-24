@@ -36,6 +36,18 @@ tests:
       - equal:
           path: spec.schedule
           value: "0 3 * * *"
+      - equal:
+          path: spec.jobTemplate.spec.template.metadata.labels["app.kubernetes.io/component"]
+          value: backup
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
 
   - it: should create backup ConfigMap with postgres-backup script
     set:
@@ -89,3 +101,43 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "backup.s3.bucket is required when backup.enabled is true"
+
+  - it: should fail without an inline S3 secret key
+    template: backup-cronjob.yaml
+    set:
+      postgresql.enabled: true
+      backup.enabled: true
+      backup.s3.endpoint: http://minio:9000
+      backup.s3.bucket: backups
+      backup.s3.accessKey: admin
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.s3.secretKey or backup.s3.existingSecret is required when backup.enabled is true"
+
+  - it: should configure external PostgreSQL backup fields
+    template: backup-cronjob.yaml
+    set:
+      database.mode: external
+      database.existingSecret: database-url
+      backup.enabled: true
+      backup.database.host: postgres.example.com
+      backup.database.name: openwebui
+      backup.database.username: openwebui
+      backup.database.existingSecret: database-password
+      backup.s3.endpoint: https://s3.example.com
+      backup.s3.bucket: backups
+      backup.s3.existingSecret: s3-credentials
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env
+          content:
+            name: DB_HOST
+            value: postgres.example.com
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env
+          content:
+            name: DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: database-password
+                key: database-password

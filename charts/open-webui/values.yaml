@@ -112,11 +112,13 @@ persistence:
 
 serviceAccount:
   # -- Create a ServiceAccount
-  create: false
+  create: true
   # -- ServiceAccount name
   name: ""
   # -- Annotations for the ServiceAccount
   annotations: {}
+  # -- Mount the Kubernetes API token into application and backup pods
+  automountServiceAccountToken: false
 
 # =============================================================================
 # Service
@@ -129,6 +131,20 @@ service:
   port: 80
   # -- Annotations for the Service
   annotations: {}
+
+# =============================================================================
+# Network Policy
+# =============================================================================
+
+networkPolicy:
+  # -- Restrict inbound traffic to the HTTP listener. Egress stays open because
+  # Open WebUI connects to user-selected model APIs, identity providers, and hubs.
+  enabled: true
+  # -- Additional ingress rules appended to the default HTTP rule
+  ingress: []
+  # -- Egress rules. The default permits arbitrary configured integrations.
+  egress:
+    - {}
 
 # =============================================================================
 # Ingress
@@ -179,7 +195,7 @@ probes:
     failureThreshold: 3
   readiness:
     enabled: true
-    path: /health
+    path: /health/db
     initialDelaySeconds: 0
     periodSeconds: 10
     timeoutSeconds: 5
@@ -191,9 +207,15 @@ probes:
 
 resources: {}
 
-podSecurityContext: {}
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
 
-securityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
 
 # =============================================================================
 # S3 Backup
@@ -226,6 +248,18 @@ backup:
   database:
     # -- Extra pg_dump arguments
     pgDumpArgs: ""
+    # -- External PostgreSQL host used only when database.mode is external
+    host: ""
+    # -- External PostgreSQL port
+    port: 5432
+    # -- External PostgreSQL database name
+    name: ""
+    # -- External PostgreSQL username
+    username: ""
+    # -- Secret containing the external PostgreSQL password
+    existingSecret: ""
+    # -- Password key in the external PostgreSQL Secret
+    existingSecretKey: database-password
   s3:
     # -- S3-compatible endpoint URL
     endpoint: ""

@@ -1,0 +1,66 @@
+# SPDX-License-Identifier: Apache-2.0
+# Production-oriented single-replica deployment with bundled PostgreSQL and
+# Redis. Replace placeholder Secret names and tune resources from measurements.
+
+openWebui:
+  existingSecret: open-webui-session
+  existingSecretKey: secret-key
+  openaiBaseUrl: https://api.openai.com/v1
+  openaiExistingSecret: open-webui-openai
+  openaiExistingSecretKey: openai-api-key
+
+postgresql:
+  enabled: true
+  auth:
+    database: openwebui
+    username: openwebui
+    existingSecret: open-webui-postgresql
+
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    existingSecret: open-webui-redis
+
+persistence:
+  enabled: true
+  size: 50Gi
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  hosts:
+    - host: chat.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - chat.example.com
+      secretName: open-webui-tls
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "2"
+    memory: 2Gi
+
+backup:
+  enabled: true
+  schedule: "0 3 * * *"
+  s3:
+    endpoint: https://s3.example.com
+    bucket: open-webui-backups
+    prefix: production
+    existingSecret: open-webui-s3
+    existingSecretAccessKeyKey: access-key
+    existingSecretSecretKeyKey: secret-key
+
+networkPolicy:
+  enabled: true
+  # Replace the open default with environment-specific DNS, database, Redis,
+  # identity-provider, and model-endpoint egress rules where the CNI supports it.
+  egress:
+    - {}
