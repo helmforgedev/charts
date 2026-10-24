@@ -122,6 +122,10 @@ Every key is documented in `values.yaml` and validated by
 - The superadmin is created from a Secret on a fresh database, so the instance
   never exposes the first-run admin setup page.
 - Credentials accept existing Secrets or ExternalSecret resources.
+- The generated superadmin password is read back with `lookup` on upgrade.
+  Renderers without cluster access (client-side GitOps rendering) generate a
+  new value on every render; set `listmonk.admin.password` or
+  `listmonk.admin.existingSecret` in those setups.
 - Add NetworkPolicies for your cluster; the chart does not render them.
 
 ## Troubleshooting
