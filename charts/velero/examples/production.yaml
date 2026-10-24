@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: Apache-2.0
+
+credentials:
+  useSecret: true
+  existingSecret: velero-cloud-credentials
+  secretContents: ""
+
+configuration:
+  logFormat: json
+  backupStorageLocations:
+    - name: default
+      provider: aws
+      bucket: replace-with-backup-bucket
+      default: true
+      accessMode: ReadWrite
+      config:
+        region: us-east-1
+        s3Url: https://object-storage.example.com
+        s3ForcePathStyle: true
+        insecureSkipTLSVerify: false
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 1Gi
+
+metrics:
+  enabled: true
+  containerPort: 8085
+  service:
+    port: 8085
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+
+networkPolicy:
+  enabled: true
+  allowExternalEgress: true
+
+schedules:
+  - name: daily
+    schedule: "0 3 * * *"
+    template:
+      ttl: 168h
+      includedNamespaces:
+        - applications
+      snapshotVolumes: false
+      defaultVolumesToFsBackup: false

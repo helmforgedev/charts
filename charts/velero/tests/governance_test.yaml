@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: Apache-2.0
+
+suite: governance resources
+templates:
+  - templates/serviceaccount.yaml
+  - templates/clusterrolebinding.yaml
+  - templates/servicemonitor.yaml
+  - templates/extra-manifests.yaml
+tests:
+  - it: renders the ServiceAccount with the required API token
+    template: templates/serviceaccount.yaml
+    asserts:
+      - isKind:
+          of: ServiceAccount
+      - equal:
+          path: automountServiceAccountToken
+          value: true
+
+  - it: renders the configured ClusterRoleBinding
+    template: templates/clusterrolebinding.yaml
+    asserts:
+      - isKind:
+          of: ClusterRoleBinding
+      - equal:
+          path: roleRef.name
+          value: cluster-admin
+
+  - it: renders the ServiceMonitor when enabled
+    set:
+      metrics.serviceMonitor.enabled: true
+    template: templates/servicemonitor.yaml
+    asserts:
+      - isKind:
+          of: ServiceMonitor
+      - equal:
+          path: spec.endpoints[0].port
+          value: metrics
+
+  - it: renders additional manifests through tpl
+    set:
+      extraManifests:
+        - apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: '{{ .Release.Name }}-fixture'
+          data:
+            chart: '{{ .Chart.Name }}'
+    template: templates/extra-manifests.yaml
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-fixture
+      - equal:
+          path: data.chart
+          value: velero
