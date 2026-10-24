@@ -223,6 +223,17 @@ spec:
                 skip_if_installed="$5"
                 token_env="$6"
 
+                target_plugin="/var/www/html/wp-content/plugins/$name"
+                backup_plugin="/var/www/html/wp-content/plugins/.helmforge-${name}-backup"
+                if [ -d "$backup_plugin" ]; then
+                  if [ -d "$target_plugin" ]; then
+                    rm -rf "$backup_plugin"
+                  else
+                    echo "Restoring previous custom plugin $name after an interrupted replacement."
+                    mv "$backup_plugin" "$target_plugin"
+                  fi
+                fi
+
                 if [ "$skip_if_installed" = "true" ] && { wp plugin is-installed "$name" --path=/var/www/html --allow-root >/dev/null 2>&1 || plugin_dir_exists "$name"; }; then
                   echo "Custom plugin $name already installed; download skipped."
                 else
@@ -240,14 +251,8 @@ spec:
                     return 1
                   }
 
-                  target_plugin="/var/www/html/wp-content/plugins/$name"
                   staged_plugin="/var/www/html/wp-content/plugins/.helmforge-${name}-stage"
-                  backup_plugin="/var/www/html/wp-content/plugins/.helmforge-${name}-backup"
-                  if [ -d "$backup_plugin" ] && [ ! -d "$target_plugin" ]; then
-                    echo "Restoring previous custom plugin $name after an interrupted replacement."
-                    mv "$backup_plugin" "$target_plugin"
-                  fi
-                  rm -rf "$staged_plugin" "$backup_plugin"
+                  rm -rf "$staged_plugin"
                   cp -a "$extract_dir/$name" "$staged_plugin"
                   if [ -d "$target_plugin" ]; then
                     mv "$target_plugin" "$backup_plugin"
