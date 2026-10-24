@@ -54,23 +54,20 @@ spec:
               env:
                 - name: BACKUP_ARCHIVE_PREFIX
                   value: {{ .Values.backup.archivePrefix | quote }}
-                {{- if not .Values.externalMongodb.enabled }}
-                - name: MONGODB_ROOT_PASSWORD
-                  valueFrom:
-                    secretKeyRef:
-                      name: {{ include "countly.mongodbSecretName" . }}
-                      key: mongodb-root-password
-                {{- end }}
+                {{- $mongodbSecretName := include "countly.backupMongodbSecretName" . }}
+                {{- if and (not $mongodbSecretName) (or .Values.backup.database.uri .Values.externalMongodb.enabled) }}
                 - name: MONGODB_URI
-                  {{- $mongodbSecretName := include "countly.backupMongodbSecretName" . }}
-                  {{- if $mongodbSecretName }}
-                  valueFrom:
-                    secretKeyRef:
-                      name: {{ $mongodbSecretName }}
-                      key: {{ include "countly.backupMongodbSecretKey" . }}
-                  {{- else }}
                   value: {{ include "countly.backupMongodbUri" . | quote }}
-                  {{- end }}
+                {{- else if not .Values.externalMongodb.enabled }}
+                - name: MONGODB_HOST
+                  value: {{ printf "%s-mongodb:27017" .Release.Name | quote }}
+                - name: MONGODB_USERNAME
+                  value: root
+                - name: MONGODB_AUTHENTICATION_DATABASE
+                  value: admin
+                - name: MONGODB_DATABASE
+                  value: countly
+                {{- end }}
               resources:
                 {{- toYaml .Values.backup.resources | nindent 16 }}
               volumeMounts:
@@ -80,6 +77,17 @@ spec:
                   mountPath: /backup/out
                 - name: backup-tmp
                   mountPath: /tmp
+                - name: mongodump-config
+                  mountPath: /run/mongodump-config
+                {{- if $mongodbSecretName }}
+                - name: mongodb-uri
+                  mountPath: /run/secrets/mongodb-uri
+                  readOnly: true
+                {{- else if not .Values.externalMongodb.enabled }}
+                - name: mongodb-root-password
+                  mountPath: /run/secrets/mongodb-root-password
+                  readOnly: true
+                {{- end }}
           containers:
             - name: upload
               image: {{ .Values.backup.images.uploader | quote }}
@@ -125,4 +133,23 @@ spec:
               emptyDir: {}
             - name: backup-tmp
               emptyDir: {}
+            - name: mongodump-config
+              emptyDir: {}
+            {{- if $mongodbSecretName }}
+            - name: mongodb-uri
+              secret:
+                secretName: {{ $mongodbSecretName }}
+                defaultMode: 0440
+                items:
+                  - key: {{ include "countly.backupMongodbSecretKey" . }}
+                    path: uri
+            {{- else if not .Values.externalMongodb.enabled }}
+            - name: mongodb-root-password
+              secret:
+                secretName: {{ include "countly.mongodbSecretName" . }}
+                defaultMode: 0440
+                items:
+                  - key: mongodb-root-password
+                    path: password
+            {{- end }}
 {{- end }}

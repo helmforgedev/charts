@@ -25,6 +25,12 @@ backup:
       - --readPreference=secondaryPreferred
 ```
 
+The backup init container never passes a MongoDB URI or password on its command
+line. URI Secrets are mounted only into that container, and the script writes a
+mode `0600` `mongodump --config` file in an isolated in-memory volume. The
+bundled MongoDB root password follows the same pattern and is not exposed in an
+environment variable.
+
 ## Verification
 
 Create an ad-hoc Job from the CronJob and inspect both containers:

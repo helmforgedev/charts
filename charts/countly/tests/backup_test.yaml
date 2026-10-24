@@ -51,8 +51,17 @@ tests:
           of: ConfigMap
       - isNotEmpty:
           path: data["mongodb-backup.sh"]
+      - matchRegex:
+          path: data["mongodb-backup.sh"]
+          pattern: 'mongodump --config="\$\{config_file\}"'
+      - matchRegex:
+          path: data["mongodb-backup.sh"]
+          pattern: 'chmod 0600 "\$\{config_file\}"'
+      - notMatchRegex:
+          path: data["mongodb-backup.sh"]
+          pattern: '--uri='
 
-  - it: should use mongodb subchart URI by default
+  - it: should mount the mongodb subchart password without exposing it in arguments
     set:
       backup.enabled: true
       backup.s3.endpoint: http://minio:9000
@@ -61,11 +70,19 @@ tests:
       backup.s3.secretKey: admin123
     template: backup-cronjob.yaml
     asserts:
-      - contains:
+      - notContains:
           path: spec.jobTemplate.spec.template.spec.initContainers[0].env
           content:
             name: MONGODB_URI
-            value: "mongodb://root:$(MONGODB_ROOT_PASSWORD)@test-mongodb:27017/countly?authSource=admin"
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: mongodb-root-password
+            mountPath: /run/secrets/mongodb-root-password
+            readOnly: true
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.volumes[4].secret.items[0].key
+          value: mongodb-root-password
 
   - it: should use the external MongoDB Secret URI for backup
     set:
@@ -80,14 +97,43 @@ tests:
       externalMongodb.existingSecretUriKey: mongodb-uri
     template: backup-cronjob.yaml
     asserts:
+      - notContains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env
+          content:
+            name: MONGODB_URI
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: mongodb-uri
+            mountPath: /run/secrets/mongodb-uri
+            readOnly: true
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.volumes[4].secret.secretName
+          value: countly-mongodb
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.volumes[4].secret.items[0].key
+          value: mongodb-uri
+
+  - it: should write inline database URI to the private mongodump config
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: http://minio:9000
+      backup.s3.bucket: backups
+      backup.s3.accessKey: admin
+      backup.s3.secretKey: admin123
+      backup.database.uri: mongodb://backup:secret@mongodb.example.com:27017/countly
+    template: backup-cronjob.yaml
+    asserts:
       - contains:
           path: spec.jobTemplate.spec.template.spec.initContainers[0].env
           content:
             name: MONGODB_URI
-            valueFrom:
-              secretKeyRef:
-                name: countly-mongodb
-                key: mongodb-uri
+            value: mongodb://backup:secret@mongodb.example.com:27017/countly
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: mongodump-config
+            mountPath: /run/mongodump-config
 
   - it: should pass mongodump arguments without shell evaluation
     set:
