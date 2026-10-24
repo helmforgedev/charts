@@ -47,7 +47,7 @@ tests:
             containerPort: 9697
             protocol: TCP
 
-  - it: should disable internal DB and Redis
+  - it: should disable the internal database and enable upstream Redis
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
@@ -58,7 +58,7 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: REDIS_ENABLED
-            value: "false"
+            value: "true"
 
   - it: should set PostgreSQL connection from subchart
     asserts:
@@ -82,12 +82,17 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: REDIS_HOST
-            value: "test-redis"
+            value: "localhost"
       - contains:
           path: spec.template.spec.containers[0].env
           content:
             name: REDIS_PORT
-            value: "6379"
+            value: "6385"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_ENABLED
+            value: "true"
 
   - it: should use external database when configured
     set:
@@ -107,36 +112,175 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: DB_PASS
-            value: "mypass"
+            valueFrom:
+              secretKeyRef:
+                name: test-middleware-external-database
+                key: user-password
 
-  - it: should have wait-for-postgresql init container
+  - it: should run migrations and signal backend startup
     asserts:
       - equal:
           path: spec.template.spec.initContainers[0].name
-          value: wait-for-postgresql
+          value: migrate-database
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: dbmate.*--wait.*up
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: runtime-signal
+            mountPath: /tmp/pubsub
 
-  - it: should not have init container with external DB
+  - it: should migrate an external database with its existing Secret
     set:
       postgresql.enabled: false
       externalDatabase.enabled: true
       externalDatabase.host: ext-db
+      externalDatabase.existingSecret: ext-db-secret
+      externalDatabase.existingSecretPasswordKey: password
     asserts:
-      - notExists:
-          path: spec.template.spec.initContainers
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: DB_PASS
+            valueFrom:
+              secretKeyRef:
+                name: ext-db-secret
+                key: password
 
-  - it: should mount data volume at /app/keys
+  - it: should mount the key volume at the upstream configuration path
     asserts:
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
             name: data
-            mountPath: /app/keys
+            mountPath: /app/backend/analytics_server/mhq/config
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: redis-logs
+            mountPath: /var/log/redis
 
-  - it: should use TCP probes
+  - it: should require all three processes for startup and readiness
     asserts:
-      - equal:
-          path: spec.template.spec.containers[0].startupProbe.tcpSocket.port
-          value: http
+      - matchRegex:
+          path: spec.template.spec.containers[0].startupProbe.exec.command[2]
+          pattern: 3333.*9696.*9697.*6385
       - equal:
           path: spec.template.spec.containers[0].livenessProbe.tcpSocket.port
           value: http
+      - matchRegex:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: 3333.*9696.*9697.*6385
+
+  - it: should wire custom ports into the actual upstream processes
+    set:
+      middleware.frontendPort: 4333
+      middleware.analyticsPort: 10696
+      middleware.syncPort: 10697
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PORT
+            value: "4333"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ANALYTICS_SERVER_PORT
+            value: "10696"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SYNC_SERVER_PORT
+            value: "10697"
+      - matchRegex:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: 4333.*10696.*10697.*6385
+
+  - it: should honor bundled PostgreSQL naming and Secret overrides
+    set:
+      postgresql.fullnameOverride: shared-postgres
+      postgresql.auth.existingSecret: shared-postgres-credentials
+      postgresql.auth.existingSecretUserPasswordKey: app-password
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_HOST
+            value: shared-postgres
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_PASS
+            valueFrom:
+              secretKeyRef:
+                name: shared-postgres-credentials
+                key: app-password
+
+  - it: should disable API token mounting and apply hardening defaults
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+
+  - it: should render extra volumes and mounts
+    set:
+      extraVolumes:
+        - name: ca
+          secret:
+            secretName: custom-ca
+      extraVolumeMounts:
+        - name: ca
+          mountPath: /etc/custom-ca
+          readOnly: true
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: ca
+            secret:
+              secretName: custom-ca
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: ca
+            mountPath: /etc/custom-ca
+            readOnly: true
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: ca
+            mountPath: /etc/custom-ca
+            readOnly: true
+
+  - it: should apply TLS environment and resources to database migration
+    set:
+      middleware.extraEnv:
+        - name: PGSSLROOTCERT
+          value: /etc/custom-ca/ca.crt
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: PGSSLROOTCERT
+            value: /etc/custom-ca/ca.crt
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.cpu
+          value: 100m
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.memory
+          value: 128Mi

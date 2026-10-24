@@ -1,46 +1,105 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# Middleware — Configuration
+# Middleware configuration
 
-Middleware is an all-in-one DORA metrics platform. This chart runs the upstream
-`middlewareeng/middleware` image (frontend + analytics + sync in one container)
-with PostgreSQL and Redis as separate workloads.
-
-## Key values
+## Runtime
 
 | Value | Default | Purpose |
 |---|---|---|
-| `middleware.environment` | `prod` | App environment (`ENVIRONMENT`). |
-| `middleware.frontendPort` / `analyticsPort` / `syncPort` | `3333` / `9696` / `9697` | Container ports for the three services. |
-| `persistence.enabled` / `persistence.size` | `true` / `1Gi` | PVC for `/app/keys` (encryption keys — keep persisted). |
-| `postgresql.enabled` | `true` | Bundle the HelmForge PostgreSQL subchart (DORA data). |
-| `redis.enabled` | `true` | Bundle the HelmForge Redis subchart (cache/queues). |
-| `externalDatabase.*` / `externalRedis.*` | disabled | Use managed datastores instead of the subcharts. |
-| `ingress.*` | disabled | Expose the Web UI via Ingress/TLS. |
-| `resources` | `{}` | Set requests/limits (see `examples/production.yaml`). |
+| `middleware.frontendPort` | `3333` | Frontend `PORT` and container port. |
+| `middleware.analyticsPort` | `9696` | Analytics `ANALYTICS_SERVER_PORT`. |
+| `middleware.syncPort` | `9697` | Sync `SYNC_SERVER_PORT`. |
+| `middleware.environment` | `prod` | Backend and frontend environment. |
+| `middleware.timezone` | `UTC` | IANA timezone for DORA metric windows. |
+| `middleware.extraEnv` | `[]` | Additional application environment entries. |
 
-## Datastores
+`middleware.internalDbEnabled` must remain `"false"`; the chart supplies a
+separate PostgreSQL. `middleware.internalRedisEnabled` must remain `"true"`
+because the upstream 0.3.1 remote Redis client cannot authenticate and assumes
+TLS for every non-loopback hostname.
 
-By default the chart bundles PostgreSQL (`mhq-oss` database) and Redis. To use
-managed datastores, disable the subchart and enable the matching `external*`
-block — see [external-datastores.md](external-datastores.md). The app never runs
-its embedded Postgres/Redis: `POSTGRES_DB_ENABLED`/`REDIS_ENABLED` are forced off
-so data lives on a real, backup-able workload.
+## PostgreSQL modes
+
+Exactly one database mode must be enabled:
+
+- `postgresql.enabled: true` deploys the HelmForge PostgreSQL subchart.
+- `externalDatabase.enabled: true` connects to an operator-managed database and
+  requires `postgresql.enabled: false`.
+
+The chart mirrors PostgreSQL `nameOverride`, `fullnameOverride`, replication
+primary naming, `auth.existingSecret`, custom user password keys, and External
+Secrets target names when it builds the application connection.
+
+On a fresh bundled installation, a subchart init script makes the application
+role the owner of `mhq-oss`. This permits the upstream migration to create its
+required `extensions` schema. External databases must grant the application
+role equivalent ownership or `CREATE` privileges.
+
+For an external database, set:
+
+| Value | Default | Purpose |
+|---|---|---|
+| `externalDatabase.host` | `""` | Required PostgreSQL hostname. |
+| `externalDatabase.port` | `5432` | PostgreSQL port. |
+| `externalDatabase.name` | `mhq-oss` | Application database. |
+| `externalDatabase.user` | `middleware` | Application role. |
+| `externalDatabase.existingSecret` | `""` | Preferred password Secret. |
+| `externalDatabase.existingSecretPasswordKey` | `user-password` | Password key. |
+| `externalDatabase.password` | `""` | Development-only inline source, moved to a Secret. |
+| `externalDatabase.sslMode` | `disable` | libpq SSL mode. |
+
+See [external-datastores.md](external-datastores.md) for a complete setup.
 
 ## Persistence
 
-The app writes encryption keys to `/app/keys` on first boot and reads them on
-every start. Keep `persistence.enabled=true` so the keys survive restarts;
-otherwise data encrypted with the old keys becomes unreadable after a restart.
-The volume is `ReadWriteOnce`, so the app tier runs a single replica by design
-(see [../DESIGN.md](../DESIGN.md)).
+The chart mounts the key volume at
+`/app/backend/analytics_server/mhq/config`, the path used by the upstream image.
+The generated `config.ini` must remain paired with the PostgreSQL data it
+encrypts.
 
-## Access
+| Value | Default | Purpose |
+|---|---|---|
+| `persistence.enabled` | `true` | Create or mount key storage. |
+| `persistence.size` | `1Gi` | PVC capacity. |
+| `persistence.storageClass` | `""` | StorageClass selection. |
+| `persistence.accessModes` | `[ReadWriteOnce]` | PVC access modes. |
+| `persistence.existingClaim` | `""` | Reuse a pre-created PVC. |
 
-With `ingress.enabled=false` (default), port-forward the Service:
+Disabling persistence uses `emptyDir` and is intended only for disposable
+environments.
 
-```bash
-kubectl port-forward svc/<release>-middleware 3000:80
-# open http://localhost:3000/
-```
+## Exposure and ports
 
-With `ingress.enabled=true`, the Web UI is served at the configured host.
+`service.port` is the client-facing Service port. It targets the named
+frontend port and is independent of `middleware.frontendPort`. Ingress requires
+at least one entry under `ingress.hosts`.
+
+The analytics and sync ports are deliberately not exposed through the Service.
+They are internal processes used by the frontend and background jobs.
+
+## Security and scheduling
+
+The chart creates a dedicated ServiceAccount and disables API token mounting by
+default. Pod seccomp and container privilege/capability settings are
+configurable through `podSecurityContext` and `securityContext`.
+
+`networkPolicy.enabled` restricts ingress to the named frontend port. Use
+`networkPolicy.additionalIngressFrom` to limit that access to selected
+namespaces or pods; despite the legacy key name, a nonempty list is the complete
+allowlist. Egress remains open when `networkPolicy.additionalEgress` is empty.
+A nonempty egress list replaces unrestricted access and must include DNS,
+PostgreSQL, and every configured provider endpoint.
+
+Scheduling controls include `nodeSelector`, `affinity`, `tolerations`,
+`topologySpreadConstraints`, and `priorityClassName`. Additional files can be
+mounted with `extraVolumes` and `extraVolumeMounts`; arbitrary resources can be
+supplied with `extraManifests`.
+
+## Probes
+
+Startup and readiness probes use Bash TCP checks for all three application
+listeners and the loopback Redis listener. Liveness checks the frontend. Probe timing is configurable under
+`probes.startup`, `probes.readiness`, and `probes.liveness`.
+
+Do not reduce startup tolerance without testing initial migration, archive
+extraction, frontend build extraction, and all supervised processes on the
+target storage class and nodes.

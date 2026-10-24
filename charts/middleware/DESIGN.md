@@ -1,88 +1,136 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# Middleware — Chart Design
+# Middleware chart design
 
-Design notes and rationale for the HelmForge `middleware` chart. Middleware is an
-open-source **DORA metrics** platform (deployment frequency, lead time for
-changes, change failure rate, time to restore) for engineering teams.
+## Scope
 
-## Application shape
+The chart deploys Middleware 0.3.1 as a single Kubernetes application pod and
+connects it to either the HelmForge PostgreSQL subchart or an external
+PostgreSQL service. It owns application startup ordering, schema migration,
+encryption-key persistence, frontend exposure, probes, and baseline workload
+security.
 
-The upstream image `middlewareeng/middleware` is an **all-in-one** container: a
-single process tree runs three logical services on three ports:
+The chart uses the official `middlewareeng/middleware` image without rebuilding
+or patching it. Design constraints therefore follow the actual behavior of that
+tag, not assumptions from generic web applications.
 
-| Service       | Port  | Role                                            |
-|---------------|-------|-------------------------------------------------|
-| frontend      | 3333  | Next.js web UI                                  |
-| analytics API | 9696  | metrics computation / REST API                  |
-| sync server   | 9697  | ingestion from Git providers (GitHub/GitLab)    |
+## Architecture
 
-The chart therefore models **one Deployment, one container** with three named
-container ports, fronted by a single Service that targets the frontend port.
+The upstream image contains a supervisor process that starts a Next.js
+frontend, a Python analytics API, a sync server, cron, and optionally embedded
+PostgreSQL and Redis processes. This chart disables embedded PostgreSQL and
+enables embedded Redis. PostgreSQL is a separate Kubernetes workload; Redis is
+bound to loopback inside the application container.
 
-Persistent state lives in two places:
+One Deployment runs one application container. One Service exposes only the
+frontend named port. The analytics, sync, and embedded Redis listeners remain
+pod-internal but are checked by startup and readiness probes. A PVC is mounted at
+`/app/backend/analytics_server/mhq/config`, where upstream 0.3.1 creates
+`config.ini` with the RSA key pair used for integration credentials.
 
-- **PostgreSQL** (`mhq-oss` database) — all DORA data, settings, and provider
-  integrations. The source of truth.
-- **Redis** — cache and background-job queues used by the sync/analytics paths.
-- **`/app/keys`** — the app generates encryption keys on first boot and reads
-  them on every start; they MUST survive restarts (see Persistence below).
+An init container uses the same official image and its packaged `dbmate` binary
+to wait for PostgreSQL and apply the shipped migrations. It writes
+`/tmp/pubsub/db_init` to a shared `emptyDir`. The upstream analytics process
+waits for this file when embedded PostgreSQL is disabled, so the signal is part
+of the application startup contract rather than an optional optimization.
 
-## Datastores: bundled vs external
+## Design decisions
 
-The chart can either bundle the datastores (HelmForge `postgresql`/`redis`
-subcharts, default) or point at managed ones:
+### Separate PostgreSQL, embedded Redis
 
-- `postgresql.enabled` (default `true`) provisions the bundled PostgreSQL and the
-  app's `DB_*` env is wired to it. Set `externalDatabase.enabled=true` (and
-  `postgresql.enabled=false`) to use a managed PostgreSQL instead.
-- `redis.enabled` (default `true`) provisions the bundled Redis. Set
-  `externalRedis.enabled=true` (and `redis.enabled=false`) for a managed Redis.
+PostgreSQL contains durable DORA records and benefits from a StatefulSet or a
+managed service. The chart therefore keeps it outside the application pod.
 
-The app's own `POSTGRES_DB_ENABLED`/`REDIS_ENABLED` flags are forced to `false`
-(`middleware.internalDbEnabled`/`internalRedisEnabled`) so the image never starts
-its *embedded* Postgres/Redis — the chart always supplies them as first-class
-Kubernetes workloads (bundled or external). This keeps data on a real,
-backup-able StatefulSet/managed service rather than inside the app pod.
+Middleware 0.3.1 does not expose a remote Redis password setting. Its Redis
+client hard-codes an empty password and enables TLS whenever `REDIS_HOST` is not
+`localhost`. A normal authenticated Redis subchart is therefore incompatible.
+The chart uses the upstream embedded Redis process and rejects legacy
+`redis.enabled` and `externalRedis.enabled` values instead of presenting a
+configuration that silently fails during real workloads.
 
-## Startup ordering
+### Explicit migration ownership
 
-An init container (`wait-for-postgresql`) blocks until the database TCP port is
-reachable before the app starts, so the first boot doesn't crash-loop while the
-bundled PostgreSQL is still initializing. Redis is optional at boot and is
-retried by the app.
+The image's original database initializer is coupled to embedded PostgreSQL and
+cannot initialize a remote database. The chart-owned init container runs only
+the application migrations and uses a Secret-backed password. `dbmate --wait`
+handles database startup races deterministically.
 
-## Persistence and the single-replica boundary
+### Single application replica
 
-`/app/keys` is backed by a `ReadWriteOnce` PVC (`persistence.enabled=true`,
-default `1Gi`). Because the encryption keys are stateful and the volume is RWO,
-the Deployment is intended to run **a single replica** — there is no HA/multi-replica
-mode for the app tier in this chart. Scale the *datastores* (managed PG/Redis) for
-resilience, not the app pod. Disabling persistence (`persistence.enabled=false`)
-makes the keys ephemeral and is only acceptable for throwaway/dev installs, where
-re-encryption on restart is tolerable.
+The upstream image combines several stateful processes, stores encryption keys
+on a `ReadWriteOnce` volume, and provides no supported leader-election or
+multi-replica model. The chart fixes the replica count at one and uses
+`Recreate` to avoid concurrent access during upgrades.
 
-## Configuration & secrets
+### Real port configuration
 
-- The database password is taken from the bundled subchart secret, an
-  `externalDatabase.existingSecret`, or an inline value, in that order of
-  preference (`existingSecret` wins). No password is ever templated into a
-  ConfigMap.
-- `middleware.environment` (default `prod`) and `middleware.timezone` are passed
-  through as env; arbitrary extra env goes via `middleware.extraEnv`.
+The three `middleware.*Port` values are passed as `PORT`,
+`ANALYTICS_SERVER_PORT`, and `SYNC_SERVER_PORT`, plus matching internal URLs.
+They therefore alter the real listeners. `service.port` remains a separate
+client-facing value and targets the named frontend port.
 
-## Probes
+## Production boundary
 
-Startup/liveness/readiness probes target the frontend port. The startup probe is
-generous (`failureThreshold * periodSeconds`) because first boot runs migrations
-and key generation; liveness/readiness are tight once the app is up.
+Production operators must provide resilient PostgreSQL, regular PostgreSQL
+backups, and a recoverable key PVC. The database and key material form one
+logical recovery set. Managed PostgreSQL is recommended when its availability,
+backup, and TLS features exceed the bundled subchart requirements.
 
-## What this chart deliberately does NOT do
+The chart does not claim application-tier high availability. Pod recreation
+causes a service interruption, and the embedded Redis cache and locks are lost
+with the pod. This is consistent with the supported upstream runtime. Resource
+requests and limits remain operator-defined because repository size, provider
+count, and historical ingestion volume vary substantially.
 
-- No app-tier HA (RWO keys volume — single replica by design).
-- No embedded datastores inside the app pod (always external/bundled workloads).
-- No ingress/TLS by default (opt-in via `ingress.*`).
+## Security boundary
+
+The chart owns Kubernetes-side controls: a dedicated ServiceAccount without an
+API token by default, RuntimeDefault seccomp, no privilege escalation, dropped
+capabilities, Secret-backed database passwords, and restricted ingress. Egress
+is open because integrations contact user-selected external providers.
+
+The official image starts as root, expands runtime archives into `/opt` and
+`/app`, runs supervisor, and starts cron. Consequently, `runAsNonRoot` and a
+read-only root filesystem are not safe chart defaults. Removing that boundary
+requires an upstream image redesigned for an immutable non-root runtime.
+
+An inline external database password is accepted for compatibility but is
+rendered only into a Secret. Production GitOps should use
+`externalDatabase.existingSecret` or an external secret controller.
+
+## Observability boundary
+
+Kubernetes observes the three process listeners through probes and captures the
+supervisor logs from stdout. The init container has separate migration logs.
+The chart does not create a ServiceMonitor or application dashboards because
+Middleware 0.3.1 does not expose a stable chart-owned Prometheus contract.
+
+Operators should alert on pod readiness, restarts, migration failures,
+PostgreSQL health, PVC capacity, and backup age. Provider-specific ingestion
+health remains visible in the Middleware application.
+
+## Known gaps
+
+- Remote Redis is unavailable until upstream supports explicit TLS and
+  authentication configuration.
+- The application tier is single-replica and has an upgrade interruption.
+- The upstream image must run as root with a writable filesystem.
+- The chart cannot verify consistency between PostgreSQL and key-PVC backup
+  recovery points.
+- Network egress cannot be restricted generically because provider endpoints
+  are selected by each operator.
+
+## Non-goals
+
+- Rebuilding or patching the upstream container image.
+- Running embedded PostgreSQL inside the application pod.
+- Claiming multi-replica or zero-downtime application upgrades.
+- Provisioning provider credentials or GitHub/Jira/PagerDuty integrations.
+- Managing PostgreSQL backups beyond documenting the recovery contract.
+- Exposing analytics or sync listeners outside the pod.
 
 ## References
 
-- Project: <https://github.com/middlewarehq/middleware>
-- Chart docs: see [`docs/`](docs/) and [`examples/`](examples/).
+- [Upstream source](https://github.com/middlewarehq/middleware)
+- [Configuration reference](docs/configuration.md)
+- [Operations and recovery](docs/operations.md)
+- [Security model](docs/security.md)

@@ -43,12 +43,89 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
 
+{{/* Validate chart-owned contracts before rendering workloads. */}}
+{{- define "middleware.validate" -}}
+{{- if has .Values.image.tag (list "latest" "stable" "main" "master" "edge") -}}
+{{- fail "image.tag must be an immutable release tag" -}}
+{{- end -}}
+{{- if eq .Values.middleware.internalDbEnabled "true" -}}
+{{- fail "middleware.internalDbEnabled must remain \"false\"; the chart uses PostgreSQL as a separate workload" -}}
+{{- end -}}
+{{- if ne .Values.middleware.internalRedisEnabled "true" -}}
+{{- fail "middleware.internalRedisEnabled must remain \"true\"; Middleware 0.3.1 only supports its loopback Redis runtime safely" -}}
+{{- end -}}
+{{- if .Values.redis.enabled -}}
+{{- fail "redis.enabled is unsupported by Middleware 0.3.1 because its remote Redis client cannot authenticate and forces TLS; use the embedded Redis runtime" -}}
+{{- end -}}
+{{- if .Values.externalRedis.enabled -}}
+{{- fail "externalRedis.enabled is unsupported by Middleware 0.3.1 because its remote Redis client cannot authenticate and forces TLS" -}}
+{{- end -}}
+{{- if and .Values.postgresql.enabled .Values.externalDatabase.enabled -}}
+{{- fail "postgresql.enabled and externalDatabase.enabled are mutually exclusive" -}}
+{{- end -}}
+{{- if and (not .Values.postgresql.enabled) (not .Values.externalDatabase.enabled) -}}
+{{- fail "enable exactly one database mode: postgresql.enabled or externalDatabase.enabled" -}}
+{{- end -}}
+{{- if .Values.externalDatabase.enabled -}}
+  {{- if not .Values.externalDatabase.host -}}
+  {{- fail "externalDatabase.host is required when externalDatabase.enabled=true" -}}
+  {{- end -}}
+  {{- if and .Values.externalDatabase.password .Values.externalDatabase.existingSecret -}}
+  {{- fail "set only one external database credential source: password or existingSecret" -}}
+  {{- end -}}
+  {{- if and (not .Values.externalDatabase.password) (not .Values.externalDatabase.existingSecret) -}}
+  {{- fail "externalDatabase.password or externalDatabase.existingSecret is required when externalDatabase.enabled=true" -}}
+  {{- end -}}
+{{- end -}}
+{{- if and .Values.ingress.enabled (eq (len .Values.ingress.hosts) 0) -}}
+{{- fail "ingress.hosts must contain at least one host when ingress.enabled=true" -}}
+{{- end -}}
+{{- range $key, $_ := .Values.podLabels -}}
+  {{- if has $key (list "app.kubernetes.io/name" "app.kubernetes.io/instance") -}}
+  {{- fail (printf "podLabels must not override reserved selector label %q" $key) -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/* PostgreSQL subchart fullname, mirrored for deterministic parent wiring. */}}
+{{- define "middleware.postgresqlFullname" -}}
+{{- if .Values.postgresql.fullnameOverride -}}
+{{- .Values.postgresql.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $name := default "postgresql" .Values.postgresql.nameOverride -}}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "middleware.externalDatabaseSecretName" -}}
+{{- printf "%s-external-database" (include "middleware.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{/* Render the chart-managed external database Secret. */}}
+{{- define "middleware.externalDatabaseSecret" -}}
+{{- if and .Values.externalDatabase.enabled .Values.externalDatabase.password (not .Values.externalDatabase.existingSecret) }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "middleware.externalDatabaseSecretName" . }}
+  labels:
+    {{- include "middleware.labels" . | nindent 4 }}
+type: Opaque
+stringData:
+  {{ .Values.externalDatabase.existingSecretPasswordKey | default "user-password" }}: {{ .Values.externalDatabase.password | quote }}
+{{- end }}
+{{- end -}}
+
 {{/* PostgreSQL host */}}
 {{- define "middleware.dbHost" -}}
 {{- if .Values.externalDatabase.enabled -}}
 {{- .Values.externalDatabase.host -}}
 {{- else -}}
-{{- printf "%s-postgresql" .Release.Name -}}
+{{- if eq (default "standalone" .Values.postgresql.architecture) "replication" -}}
+{{- printf "%s-primary" (include "middleware.postgresqlFullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- include "middleware.postgresqlFullname" . -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 
@@ -82,9 +159,15 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{/* PostgreSQL secret name */}}
 {{- define "middleware.dbSecretName" -}}
 {{- if .Values.externalDatabase.enabled -}}
-{{- .Values.externalDatabase.existingSecret -}}
+{{- default (include "middleware.externalDatabaseSecretName" .) .Values.externalDatabase.existingSecret -}}
 {{- else -}}
-{{- printf "%s-postgresql-auth" .Release.Name -}}
+{{- if .Values.postgresql.auth.existingSecret -}}
+{{- .Values.postgresql.auth.existingSecret -}}
+{{- else if and .Values.postgresql.externalSecrets.enabled .Values.postgresql.externalSecrets.auth.enabled -}}
+{{- default (printf "%s-auth" (include "middleware.postgresqlFullname" .)) .Values.postgresql.externalSecrets.auth.targetName -}}
+{{- else -}}
+{{- printf "%s-auth" (include "middleware.postgresqlFullname" .) -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 
@@ -93,26 +176,38 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if .Values.externalDatabase.enabled -}}
 {{- .Values.externalDatabase.existingSecretPasswordKey | default "user-password" -}}
 {{- else -}}
-{{- "user-password" -}}
+{{- .Values.postgresql.auth.existingSecretUserPasswordKey | default "user-password" -}}
 {{- end -}}
 {{- end -}}
 
-{{/* Redis host */}}
-{{- define "middleware.redisHost" -}}
-{{- if .Values.externalRedis.enabled -}}
-{{- .Values.externalRedis.host -}}
+{{/* PostgreSQL SSL mode. */}}
+{{- define "middleware.dbSslMode" -}}
+{{- if .Values.externalDatabase.enabled -}}
+{{- .Values.externalDatabase.sslMode -}}
+{{- else if .Values.postgresql.tls.enabled -}}
+{{- .Values.postgresql.tls.sslMode | default "require" -}}
 {{- else -}}
-{{- printf "%s-redis" .Release.Name -}}
+{{- "disable" -}}
 {{- end -}}
 {{- end -}}
 
-{{/* Redis port */}}
-{{- define "middleware.redisPort" -}}
-{{- if .Values.externalRedis.enabled -}}
-{{- .Values.externalRedis.port | toString -}}
-{{- else -}}
-{{- "6379" -}}
-{{- end -}}
+{{/* Shared database environment for migrations and the application. */}}
+{{- define "middleware.databaseEnv" -}}
+- name: DB_PASS
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "middleware.dbSecretName" . }}
+      key: {{ include "middleware.dbSecretPasswordKey" . }}
+- name: DB_HOST
+  value: {{ include "middleware.dbHost" . | quote }}
+- name: DB_PORT
+  value: {{ include "middleware.dbPort" . | quote }}
+- name: DB_NAME
+  value: {{ include "middleware.dbName" . | quote }}
+- name: DB_USER
+  value: {{ include "middleware.dbUser" . | quote }}
+- name: PGSSLMODE
+  value: {{ include "middleware.dbSslMode" . | quote }}
 {{- end -}}
 
 {{/* Data PVC claim name */}}
