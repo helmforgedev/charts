@@ -14,8 +14,36 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].args
           content: --uploader-type=kopia
-      - notExists:
-          path: spec.template.spec.volumes[2]
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --metrics-address=:8085
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8085
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.tcpSocket.port
+          value: metrics
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsUser
+          value: 65532
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tmp
+            mountPath: /tmp
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: cloud-credentials
       - notContains:
           path: spec.template.spec.containers[0].env
           content:
@@ -34,16 +62,51 @@ tests:
             [default]
             aws_access_key_id=test
             aws_secret_access_key=test
+
+  - it: rolls the server when inline credentials change
+    set:
+      credentials.secretContents: test-credentials
+    template: templates/deployment.yaml
+    asserts:
+      - exists:
+          path: spec.template.metadata.annotations["checksum/secret"]
   - it: mounts a named credentials secret when requested
     set:
       credentials.name: velero-s3-credentials
     template: templates/deployment.yaml
     asserts:
       - equal:
-          path: spec.template.spec.volumes[2].secret.secretName
+          path: spec.template.spec.volumes[3].secret.secretName
           value: velero-s3-credentials
       - contains:
           path: spec.template.spec.containers[0].env
           content:
             name: AWS_SHARED_CREDENTIALS_FILE
             value: /credentials/cloud
+
+  - it: wires a custom metrics listener to the actual Velero process
+    set:
+      metrics.containerPort: 18085
+      metrics.service.port: 19085
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --metrics-address=:18085
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 18085
+
+  - it: omits metrics ports and probes when metrics are disabled
+    set:
+      metrics.enabled: false
+    template: templates/deployment.yaml
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].ports
+      - notExists:
+          path: spec.template.spec.containers[0].livenessProbe
+      - notExists:
+          path: spec.template.spec.containers[0].readinessProbe
+      - notExists:
+          path: spec.template.spec.containers[0].startupProbe

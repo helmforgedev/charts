@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: Apache-2.0
+
+suite: network policy
+templates:
+  - templates/networkpolicy.yaml
+tests:
+  - it: isolates the Velero server while allowing metrics and external egress
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 8085
+      - equal:
+          path: spec.egress[0]
+          value: {}
+
+  - it: follows the custom metrics listener
+    set:
+      metrics.containerPort: 18085
+    asserts:
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 18085
+
+  - it: renders explicit empty policies when access is disabled
+    set:
+      metrics.enabled: false
+      networkPolicy.allowExternalEgress: false
+    asserts:
+      - equal:
+          path: spec.ingress
+          value: []
+      - equal:
+          path: spec.egress
+          value: []
+
+  - it: can be disabled
+    set:
+      networkPolicy.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

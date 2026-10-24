@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "velero.fullname" . }}
+  labels:
+    {{- include "velero.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "velero.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    {{- if .Values.metrics.enabled }}
+    - ports:
+        - port: {{ .Values.metrics.containerPort }}
+          protocol: TCP
+    {{- else }}
+    []
+    {{- end }}
+  egress:
+    {{- if .Values.networkPolicy.allowExternalEgress }}
+    - {}
+    {{- else }}
+    []
+    {{- end }}
+{{- end }}

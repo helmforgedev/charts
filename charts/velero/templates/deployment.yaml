@@ -16,13 +16,16 @@ spec:
     metadata:
       labels:
         {{- include "velero.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- if or .Values.podAnnotations (and .Values.credentials.useSecret (not .Values.credentials.existingSecret) .Values.credentials.secretContents) }}
       annotations:
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
         {{- if and .Values.credentials.useSecret (not .Values.credentials.existingSecret) .Values.credentials.secretContents }}
-        checksum/credentials: {{ printf "%s" .Values.credentials.secretContents | sha256sum }}
+        checksum/secret: {{ printf "%s" .Values.credentials.secretContents | sha256sum }}
         {{- end }}
       {{- end }}
     spec:
@@ -52,6 +55,8 @@ spec:
         - name: {{ .Values.plugins.aws.name }}
           image: "{{ .Values.plugins.aws.repository }}:{{ .Values.plugins.aws.tag }}"
           imagePullPolicy: {{ .Values.plugins.aws.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.plugins.aws.securityContext | nindent 12 }}
           volumeMounts:
             - name: plugins
               mountPath: /target
@@ -71,7 +76,7 @@ spec:
             - --default-backup-ttl={{ .Values.configuration.defaultBackupTTL }}
             - --default-item-operation-timeout={{ .Values.configuration.defaultItemOperationTimeout }}
             - --store-validation-frequency={{ .Values.configuration.storeValidationFrequency }}
-            - --metrics-address={{ .Values.configuration.metricsAddress }}
+            - --metrics-address=:{{ .Values.metrics.containerPort }}
             - --log-level={{ .Values.configuration.logLevel }}
             - --log-format={{ .Values.configuration.logFormat }}
             {{- if .Values.configuration.restoreOnlyMode }}
@@ -92,7 +97,35 @@ spec:
           {{- if .Values.metrics.enabled }}
           ports:
             - name: metrics
-              containerPort: 8085
+              containerPort: {{ .Values.metrics.containerPort }}
+              protocol: TCP
+          {{- end }}
+          {{- if and .Values.metrics.enabled .Values.livenessProbe.enabled }}
+          livenessProbe:
+            tcpSocket:
+              port: metrics
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if and .Values.metrics.enabled .Values.readinessProbe.enabled }}
+          readinessProbe:
+            tcpSocket:
+              port: metrics
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- end }}
+          {{- if and .Values.metrics.enabled .Values.startupProbe.enabled }}
+          startupProbe:
+            tcpSocket:
+              port: metrics
+            initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
           {{- end }}
           env:
             - name: VELERO_NAMESPACE
@@ -122,6 +155,8 @@ spec:
               mountPath: /plugins
             - name: scratch
               mountPath: /scratch
+            - name: tmp
+              mountPath: /tmp
             {{- if include "velero.credentialsSecretEnabled" . }}
             - name: cloud-credentials
               mountPath: /credentials
@@ -141,6 +176,8 @@ spec:
         - name: plugins
           emptyDir: {}
         - name: scratch
+          emptyDir: {}
+        - name: tmp
           emptyDir: {}
         {{- if include "velero.credentialsSecretEnabled" . }}
         - name: cloud-credentials
