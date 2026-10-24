@@ -348,6 +348,26 @@ tests:
             containerPort: 80
             protocol: TCP
 
+  - it: should configure Apache and the container port from one value
+    template: templates/deployment.yaml
+    set:
+      containerPorts.http: 8080
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http
+            containerPort: 8080
+            protocol: TCP
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WORDPRESS_HTTP_PORT
+            value: "8080"
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: 'Listen \$\{WORDPRESS_HTTP_PORT\}'
+
   - it: should include wait-for-db init container
     template: templates/deployment.yaml
     asserts:

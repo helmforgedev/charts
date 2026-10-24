@@ -51,6 +51,18 @@
       "description": "Image pull secrets for private registries",
       "items": { "type": "object" }
     },
+    "containerPorts": {
+      "type": "object",
+      "description": "WordPress application listener ports",
+      "properties": {
+        "http": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "HTTP listener port configured in Apache"
+        }
+      }
+    },
     "wordpress": {
       "type": "object",
       "description": "WordPress application configuration",
@@ -554,13 +566,46 @@
         },
         "items": {
           "type": "array",
-          "description": "Plugins to install",
+          "description": "Official WordPress.org plugins to install",
           "items": {
             "type": "object",
             "properties": {
               "slug": { "type": "string", "description": "Official WordPress.org plugin slug" },
               "activate": { "type": "boolean", "description": "Activate plugin when WordPress is installed" },
               "skipIfInstalled": { "type": "boolean", "description": "Skip install when plugin is already present" }
+            }
+          }
+        },
+        "custom": {
+          "type": "array",
+          "description": "Verified custom plugin ZIP artifacts",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$",
+                "description": "Expected top-level plugin directory and WP-CLI plugin name"
+              },
+              "url": { "type": "string", "description": "HTTPS URL of the plugin ZIP artifact" },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[A-Fa-f0-9]{64}$",
+                "description": "Required SHA-256 digest of the ZIP artifact"
+              },
+              "activate": { "type": "boolean", "description": "Activate the plugin when WordPress is installed" },
+              "skipIfInstalled": { "type": "boolean", "description": "Skip download when the plugin is already present" },
+              "allowInsecureHttp": {
+                "type": "boolean",
+                "description": "Allow unauthenticated HTTP only for deterministic local test fixtures"
+              },
+              "authentication": {
+                "type": "object",
+                "properties": {
+                  "existingSecret": { "type": "string", "minLength": 1, "description": "Existing Secret containing a bearer token" },
+                  "tokenKey": { "type": "string", "minLength": 1, "description": "Secret key containing the bearer token" }
+                }
+              }
             }
           }
         }

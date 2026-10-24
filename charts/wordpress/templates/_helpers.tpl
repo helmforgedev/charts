@@ -624,6 +624,38 @@ $memcached_servers = array(
     {{- fail "plugins.items[].activateSlug is not supported; use official WordPress.org plugin slugs only" -}}
   {{- end -}}
 {{- end -}}
+{{- range $i, $plugin := .Values.plugins.custom -}}
+  {{- $name := default "" $plugin.name -}}
+  {{- $url := default "" $plugin.url -}}
+  {{- $sha256 := default "" $plugin.sha256 -}}
+  {{- $allowInsecureHttp := default false $plugin.allowInsecureHttp -}}
+  {{- if not (regexMatch "^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$" $name) -}}
+    {{- fail (printf "plugins.custom[%d].name is required and must be a safe plugin directory name" $i) -}}
+  {{- end -}}
+  {{- if not (regexMatch "^[A-Fa-f0-9]{64}$" $sha256) -}}
+    {{- fail (printf "plugins.custom[%d].sha256 is required and must be a 64-character SHA-256 digest" $i) -}}
+  {{- end -}}
+  {{- if and (not (hasPrefix "https://" $url)) (not (and $allowInsecureHttp (hasPrefix "http://" $url))) -}}
+    {{- fail (printf "plugins.custom[%d].url must use https:// unless allowInsecureHttp=true" $i) -}}
+  {{- end -}}
+  {{- if or (contains "@" $url) (contains "?" $url) (contains "#" $url) -}}
+    {{- fail (printf "plugins.custom[%d].url must not contain inline credentials, query parameters, or fragments" $i) -}}
+  {{- end -}}
+  {{- $authentication := default dict $plugin.authentication -}}
+  {{- range $key, $_ := $authentication -}}
+    {{- if not (has $key (list "existingSecret" "tokenKey")) -}}
+      {{- fail (printf "plugins.custom[%d].authentication accepts only existingSecret and tokenKey; inline credentials are forbidden" $i) -}}
+    {{- end -}}
+  {{- end -}}
+  {{- if gt (len $authentication) 0 -}}
+    {{- if or (not (default "" $authentication.existingSecret)) (not (default "" $authentication.tokenKey)) -}}
+      {{- fail (printf "plugins.custom[%d].authentication requires existingSecret and tokenKey" $i) -}}
+    {{- end -}}
+    {{- if not (hasPrefix "https://" $url) -}}
+      {{- fail (printf "plugins.custom[%d].authentication requires an https:// URL" $i) -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
 {{- if .Values.objectCache.enabled -}}
   {{- if eq (include "wordpress.objectCacheProvider" .) "redis" -}}
     {{- if not (has .Values.objectCache.redis.mode (list "subchart" "external")) -}}

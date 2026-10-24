@@ -40,6 +40,138 @@ tests:
           path: spec.template.spec.containers[0].command[2]
           pattern: "install_plugin \"classic-editor\""
 
+  - it: should install a verified public custom plugin ZIP
+    set:
+      plugins.enabled: true
+      plugins.installer.enabled: true
+      plugins.custom:
+        - name: company-plugin
+          url: https://artifacts.example.com/company-plugin.zip
+          sha256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          activate: true
+          skipIfInstalled: true
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'install_custom_plugin "company-plugin" "https://artifacts.example.com/company-plugin.zip" "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" "true" "true" ""'
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HELMFORGE_PLUGIN_TOKEN_0
+
+  - it: should reference an authentication token from an existing Secret
+    set:
+      plugins.enabled: true
+      plugins.installer.enabled: true
+      plugins.custom:
+        - name: company-plugin
+          url: https://artifacts.example.com/company-plugin.zip
+          sha256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          authentication:
+            existingSecret: wordpress-plugin-download
+            tokenKey: token
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HELMFORGE_PLUGIN_TOKEN_0
+            valueFrom:
+              secretKeyRef:
+                name: wordpress-plugin-download
+                key: token
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'install_custom_plugin "company-plugin" .* "HELMFORGE_PLUGIN_TOKEN_0"'
+
+  - it: should require a checksum for every custom plugin
+    set:
+      plugins.enabled: true
+      plugins.installer.enabled: true
+      plugins.custom:
+        - name: company-plugin
+          url: https://artifacts.example.com/company-plugin.zip
+    asserts:
+      - failedTemplate:
+          errorMessage: "plugins.custom[0].sha256 is required and must be a 64-character SHA-256 digest"
+
+  - it: should reject insecure custom plugin URLs by default
+    set:
+      plugins.enabled: true
+      plugins.installer.enabled: true
+      plugins.custom:
+        - name: company-plugin
+          url: http://artifacts.example.com/company-plugin.zip
+          sha256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    asserts:
+      - failedTemplate:
+          errorMessage: "plugins.custom[0].url must use https:// unless allowInsecureHttp=true"
+
+  - it: should reject inline custom plugin credentials
+    set:
+      plugins.enabled: true
+      plugins.installer.enabled: true
+      plugins.custom:
+        - name: company-plugin
+          url: https://artifacts.example.com/company-plugin.zip
+          sha256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          authentication:
+            token: inline-secret
+    asserts:
+      - failedTemplate:
+          errorMessage: "plugins.custom[0].authentication accepts only existingSecret and tokenKey; inline credentials are forbidden"
+
+  - it: should require a complete existing Secret reference
+    set:
+      plugins.enabled: true
+      plugins.installer.enabled: true
+      plugins.custom:
+        - name: company-plugin
+          url: https://artifacts.example.com/company-plugin.zip
+          sha256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          authentication:
+            existingSecret: wordpress-plugin-download
+    asserts:
+      - failedTemplate:
+          errorMessage: "plugins.custom[0].authentication requires existingSecret and tokenKey"
+
+  - it: should reject authenticated downloads over explicitly allowed HTTP
+    set:
+      plugins.enabled: true
+      plugins.installer.enabled: true
+      plugins.custom:
+        - name: company-plugin
+          url: http://plugin-fixture/plugin.zip
+          sha256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          allowInsecureHttp: true
+          authentication:
+            existingSecret: wordpress-plugin-download
+            tokenKey: token
+    asserts:
+      - failedTemplate:
+          errorMessage: "plugins.custom[0].authentication requires an https:// URL"
+
+  - it: should render explicit runtime failures for custom archives
+    set:
+      plugins.enabled: true
+      plugins.installer.enabled: true
+      plugins.custom:
+        - name: company-plugin
+          url: https://artifacts.example.com/company-plugin.zip
+          sha256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "Checksum mismatch for custom plugin"
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "Invalid archive layout for custom plugin"
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "Activation failed for custom plugin"
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "Download failed for custom plugin"
+
   - it: should add Redis Object Cache plugin and drop-in command
     set:
       plugins.enabled: true

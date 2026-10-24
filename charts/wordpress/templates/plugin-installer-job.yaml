@@ -125,6 +125,144 @@ spec:
                 fi
               }
 
+              download_custom_plugin() {
+                name="$1"
+                url="$2"
+                expected_sha256="$3"
+                token_env="$4"
+                archive="$5"
+
+                if [ -n "$token_env" ] && [ -z "$(printenv "$token_env")" ]; then
+                  echo "Authentication Secret value is unavailable for custom plugin $name." >&2
+                  return 1
+                fi
+
+                if ! php -r '
+                  $url = $argv[1];
+                  $destination = $argv[2];
+                  $tokenEnvironment = $argv[3];
+                  $headers = ["User-Agent: HelmForge WordPress plugin installer"];
+                  if ($tokenEnvironment !== "") {
+                    $token = getenv($tokenEnvironment);
+                    if ($token === false || $token === "") exit(41);
+                    $headers[] = "Authorization: Bearer " . $token;
+                  }
+                  $context = stream_context_create([
+                    "http" => [
+                      "method" => "GET",
+                      "header" => implode("\r\n", $headers) . "\r\n",
+                      "follow_location" => 0,
+                      "ignore_errors" => true,
+                      "timeout" => 30,
+                    ],
+                    "ssl" => ["verify_peer" => true, "verify_peer_name" => true],
+                  ]);
+                  $input = @fopen($url, "rb", false, $context);
+                  if ($input === false) exit(42);
+                  $status = $http_response_header[0] ?? "";
+                  if (!preg_match("~^HTTP/\\S+\\s+2\\d\\d(?:\\s|$)~", $status)) exit(43);
+                  $output = @fopen($destination, "wb");
+                  if ($output === false) exit(44);
+                  $copied = stream_copy_to_stream($input, $output);
+                  fclose($input);
+                  fclose($output);
+                  if ($copied === false) exit(45);
+                ' "$url" "$archive" "$token_env"; then
+                  echo "Download failed for custom plugin $name." >&2
+                  return 1
+                fi
+
+                actual_sha256="$(sha256sum "$archive" | awk '{print $1}')"
+                if [ "$(printf '%s' "$actual_sha256" | tr '[:upper:]' '[:lower:]')" != "$(printf '%s' "$expected_sha256" | tr '[:upper:]' '[:lower:]')" ]; then
+                  echo "Checksum mismatch for custom plugin $name." >&2
+                  return 1
+                fi
+              }
+
+              extract_custom_plugin() {
+                name="$1"
+                archive="$2"
+                extract_dir="$3"
+
+                if ! php -r '
+                  $expectedDirectory = $argv[2];
+                  $destination = $argv[3];
+                  $zip = new ZipArchive();
+                  if ($zip->open($argv[1]) !== true) exit(51);
+                  if ($zip->numFiles < 1) exit(52);
+                  for ($index = 0; $index < $zip->numFiles; $index++) {
+                    $entry = $zip->getNameIndex($index);
+                    if ($entry === false || $entry === "" || str_contains($entry, "\\") || str_starts_with($entry, "/")) exit(53);
+                    $segments = explode("/", rtrim($entry, "/"));
+                    if (in_array("..", $segments, true) || in_array(".", $segments, true)) exit(54);
+                    if ($entry !== $expectedDirectory && $entry !== $expectedDirectory . "/" && !str_starts_with($entry, $expectedDirectory . "/")) exit(55);
+                    $attributes = 0;
+                    $operationsSystem = 0;
+                    if ($zip->getExternalAttributesIndex($index, $operationsSystem, $attributes)) {
+                      $fileType = ($attributes >> 16) & 0170000;
+                      if ($fileType === 0120000) exit(56);
+                    }
+                  }
+                  if (!$zip->extractTo($destination)) exit(57);
+                  $zip->close();
+                ' "$archive" "$name" "$extract_dir"; then
+                  echo "Invalid archive layout for custom plugin $name." >&2
+                  return 1
+                fi
+                if [ ! -d "$extract_dir/$name" ] || find "$extract_dir/$name" -type l | grep -q . || ! find "$extract_dir/$name" -maxdepth 1 -type f -name '*.php' | grep -q .; then
+                  echo "Invalid archive layout for custom plugin $name." >&2
+                  return 1
+                fi
+              }
+
+              install_custom_plugin() {
+                name="$1"
+                url="$2"
+                expected_sha256="$3"
+                activate="$4"
+                skip_if_installed="$5"
+                token_env="$6"
+
+                if [ "$skip_if_installed" = "true" ] && { wp plugin is-installed "$name" --path=/var/www/html --allow-root >/dev/null 2>&1 || plugin_dir_exists "$name"; }; then
+                  echo "Custom plugin $name already installed; download skipped."
+                else
+                  work_dir="$(mktemp -d "/tmp/helmforge-${name}.XXXXXX")"
+                  archive="$work_dir/plugin.zip"
+                  extract_dir="$work_dir/extracted"
+                  mkdir -p "$extract_dir" /var/www/html/wp-content/plugins
+
+                  download_custom_plugin "$name" "$url" "$expected_sha256" "$token_env" "$archive" || {
+                    rm -rf "$work_dir"
+                    return 1
+                  }
+                  extract_custom_plugin "$name" "$archive" "$extract_dir" || {
+                    rm -rf "$work_dir"
+                    return 1
+                  }
+
+                  staged_plugin="/var/www/html/wp-content/plugins/.helmforge-${name}-stage"
+                  rm -rf "$staged_plugin"
+                  cp -a "$extract_dir/$name" "$staged_plugin"
+                  rm -rf "/var/www/html/wp-content/plugins/$name"
+                  mv "$staged_plugin" "/var/www/html/wp-content/plugins/$name"
+                  rm -rf "$work_dir"
+                  echo "Installed verified custom plugin $name."
+                fi
+
+                if [ "$activate" = "true" ]; then
+                  if is_installed; then
+                    if wp plugin is-active "$name" --path=/var/www/html --allow-root >/dev/null 2>&1; then
+                      echo "Custom plugin $name already active."
+                    elif ! wp plugin activate "$name" --path=/var/www/html --allow-root; then
+                      echo "Activation failed for custom plugin $name." >&2
+                      return 1
+                    fi
+                  else
+                    echo "WordPress is not installed yet; custom plugin activation for $name will be retried on a later upgrade."
+                  fi
+                fi
+              }
+
               wait_for_wordpress_files
 
               {{ range .Values.plugins.items }}
@@ -133,6 +271,15 @@ spec:
               {{- $skipIfInstalled := true -}}
               {{- if hasKey . "skipIfInstalled" -}}{{- $skipIfInstalled = .skipIfInstalled -}}{{- end -}}
               install_plugin {{ default "" .slug | quote }} {{ $activate | quote }} {{ $skipIfInstalled | quote }}
+              {{- end }}
+              {{ range $i, $plugin := .Values.plugins.custom }}
+              {{- $activate := true -}}
+              {{- if hasKey $plugin "activate" -}}{{- $activate = $plugin.activate -}}{{- end -}}
+              {{- $skipIfInstalled := true -}}
+              {{- if hasKey $plugin "skipIfInstalled" -}}{{- $skipIfInstalled = $plugin.skipIfInstalled -}}{{- end -}}
+              {{- $tokenEnvironment := "" -}}
+              {{- if $plugin.authentication -}}{{- $tokenEnvironment = printf "HELMFORGE_PLUGIN_TOKEN_%d" $i -}}{{- end -}}
+              install_custom_plugin {{ $plugin.name | quote }} {{ $plugin.url | quote }} {{ $plugin.sha256 | quote }} {{ $activate | quote }} {{ $skipIfInstalled | quote }} {{ $tokenEnvironment | quote }}
               {{- end }}
               {{- if and .Values.objectCache.enabled .Values.objectCache.installPlugin }}
               {{- if eq (include "wordpress.objectCacheRedisEnabled" .) "true" }}
@@ -200,6 +347,15 @@ spec:
                 secretKeyRef:
                   name: {{ include "wordpress.redisSecretName" . }}
                   key: {{ include "wordpress.redisSecretKey" . }}
+            {{- end }}
+            {{- range $i, $plugin := .Values.plugins.custom }}
+            {{- with $plugin.authentication }}
+            - name: {{ printf "HELMFORGE_PLUGIN_TOKEN_%d" $i }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .existingSecret | quote }}
+                  key: {{ .tokenKey | quote }}
+            {{- end }}
             {{- end }}
           {{- with .Values.plugins.installer.resources }}
           resources:

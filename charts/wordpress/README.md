@@ -77,7 +77,7 @@ Production-ready options are available through values:
 - Optional scheduled backups to S3-compatible storage.
 - Extensibility through `extraEnv`, `extraEnvFrom`, extra volumes, extra init containers, extra containers, and extra manifests.
 - Optional WP-CLI bootstrap Job for initial core installation, permalink setup, locale activation, and multisite install.
-- Idempotent post-install/post-upgrade plugin installer Job.
+- Idempotent post-install/post-upgrade installer for WordPress.org plugins and checksum-verified custom ZIPs.
 - Object cache integration with Redis or Memcached provider modes.
 - Redis Object Cache integration with HelmForge Redis subchart or external Redis.
 - Memcached subchart wiring for custom WordPress images that include the required PHP extension.
@@ -229,6 +229,15 @@ plugins:
     - slug: contact-form-7
       activate: true
       skipIfInstalled: true
+  custom:
+    - name: company-plugin
+      url: https://plugins.example.com/company-plugin-1.4.2.zip
+      sha256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      activate: true
+      skipIfInstalled: true
+      authentication:
+        existingSecret: wordpress-plugin-download
+        tokenKey: token
 ```
 
 The installer uses a `post-install,post-upgrade` Helm hook and pod affinity to run on the same node as the WordPress pod
@@ -236,10 +245,29 @@ when persistence is enabled. This improves compatibility with `ReadWriteOnce` PV
 The default installer deadline is 60 seconds with one retry, so failed official plugin downloads fail quickly during Helm installs.
 Because the Job writes plugin files to the WordPress volume, `plugins.installer.enabled` requires `persistence.enabled=true`.
 
-Only official WordPress.org plugin slugs are supported. When WordPress core is not installed yet,
-the Job downloads the official plugin archive from `downloads.wordpress.org`, extracts it into `wp-content/plugins`,
-and defers activation until a later upgrade.
+Entries under `plugins.items` remain restricted to official WordPress.org slugs. Entries under `plugins.custom` accept
+HTTPS ZIP URLs only, require an exact SHA-256 checksum, and can read a bearer token only from an existing Kubernetes
+Secret. The token is exposed to the downloader through an environment variable and is never placed in command
+arguments or rendered values. The installer rejects unsafe archive paths and unexpected top-level directories, and
+reports distinct download, checksum, archive, and activation failures. Provision authentication Secrets separately;
+never put a token in values.
+
+When WordPress core is not installed yet, the Job extracts plugin files into `wp-content/plugins` and defers activation
+until a later upgrade. With `skipIfInstalled: true`, an installed plugin is not downloaded again during an upgrade.
 The installer runs as `www-data` by default so it can write to the same PVC paths initialized by the official WordPress image.
+
+### WordPress plugins and PHP extensions
+
+A WordPress plugin is PHP application code stored under `wp-content/plugins`; a PHP extension is a native module loaded
+by the PHP runtime. Installing a plugin ZIP cannot add an extension such as `pdo_mysql` or `memcached`. The official
+WordPress image includes `mysqli`, but workloads that require other extensions must build a derivative runtime image.
+If bootstrap, plugin installation, or another WP-CLI operation needs the same extension, build and select a matching
+CLI image for that workload too. The chart's WordPress cron CronJob calls the application over HTTP, so its curl image
+does not load PHP extensions.
+
+The chart never compiles PHP extensions at container startup. See the
+[custom PHP image example](examples/custom-php-image/README.md) for a reusable Dockerfile and GitHub Actions pipeline
+that scans before publication and emits an SBOM and provenance.
 
 ## Bootstrap
 
@@ -373,6 +401,7 @@ The chart creates an `HTTPRoute` that sends traffic to the WordPress Service.
 | Key | Default | Description |
 |-----|---------|-------------|
 | `replicaCount` | `1` | WordPress replicas when HPA is disabled |
+| `containerPorts.http` | `80` | Apache application listener port, independent from `service.port` |
 | `wordpress.siteUrl` | `""` | Full site URL |
 | `wordpress.siteTitle` | `WordPress` | Site title |
 | `wordpress.adminUser` | `admin` | Initial admin username |
@@ -441,6 +470,10 @@ The chart creates an `HTTPRoute` that sends traffic to the WordPress Service.
 | `metrics.serviceMonitor.enabled` | `false` | Create ServiceMonitor |
 | `plugins.enabled` | `false` | Enable plugin installer support |
 | `plugins.installer.enabled` | `false` | Create plugin installer Job |
+| `plugins.items` | `[]` | Official WordPress.org plugin slugs |
+| `plugins.custom` | `[]` | Checksum-verified custom plugin ZIPs |
+| `plugins.custom[].authentication.existingSecret` | `""` | Existing Secret containing an optional download token |
+| `plugins.custom[].authentication.tokenKey` | `""` | Token key in the existing Secret |
 | `objectCache.enabled` | `false` | Enable persistent object cache integration |
 | `objectCache.provider` | `redis` | Object cache provider: `redis` or `memcached` |
 | `objectCache.redis.mode` | `subchart` | Redis source: `subchart` or `external` |
@@ -492,6 +525,7 @@ The chart creates an `HTTPRoute` that sends traffic to the WordPress Service.
 - [Redis Object Cache](examples/redis-object-cache.yaml)
 - [Memcached Object Cache](examples/memcached-object-cache.yaml)
 - [Custom plugins](examples/custom-plugins.yaml)
+- [Custom PHP extension image](examples/custom-php-image/README.md)
 
 ## Architecture Guides
 
@@ -499,6 +533,7 @@ The chart creates an `HTTPRoute` that sends traffic to the WordPress Service.
 - [Database Modes](docs/database.md)
 - [Backup & Restore](docs/backup.md)
 - [Production Guide](docs/production.md)
+- [Plugins and PHP Extensions](docs/plugins.md)
 
 ## Production Notes
 

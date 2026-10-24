@@ -159,6 +159,16 @@ spec:
         - name: wordpress
           image: {{ include "wordpress.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+          args:
+            - |
+              if [ "$WORDPRESS_HTTP_PORT" != "80" ]; then
+                sed -ri "s|^Listen 80$|Listen ${WORDPRESS_HTTP_PORT}|" /etc/apache2/ports.conf
+                sed -ri "s!<VirtualHost \*:80>!<VirtualHost *:${WORDPRESS_HTTP_PORT}>!" /etc/apache2/sites-available/000-default.conf
+              fi
+              exec /usr/local/bin/docker-entrypoint.sh apache2-foreground
           {{- with .Values.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
@@ -192,6 +202,8 @@ spec:
             - name: WORDPRESS_CONFIG_EXTRA
               value: {{ include "wordpress.generatedConfigExtra" . | quote }}
             {{- end }}
+            - name: WORDPRESS_HTTP_PORT
+              value: {{ .Values.containerPorts.http | quote }}
             {{- with .Values.wordpress.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -201,7 +213,7 @@ spec:
           {{- end }}
           ports:
             - name: http
-              containerPort: 80
+              containerPort: {{ .Values.containerPorts.http }}
               protocol: TCP
           {{- if .Values.startupProbe.enabled }}
           startupProbe:
@@ -254,7 +266,7 @@ spec:
           image: "{{ .Values.metrics.image.repository }}:{{ .Values.metrics.image.tag }}"
           imagePullPolicy: {{ .Values.metrics.image.pullPolicy }}
           args:
-            - --scrape_uri=http://localhost:80/server-status?auto
+            - --scrape_uri=http://localhost:{{ .Values.containerPorts.http }}/server-status?auto
           ports:
             - name: metrics
               containerPort: {{ .Values.metrics.port }}
