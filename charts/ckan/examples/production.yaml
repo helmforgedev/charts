@@ -1,0 +1,66 @@
+# SPDX-License-Identifier: Apache-2.0
+# Hardened bundled topology. Create ckan-application, ckan-postgresql, and
+# ckan-redis Secrets before installation.
+
+ckan:
+  siteUrl: https://data.example.com
+  siteTitle: Example Open Data Portal
+  existingSecret: ckan-application
+
+datapusher:
+  # DataPusher requires an external, separately provisioned DataStore.
+  enabled: false
+
+postgresql:
+  enabled: true
+  architecture: standalone
+  auth:
+    database: ckan
+    username: ckan
+    existingSecret: ckan-postgresql
+    existingSecretUserPasswordKey: user-password
+
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: true
+    existingSecret: ckan-redis
+    existingSecretPasswordKey: redis-password
+
+persistence:
+  enabled: true
+  size: 50Gi
+
+solr:
+  persistence:
+    enabled: true
+    size: 20Gi
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "2"
+    memory: 2Gi
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  hosts:
+    - host: data.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: ckan-tls
+      hosts:
+        - data.example.com
+
+networkPolicy:
+  enabled: true
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx

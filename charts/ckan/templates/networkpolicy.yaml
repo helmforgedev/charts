@@ -1,0 +1,86 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ckan.fullname" . }}-ckan
+  labels:
+    {{- include "ckan.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ckan
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "ckan.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: ckan
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: {{ .Values.ckan.containerPort }}
+      {{- with .Values.networkPolicy.ingressFrom }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  egress:
+    {{- toYaml .Values.networkPolicy.egress | nindent 4 }}
+{{- if .Values.datapusher.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ckan.fullname" . }}-datapusher
+  labels:
+    {{- include "ckan.labels" . | nindent 4 }}
+    app.kubernetes.io/component: datapusher
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "ckan.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: datapusher
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "ckan.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: ckan
+      ports:
+        - protocol: TCP
+          port: {{ .Values.datapusher.port }}
+  egress:
+    {{- toYaml .Values.networkPolicy.egress | nindent 4 }}
+{{- end }}
+{{- if .Values.solr.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ckan.fullname" . }}-solr
+  labels:
+    {{- include "ckan.labels" . | nindent 4 }}
+    app.kubernetes.io/component: solr
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "ckan.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: solr
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "ckan.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: ckan
+      ports:
+        - protocol: TCP
+          port: {{ .Values.solr.port }}
+  egress:
+    {{- toYaml .Values.networkPolicy.egress | nindent 4 }}
+{{- end }}
+{{- end }}

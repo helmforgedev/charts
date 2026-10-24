@@ -37,3 +37,28 @@ tests:
     asserts:
       - isNotNull:
           path: spec.volumeClaimTemplates
+
+  - it: should configure the real Solr listener when the port changes
+    set:
+      solr.port: 8984
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8984
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SOLR_PORT
+            value: "8984"
+
+  - it: should use hardened pod defaults
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 8983

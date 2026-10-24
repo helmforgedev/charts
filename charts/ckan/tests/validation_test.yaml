@@ -8,10 +8,61 @@ tests:
       - hasDocuments:
           count: 0
 
+  - it: should require the PostgreSQL subchart in subchart mode
+    set:
+      postgresql.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "postgresql.enabled must be true when database.mode is subchart"
+
+  - it: should reject the PostgreSQL subchart in external mode
+    set:
+      database.mode: external
+      database.external.host: postgresql.example.com
+      database.external.password: secret
+    asserts:
+      - failedTemplate:
+          errorMessage: "postgresql.enabled must be false when database.mode is external"
+
+  - it: should require external PostgreSQL for the datastore plugin
+    set:
+      ckan.plugins: envvars datastore
+    asserts:
+      - failedTemplate:
+          errorMessage: "the datastore plugin requires database.mode=external and pre-provisioned DataStore roles"
+
+  - it: should require the DataStore read password for inline external credentials
+    set:
+      ckan.plugins: envvars datastore
+      database.mode: external
+      database.external.host: postgresql.example.com
+      database.external.password: write-secret
+      postgresql.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.external.datastoreReadPassword or database.external.existingSecret is required when the datastore plugin is enabled"
+
+  - it: should require the Redis subchart in subchart mode
+    set:
+      redis.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "redis.enabled must be true when redisConfig.mode is subchart"
+
+  - it: should reject the Redis subchart in external mode
+    set:
+      redisConfig.mode: external
+      redisConfig.external.host: redis.example.com
+      redisConfig.external.password: secret
+    asserts:
+      - failedTemplate:
+          errorMessage: "redis.enabled must be false when redisConfig.mode is external"
+
   - it: should fail when external database host is missing
     set:
       database.mode: external
       database.external.password: secret
+      postgresql.enabled: false
     asserts:
       - failedTemplate:
           errorMessage: "database.external.host is required when database.mode is external"
@@ -20,16 +71,27 @@ tests:
     set:
       database.mode: external
       database.external.host: postgresql.example.com
+      postgresql.enabled: false
     asserts:
       - failedTemplate:
           errorMessage: "database.external.password or database.external.existingSecret is required when database.mode is external"
 
-  - it: should fail when external redis url is missing
+  - it: should fail when external Redis host is missing
     set:
       redisConfig.mode: external
+      redis.enabled: false
     asserts:
       - failedTemplate:
-          errorMessage: "redisConfig.external.url is required when redisConfig.mode is external"
+          errorMessage: "redisConfig.external.host is required when redisConfig.mode is external"
+
+  - it: should fail when external Redis credentials are missing
+    set:
+      redisConfig.mode: external
+      redisConfig.external.host: redis.example.com
+      redis.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "redisConfig.external.password or redisConfig.external.existingSecret is required when redisConfig.mode is external"
 
   - it: should fail when external solr url is missing
     set:

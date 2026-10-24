@@ -24,10 +24,19 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      serviceAccountName: {{ include "ckan.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      securityContext:
+        {{- toYaml .Values.solr.podSecurityContext | nindent 8 }}
       containers:
         - name: solr
           image: "{{ .Values.solr.image.repository }}:{{ .Values.solr.image.tag }}"
           imagePullPolicy: {{ .Values.solr.image.pullPolicy }}
+          env:
+            - name: SOLR_PORT
+              value: {{ .Values.solr.port | quote }}
+          securityContext:
+            {{- toYaml .Values.solr.securityContext | nindent 12 }}
           ports:
             - name: solr
               containerPort: {{ .Values.solr.port }}

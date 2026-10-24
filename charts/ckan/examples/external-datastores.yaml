@@ -1,24 +1,55 @@
 # SPDX-License-Identifier: Apache-2.0
-# CKAN with a managed PostgreSQL (catalog + DataStore) instead of the bundled
-# subchart. Redis and Solr stay bundled.
+# CKAN with external PostgreSQL and Redis. Solr stays bundled.
 #
-#   kubectl create secret generic ckan-db --from-literal=password=<pass>
+#   kubectl create secret generic ckan-db \
+#     --from-literal=password=<write-pass> \
+#     --from-literal=datastore-read-password=<read-pass>
+#   kubectl create secret generic ckan-redis --from-literal=redis-password=<pass>
 #   helm install ckan helmforge/ckan -f external-datastores.yaml
+
+ckan:
+  plugins: envvars image_view text_view datatables_view datastore datapusher
+  extraEnv:
+    - name: PGSSLROOTCERT
+      value: /etc/ckan/postgresql-ca/ca.crt
 
 postgresql:
   enabled: false
-externalDatabase:
-  host: pg.internal.example.com
-  port: 5432
-  name: ckan
-  user: ckan
-  existingSecret: ckan-db
-  existingSecretPasswordKey: password
+database:
+  mode: external
+  external:
+    host: pg.internal.example.com
+    port: 5432
+    ckanDatabase: ckan
+    datastoreDatabase: datastore
+    username: ckan
+    existingSecret: ckan-db
+    existingSecretPasswordKey: password
+    existingSecretDatastoreReadPasswordKey: datastore-read-password
+    sslMode: verify-full
 
-# Redis and Solr remain bundled (Solr index is required for dataset search).
 redis:
-  enabled: true
+  enabled: false
+redisConfig:
+  mode: external
+  external:
+    host: redis.internal.example.com
+    port: 6379
+    database: 0
+    tls: true
+    sslCertReqs: required
+    existingSecret: ckan-redis
+    existingSecretPasswordKey: redis-password
 
 persistence:
   enabled: true
   size: 10Gi
+
+extraVolumes:
+  - name: postgresql-ca
+    secret:
+      secretName: postgresql-ca
+extraVolumeMounts:
+  - name: postgresql-ca
+    mountPath: /etc/ckan/postgresql-ca
+    readOnly: true
