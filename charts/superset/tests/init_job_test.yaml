@@ -68,3 +68,25 @@ tests:
       - lengthEqual:
           path: spec.template.spec.initContainers
           count: 2
+
+  - it: should surface admin creation failures
+    template: templates/init-job.yaml
+    asserts:
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "create-admin(?s:.*)\\|\\| true"
+
+  - it: should harden the init Job without an API token
+    template: templates/init-job.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: runtime-tmp
+            mountPath: /tmp

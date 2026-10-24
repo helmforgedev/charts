@@ -8,19 +8,56 @@ metadata:
 data:
   superset_config.py: |
     import os
+    from urllib.parse import quote_plus
 
     # Flask secret key — injected via SUPERSET_SECRET_KEY env var
-    SECRET_KEY = os.environ.get("SUPERSET_SECRET_KEY", "change-me")
+    SECRET_KEY = os.environ["SUPERSET_SECRET_KEY"]
 
-    # Database connection
-    SQLALCHEMY_DATABASE_URI = os.environ.get("SQLALCHEMY_DATABASE_URI")
+    # Build datastore URLs in Python so passwords containing URL metacharacters
+    # are encoded correctly and never appear in a ConfigMap.
+    DB_PASSWORD = quote_plus(os.environ["DB_PASSWORD"])
+    SQLALCHEMY_DATABASE_URI = (
+        "postgresql+psycopg2://"
+        f"{quote_plus(os.environ['DB_USERNAME'])}:{DB_PASSWORD}"
+        f"@{os.environ['DB_HOST']}:{os.environ['DB_PORT']}"
+        f"/{os.environ['DB_NAME']}?sslmode={os.environ['DB_SSLMODE']}"
+    )
 
     # Redis / Celery
-    REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+    REDIS_SCHEME = "rediss" if os.environ.get("REDIS_TLS") == "true" else "redis"
+    REDIS_URL = (
+        f"{REDIS_SCHEME}://:{quote_plus(os.environ['REDIS_PASSWORD'])}"
+        f"@{os.environ['REDIS_HOST']}:{os.environ['REDIS_PORT']}"
+        f"/{os.environ['REDIS_DB']}"
+    )
+
+    CACHE_CONFIG = {
+        "CACHE_TYPE": "RedisCache",
+        "CACHE_DEFAULT_TIMEOUT": 300,
+        "CACHE_KEY_PREFIX": "superset_metadata_",
+        "CACHE_REDIS_URL": REDIS_URL,
+    }
+
+    DATA_CACHE_CONFIG = {
+        "CACHE_TYPE": "RedisCache",
+        "CACHE_DEFAULT_TIMEOUT": 86400,
+        "CACHE_KEY_PREFIX": "superset_data_",
+        "CACHE_REDIS_URL": REDIS_URL,
+    }
+
+    # Keep Flask-Limiter state shared across web replicas. The upstream
+    # in-memory fallback is process-local and is not suitable for production.
+    RATELIMIT_STORAGE_URI = REDIS_URL
 
     class CeleryConfig:
         broker_url = REDIS_URL
         result_backend = REDIS_URL
+        imports = (
+            "superset.sql_lab",
+            "superset.tasks.scheduler",
+        )
+        worker_prefetch_multiplier = 10
+        task_acks_late = True
         task_annotations = {
             "sql_lab.get_sql_results": {
                 "rate_limit": "100/s",

@@ -21,6 +21,11 @@ spec:
             {{- include "superset.selectorLabels" . | nindent 12 }}
         spec:
           restartPolicy: Never
+          automountServiceAccountToken: false
+          {{- with .Values.podSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with .Values.imagePullSecrets }}
           imagePullSecrets:
             {{- toYaml . | nindent 12 }}
@@ -40,6 +45,10 @@ spec:
           initContainers:
             - name: postgres-backup
               image: {{ .Values.backup.images.postgresql | quote }}
+              {{- with .Values.securityContext }}
+              securityContext:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
               command: ["/bin/sh", "/scripts/postgres-backup.sh"]
               env:
                 - name: BACKUP_ARCHIVE_PREFIX
@@ -66,9 +75,15 @@ spec:
                   mountPath: /scripts
                 - name: backup-workdir
                   mountPath: /backup/out
+                - name: runtime-tmp
+                  mountPath: /tmp
           containers:
             - name: upload
               image: {{ .Values.backup.images.uploader | quote }}
+              {{- with .Values.securityContext }}
+              securityContext:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
               command: ["/bin/sh", "/scripts/upload-backup.sh"]
               env:
                 - name: S3_ENDPOINT
@@ -79,6 +94,8 @@ spec:
                   value: {{ .Values.backup.s3.prefix | quote }}
                 - name: S3_CREATE_BUCKET_IF_NOT_EXISTS
                   value: {{ ternary "true" "false" .Values.backup.s3.createBucketIfNotExists | quote }}
+                - name: MC_CONFIG_DIR
+                  value: /backup/out/.mc
                 - name: S3_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
@@ -96,11 +113,15 @@ spec:
                   mountPath: /scripts
                 - name: backup-workdir
                   mountPath: /backup/out
+                - name: runtime-tmp
+                  mountPath: /tmp
           volumes:
             - name: scripts
               configMap:
                 name: {{ include "superset.fullname" . }}-backup-scripts
                 defaultMode: 0755
             - name: backup-workdir
+              emptyDir: {}
+            - name: runtime-tmp
               emptyDir: {}
 {{- end }}

@@ -35,6 +35,52 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
 
+{{/* Fail fast on contradictory or unsafe values. */}}
+{{- define "superset.validate" -}}
+{{- if has .Values.image.tag (list "latest" "stable" "main" "master" "edge") -}}
+{{- fail "image.tag must be an immutable release tag" -}}
+{{- end -}}
+{{- if and (eq .Values.database.mode "subchart") (not .Values.postgresql.enabled) -}}
+{{- fail "postgresql.enabled must be true when database.mode=subchart" -}}
+{{- end -}}
+{{- if and (eq .Values.database.mode "external") .Values.postgresql.enabled -}}
+{{- fail "postgresql.enabled must be false when database.mode=external" -}}
+{{- end -}}
+{{- if eq .Values.database.mode "external" -}}
+  {{- if not .Values.database.external.host -}}
+  {{- fail "database.external.host is required when database.mode=external" -}}
+  {{- end -}}
+  {{- if and (not .Values.database.external.existingSecret) (not .Values.database.external.password) -}}
+  {{- fail "database.external.password or database.external.existingSecret is required when database.mode=external" -}}
+  {{- end -}}
+{{- end -}}
+{{- if and (eq .Values.redisConfig.mode "subchart") (not .Values.redis.enabled) -}}
+{{- fail "redis.enabled must be true when redisConfig.mode=subchart" -}}
+{{- end -}}
+{{- if and (eq .Values.redisConfig.mode "external") .Values.redis.enabled -}}
+{{- fail "redis.enabled must be false when redisConfig.mode=external" -}}
+{{- end -}}
+{{- if and (eq .Values.redisConfig.mode "subchart") (not .Values.redis.auth.enabled) -}}
+{{- fail "redis.auth.enabled must be true when redisConfig.mode=subchart" -}}
+{{- end -}}
+{{- if eq .Values.redisConfig.mode "external" -}}
+  {{- if not .Values.redisConfig.external.host -}}
+  {{- fail "redisConfig.external.host is required when redisConfig.mode=external" -}}
+  {{- end -}}
+  {{- if and (not .Values.redisConfig.external.existingSecret) (not .Values.redisConfig.external.password) -}}
+  {{- fail "redisConfig.external.password or redisConfig.external.existingSecret is required when redisConfig.mode=external" -}}
+  {{- end -}}
+{{- end -}}
+{{- if and .Values.ingress.enabled (not .Values.ingress.hosts) -}}
+{{- fail "ingress.hosts must contain at least one host when ingress.enabled=true" -}}
+{{- end -}}
+{{- range .Values.extraVolumes -}}
+  {{- if has .name (list "superset-config" "runtime-tmp" "superset-home") -}}
+  {{- fail (printf "extraVolumes name %q is reserved by the chart" .name) -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{/* Python dependencies shared by web, worker, beat, and init. Values schema
 restricts additional entries to shell-safe package names and version specifiers. */}}
 {{- define "superset.pythonPackages" -}}
@@ -46,6 +92,29 @@ psycopg2-binary redis{{ range .Values.superset.extraPythonPackages }} {{ . }}{{ 
 {{- default (include "superset.fullname" .) .Values.serviceAccount.name -}}
 {{- else -}}
 {{- default "default" .Values.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{/* PostgreSQL subchart fullname, matching the dependency's naming contract. */}}
+{{- define "superset.postgresqlFullname" -}}
+{{- if .Values.postgresql.fullnameOverride -}}
+{{- .Values.postgresql.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name (default "postgresql" .Values.postgresql.nameOverride) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Redis subchart fullname, matching the dependency's naming contract. */}}
+{{- define "superset.redisFullname" -}}
+{{- if .Values.redis.fullnameOverride -}}
+{{- .Values.redis.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $name := default "redis" .Values.redis.nameOverride -}}
+{{- if contains $name .Release.Name -}}
+{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 
@@ -68,8 +137,10 @@ psycopg2-binary redis{{ range .Values.superset.extraPythonPackages }} {{ . }}{{ 
 {{- define "superset.databaseHost" -}}
 {{- if eq .Values.database.mode "external" -}}
 {{- .Values.database.external.host -}}
+{{- else if eq .Values.postgresql.architecture "replication" -}}
+{{- printf "%s-primary" (include "superset.postgresqlFullname" .) -}}
 {{- else -}}
-{{- printf "%s-postgresql" .Release.Name -}}
+{{- include "superset.postgresqlFullname" . -}}
 {{- end -}}
 {{- end -}}
 
@@ -103,7 +174,7 @@ psycopg2-binary redis{{ range .Values.superset.extraPythonPackages }} {{ . }}{{ 
 {{- else if eq .Values.database.mode "external" -}}
 {{- printf "%s-database" (include "superset.fullname" .) -}}
 {{- else -}}
-{{- printf "%s-postgresql-auth" .Release.Name -}}
+{{- default (printf "%s-auth" (include "superset.postgresqlFullname" .)) .Values.postgresql.auth.existingSecret -}}
 {{- end -}}
 {{- end -}}
 
@@ -113,7 +184,7 @@ psycopg2-binary redis{{ range .Values.superset.extraPythonPackages }} {{ . }}{{ 
 {{- else if eq .Values.database.mode "external" -}}
 database-password
 {{- else -}}
-user-password
+{{- .Values.postgresql.auth.existingSecretUserPasswordKey | default "user-password" -}}
 {{- end -}}
 {{- end -}}
 
@@ -125,14 +196,6 @@ user-password
 {{- end -}}
 {{- end -}}
 
-{{/*
-SQLALCHEMY_DATABASE_URI built at runtime using $(DB_PASSWORD) interpolation.
-The actual password is injected as DB_PASSWORD env var from the secret.
-*/}}
-{{- define "superset.sqlalchemyUri" -}}
-postgresql+psycopg2://{{ include "superset.databaseUsername" . }}:$(DB_PASSWORD)@{{ include "superset.databaseHost" . }}:{{ include "superset.databasePort" . }}/{{ include "superset.databaseName" . }}
-{{- end -}}
-
 # =============================================================================
 # Redis
 # =============================================================================
@@ -140,8 +203,10 @@ postgresql+psycopg2://{{ include "superset.databaseUsername" . }}:$(DB_PASSWORD)
 {{- define "superset.redisHost" -}}
 {{- if eq .Values.redisConfig.mode "external" -}}
 {{- .Values.redisConfig.external.host -}}
+{{- else if eq .Values.redis.architecture "replication" -}}
+{{- printf "%s-primary" (include "superset.redisFullname" .) -}}
 {{- else -}}
-{{- printf "%s-redis-client" .Release.Name -}}
+{{- printf "%s-client" (include "superset.redisFullname" .) -}}
 {{- end -}}
 {{- end -}}
 
@@ -161,27 +226,21 @@ postgresql+psycopg2://{{ include "superset.databaseUsername" . }}:$(DB_PASSWORD)
 {{- end -}}
 {{- end -}}
 
-{{/*
-Redis URL for Celery broker: redis://:password@host:port/db
-The password is injected at runtime via $(REDIS_PASSWORD) interpolation.
-*/}}
-{{- define "superset.redisUrl" -}}
-redis://:$(REDIS_PASSWORD)@{{ include "superset.redisHost" . }}:{{ include "superset.redisPort" . }}/{{ include "superset.redisDb" . }}
-{{- end -}}
-
 {{- define "superset.redisSecretName" -}}
 {{- if and (eq .Values.redisConfig.mode "external") .Values.redisConfig.external.existingSecret -}}
 {{- .Values.redisConfig.external.existingSecret -}}
 {{- else if eq .Values.redisConfig.mode "external" -}}
 {{- printf "%s-redis-ext" (include "superset.fullname" .) -}}
 {{- else -}}
-{{- printf "%s-redis-auth" .Release.Name -}}
+{{- default (printf "%s-auth" (include "superset.redisFullname" .)) .Values.redis.auth.existingSecret -}}
 {{- end -}}
 {{- end -}}
 
 {{- define "superset.redisSecretKey" -}}
 {{- if and (eq .Values.redisConfig.mode "external") .Values.redisConfig.external.existingSecret -}}
 {{- .Values.redisConfig.external.existingSecretPasswordKey -}}
+{{- else if eq .Values.redisConfig.mode "subchart" -}}
+{{- .Values.redis.auth.existingSecretPasswordKey | default "redis-password" -}}
 {{- else -}}
 redis-password
 {{- end -}}
@@ -210,15 +269,29 @@ redis-password
     secretKeyRef:
       name: {{ include "superset.databaseSecretName" . }}
       key: {{ include "superset.databaseSecretKey" . }}
+- name: DB_HOST
+  value: {{ include "superset.databaseHost" . | quote }}
+- name: DB_PORT
+  value: {{ include "superset.databasePort" . | quote }}
+- name: DB_NAME
+  value: {{ include "superset.databaseName" . | quote }}
+- name: DB_USERNAME
+  value: {{ include "superset.databaseUsername" . | quote }}
+- name: DB_SSLMODE
+  value: {{ ternary .Values.database.external.sslMode "disable" (eq .Values.database.mode "external") | quote }}
 - name: REDIS_PASSWORD
   valueFrom:
     secretKeyRef:
       name: {{ include "superset.redisSecretName" . }}
       key: {{ include "superset.redisSecretKey" . }}
-- name: SQLALCHEMY_DATABASE_URI
-  value: {{ include "superset.sqlalchemyUri" . | quote }}
-- name: REDIS_URL
-  value: {{ include "superset.redisUrl" . | quote }}
+- name: REDIS_HOST
+  value: {{ include "superset.redisHost" . | quote }}
+- name: REDIS_PORT
+  value: {{ include "superset.redisPort" . | quote }}
+- name: REDIS_DB
+  value: {{ include "superset.redisDb" . | quote }}
+- name: REDIS_TLS
+  value: {{ ternary "true" "false" (and (eq .Values.redisConfig.mode "external") .Values.redisConfig.external.tls) | quote }}
 - name: SUPERSET_LOAD_EXAMPLES
   value: {{ ternary "yes" "no" .Values.superset.loadExamples | quote }}
 {{- with .Values.superset.extraEnv }}
@@ -233,6 +306,14 @@ redis-password
 {{- define "superset.initContainers" -}}
 - name: wait-for-postgresql
   image: docker.io/library/busybox:1.37
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 65532
   command:
     - sh
     - -c
@@ -244,6 +325,14 @@ redis-password
       echo "PostgreSQL is reachable."
 - name: wait-for-redis
   image: docker.io/library/busybox:1.37
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 65532
   command:
     - sh
     - -c
@@ -265,6 +354,14 @@ workload pods — never by the init Job itself.
 {{- if .Values.init.enabled -}}
 - name: wait-for-init
   image: {{ .Values.init.waitImage | quote }}
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 65532
   command:
     - sh
     - -c
@@ -280,6 +377,21 @@ workload pods — never by the init Job itself.
     {{- toYaml . | nindent 4 }}
   {{- end }}
 {{- end -}}
+{{- end -}}
+
+{{/* Ephemeral writable paths required with a read-only root filesystem. */}}
+{{- define "superset.runtimeVolumeMounts" -}}
+- name: runtime-tmp
+  mountPath: /tmp
+- name: superset-home
+  mountPath: /app/superset_home
+{{- end -}}
+
+{{- define "superset.runtimeVolumes" -}}
+- name: runtime-tmp
+  emptyDir: {}
+- name: superset-home
+  emptyDir: {}
 {{- end -}}
 
 {{/* Backup — S3 secret name */}}
@@ -302,6 +414,9 @@ workload pods — never by the init Job itself.
   {{- end -}}
   {{- if and (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.accessKey) -}}
     {{- fail "backup.s3.accessKey or backup.s3.existingSecret is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if and (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.secretKey) -}}
+    {{- fail "backup.s3.secretKey or backup.s3.existingSecret is required when backup.enabled is true" -}}
   {{- end -}}
 true
 {{- end -}}

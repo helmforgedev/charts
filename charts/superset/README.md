@@ -7,13 +7,15 @@ interactive dashboards, SQL Lab, and a rich set of visualizations.
 ## Features
 
 - **Three-component architecture** — web server (Gunicorn), Celery worker, and Celery beat scheduler as separate Deployments for independent scaling
-- **Init Job** — automatic database migration, Superset initialization, and admin user creation via Helm hook
+- **Managed init Job** — ordered database migration, Superset initialization, and administrator creation on every release revision
 - **PostgreSQL subchart** — bundled metadata store with option for external database
 - **Redis subchart** — bundled Celery broker and result backend with option for external Redis
 - **superset_config.py via ConfigMap** — extend Superset configuration through `superset.extraConfig`
 - **Additional Python packages** — install pinned database drivers consistently in web, worker, beat, and init
 - **Auto-generated secrets** — admin password, Flask SECRET_KEY, database and Redis passwords
 - **Health probes** — startup, liveness, and readiness probes on `/health`
+- **Hardened runtime** — non-root containers, read-only root filesystem, seccomp, dropped capabilities, and scoped wait RBAC
+- **NetworkPolicy** — web-listener ingress isolation with configurable egress
 - **Ingress support** — configurable with `ingressClassName` (traefik, nginx, etc.)
 
 ## Install
@@ -48,12 +50,11 @@ before upgrading production installations.
 ## Architecture
 
 ```text
-Deployment: superset-web (Gunicorn, port 8088)
-Deployment: superset-worker (Celery workers)
-Deployment: superset-beat (Celery beat scheduler)
-Job: superset-init (DB migrate + admin creation)
-  ├─ PostgreSQL (subchart)
-  └─ Redis (subchart)
+Client -> Service -> web Deployment -> PostgreSQL and Redis
+Celery worker Deployment -> PostgreSQL and Redis
+Celery Beat Deployment -> Redis
+init Job -> PostgreSQL
+web, worker, and beat init containers -> init Job status
 ```
 
 ## Default Values
@@ -61,7 +62,7 @@ Job: superset-init (DB migrate + admin creation)
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `apache/superset` | Container image |
-| `image.tag` | `""` (appVersion) | Image tag |
+| `image.tag` | `"6.1.0"` | Immutable image tag |
 | `superset.adminUsername` | `admin` | Admin username |
 | `superset.adminPassword` | `""` (auto) | Admin password |
 | `superset.secretKey` | `""` (auto) | Flask SECRET_KEY |
@@ -69,6 +70,7 @@ Job: superset-init (DB migrate + admin creation)
 | `superset.installPythonPackages` | `true` | Install runtime Python dependencies at process startup |
 | `superset.extraPythonPackages` | `[]` | Additional Python package specifications installed in every Superset process |
 | `web.replicaCount` | `1` | Web server replicas |
+| `web.containerPort` | `8088` | Gunicorn listener port |
 | `web.workers` | `2` | Gunicorn workers |
 | `web.timeout` | `120` | Gunicorn timeout |
 | `worker.enabled` | `true` | Enable Celery workers |
@@ -82,6 +84,7 @@ Job: superset-init (DB migrate + admin creation)
 | `service.port` | `80` | Service port |
 | `ingress.enabled` | `false` | Enable ingress |
 | `ingress.ingressClassName` | `traefik` | Ingress class |
+| `networkPolicy.enabled` | `true` | Restrict ingress to the web listener |
 | `postgresql.enabled` | `true` | Enable PostgreSQL subchart |
 | `postgresql.standalone.persistence.enabled` | `true` | Enable persistent storage for bundled PostgreSQL |
 | `postgresql.standalone.persistence.storageClass` | `""` | Storage class for bundled PostgreSQL; empty uses the cluster default |
@@ -130,7 +133,9 @@ database:
     port: 5432
     name: superset
     username: superset
-    password: my-password
+    existingSecret: superset-database
+    existingSecretPasswordKey: password
+    sslMode: verify-full
 ```
 
 ## External Redis
@@ -144,7 +149,9 @@ redisConfig:
   external:
     host: redis.example.com
     port: 6379
-    password: redis-password
+    tls: true
+    existingSecret: superset-redis
+    existingSecretPasswordKey: password
     db: 0
 ```
 
@@ -227,9 +234,50 @@ superset:
 When runtime installation is disabled, the image must contain
 `psycopg2-binary`, `redis`, and every entry from `extraPythonPackages`.
 
+## Security
+
+The default containers run as UID/GID 1000, use `RuntimeDefault` seccomp, drop
+all Linux capabilities, block privilege escalation, and mount a read-only root
+filesystem. Ephemeral volumes provide only `/tmp` and `/app/superset_home` as
+writable paths. The initialization and backup Jobs do not receive Kubernetes API
+tokens. Application pods receive a namespaced token only while
+`init.enabled=true`, because their wait container must read the initialization
+Job status.
+
+`superset.secretKey` signs sessions and encrypts sensitive metadata. The chart
+preserves an auto-generated key across Helm upgrades, but production operators
+should provide `superset.existingSecret` and include that Secret in the recovery
+plan. Treat `superset.extraConfig` as trusted Python code.
+
+The default NetworkPolicy permits only the configured Superset listener for
+ingress and allows egress. Restrict `networkPolicy.ingressFrom` and
+`networkPolicy.egress` for the ingress controller, DNS, datastores, Python
+package index, and external data sources used by the deployment.
+
+## Troubleshooting
+
+Inspect initialization before debugging the long-running workloads:
+
+```bash
+kubectl get job,pod -n <namespace> -l app.kubernetes.io/instance=<release>
+kubectl logs -n <namespace> job/<release>-superset-init-<revision>
+kubectl logs -n <namespace> deployment/<release>-superset-web --tail=200
+kubectl get events -n <namespace> --sort-by=.lastTimestamp
+```
+
+If a pod waits for PostgreSQL or Redis, verify the selected datastore mode,
+Service name, Secret key, TLS setting, and NetworkPolicy egress. If the web pod
+is running but not Ready, test `/health` on `web.containerPort` from inside the
+pod. See the operations guide for upgrade and recovery checks.
+
 ## More Information
 
-- [Chart design](DESIGN.md) · [Configuration](docs/configuration.md) · [External datastores](examples/external-datastores.yaml)
+- [Chart design](DESIGN.md)
+- [Configuration](docs/configuration.md)
+- [Operations](docs/operations.md)
+- [Security](docs/security.md)
+- [External datastores](examples/external-datastores.yaml)
+- [Production example](examples/production.yaml)
 
 ### 🟢 Security Scan: `superset`
 

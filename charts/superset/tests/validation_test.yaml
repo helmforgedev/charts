@@ -1,0 +1,102 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Value validation
+templates:
+  - templates/deployment.yaml
+tests:
+  - it: should reject a floating image tag
+    set:
+      image.tag: latest
+    asserts:
+      - failedTemplate:
+          errorMessage: image.tag must be an immutable release tag
+
+  - it: should reject disabled bundled PostgreSQL in subchart mode
+    set:
+      postgresql.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: postgresql.enabled must be true when database.mode=subchart
+
+  - it: should reject bundled PostgreSQL in external mode
+    set:
+      database.mode: external
+      database.external.host: postgres.example.com
+      database.external.password: database-password
+    asserts:
+      - failedTemplate:
+          errorMessage: postgresql.enabled must be false when database.mode=external
+
+  - it: should require an external PostgreSQL host
+    set:
+      database.mode: external
+      postgresql.enabled: false
+      database.external.password: database-password
+    asserts:
+      - failedTemplate:
+          errorMessage: database.external.host is required when database.mode=external
+
+  - it: should require external PostgreSQL credentials
+    set:
+      database.mode: external
+      postgresql.enabled: false
+      database.external.host: postgres.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: database.external.password or database.external.existingSecret is required when database.mode=external
+
+  - it: should reject disabled bundled Redis in subchart mode
+    set:
+      redis.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: redis.enabled must be true when redisConfig.mode=subchart
+
+  - it: should reject bundled Redis in external mode
+    set:
+      redisConfig.mode: external
+      redisConfig.external.host: redis.example.com
+      redisConfig.external.password: redis-password
+    asserts:
+      - failedTemplate:
+          errorMessage: redis.enabled must be false when redisConfig.mode=external
+
+  - it: should require bundled Redis authentication
+    set:
+      redis.auth.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: redis.auth.enabled must be true when redisConfig.mode=subchart
+
+  - it: should require an external Redis host
+    set:
+      redisConfig.mode: external
+      redis.enabled: false
+      redisConfig.external.password: redis-password
+    asserts:
+      - failedTemplate:
+          errorMessage: redisConfig.external.host is required when redisConfig.mode=external
+
+  - it: should require external Redis credentials
+    set:
+      redisConfig.mode: external
+      redis.enabled: false
+      redisConfig.external.host: redis.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: redisConfig.external.password or redisConfig.external.existingSecret is required when redisConfig.mode=external
+
+  - it: should require ingress hosts
+    set:
+      ingress.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: ingress.hosts must contain at least one host when ingress.enabled=true
+
+  - it: should reject reserved extra volume names
+    set:
+      extraVolumes:
+        - name: runtime-tmp
+          emptyDir: {}
+    asserts:
+      - failedTemplate:
+          errorMessage: extraVolumes name "runtime-tmp" is reserved by the chart
