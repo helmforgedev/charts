@@ -167,7 +167,11 @@ app.kubernetes.io/component: worker
 {{/* Redis host */}}
 {{- define "automatisch.redisHost" -}}
 {{- if .Values.redis.enabled -}}
+{{- if eq .Values.redis.architecture "replication" -}}
+{{- printf "%s-primary" (include "automatisch.redisFullname" .) -}}
+{{- else -}}
 {{- printf "%s-client" (include "automatisch.redisFullname" .) -}}
+{{- end -}}
 {{- else -}}
 {{- .Values.redis_config.external.host -}}
 {{- end -}}
