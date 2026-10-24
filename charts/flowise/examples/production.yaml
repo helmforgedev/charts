@@ -1,0 +1,68 @@
+# SPDX-License-Identifier: Apache-2.0
+architecture:
+  mode: queue
+
+flowise:
+  replicaCount: 2
+  appUrl: https://flowise.example.com
+
+auth:
+  existingSecret: flowise-auth
+  secureCookies: true
+
+queue:
+  worker:
+    replicaCount: 4
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        memory: 4Gi
+
+persistence:
+  enabled: false
+
+database:
+  mode: external
+  external:
+    vendor: postgres
+    host: postgres.database.svc.cluster.local
+    name: flowise
+    username: flowise
+    existingSecret: flowise-database
+    ssl: true
+    rejectUnauthorized: true
+
+redis:
+  external:
+    host: redis.database.svc.cluster.local
+    existingSecret: flowise-redis
+
+storage:
+  type: s3
+  s3:
+    bucketName: flowise
+    region: us-east-1
+    endpointUrl: https://s3.example.com
+    existingSecret: flowise-s3
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    memory: 4Gi
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  hosts:
+    - host: flowise.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: flowise-tls
+      hosts:
+        - flowise.example.com

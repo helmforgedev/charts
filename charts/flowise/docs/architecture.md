@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
 # Flowise Architecture Notes
 
 ## Modes
@@ -13,7 +14,7 @@ Standalone mode is the default. It is optimized for the smallest useful install:
 
 - `database.mode` resolves to `sqlite` unless PostgreSQL or an external database is configured
 - `storage.type=local` stores uploaded files inside the Flowise data volume
-- `persistence.enabled=true` creates a PVC mounted at `/root/.flowise`
+- `persistence.enabled=true` creates a PVC mounted at `/home/node/.flowise`
 
 This is the most practical way to get Flowise running on a small cluster or lab environment.
 
@@ -96,7 +97,8 @@ scope: Chart
 
 relations:
   - charts/flowise/README.md
+  - charts/flowise/DESIGN.md
 path: charts/flowise/docs/architecture.md
 version: 1.0
-date: 2026-03-31
+date: 2026-10-24
 -->

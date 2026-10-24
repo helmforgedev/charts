@@ -31,6 +31,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "flowise.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . }}
       {{- end }}
@@ -42,7 +43,7 @@ spec:
       initContainers:
         {{- if ne (include "flowise.databaseMode" .) "sqlite" }}
         - name: wait-for-database
-          image: docker.io/library/busybox:1.37
+          image: docker.io/library/busybox:1.37.0
           command:
             - sh
             - -c
@@ -55,7 +56,7 @@ spec:
         {{- end }}
         {{- if eq (include "flowise.architectureMode" .) "queue" }}
         - name: wait-for-redis
-          image: docker.io/library/busybox:1.37
+          image: docker.io/library/busybox:1.37.0
           command:
             - sh
             - -c
@@ -82,13 +83,17 @@ spec:
           {{- end }}
           ports:
             - name: http
-              containerPort: 3000
+              containerPort: {{ .Values.flowise.containerPort }}
               protocol: TCP
           env:
             - name: PORT
-              value: "3000"
+              value: {{ .Values.flowise.containerPort | quote }}
             - name: LOG_LEVEL
               value: {{ .Values.flowise.logLevel | quote }}
+            - name: LOG_PATH
+              value: {{ .Values.flowise.logPath | quote }}
+            - name: SECRETKEY_PATH
+              value: {{ .Values.flowise.secretKeyPath | quote }}
             - name: NUMBER_OF_PROXIES
               value: {{ .Values.flowise.numberOfProxies | quote }}
             - name: CORS_ORIGINS
@@ -253,32 +258,32 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- if or (include "flowise.dataVolumeEnabled" .) .Values.extraVolumeMounts }}
           volumeMounts:
-            {{- if include "flowise.dataVolumeEnabled" . }}
             - name: data
-              mountPath: /root/.flowise
-            {{- end }}
+              mountPath: {{ .Values.persistence.mountPath }}
+            - name: tmp
+              mountPath: /tmp
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-          {{- end }}
-      {{- if or (include "flowise.dataVolumeEnabled" .) .Values.extraVolumes }}
       volumes:
-        {{- if include "flowise.dataVolumeEnabled" . }}
         - name: data
-          {{- if .Values.persistence.existingClaim }}
+          {{ if include "flowise.dataVolumeEnabled" . }}
+          {{ if .Values.persistence.existingClaim }}
           persistentVolumeClaim:
             claimName: {{ .Values.persistence.existingClaim }}
-          {{- else }}
+          {{ else }}
           persistentVolumeClaim:
             claimName: {{ include "flowise.fullname" . }}-data
-          {{- end }}
-        {{- end }}
+          {{ end }}
+          {{ else }}
+          emptyDir: {}
+          {{ end }}
+        - name: tmp
+          emptyDir: {}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

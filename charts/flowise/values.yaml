@@ -30,12 +30,18 @@ architecture:
 flowise:
   # -- Number of main Flowise server replicas
   replicaCount: 1
+  # -- HTTP port listened on by the Flowise process
+  containerPort: 3000
   # -- Delay before starting the main Flowise server, in seconds
   startupDelaySeconds: 3
   # -- Public application URL. Auto-detected from the first ingress host when empty.
   appUrl: ""
   # -- Log level: error | warn | info | verbose | debug
   logLevel: info
+  # -- Writable directory for Flowise application logs
+  logPath: /home/node/.flowise/logs
+  # -- Writable directory used by Flowise for local secret-key state
+  secretKeyPath: /home/node/.flowise
   # -- Rate-limit proxy count when running behind ingress or load balancers
   numberOfProxies: 1
   # -- Allowed CORS origins
@@ -84,7 +90,7 @@ database:
   mode: auto
   sqlite:
     # -- SQLite database file path inside the Flowise data directory
-    path: /root/.flowise/database.sqlite
+    path: /home/node/.flowise/database.sqlite
   external:
     # -- External database vendor: postgres | mysql
     vendor: postgres
@@ -191,7 +197,7 @@ storage:
   type: local
   local:
     # -- Local blob storage path inside the data volume
-    path: /root/.flowise/storage
+    path: /home/node/.flowise/storage
   s3:
     # -- S3 bucket name
     bucketName: ""
@@ -223,6 +229,8 @@ persistence:
   size: 10Gi
   # -- Existing PVC claim for Flowise local data
   existingClaim: ""
+  # -- Mount path for Flowise writable data, logs, and local secret-key state
+  mountPath: /home/node/.flowise
   # -- Annotations for the Flowise data PVC
   annotations: {}
 
@@ -294,19 +302,42 @@ readinessProbe:
 # -- CPU and memory requests/limits for the main Flowise container
 resources: {}
 
-# -- Pod-level security context
-podSecurityContext: {}
+# -- Pod-level security context. The official image contains the node user as UID/GID 1000.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
 
 # -- Container-level security context
-securityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
 
 serviceAccount:
   # -- Create a dedicated ServiceAccount
-  create: false
+  create: true
   # -- ServiceAccount name override
   name: ""
   # -- Annotations for the ServiceAccount
   annotations: {}
+  # -- Mount the Kubernetes API token into Flowise pods
+  automountServiceAccountToken: false
+
+# -- NetworkPolicy configuration for the main and worker workloads
+networkPolicy:
+  # -- Create component-scoped NetworkPolicies
+  enabled: true
+  # -- Optional peers allowed to reach the main Flowise listener. Empty allows all sources.
+  ingressFrom: []
+  # -- Egress rules shared by main and worker pods. The default allows all egress.
+  egress:
+    - {}
 
 # -- Priority class name
 priorityClassName: ""
@@ -366,16 +397,33 @@ backup:
 
   images:
     # -- Image used for PostgreSQL backup (must have pg_dump)
-    postgresql: docker.io/library/postgres:18-alpine
+    postgresql: docker.io/library/postgres:18.6-alpine
     # -- Image used for S3 upload (MinIO client)
     uploader: docker.io/helmforge/mc:1.0.0
 
   # -- Resources for backup containers
   resources: {}
 
+  # -- Pod security context for backup jobs
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+
+  # -- Container security context for backup jobs
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+
   database:
     # -- Extra arguments passed to pg_dump
-    pgDumpArgs: ""
+    pgDumpArgs: []
 
   s3:
     # -- S3-compatible endpoint URL

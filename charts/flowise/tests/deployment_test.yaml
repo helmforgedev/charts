@@ -14,6 +14,18 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].image
           value: docker.io/flowiseai/flowise:3.1.3
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 3000
       - contains:
           path: spec.template.spec.containers[0].env
           content:
@@ -27,6 +39,25 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].args
           content: sleep 3; flowise start
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LOG_PATH
+            value: /home/node/.flowise/logs
+
+  - it: wires a custom listener port to the process and container
+    template: templates/deployment.yaml
+    set:
+      flowise.containerPort: 3100
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 3100
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PORT
+            value: "3100"
 
   - it: supports configurable startup delay for the main deployment
     template: templates/deployment.yaml
