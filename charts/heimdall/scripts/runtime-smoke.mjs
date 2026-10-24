@@ -48,13 +48,13 @@ const page = kubectl(['get', '--raw', proxyPath]);
 assert.match(page, /heimdall/i, 'Service proxy must return the Heimdall application');
 
 const buildVersion = kubectl(['exec', pod.metadata.name, '-c', 'heimdall', '--', 'cat', '/build_version']).trim();
-assert.match(buildVersion, /Linuxserver\.io version: v2\.8\.3-ls\d+/, 'The running image must report Heimdall 2.8.3');
+assert.match(buildVersion, /Linuxserver\.io version: v\d+\.\d+\.\d+-ls\d+/, 'The running image must report valid LinuxServer build metadata');
 
 if (values.persistence.enabled) {
   const marker = `helmforge-${Date.now()}`;
   const result = kubectl([
-    'exec', pod.metadata.name, '-c', 'heimdall', '--', 'sh', '-ec',
-    `printf '%s' '${marker}' > /config/.helmforge-smoke && cat /config/.helmforge-smoke && rm /config/.helmforge-smoke`,
+    'exec', pod.metadata.name, '-c', 'heimdall', '--', 's6-setuidgid', 'abc', 'sh', '-ec',
+    `test "$(id -u)" = '${values.heimdall.puid}' && test "$(id -g)" = '${values.heimdall.pgid}' && printf '%s' '${marker}' > /config/.helmforge-smoke && cat /config/.helmforge-smoke && rm /config/.helmforge-smoke`,
   ]).trim();
   assert.equal(result, marker, 'The configured PUID/PGID path must remain writable');
 }

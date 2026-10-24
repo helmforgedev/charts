@@ -27,8 +27,11 @@ Kubernetes API token is mounted.
 
 The default NetworkPolicy limits inbound traffic to Heimdall's named HTTP port.
 It does not restrict sources because cluster Ingress controllers and local
-administration patterns vary. Add `networkPolicy.extraIngress` rules when other
-ports or explicit sources are required.
+administration patterns vary. `networkPolicy.extraIngress` is additive and
+should be used only to admit traffic on other ports; it cannot narrow the source
+set allowed by the default HTTP rule. To restrict HTTP sources, set
+`networkPolicy.enabled=false` and manage a replacement NetworkPolicy containing
+the required source selectors.
 
 Egress is not isolated. Heimdall enhanced tiles can call arbitrary service URLs
 configured by an operator. Environments with a known destination set should
