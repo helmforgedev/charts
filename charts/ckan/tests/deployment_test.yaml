@@ -76,3 +76,98 @@ tests:
           path: spec.template.spec.containers[0].readinessProbe
       - isNotNull:
           path: spec.template.spec.containers[0].startupProbe
+
+  - it: should configure the real uWSGI listener when the container port changes
+    set:
+      ckan.containerPort: 5500
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 5500
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UWSGI_OPTS
+            value: --socket /tmp/uwsgi.sock --wsgi-file /srv/app/wsgi.py --module wsgi:application --http [::]:5500 --master --enable-threads --lazy-apps -p 2 -L -b 32768 --vacuum --harakiri 60
+
+  - it: should wire external DataStore URLs without exposing passwords in values-derived URLs
+    set:
+      ckan.plugins: envvars datastore datapusher
+      database.mode: external
+      database.external.host: postgresql.example.com
+      database.external.password: write-secret
+      database.external.datastoreReadPassword: read-secret
+      postgresql.enabled: false
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CKAN_DATASTORE_READ_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-ckan-database
+                key: datastore-read-password
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'ckan\.datastore\.write_url'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'quote\(os\.environ\["CKAN_DATASTORE_READ_PASSWORD"\]'
+
+  - it: should use the hardened service account and container contexts
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: test-ckan
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+
+  - it: should pass external dependency endpoints through environment variables
+    set:
+      database.mode: external
+      database.external.host: postgresql.example.com
+      database.external.password: db-secret
+      postgresql.enabled: false
+      redisConfig.mode: external
+      redisConfig.external.host: redis.example.com
+      redisConfig.external.password: redis-secret
+      redis.enabled: false
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: WAIT_DB_HOST
+            value: postgresql.example.com
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: '--host="\$\{WAIT_DB_HOST\}"'
+      - contains:
+          path: spec.template.spec.initContainers[2].env
+          content:
+            name: WAIT_REDIS_HOST
+            value: redis.example.com
+      - matchRegex:
+          path: spec.template.spec.initContainers[2].command[2]
+          pattern: 'nc -z -w2 "\$\{WAIT_REDIS_HOST\}"'
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CKAN_REDIS_SSL_CERT_REQS
+            value: required
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'ssl_cert_reqs'

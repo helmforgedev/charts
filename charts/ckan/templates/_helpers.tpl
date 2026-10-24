@@ -44,18 +44,47 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "ckan.validate" -}}
+{{- if has .Values.image.tag (list "latest" "stable" "main" "master" "edge") -}}
+{{- fail "image.tag must be pinned and must not use a floating tag" -}}
+{{- end -}}
+{{- if and (eq .Values.database.mode "subchart") (not .Values.postgresql.enabled) -}}
+{{- fail "postgresql.enabled must be true when database.mode is subchart" -}}
+{{- end -}}
+{{- if and (eq .Values.database.mode "external") .Values.postgresql.enabled -}}
+{{- fail "postgresql.enabled must be false when database.mode is external" -}}
+{{- end -}}
 {{- if and (eq .Values.database.mode "external") (not .Values.database.external.host) -}}
 {{- fail "database.external.host is required when database.mode is external" -}}
 {{- end -}}
 {{- if and (eq .Values.database.mode "external") (not .Values.database.external.existingSecret) (not .Values.database.external.password) -}}
 {{- fail "database.external.password or database.external.existingSecret is required when database.mode is external" -}}
 {{- end -}}
-{{- if and (eq .Values.redisConfig.mode "external") (not .Values.redisConfig.external.url) -}}
-{{- fail "redisConfig.external.url is required when redisConfig.mode is external" -}}
+{{- $plugins := splitList " " .Values.ckan.plugins -}}
+{{- if and (has "datastore" $plugins) (ne .Values.database.mode "external") -}}
+{{- fail "the datastore plugin requires database.mode=external and pre-provisioned DataStore roles" -}}
+{{- end -}}
+{{- if and (has "datastore" $plugins) (not .Values.database.external.existingSecret) (not .Values.database.external.datastoreReadPassword) -}}
+{{- fail "database.external.datastoreReadPassword or database.external.existingSecret is required when the datastore plugin is enabled" -}}
+{{- end -}}
+{{- if and (eq .Values.redisConfig.mode "external") (not .Values.redisConfig.external.host) -}}
+{{- fail "redisConfig.external.host is required when redisConfig.mode is external" -}}
+{{- end -}}
+{{- if and (eq .Values.redisConfig.mode "external") (not .Values.redisConfig.external.existingSecret) (not .Values.redisConfig.external.password) -}}
+{{- fail "redisConfig.external.password or redisConfig.external.existingSecret is required when redisConfig.mode is external" -}}
+{{- end -}}
+{{- if and (eq .Values.redisConfig.mode "subchart") (not .Values.redis.enabled) -}}
+{{- fail "redis.enabled must be true when redisConfig.mode is subchart" -}}
+{{- end -}}
+{{- if and (eq .Values.redisConfig.mode "external") .Values.redis.enabled -}}
+{{- fail "redis.enabled must be false when redisConfig.mode is external" -}}
+{{- end -}}
+{{- if and (eq .Values.redisConfig.mode "subchart") (not .Values.redis.auth.enabled) -}}
+{{- fail "redis.auth.enabled must be true when redisConfig.mode is subchart" -}}
 {{- end -}}
 {{- if and (not .Values.solr.enabled) (not .Values.solr.externalUrl) -}}
 {{- fail "solr.externalUrl is required when solr.enabled is false" -}}
 {{- end -}}
+
 {{- if and .Values.ingress.enabled (not .Values.ingress.hosts) -}}
 {{- fail "ingress.enabled requires ingress.hosts to contain at least one rule" -}}
 {{- end -}}
@@ -87,6 +116,29 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
+{{/* PostgreSQL subchart fullname, matching the dependency naming contract. */}}
+{{- define "ckan.postgresqlFullname" -}}
+{{- if .Values.postgresql.fullnameOverride -}}
+{{- .Values.postgresql.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name (default "postgresql" .Values.postgresql.nameOverride) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Redis subchart fullname, matching the dependency naming contract. */}}
+{{- define "ckan.redisFullname" -}}
+{{- if .Values.redis.fullnameOverride -}}
+{{- .Values.redis.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $name := default "redis" .Values.redis.nameOverride -}}
+{{- if contains $name .Release.Name -}}
+{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 # =============================================================================
 # Secret
 # =============================================================================
@@ -106,8 +158,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "ckan.databaseHost" -}}
 {{- if eq .Values.database.mode "external" -}}
 {{- .Values.database.external.host -}}
+{{- else if eq .Values.postgresql.architecture "replication" -}}
+{{- printf "%s-primary" (include "ckan.postgresqlFullname" .) -}}
 {{- else -}}
-{{- printf "%s-postgresql" .Release.Name -}}
+{{- include "ckan.postgresqlFullname" . -}}
 {{- end -}}
 {{- end -}}
 
@@ -141,7 +195,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- else if eq .Values.database.mode "external" -}}
 {{- printf "%s-database" (include "ckan.fullname" .) -}}
 {{- else -}}
-{{- printf "%s-postgresql-auth" .Release.Name -}}
+{{- default (printf "%s-auth" (include "ckan.postgresqlFullname" .)) .Values.postgresql.auth.existingSecret -}}
 {{- end -}}
 {{- end -}}
 
@@ -151,34 +205,73 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- else if eq .Values.database.mode "external" -}}
 database-password
 {{- else -}}
-user-password
+{{- .Values.postgresql.auth.existingSecretUserPasswordKey | default "user-password" -}}
 {{- end -}}
 {{- end -}}
 
-{{/*
-CKAN_SQLALCHEMY_URL template — password injected at runtime via shell export.
-*/}}
-{{- define "ckan.sqlalchemyUrlTemplate" -}}
-postgresql://{{ include "ckan.databaseUsername" . }}:__DB_PASSWORD__@{{ include "ckan.databaseHost" . }}:{{ include "ckan.databasePort" . }}/{{ include "ckan.databaseName" . }}
+{{- define "ckan.databaseSslMode" -}}
+{{- if eq .Values.database.mode "external" -}}
+{{- .Values.database.external.sslMode -}}
+{{- else -}}
+disable
+{{- end -}}
+{{- end -}}
+
+{{- define "ckan.datastoreReadSecretKey" -}}
+{{- if .Values.database.external.existingSecret -}}
+{{- .Values.database.external.existingSecretDatastoreReadPasswordKey -}}
+{{- else -}}
+datastore-read-password
+{{- end -}}
 {{- end -}}
 
 # =============================================================================
 # Redis
 # =============================================================================
 
-{{- define "ckan.redisUrlTemplate" -}}
+{{- define "ckan.redisHost" -}}
 {{- if eq .Values.redisConfig.mode "external" -}}
-{{- .Values.redisConfig.external.url -}}
+{{- .Values.redisConfig.external.host -}}
+{{- else if eq .Values.redis.architecture "replication" -}}
+{{- printf "%s-primary" (include "ckan.redisFullname" .) -}}
 {{- else -}}
-redis://:__REDIS_PASSWORD__@{{ printf "%s-redis-client" .Release.Name }}:6379/0
+{{- printf "%s-client" (include "ckan.redisFullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "ckan.redisPort" -}}
+{{- if eq .Values.redisConfig.mode "external" -}}
+{{- .Values.redisConfig.external.port | toString -}}
+{{- else -}}
+6379
+{{- end -}}
+{{- end -}}
+
+{{- define "ckan.redisDatabase" -}}
+{{- if eq .Values.redisConfig.mode "external" -}}
+{{- .Values.redisConfig.external.database | toString -}}
+{{- else -}}
+0
 {{- end -}}
 {{- end -}}
 
 {{- define "ckan.redisSecretName" -}}
-{{- if eq .Values.redisConfig.mode "external" -}}
-{{- "" -}}
+{{- if and (eq .Values.redisConfig.mode "external") .Values.redisConfig.external.existingSecret -}}
+{{- .Values.redisConfig.external.existingSecret -}}
+{{- else if eq .Values.redisConfig.mode "external" -}}
+{{- printf "%s-redis" (include "ckan.fullname" .) -}}
 {{- else -}}
-{{- printf "%s-redis-auth" .Release.Name -}}
+{{- default (printf "%s-auth" (include "ckan.redisFullname" .)) .Values.redis.auth.existingSecret -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "ckan.redisSecretKey" -}}
+{{- if and (eq .Values.redisConfig.mode "external") .Values.redisConfig.external.existingSecret -}}
+{{- .Values.redisConfig.external.existingSecretPasswordKey -}}
+{{- else if eq .Values.redisConfig.mode "external" -}}
+redis-password
+{{- else -}}
+{{- .Values.redis.auth.existingSecretPasswordKey | default "redis-password" -}}
 {{- end -}}
 {{- end -}}
 
@@ -215,22 +308,51 @@ http://{{ include "ckan.fullname" . }}-datapusher:{{ .Values.datapusher.port }}
   value: {{ .Values.ckan.siteUrl | quote }}
 - name: CKAN_SITE_TITLE
   value: {{ .Values.ckan.siteTitle | quote }}
+- name: UWSGI_OPTS
+  value: {{ printf "--socket /tmp/uwsgi.sock --wsgi-file /srv/app/wsgi.py --module wsgi:application --http [::]:%v --master --enable-threads --lazy-apps -p %v -L -b 32768 --vacuum --harakiri %v" .Values.ckan.containerPort .Values.ckan.uwsgiProcesses .Values.ckan.uwsgiHarakiri | quote }}
 - name: CKAN_DB_PASSWORD
   valueFrom:
     secretKeyRef:
       name: {{ include "ckan.databaseSecretName" . }}
       key: {{ include "ckan.databaseSecretKey" . }}
-- name: CKAN_SQLALCHEMY_URL_TEMPLATE
-  value: {{ include "ckan.sqlalchemyUrlTemplate" . | quote }}
-{{- if and (ne .Values.redisConfig.mode "external") .Values.redis.enabled }}
+- name: CKAN_DB_HOST
+  value: {{ include "ckan.databaseHost" . | quote }}
+- name: CKAN_DB_PORT
+  value: {{ include "ckan.databasePort" . | quote }}
+- name: CKAN_DB_NAME
+  value: {{ include "ckan.databaseName" . | quote }}
+- name: CKAN_DB_USERNAME
+  value: {{ include "ckan.databaseUsername" . | quote }}
+- name: CKAN_DB_SSLMODE
+  value: {{ include "ckan.databaseSslMode" . | quote }}
+{{- if has "datastore" (splitList " " .Values.ckan.plugins) }}
+- name: CKAN_DATASTORE_DB_NAME
+  value: {{ .Values.database.external.datastoreDatabase | quote }}
+- name: CKAN_DATASTORE_READ_USERNAME
+  value: {{ .Values.database.external.datastoreReadUsername | quote }}
+- name: CKAN_DATASTORE_READ_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "ckan.databaseSecretName" . }}
+      key: {{ include "ckan.datastoreReadSecretKey" . }}
+{{- end }}
 - name: CKAN_REDIS_PASSWORD
   valueFrom:
     secretKeyRef:
       name: {{ include "ckan.redisSecretName" . }}
-      key: redis-password
-{{- end }}
-- name: CKAN_REDIS_URL_TEMPLATE
-  value: {{ include "ckan.redisUrlTemplate" . | quote }}
+      key: {{ include "ckan.redisSecretKey" . }}
+- name: CKAN_REDIS_HOST
+  value: {{ include "ckan.redisHost" . | quote }}
+- name: CKAN_REDIS_PORT
+  value: {{ include "ckan.redisPort" . | quote }}
+- name: CKAN_REDIS_DATABASE
+  value: {{ include "ckan.redisDatabase" . | quote }}
+- name: CKAN_REDIS_TLS
+  value: {{ ternary "true" "false" (and (eq .Values.redisConfig.mode "external") .Values.redisConfig.external.tls) | quote }}
+- name: CKAN_REDIS_SSL_CERT_REQS
+  value: {{ .Values.redisConfig.external.sslCertReqs | quote }}
+- name: CKAN_REDIS_SSL_CA_CERTS
+  value: {{ .Values.redisConfig.external.sslCaCerts | quote }}
 - name: CKAN_SOLR_URL
   value: {{ include "ckan.solrUrl" . | quote }}
 {{- if .Values.datapusher.enabled }}
@@ -264,15 +386,21 @@ http://{{ include "ckan.fullname" . }}-datapusher:{{ .Values.datapusher.port }}
 # =============================================================================
 
 {{- define "ckan.startupCommand" -}}
-export CKAN_SQLALCHEMY_URL=$(echo "$CKAN_SQLALCHEMY_URL_TEMPLATE" | sed "s|__DB_PASSWORD__|$CKAN_DB_PASSWORD|g")
-export CKAN_REDIS_URL=$(echo "$CKAN_REDIS_URL_TEMPLATE" | sed "s|__REDIS_PASSWORD__|${CKAN_REDIS_PASSWORD:-}|g")
+export CKAN_SQLALCHEMY_URL="$(python3 -c 'import os; from urllib.parse import quote; print("postgresql://{}:{}@{}:{}/{}?sslmode={}".format(quote(os.environ["CKAN_DB_USERNAME"], safe=""), quote(os.environ["CKAN_DB_PASSWORD"], safe=""), os.environ["CKAN_DB_HOST"], os.environ["CKAN_DB_PORT"], quote(os.environ["CKAN_DB_NAME"], safe=""), quote(os.environ["CKAN_DB_SSLMODE"], safe="")))')"
+export CKAN_REDIS_URL="$(python3 -c 'import os; from urllib.parse import quote, urlencode; scheme = "rediss" if os.environ["CKAN_REDIS_TLS"] == "true" else "redis"; params = {"ssl_cert_reqs": os.environ["CKAN_REDIS_SSL_CERT_REQS"]}; ca = os.environ["CKAN_REDIS_SSL_CA_CERTS"]; params.update({"ssl_ca_certs": ca}) if ca else None; query = "?" + urlencode(params) if scheme == "rediss" else ""; print("{}://:{}@{}:{}/{}{}".format(scheme, quote(os.environ["CKAN_REDIS_PASSWORD"], safe=""), os.environ["CKAN_REDIS_HOST"], os.environ["CKAN_REDIS_PORT"], os.environ["CKAN_REDIS_DATABASE"], query))')"
 INI=${CKAN_INI:-/srv/app/ckan.ini}
-ckan config-tool $INI "sqlalchemy.url = $CKAN_SQLALCHEMY_URL"
-ckan config-tool $INI "ckan.redis.url = $CKAN_REDIS_URL"
-ckan config-tool $INI "solr_url = $CKAN_SOLR_URL"
-ckan config-tool $INI "ckan.plugins = $CKAN__PLUGINS"
+ckan config-tool "$INI" "sqlalchemy.url = $CKAN_SQLALCHEMY_URL"
+ckan config-tool "$INI" "ckan.redis.url = $CKAN_REDIS_URL"
+ckan config-tool "$INI" "solr_url = $CKAN_SOLR_URL"
+ckan config-tool "$INI" "ckan.plugins = $CKAN__PLUGINS"
+{{- if has "datastore" (splitList " " .Values.ckan.plugins) }}
+export CKAN_DATASTORE_WRITE_URL="$(python3 -c 'import os; from urllib.parse import quote; print("postgresql://{}:{}@{}:{}/{}?sslmode={}".format(quote(os.environ["CKAN_DB_USERNAME"], safe=""), quote(os.environ["CKAN_DB_PASSWORD"], safe=""), os.environ["CKAN_DB_HOST"], os.environ["CKAN_DB_PORT"], quote(os.environ["CKAN_DATASTORE_DB_NAME"], safe=""), quote(os.environ["CKAN_DB_SSLMODE"], safe="")))')"
+export CKAN_DATASTORE_READ_URL="$(python3 -c 'import os; from urllib.parse import quote; print("postgresql://{}:{}@{}:{}/{}?sslmode={}".format(quote(os.environ["CKAN_DATASTORE_READ_USERNAME"], safe=""), quote(os.environ["CKAN_DATASTORE_READ_PASSWORD"], safe=""), os.environ["CKAN_DB_HOST"], os.environ["CKAN_DB_PORT"], quote(os.environ["CKAN_DATASTORE_DB_NAME"], safe=""), quote(os.environ["CKAN_DB_SSLMODE"], safe="")))')"
+ckan config-tool "$INI" "ckan.datastore.write_url = $CKAN_DATASTORE_WRITE_URL"
+ckan config-tool "$INI" "ckan.datastore.read_url = $CKAN_DATASTORE_READ_URL"
+{{- end }}
 {{- if .Values.datapusher.enabled }}
-ckan config-tool $INI "ckan.datapusher.url = $CKAN_DATAPUSHER_URL"
+ckan config-tool "$INI" "ckan.datapusher.url = $CKAN_DATAPUSHER_URL"
 {{- end }}
 exec /srv/app/start_ckan.sh
 {{- end -}}
@@ -284,18 +412,35 @@ exec /srv/app/start_ckan.sh
 {{- define "ckan.initContainers" -}}
 - name: wait-for-postgresql
   image: docker.io/library/postgres:18.6-trixie
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+  env:
+    - name: WAIT_DB_HOST
+      value: {{ include "ckan.databaseHost" . | quote }}
+    - name: WAIT_DB_PORT
+      value: {{ include "ckan.databasePort" . | quote }}
+    - name: WAIT_DB_USERNAME
+      value: {{ include "ckan.databaseUsername" . | quote }}
+    - name: WAIT_DB_NAME
+      value: {{ include "ckan.databaseName" . | quote }}
   command:
     - sh
     - -c
     - |
-      echo "Waiting for {{ include "ckan.databaseHost" . }}:{{ include "ckan.databasePort" . }} ..."
+      echo "Waiting for ${WAIT_DB_HOST}:${WAIT_DB_PORT} ..."
       ready_checks=0
       while [ "$ready_checks" -lt 5 ]; do
         if pg_isready \
-          --host={{ include "ckan.databaseHost" . }} \
-          --port={{ include "ckan.databasePort" . }} \
-          --username={{ include "ckan.databaseUsername" . }} \
-          --dbname={{ include "ckan.databaseName" . }}; then
+          --host="${WAIT_DB_HOST}" \
+          --port="${WAIT_DB_PORT}" \
+          --username="${WAIT_DB_USERNAME}" \
+          --dbname="${WAIT_DB_NAME}"; then
           ready_checks=$((ready_checks + 1))
         else
           ready_checks=0
@@ -305,7 +450,15 @@ exec /srv/app/start_ckan.sh
       echo "PostgreSQL is accepting connections."
 {{- if .Values.solr.enabled }}
 - name: wait-for-solr
-  image: docker.io/library/busybox:1.37
+  image: docker.io/library/busybox:1.37.0
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
   command:
     - sh
     - -c
@@ -316,15 +469,28 @@ exec /srv/app/start_ckan.sh
       done
       echo "Solr is reachable."
 {{- end }}
-{{- if and (ne .Values.redisConfig.mode "external") .Values.redis.enabled }}
+{{- if or (eq .Values.redisConfig.mode "external") .Values.redis.enabled }}
 - name: wait-for-redis
-  image: docker.io/library/busybox:1.37
+  image: docker.io/library/busybox:1.37.0
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+  env:
+    - name: WAIT_REDIS_HOST
+      value: {{ include "ckan.redisHost" . | quote }}
+    - name: WAIT_REDIS_PORT
+      value: {{ include "ckan.redisPort" . | quote }}
   command:
     - sh
     - -c
     - |
-      echo "Waiting for {{ printf "%s-redis-client" .Release.Name }}:6379 ..."
-      until nc -z -w2 {{ printf "%s-redis-client" .Release.Name }} 6379; do
+      echo "Waiting for ${WAIT_REDIS_HOST}:${WAIT_REDIS_PORT} ..."
+      until nc -z -w2 "${WAIT_REDIS_HOST}" "${WAIT_REDIS_PORT}"; do
         sleep 2
       done
       echo "Redis is reachable."

@@ -21,6 +21,10 @@ spec:
             {{- include "ckan.selectorLabels" . | nindent 12 }}
         spec:
           restartPolicy: Never
+          serviceAccountName: {{ include "ckan.serviceAccountName" . }}
+          automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+          securityContext:
+            {{- toYaml .Values.backup.podSecurityContext | nindent 12 }}
           {{- with .Values.imagePullSecrets }}
           imagePullSecrets:
             {{- toYaml . | nindent 12 }}
@@ -40,6 +44,8 @@ spec:
           initContainers:
             - name: postgres-backup
               image: {{ .Values.backup.images.postgresql | quote }}
+              securityContext:
+                {{- toYaml .Values.backup.securityContext | nindent 16 }}
               command: ["/bin/sh", "/scripts/postgres-backup.sh"]
               env:
                 - name: BACKUP_ARCHIVE_PREFIX
@@ -69,6 +75,8 @@ spec:
           containers:
             - name: upload
               image: {{ .Values.backup.images.uploader | quote }}
+              securityContext:
+                {{- toYaml .Values.backup.securityContext | nindent 16 }}
               command: ["/bin/sh", "/scripts/upload-backup.sh"]
               env:
                 - name: S3_ENDPOINT
@@ -79,6 +87,8 @@ spec:
                   value: {{ .Values.backup.s3.prefix | quote }}
                 - name: S3_CREATE_BUCKET_IF_NOT_EXISTS
                   value: {{ ternary "true" "false" .Values.backup.s3.createBucketIfNotExists | quote }}
+                - name: MC_CONFIG_DIR
+                  value: /backup/out/.mc
                 - name: S3_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:

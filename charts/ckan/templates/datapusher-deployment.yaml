@@ -30,10 +30,26 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      serviceAccountName: {{ include "ckan.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      securityContext:
+        {{- toYaml .Values.datapusher.podSecurityContext | nindent 8 }}
       containers:
         - name: datapusher
           image: "{{ .Values.datapusher.image.repository }}:{{ .Values.datapusher.image.tag }}"
           imagePullPolicy: {{ .Values.datapusher.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+          args:
+            - >-
+              exec uwsgi --plugins=http,python --enable-threads
+              --http=[::]:{{ .Values.datapusher.port }}
+              --socket=/tmp/uwsgi.sock
+              --ini=${APP_DIR}/datapusher-uwsgi.ini
+              --wsgi-file=${APP_DIR}/datapusher.wsgi
+          securityContext:
+            {{- toYaml .Values.datapusher.securityContext | nindent 12 }}
           ports:
             - name: http
               containerPort: {{ .Values.datapusher.port }}

@@ -28,6 +28,12 @@ imagePullSecrets: []
 # =============================================================================
 
 ckan:
+  # -- CKAN uWSGI listener port
+  containerPort: 5000
+  # -- Number of uWSGI worker processes
+  uwsgiProcesses: 2
+  # -- Maximum request duration before uWSGI terminates a worker
+  uwsgiHarakiri: 60
   # -- CKAN site URL (required for proper link generation)
   siteUrl: "http://localhost:5000"
   # -- CKAN site title
@@ -75,6 +81,22 @@ datapusher:
   port: 8800
   # -- Resource requests and limits
   resources: {}
+  # -- DataPusher pod security context
+  podSecurityContext:
+    fsGroup: 92
+    fsGroupChangePolicy: OnRootMismatch
+    seccompProfile:
+      type: RuntimeDefault
+  # -- DataPusher container security context
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: false
+    runAsNonRoot: true
+    runAsUser: 92
+    runAsGroup: 92
   # -- Pod labels
   podLabels: {}
   # -- Pod annotations
@@ -103,6 +125,22 @@ solr:
       - ReadWriteOnce
   # -- Resource requests and limits
   resources: {}
+  # -- Solr pod security context
+  podSecurityContext:
+    fsGroup: 8983
+    fsGroupChangePolicy: OnRootMismatch
+    seccompProfile:
+      type: RuntimeDefault
+  # -- Solr container security context
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: false
+    runAsNonRoot: true
+    runAsUser: 8983
+    runAsGroup: 8983
   # -- External Solr URL (used when solr.enabled=false)
   externalUrl: ""
 
@@ -134,6 +172,10 @@ database:
     existingSecret: ""
     # -- Key in existingSecret for password
     existingSecretPasswordKey: password
+    # -- Key in existingSecret for the DataStore read-only password
+    existingSecretDatastoreReadPasswordKey: datastore-read-password
+    # -- PostgreSQL SSL mode
+    sslMode: require
 
 # =============================================================================
 # Redis
@@ -143,8 +185,24 @@ redisConfig:
   # -- Redis mode: subchart | external
   mode: subchart
   external:
-    # -- External Redis URL (e.g., redis://:password@host:6379/0)
-    url: ""
+    # -- External Redis host
+    host: ""
+    # -- External Redis port
+    port: 6379
+    # -- External Redis logical database
+    database: 0
+    # -- Use TLS (`rediss://`) for external Redis
+    tls: true
+    # -- Redis TLS certificate verification mode
+    sslCertReqs: required
+    # -- Mounted CA bundle path for Redis TLS; empty uses the system trust store
+    sslCaCerts: ""
+    # -- External Redis password. Prefer existingSecret.
+    password: ""
+    # -- Existing Secret with the Redis password
+    existingSecret: ""
+    # -- Password key in existingSecret
+    existingSecretPasswordKey: redis-password
 
 # =============================================================================
 # Persistence
@@ -240,11 +298,28 @@ probes:
 
 serviceAccount:
   # -- Create a ServiceAccount
-  create: false
+  create: true
   # -- ServiceAccount name
   name: ""
   # -- ServiceAccount annotations
   annotations: {}
+  # -- Mount the Kubernetes API token into application pods
+  automountServiceAccountToken: false
+
+# =============================================================================
+# Network Policy
+# =============================================================================
+
+networkPolicy:
+  # -- Create a NetworkPolicy for CKAN, DataPusher, and Solr pods
+  enabled: true
+  # -- Sources allowed to reach the public CKAN listener. Empty allows every
+  # cluster source while internal-only component ports remain restricted.
+  ingressFrom: []
+  # -- Egress rules. The default permits PostgreSQL, Redis, Solr, DataPusher,
+  # DNS, extensions, and remote data sources; replace for each environment.
+  egress:
+    - {}
 
 # =============================================================================
 # =============================================================================
@@ -270,11 +345,27 @@ backup:
   archivePrefix: ckan
   images:
     # -- Image used for PostgreSQL backup (must have pg_dump)
-    postgresql: docker.io/library/postgres:18-alpine
+    postgresql: docker.io/library/postgres:18.0-alpine3.22
     # -- Image used for S3 upload (MinIO client)
     uploader: docker.io/helmforge/mc:1.0.0
   # -- Resources for backup containers
   resources: {}
+  # -- Backup pod security context
+  podSecurityContext:
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+    seccompProfile:
+      type: RuntimeDefault
+  # -- Backup container security context
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
   s3:
     # -- S3-compatible endpoint URL
     endpoint: ""
@@ -309,10 +400,22 @@ backup:
 # =============================================================================
 
 # -- Pod-level security context
-podSecurityContext: {}
+podSecurityContext:
+  fsGroup: 502
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
 
 # -- Container-level security context
-securityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 503
+  runAsGroup: 502
 
 # -- Resource requests and limits
 resources: {}
@@ -357,6 +460,8 @@ extraManifests: []
 postgresql:
   # -- Enable PostgreSQL subchart
   enabled: true
+  # -- PostgreSQL topology
+  architecture: standalone
   startupProbe:
     # -- Delay startup checks until the image entrypoint finishes its temporary init server cycle.
     initialDelaySeconds: 30
@@ -378,6 +483,10 @@ postgresql:
 redis:
   # -- Enable Redis subchart
   enabled: true
+  # -- Redis topology
+  architecture: standalone
   auth:
+    # -- Require Redis authentication
+    enabled: true
     # -- Redis password. Auto-generated if empty.
     password: ""

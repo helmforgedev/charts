@@ -41,3 +41,26 @@ tests:
             name: http
             containerPort: 8800
             protocol: TCP
+
+  - it: should configure the real listener when the port changes
+    set:
+      datapusher.port: 8801
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8801
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: '--http=\[::\]:8801'
+
+  - it: should use hardened pod defaults
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 92
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false

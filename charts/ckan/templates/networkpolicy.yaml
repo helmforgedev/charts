@@ -1,0 +1,42 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ckan.fullname" . }}
+  labels:
+    {{- include "ckan.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "ckan.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: {{ .Values.ckan.containerPort }}
+      {{- with .Values.networkPolicy.ingressFrom }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- if or .Values.datapusher.enabled .Values.solr.enabled }}
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "ckan.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: ckan
+      ports:
+        {{- if .Values.datapusher.enabled }}
+        - protocol: TCP
+          port: {{ .Values.datapusher.port }}
+        {{- end }}
+        {{- if .Values.solr.enabled }}
+        - protocol: TCP
+          port: {{ .Values.solr.port }}
+        {{- end }}
+    {{- end }}
+  egress:
+    {{- toYaml .Values.networkPolicy.egress | nindent 4 }}
+{{- end }}

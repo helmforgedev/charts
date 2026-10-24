@@ -1,43 +1,118 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# CKAN — Configuration
+# CKAN configuration
 
-CKAN is an open-data portal. This chart runs CKAN plus the components it depends
-on: **PostgreSQL** (catalog + DataStore), **Redis** (cache/queue), **Solr**
-(search index) and **DataPusher** (tabular ingestion).
-
-## Key values
+## Application
 
 | Value | Default | Purpose |
 |---|---|---|
-| `postgresql.enabled` | `true` | Bundle the HelmForge PostgreSQL subchart. |
-| `externalDatabase.*` | — | Managed PostgreSQL (when `postgresql.enabled=false`). |
-| `redis.enabled` | `true` | Bundle Redis (cache + background tasks). |
-| `solr.*` | enabled | Search index (own PVC); CKAN search depends on it. |
-| `datapusher.*` (port 8800) | enabled | Pushes tabular resources into the DataStore. |
-| `persistence.*` | `true` | PVC for uploaded resource files. |
-| `ingress.*` | disabled | Expose the portal. |
+| `ckan.containerPort` | `5000` | CKAN uWSGI listener. |
+| `ckan.uwsgiProcesses` | `2` | uWSGI workers. |
+| `ckan.uwsgiHarakiri` | `60` | Maximum request duration. |
+| `ckan.siteUrl` | `http://localhost:5000` | Canonical public URL. |
+| `ckan.siteTitle` | `CKAN` | Portal title. |
+| `ckan.plugins` | core views | Space-separated plugin list. |
+| `ckan.replicaCount` | `1` | CKAN Deployment replicas. |
+| `ckan.existingSecret` | `""` | Operator-managed application Secret. |
+| `ckan.extraEnv` | `[]` | Additional CKAN environment entries. |
 
-## Components and ports
+The Secret must contain the keys selected by
+`ckan.existingSecretPasswordKey`, `ckan.existingSecretSessionKey`, and
+`ckan.existingSecretJwtKey`. Generated values are preserved during upgrades,
+but an operator-owned Secret is safer for disaster recovery.
 
-- **ckan** — web app/API (Service on 80, app on 5000).
-- **Solr** (8983) — must be available for dataset search to work.
-- **DataPusher** (8800) — imports CSV/Excel resources into the DataStore DB.
+## PostgreSQL
 
-## Datastores
+| Value | Default | Purpose |
+|---|---|---|
+| `database.mode` | `subchart` | Select bundled or external PostgreSQL. |
+| `database.external.host` | `""` | External hostname. |
+| `database.external.port` | `5432` | External port. |
+| `database.external.ckanDatabase` | `ckan` | Catalog database. |
+| `database.external.datastoreDatabase` | `datastore` | DataStore database. |
+| `database.external.username` | `ckan` | Catalog role. |
+| `database.external.datastoreReadUsername` | `datastore_ro` | DataStore read-only role. |
+| `database.external.existingSecret` | `""` | Password Secret. |
+| `database.external.existingSecretDatastoreReadPasswordKey` | `datastore-read-password` | DataStore read password key. |
+| `database.external.sslMode` | `require` | libpq SSL mode. |
+| `postgresql.enabled` | `true` | Deploy the HelmForge subchart. |
+| `postgresql.architecture` | `standalone` | Standalone or replication topology. |
 
-CKAN uses PostgreSQL for the main catalog and (typically) the DataStore database,
-Redis for caching/background tasks, and Solr for search. Use bundled subcharts
-for small installs or point CKAN at managed PostgreSQL via `externalDatabase.*`.
-Passwords come from secrets, never templated into ConfigMaps.
+`database.mode=subchart` requires `postgresql.enabled=true`.
+`database.mode=external` requires the subchart to be disabled and requires a
+host plus inline or Secret-backed credentials. Replication mode uses the
+writable primary Service.
 
-## First boot
+The chart configures DataStore write and read URLs when the `datastore` plugin
+is enabled. It deliberately does not create the separate database or roles.
+Prepare them with upstream `ckan datastore set-permissions` guidance first.
+DataStore requires `database.mode=external`; the chart rejects the plugin with
+the bundled single-database PostgreSQL topology.
 
-On first start CKAN initializes its schema; the bootstrap logs include benign
-`relation "..." does not exist` messages from PostgreSQL before the tables are
-created — these are expected and clear once initialization completes.
+## Redis
 
-## Persistence and scaling
+| Value | Default | Purpose |
+|---|---|---|
+| `redisConfig.mode` | `subchart` | Select bundled or external Redis. |
+| `redisConfig.external.host` | `""` | External hostname. |
+| `redisConfig.external.port` | `6379` | External port. |
+| `redisConfig.external.database` | `0` | Logical database. |
+| `redisConfig.external.tls` | `true` | Use `rediss://`. |
+| `redisConfig.external.sslCertReqs` | `required` | Certificate verification mode. |
+| `redisConfig.external.sslCaCerts` | `""` | Mounted CA bundle path; empty uses system trust. |
+| `redisConfig.external.existingSecret` | `""` | Password Secret. |
+| `redis.enabled` | `true` | Deploy the HelmForge subchart. |
+| `redis.architecture` | `standalone` | Standalone or replication topology. |
 
-Uploaded resource files (PVC) and the Solr index (separate PVC) are `ReadWriteOnce`
-stateful volumes, so the app/Solr tiers run a single replica. Scale the datastores
-for resilience; back up PostgreSQL (catalog + DataStore) and the resource PVC.
+External Redis always requires a password. TLS verifies certificates by
+default; mount a private CA with `extraVolumes` and `extraVolumeMounts`, then
+set `sslCaCerts` to its container path. Replication topology uses the writable
+primary Service; standalone uses the client Service.
+
+## Solr and DataPusher
+
+| Value | Default | Purpose |
+|---|---|---|
+| `solr.enabled` | `true` | Deploy the CKAN Solr StatefulSet. |
+| `solr.port` | `8983` | Solr process and Service port. |
+| `solr.externalUrl` | `""` | Required when bundled Solr is disabled. |
+| `solr.persistence.enabled` | `true` | Persist the Solr index. |
+| `datapusher.enabled` | `true` | Deploy DataPusher. |
+| `datapusher.port` | `8800` | DataPusher process and Service port. |
+
+Solr is required for CKAN search. DataPusher additionally requires the CKAN
+DataStore plugin and correctly provisioned DataStore database roles.
+
+## Exposure and persistence
+
+| Value | Default | Purpose |
+|---|---|---|
+| `service.type` | `ClusterIP` | CKAN Service type. |
+| `service.port` | `80` | Cluster-facing Service port. |
+| `persistence.enabled` | `true` | Persist uploaded resources. |
+| `persistence.size` | `10Gi` | CKAN file volume capacity. |
+| `persistence.existingClaim` | `""` | Reuse an existing PVC. |
+| `ingress.enabled` | `false` | Render an Ingress. |
+
+`service.port` does not change the application listener. Set
+`ckan.containerPort` when the uWSGI process itself must listen elsewhere.
+
+## Security and scheduling
+
+The chart creates a dedicated ServiceAccount, disables API token mounting, and
+enables NetworkPolicy by default. `networkPolicy.ingressFrom` restricts the
+public CKAN listener. `networkPolicy.egress` defaults to unrestricted access;
+replace it only after including DNS, datastores, Solr, DataPusher, remote
+resources, and extension destinations.
+
+Pod and container security contexts, resources, affinity, tolerations, node
+selectors, topology spread constraints, priority class, extra volumes, and
+extra manifests are configurable. The default UIDs match the official images.
+
+## Backup
+
+`backup.enabled` creates a CronJob that dumps the selected CKAN PostgreSQL
+database to S3-compatible storage. Supply S3 credentials through
+`backup.s3.existingSecret`. Backup containers run without privilege escalation,
+with a read-only root filesystem and without a Kubernetes API token. Review
+[operations.md](operations.md) for its scope and the additional file-storage
+and Secret backups required for recovery.
