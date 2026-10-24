@@ -1,53 +1,72 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- $fullname := include "listmonk.fullname" . -}}
+{{- $ns := .Release.Namespace -}}
 --------------------------------------------------------------------
-Listmonk has been successfully deployed!
+Listmonk has been deployed
 --------------------------------------------------------------------
 
 1. Installation Summary
-   - Release Name: {{ .Release.Name }}
-   - Namespace:    {{ .Release.Namespace }}
-   - Database:     {{ if .Values.postgresql.enabled }}Embedded PostgreSQL{{ else }}External PostgreSQL ({{ .Values.database.external.host }}){{ end }}
+   - Release:   {{ .Release.Name }}
+   - Namespace: {{ $ns }}
+   - Chart:     {{ .Chart.Name }}-{{ .Chart.Version }}
+   - Listmonk:  {{ .Chart.AppVersion }} ({{ include "listmonk.image" . }})
 
-2. Service Access
+2. Service Access and Endpoints
+   - Service:   {{ $fullname }} port {{ .Values.service.port }} -> container port {{ .Values.listmonk.port }} (http)
 {{- if .Values.ingress.enabled }}
-   Ingress is enabled. Access Listmonk at:
   {{- range .Values.ingress.hosts }}
-   - http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}{{ (index .paths 0).path }}
+   - Ingress:   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}{{ with .paths }}{{ (index . 0).path }}{{ else }}/{{ end }}
   {{- end }}
-{{- else }}
-   Port-forward the Listmonk service to localhost:
-   $ kubectl port-forward svc/{{ include "listmonk.fullname" . }} 9000:{{ .Values.service.port }} -n {{ .Release.Namespace }}
-   Then browse to: http://127.0.0.1:9000/
 {{- end }}
+{{- if .Values.gatewayAPI.enabled }}
+  {{- range .Values.gatewayAPI.httpRoutes }}
+   - HTTPRoute: {{ include "listmonk.httpRouteName" (dict "root" $ "route" .) }}{{ with .hostnames }} ({{ join ", " . }}){{ end }}
+  {{- end }}
+{{- end }}
+   Local access:
+   $ kubectl port-forward svc/{{ $fullname }} 9000:{{ .Values.service.port }} -n {{ $ns }}
+   Then open http://127.0.0.1:9000/admin
 
 3. Credentials and Security
-   Administrative setup is completed via the web interface on first initialization.
-   Configure your Super Admin account and SMTP settings under Settings > SMTP.
+   - Superadmin: {{ .Values.listmonk.admin.username }}
+   - Password:
+     $ kubectl get secret {{ include "listmonk.adminSecretName" . }} -n {{ $ns }} -o jsonpath='{.data.{{ include "listmonk.adminSecretKey" . }}}' | base64 -d; echo
+   The superadmin is created only on a fresh database. Configure SMTP under
+   Settings > SMTP before sending campaigns.
+{{- if and .Values.externalSecrets .Values.externalSecrets.enabled }}
+   - External Secrets Operator integration is active.
+{{- end }}
 
 4. Database Initialization
    - Database mode: {{ include "listmonk.databaseMode" . | trim }}
-   - Database host: {{ include "listmonk.databaseHost" . }}
-   - Auto-migration: {{ .Values.database.autoMigrate | default true }}
+   - Database host: {{ include "listmonk.databaseHost" . }}:{{ include "listmonk.databasePort" . }} (database {{ include "listmonk.databaseName" . }})
+   - db-init runs listmonk --install --idempotent and --upgrade on every pod start.
 
-5. External Secrets & Storage
-{{- if and .Values.externalSecrets .Values.externalSecrets.enabled }}
-   - External Secrets Operator integration is active.
+5. Persistence and Storage
+{{- if .Values.storage.existingClaim }}
+   - Uploads: existing claim {{ .Values.storage.existingClaim }} at /listmonk/uploads
+{{- else if .Values.storage.enabled }}
+   - Uploads: {{ $fullname }}-uploads ({{ .Values.storage.size }}) at /listmonk/uploads
 {{- else }}
-   - Standard Kubernetes Secrets are configured.
+   - Uploads: emptyDir; uploaded media is lost when the pod is deleted.
 {{- end }}
-   - Upload storage enabled: {{ .Values.storage.enabled }}
+   - Backups: {{ if .Values.backup.enabled }}CronJob {{ $fullname }}-backup, schedule "{{ .Values.backup.schedule }}" (PostgreSQL only){{ else }}disabled (set backup.enabled=true){{ end }}
 
 6. Health Verification
-   Verify pod readiness and deployment rollout:
-   $ kubectl rollout status deployment/{{ include "listmonk.fullname" . }} -n {{ .Release.Namespace }}
-   $ kubectl get pods -l {{ include "listmonk.selectorLabels" . | replace ": " "=" }} -n {{ .Release.Namespace }}
+   $ kubectl rollout status deployment/{{ $fullname }} -n {{ $ns }}
+   $ kubectl get pods -l {{ include "listmonk.selectorLabels" . | replace ": " "=" | replace "\n" "," }} -n {{ $ns }}
+{{- if .Values.backup.enabled }}
+   $ kubectl create job -n {{ $ns }} --from=cronjob/{{ $fullname }}-backup {{ $fullname }}-backup-manual
+{{- end }}
 
 7. Logs and Diagnostics
-   Stream application logs:
-   $ kubectl logs -f deployment/{{ include "listmonk.fullname" . }} -n {{ .Release.Namespace }}
+   $ kubectl logs deployment/{{ $fullname }} -c db-init -n {{ $ns }}
+   $ kubectl logs -f deployment/{{ $fullname }} -c listmonk -n {{ $ns }}
+   A pod stuck in Init:0/2 means PostgreSQL is unreachable; Init:1/2 points to
+   credentials or database privileges.
 
 8. Documentation and Support
-   - Listmonk Official Documentation: https://listmonk.app/docs/
-   - HelmForge Documentation: https://helmforge.dev/docs/charts/listmonk
+   - Listmonk documentation: https://listmonk.app/docs/
+   - HelmForge documentation: https://helmforge.dev/docs/charts/listmonk
 
 Happy Helmforging :)

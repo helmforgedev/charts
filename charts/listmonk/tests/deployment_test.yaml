@@ -38,7 +38,7 @@ tests:
           value: wait-for-postgresql
       - equal:
           path: spec.template.spec.initContainers[0].image
-          value: docker.io/library/postgres:17-alpine
+          value: docker.io/library/postgres:18.6-alpine
       - matchRegex:
           path: spec.template.spec.initContainers[0].command[2]
           pattern: pg_isready
@@ -127,3 +127,104 @@ tests:
           content:
             name: LISTMONK_db__host
             value: "pg.example.com"
+
+  - it: changes the real listener with listmonk.port
+    template: templates/deployment.yaml
+    set:
+      listmonk.port: 9100
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 9100
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LISTMONK_app__address
+            value: "0.0.0.0:9100"
+
+  - it: creates the superadmin from a Secret during install
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[1].env
+          content:
+            name: LISTMONK_ADMIN_USER
+            value: admin
+      - contains:
+          path: spec.template.spec.initContainers[1].env
+          content:
+            name: LISTMONK_ADMIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-listmonk-admin
+                key: admin-password
+
+  - it: uses an existing superadmin secret
+    template: templates/deployment.yaml
+    set:
+      listmonk.admin.existingSecret: listmonk-admin
+      listmonk.admin.existingSecretPasswordKey: pw
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[1].env
+          content:
+            name: LISTMONK_ADMIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: listmonk-admin
+                key: pw
+
+  - it: applies the hardened security contexts
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          value: [ALL]
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tmp
+            mountPath: /tmp
+
+  - it: uses the health endpoint for probes
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /health
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.port
+          value: http
+
+  - it: passes extra env to the app and db-init containers
+    template: templates/deployment.yaml
+    set:
+      listmonk.extraEnv:
+        - name: LISTMONK_app__root_url
+          value: https://lists.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LISTMONK_app__root_url
+            value: https://lists.example.com
+      - contains:
+          path: spec.template.spec.initContainers[1].env
+          content:
+            name: LISTMONK_app__root_url
+            value: https://lists.example.com

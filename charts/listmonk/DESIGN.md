@@ -2,105 +2,97 @@
 
 # Listmonk Design
 
-## Purpose
+## Scope
 
-The Listmonk chart deploys the newsletter application with the infrastructure
-pieces it needs to start safely on Kubernetes: PostgreSQL connectivity, uploads
-storage, database bootstrap and upgrade init containers, HTTP Service, optional
-Ingress, and optional S3-compatible database backups.
+The chart deploys the Listmonk newsletter application with what it needs to
+start safely on Kubernetes: PostgreSQL connectivity, database bootstrap and
+upgrade, a superadmin from a Secret, uploads storage, an HTTP Service,
+optional Ingress or Gateway API routes, and optional S3-compatible database
+backups.
 
-## Default Architecture
+## Architecture
 
-```text
-Browser
-   |
-   | port-forward or Ingress
-   v
-Listmonk Service
-   |
-   v
-Listmonk Deployment
-   |
-   +--> wait-for-postgresql init container
-   +--> db-init init container
-   +--> listmonk container on port 9000
-   +--> uploads PVC mounted at /listmonk/uploads
-   +--> PostgreSQL subchart or external PostgreSQL
+```mermaid
+flowchart LR
+  user[Admins and subscribers] --> edge[Ingress or HTTPRoute]
+  edge --> svc[Service http]
+  svc --> app[listmonk container]
+  subgraph pod[Listmonk pod]
+    wait[wait-for-postgresql] --> init[db-init]
+    init --> app
+  end
+  wait --> db[(PostgreSQL)]
+  init --> db
+  app --> db
+  app --> pvc[(uploads PVC)]
+  backup[backup CronJob] --> db
+  backup --> s3[(S3 bucket)]
 ```
 
-Default characteristics:
+- `wait-for-postgresql` runs `pg_isready` until the database answers or
+  `setup.databaseWaitTimeoutSeconds` passes.
+- `db-init` runs `listmonk --install --idempotent` and `listmonk --upgrade`.
+  On a fresh database the install creates the superadmin from
+  `LISTMONK_ADMIN_USER` and `LISTMONK_ADMIN_PASSWORD`.
+- `listmonk` serves the admin UI, public pages, and the API on
+  `listmonk.port`.
 
-- one Listmonk replica;
-- bundled PostgreSQL subchart enabled;
-- persistent uploads PVC enabled;
-- no public ingress by default;
-- SMTP configured after install through the UI or through extra environment
-  variables;
-- database install and upgrade commands run before the main container starts.
+## Design Choices
 
-## Database Strategy
+- **Configuration through environment only.** The chart runs
+  `listmonk --config=""` and sets `LISTMONK_app__*` and `LISTMONK_db__*`
+  variables, so no config file or ConfigMap is needed and the root filesystem
+  can be read-only.
+- **Superadmin from a Secret.** Without `LISTMONK_ADMIN_*`, a fresh Listmonk
+  shows a first-run page where the first visitor creates the admin. The chart
+  always supplies the credentials; the generated password is kept across
+  upgrades.
+- **Database selection.** `database.mode=auto` selects the subchart unless
+  external settings are present. Explicit modes fail fast on conflicting
+  values.
+- **Pinned PostgreSQL clients.** The wait and backup images use a pinned
+  PostgreSQL 18 client so `pg_dump` is never older than the bundled server.
+- **Listener separate from the Service.** `listmonk.port` sets the process
+  address and container port; the Service targets the named `http` port.
 
-`database.mode=auto` selects the bundled PostgreSQL subchart unless external
-database settings are present. Explicit modes fail fast when values conflict:
+## Production Boundary
 
-- `postgresql` requires `postgresql.enabled=true`;
-- `external` requires external host or Secret configuration and forbids the
-  bundled subchart;
-- `auto` rejects ambiguous configurations where both bundled and external
-  database settings are active.
+- One replica. Several active Listmonk instances process the same campaigns,
+  and the uploads volume is `ReadWriteOnce`.
+- Configure SMTP and the root URL (`LISTMONK_app__root_url` through
+  `listmonk.extraEnv`, or the Settings UI) before sending campaigns.
+- Built-in backups cover PostgreSQL only. Back up the uploads PVC separately,
+  or use an S3 media provider in the Listmonk settings.
 
-The chart uses PostgreSQL Secret keys from either the subchart or an external
-Secret. Inline external passwords render into a chart-managed Secret, but
-production installs should prefer `database.external.existingSecret`.
+## Security Boundary
 
-## Bootstrap and Upgrade
+- The pod runs as uid 65534 with `runAsNonRoot`, a read-only root filesystem,
+  no privilege escalation, every capability dropped, `RuntimeDefault` seccomp,
+  and no ServiceAccount token.
+- Database, backup, and superadmin credentials come from Secrets or
+  ExternalSecret resources; inline values render into chart Secrets.
+- The chart does not render NetworkPolicies; apply namespace policies for the
+  database and SMTP egress your platform allows.
 
-The Listmonk container starts only after two init containers complete:
+## Observability Boundary
 
-- `wait-for-postgresql` uses `pg_isready` against the configured database host,
-  port, user, and database;
-- `db-init` runs `./listmonk --install --idempotent --yes --config=""` and then
-  `./listmonk --upgrade --yes --config=""` with the same database and app
-  address environment required by the Listmonk binary.
+- Probes call `/health`, which confirms the HTTP server is serving.
+- Logs go to stdout of the `listmonk` container; bootstrap logs stay in the
+  `db-init` container.
+- Listmonk exposes no Prometheus endpoint, so the chart ships no
+  ServiceMonitor.
 
-This keeps fresh installs and upgrades deterministic while avoiding manual SQL
-steps for the bundled PostgreSQL path.
+## Current Gaps and Improvement Candidates
 
-## Storage Model
+- No NetworkPolicy or PodDisruptionBudget templates.
+- No first-class SMTP values; SMTP is configured in the UI or through
+  `listmonk.extraEnv`.
+- The backup CronJob does not apply the pod hardening used by the application
+  pod and does not archive uploads.
 
-Uploaded media is mounted at `/listmonk/uploads`. The PVC is independent from the
-PostgreSQL data volume managed by the subchart. Database backup does not back up
-uploaded media; operators need a separate PVC backup or object-store strategy for
-uploads.
+## Explicit Non-Goals
 
-## Backup Model
-
-When `backup.enabled=true`, the chart renders:
-
-- a backup script ConfigMap;
-- a backup Secret when inline S3 credentials are used;
-- a CronJob with a `pg_dump` init container and an upload container.
-
-The backup path is intentionally database-only. It is useful for PostgreSQL
-restore points, but it is not a complete Listmonk disaster recovery plan unless
-uploads storage is backed up separately.
-
-## Security Posture
-
-The chart exposes resource, service account, pod security, and container security
-settings without hardcoding a single platform baseline. Production values should
-set resource requests and limits for Listmonk, PostgreSQL, and backup jobs, use
-Secrets for credentials, and add namespace NetworkPolicies or equivalent
-platform policy.
-
-## Validation
-
-The HelmForge gate for this chart is:
-
-```bash
-make validate-chart CHART=listmonk
-```
-
-This includes the bundled PostgreSQL path, external database templates, ingress,
-unit tests, kubeconform with real schemas, Artifact Hub lint, and k3d behavioral
-validation.
+- Multi-replica or active-active Listmonk.
+- Running an SMTP relay or managing DNS records for sending domains.
+- Managing PostgreSQL high availability; use the PostgreSQL chart or a managed
+  service.

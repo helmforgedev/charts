@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: Apache-2.0
+# Runtime fixture: standalone PostgreSQL on a non-default port for the external-db scenario.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: listmonk-ci-db
+  labels:
+    helmforge.dev/runtime-fixture: "true"
+type: Opaque
+stringData:
+  password: fixture-only-listmonk-password
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: listmonk-ci-postgresql
+  labels:
+    helmforge.dev/runtime-fixture: "true"
+spec:
+  selector:
+    app.kubernetes.io/name: listmonk-ci-postgresql
+  ports:
+    - name: postgresql
+      port: 5433
+      targetPort: postgresql
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: listmonk-ci-postgresql
+  labels:
+    helmforge.dev/runtime-fixture: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: listmonk-ci-postgresql
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: listmonk-ci-postgresql
+    spec:
+      containers:
+        - name: postgresql
+          image: docker.io/library/postgres:18.6-alpine
+          args: ["-p", "5433"]
+          ports:
+            - name: postgresql
+              containerPort: 5433
+          env:
+            - name: POSTGRES_DB
+              value: listmonk_ext
+            - name: POSTGRES_USER
+              value: listmonk_ext
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: listmonk-ci-db
+                  key: password
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-p", "5433", "-U", "listmonk_ext", "-d", "listmonk_ext"]
+            periodSeconds: 5
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql
+      volumes:
+        - name: data
+          emptyDir: {}

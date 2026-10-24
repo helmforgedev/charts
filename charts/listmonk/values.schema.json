@@ -1,7 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema#",
   "title": "Listmonk Helm Chart Values",
-  "description": "Configuration values for the Listmonk Helm chart",
   "type": "object",
   "additionalProperties": true,
   "properties": {
@@ -12,36 +11,44 @@
     },
     "nameOverride": {
       "type": "string",
-      "description": "Override the chart name used in resource names"
+      "description": "Override the chart name used in resource names",
+      "default": ""
     },
     "fullnameOverride": {
       "type": "string",
-      "description": "Override the full release name used in resource names"
+      "description": "Override the full release name used in resource names",
+      "default": ""
     },
     "commonLabels": {
       "type": "object",
+      "additionalProperties": true,
       "description": "Labels added to every resource created by this chart"
     },
     "replicaCount": {
       "type": "integer",
-      "description": "Number of Listmonk application replicas",
-      "minimum": 1
+      "description": "Number of Listmonk application replicas. Keep 1: several active instances",
+      "default": 1,
+      "minimum": 0
     },
     "image": {
       "type": "object",
-      "description": "Listmonk container image configuration",
+      "additionalProperties": false,
       "properties": {
         "repository": {
           "type": "string",
-          "description": "Listmonk container image repository"
+          "description": "Listmonk container image repository",
+          "default": "docker.io/listmonk/listmonk"
         },
         "tag": {
           "type": "string",
-          "description": "Listmonk image tag"
+          "description": "Listmonk image tag (pinned; floating tags are rejected)",
+          "default": "v6.2.0",
+          "minLength": 1
         },
         "pullPolicy": {
           "type": "string",
           "description": "Image pull policy",
+          "default": "IfNotPresent",
           "enum": [
             "Always",
             "IfNotPresent",
@@ -52,25 +59,108 @@
     },
     "imagePullSecrets": {
       "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "description": "Image pull secrets for private registries"
     },
     "listmonk": {
       "type": "object",
-      "description": "Listmonk application configuration",
+      "additionalProperties": false,
       "properties": {
+        "port": {
+          "type": "integer",
+          "description": "HTTP listener inside the container (LISTMONK_app__address)",
+          "default": 9000,
+          "minimum": 1024,
+          "maximum": 65535
+        },
         "extraEnv": {
           "type": "array",
-          "description": "Additional environment variables"
+          "items": {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "additionalProperties": true
+          },
+          "description": "Additional environment variables for the Listmonk and db-init containers"
+        },
+        "admin": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "username": {
+              "type": "string",
+              "description": "Superadmin username created by the first --install (at least 3 characters)",
+              "default": "admin",
+              "minLength": 3
+            },
+            "password": {
+              "type": "string",
+              "description": "Superadmin password (at least 8 characters); generated once when empty",
+              "default": "",
+              "anyOf": [
+                {
+                  "maxLength": 0
+                },
+                {
+                  "minLength": 8
+                }
+              ]
+            },
+            "existingSecret": {
+              "type": "string",
+              "description": "Existing Secret with the superadmin password",
+              "default": ""
+            },
+            "existingSecretPasswordKey": {
+              "type": "string",
+              "description": "Key in listmonk.admin.existingSecret",
+              "default": "admin-password"
+            }
+          }
+        }
+      }
+    },
+    "setup": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "waitImage": {
+          "type": "string",
+          "description": "PostgreSQL client image used to wait for the database",
+          "default": "docker.io/library/postgres:18.6-alpine"
+        },
+        "databaseWaitTimeoutSeconds": {
+          "type": "integer",
+          "description": "Seconds the wait-for-postgresql init container waits for the database",
+          "default": 300,
+          "minimum": 10
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Resources for the init containers"
         }
       }
     },
     "database": {
       "type": "object",
-      "description": "Database configuration",
+      "additionalProperties": false,
       "properties": {
         "mode": {
           "type": "string",
-          "description": "Database mode",
+          "description": "Database mode: auto | external | postgresql",
+          "default": "auto",
           "enum": [
             "auto",
             "external",
@@ -79,29 +169,332 @@
         },
         "external": {
           "type": "object",
-          "description": "External PostgreSQL configuration"
+          "additionalProperties": false,
+          "properties": {
+            "host": {
+              "type": "string",
+              "description": "External PostgreSQL hostname",
+              "default": ""
+            },
+            "port": {
+              "type": [
+                "string",
+                "integer"
+              ],
+              "description": "External PostgreSQL port",
+              "default": 5432,
+              "minimum": 1,
+              "maximum": 65535,
+              "pattern": "^[0-9]+$"
+            },
+            "name": {
+              "type": "string",
+              "description": "External PostgreSQL database name",
+              "default": "listmonk"
+            },
+            "username": {
+              "type": "string",
+              "description": "External PostgreSQL username",
+              "default": "listmonk"
+            },
+            "password": {
+              "type": "string",
+              "description": "External PostgreSQL password. Ignored when existingSecret is set.",
+              "default": ""
+            },
+            "sslMode": {
+              "type": "string",
+              "description": "PostgreSQL SSL mode",
+              "default": "disable",
+              "enum": [
+                "disable",
+                "allow",
+                "prefer",
+                "require",
+                "verify-ca",
+                "verify-full"
+              ]
+            },
+            "existingSecret": {
+              "type": "string",
+              "description": "Existing secret containing the external PostgreSQL password",
+              "default": ""
+            },
+            "existingSecretPasswordKey": {
+              "type": "string",
+              "description": "Secret key for the external PostgreSQL password",
+              "default": "database-password"
+            }
+          }
         }
       }
     },
     "postgresql": {
       "type": "object",
-      "description": "PostgreSQL subchart configuration"
+      "additionalProperties": true,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "architecture": {
+          "type": "string",
+          "default": "standalone"
+        },
+        "auth": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "database": {
+              "type": "string",
+              "description": "PostgreSQL database name created on first run",
+              "default": "listmonk"
+            },
+            "username": {
+              "type": "string",
+              "description": "PostgreSQL username created on first run",
+              "default": "listmonk"
+            },
+            "password": {
+              "type": "string",
+              "description": "PostgreSQL application user password. Auto-generated if empty.",
+              "default": ""
+            },
+            "postgresPassword": {
+              "type": "string",
+              "description": "PostgreSQL superuser password. Auto-generated if empty.",
+              "default": ""
+            }
+          }
+        },
+        "initdb": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "scripts": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "10-listmonk-bootstrap.sql": {
+                  "type": "string",
+                  "description": "Bootstrap Listmonk database privileges and extensions on first PostgreSQL initialization.",
+                  "default": "GRANT CREATE ON DATABASE listmonk TO listmonk;\n\\connect listmonk\nCREATE EXTENSION IF NOT EXISTS pgcrypto;\n"
+                }
+              }
+            }
+          }
+        },
+        "standalone": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "persistence": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Enable persistence for PostgreSQL data",
+                  "default": true
+                },
+                "size": {
+                  "type": "string",
+                  "description": "PVC size for PostgreSQL",
+                  "default": "8Gi"
+                }
+              }
+            }
+          }
+        }
+      },
+      "description": "Deploy PostgreSQL as a subchart"
     },
     "storage": {
       "type": "object",
-      "description": "Persistent storage for uploaded media"
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable persistent local storage for uploaded media",
+          "default": true
+        },
+        "storageClass": {
+          "type": "string",
+          "description": "Storage class for the uploads PVC",
+          "default": ""
+        },
+        "accessMode": {
+          "type": "string",
+          "description": "Access mode for the uploads PVC",
+          "default": "ReadWriteOnce",
+          "enum": [
+            "ReadWriteOnce",
+            "ReadOnlyMany",
+            "ReadWriteMany",
+            "ReadWriteOncePod"
+          ]
+        },
+        "size": {
+          "type": "string",
+          "description": "Size of the uploads PVC",
+          "default": "5Gi",
+          "pattern": "^[0-9]+([.][0-9]+)?(Ki|Mi|Gi|Ti|Pi|Ei|k|M|G|T|P|E)?$"
+        },
+        "existingClaim": {
+          "type": "string",
+          "description": "Existing PVC claim for uploads storage",
+          "default": ""
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Annotations for the uploads PVC"
+        }
+      }
     },
     "backup": {
       "type": "object",
-      "description": "Built-in backup CronJob configuration"
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable built-in backup CronJob for PostgreSQL (pg_dump to S3)",
+          "default": false
+        },
+        "schedule": {
+          "type": "string",
+          "description": "Backup schedule in Cron format",
+          "default": "0 3 * * *",
+          "minLength": 1
+        },
+        "suspend": {
+          "type": "boolean",
+          "description": "Suspend backup execution",
+          "default": false
+        },
+        "concurrencyPolicy": {
+          "type": "string",
+          "description": "CronJob concurrency policy",
+          "default": "Forbid",
+          "enum": [
+            "Allow",
+            "Forbid",
+            "Replace"
+          ]
+        },
+        "successfulJobsHistoryLimit": {
+          "type": "integer",
+          "description": "Successful job history retained by the CronJob",
+          "default": 3
+        },
+        "failedJobsHistoryLimit": {
+          "type": "integer",
+          "description": "Failed job history retained by the CronJob",
+          "default": 3
+        },
+        "backoffLimit": {
+          "type": "integer",
+          "description": "Job backoff limit",
+          "default": 1
+        },
+        "archivePrefix": {
+          "type": "string",
+          "description": "Prefix used in generated backup archive names",
+          "default": "listmonk"
+        },
+        "images": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "postgresql": {
+              "type": "string",
+              "description": "PostgreSQL client image used for pg_dump (must not be older than the server)",
+              "default": "docker.io/library/postgres:18.6-alpine"
+            },
+            "uploader": {
+              "type": "string",
+              "description": "MinIO client image used for S3 upload",
+              "default": "docker.io/helmforge/mc:1.0.0"
+            }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Resources applied to the backup dump and upload containers"
+        },
+        "database": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "pgDumpArgs": {
+              "type": "string",
+              "description": "Extra arguments passed to pg_dump",
+              "default": ""
+            }
+          }
+        },
+        "s3": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "endpoint": {
+              "type": "string",
+              "description": "S3-compatible endpoint URL",
+              "default": ""
+            },
+            "bucket": {
+              "type": "string",
+              "description": "Target bucket name",
+              "default": ""
+            },
+            "prefix": {
+              "type": "string",
+              "description": "Optional key prefix inside the bucket",
+              "default": "listmonk"
+            },
+            "createBucketIfNotExists": {
+              "type": "boolean",
+              "description": "Create the bucket automatically when it does not exist yet",
+              "default": true
+            },
+            "existingSecret": {
+              "type": "string",
+              "description": "Existing secret containing access-key and secret-key",
+              "default": ""
+            },
+            "existingSecretAccessKeyKey": {
+              "type": "string",
+              "description": "Secret key name for the access key inside backup.s3.existingSecret",
+              "default": "access-key"
+            },
+            "existingSecretSecretKeyKey": {
+              "type": "string",
+              "description": "Secret key name for the secret key inside backup.s3.existingSecret",
+              "default": "secret-key"
+            },
+            "accessKey": {
+              "type": "string",
+              "description": "Inline access key used when backup.s3.existingSecret is not set",
+              "default": ""
+            },
+            "secretKey": {
+              "type": "string",
+              "description": "Inline secret key used when backup.s3.existingSecret is not set",
+              "default": ""
+            }
+          }
+        }
+      }
     },
     "service": {
       "type": "object",
-      "description": "Kubernetes Service configuration",
+      "additionalProperties": false,
       "properties": {
         "type": {
           "type": "string",
-          "description": "Service type",
+          "description": "Service type for the Listmonk HTTP service",
+          "default": "ClusterIP",
           "enum": [
             "ClusterIP",
             "NodePort",
@@ -110,124 +503,404 @@
         },
         "port": {
           "type": "integer",
-          "description": "Service port"
+          "description": "Service port exposed by the Listmonk service",
+          "default": 80,
+          "minimum": 1,
+          "maximum": 65535
         },
         "annotations": {
           "type": "object",
-          "description": "Service annotations"
+          "additionalProperties": true,
+          "description": "Annotations for the Listmonk service"
         }
       }
     },
     "ingress": {
       "type": "object",
-      "description": "Ingress configuration"
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable ingress for Listmonk",
+          "default": false
+        },
+        "ingressClassName": {
+          "type": "string",
+          "description": "Ingress class name",
+          "default": ""
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Ingress annotations"
+        },
+        "hosts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "host"
+            ],
+            "properties": {
+              "host": {
+                "type": "string"
+              },
+              "paths": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "pathType": {
+                      "type": "string",
+                      "enum": [
+                        "Prefix",
+                        "Exact",
+                        "ImplementationSpecific"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "description": "Ingress hosts"
+        },
+        "tls": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "hosts": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "secretName": {
+                "type": "string"
+              }
+            }
+          },
+          "description": "Ingress TLS configuration"
+        }
+      }
+    },
+    "gatewayAPI": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Render Gateway API HTTPRoute resources",
+          "default": false
+        },
+        "httpRoutes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "parentRefs": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "hostnames": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "rules": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "labels": {
+                "type": "object"
+              },
+              "annotations": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "HTTPRoute definitions routed to the Listmonk Service by default"
+        }
+      }
     },
     "startupProbe": {
       "type": "object",
-      "description": "Startup probe configuration"
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable startup probe",
+          "default": true
+        },
+        "path": {
+          "type": "string",
+          "description": "HTTP path used by the startup probe",
+          "default": "/health",
+          "pattern": "^/"
+        },
+        "initialDelaySeconds": {
+          "type": "integer",
+          "description": "Startup probe initial delay",
+          "default": 5
+        },
+        "periodSeconds": {
+          "type": "integer",
+          "description": "Startup probe period",
+          "default": 5
+        },
+        "timeoutSeconds": {
+          "type": "integer",
+          "description": "Startup probe timeout",
+          "default": 3
+        },
+        "failureThreshold": {
+          "type": "integer",
+          "description": "Startup probe failure threshold",
+          "default": 30
+        }
+      }
     },
     "livenessProbe": {
       "type": "object",
-      "description": "Liveness probe configuration"
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable liveness probe",
+          "default": true
+        },
+        "path": {
+          "type": "string",
+          "description": "HTTP path used by the liveness probe",
+          "default": "/health",
+          "pattern": "^/"
+        },
+        "initialDelaySeconds": {
+          "type": "integer",
+          "description": "Liveness probe initial delay",
+          "default": 0
+        },
+        "periodSeconds": {
+          "type": "integer",
+          "description": "Liveness probe period",
+          "default": 30
+        },
+        "timeoutSeconds": {
+          "type": "integer",
+          "description": "Liveness probe timeout",
+          "default": 5
+        },
+        "failureThreshold": {
+          "type": "integer",
+          "description": "Liveness probe failure threshold",
+          "default": 3
+        }
+      }
     },
     "readinessProbe": {
       "type": "object",
-      "description": "Readiness probe configuration"
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable readiness probe",
+          "default": true
+        },
+        "path": {
+          "type": "string",
+          "description": "HTTP path used by the readiness probe",
+          "default": "/health",
+          "pattern": "^/"
+        },
+        "initialDelaySeconds": {
+          "type": "integer",
+          "description": "Readiness probe initial delay",
+          "default": 0
+        },
+        "periodSeconds": {
+          "type": "integer",
+          "description": "Readiness probe period",
+          "default": 10
+        },
+        "timeoutSeconds": {
+          "type": "integer",
+          "description": "Readiness probe timeout",
+          "default": 3
+        },
+        "failureThreshold": {
+          "type": "integer",
+          "description": "Readiness probe failure threshold",
+          "default": 3
+        }
+      }
     },
     "resources": {
       "type": "object",
-      "description": "CPU and memory requests/limits"
+      "additionalProperties": true,
+      "description": "CPU and memory requests/limits for the Listmonk container"
     },
     "podSecurityContext": {
       "type": "object",
-      "description": "Pod-level security context"
+      "description": "Pod security context",
+      "additionalProperties": true
     },
     "securityContext": {
       "type": "object",
-      "description": "Container-level security context"
+      "description": "Container security context for the Listmonk and init containers",
+      "additionalProperties": true
+    },
+    "automountServiceAccountToken": {
+      "type": "boolean",
+      "description": "Mount the ServiceAccount token (Listmonk does not call the Kubernetes API)",
+      "default": false
     },
     "serviceAccount": {
       "type": "object",
-      "description": "ServiceAccount configuration"
+      "additionalProperties": false,
+      "properties": {
+        "create": {
+          "type": "boolean",
+          "description": "Create a dedicated ServiceAccount",
+          "default": false
+        },
+        "name": {
+          "type": "string",
+          "description": "ServiceAccount name override",
+          "default": ""
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Annotations for the ServiceAccount"
+        }
+      }
     },
     "nodeSelector": {
       "type": "object",
+      "additionalProperties": true,
       "description": "Node selector for pod scheduling"
     },
     "tolerations": {
       "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      },
       "description": "Tolerations for pod scheduling"
     },
     "affinity": {
       "type": "object",
+      "additionalProperties": true,
       "description": "Affinity rules for pod scheduling"
     },
     "priorityClassName": {
       "type": "string",
-      "description": "Priority class name"
+      "description": "Priority class name",
+      "default": ""
     },
     "terminationGracePeriodSeconds": {
       "type": "integer",
-      "description": "Grace period for shutdown in seconds"
+      "description": "Grace period for shutdown, in seconds",
+      "default": 30,
+      "minimum": 0
     },
     "podLabels": {
       "type": "object",
-      "description": "Additional labels for the pod"
+      "additionalProperties": true,
+      "description": "Additional labels for the Listmonk pod"
     },
     "podAnnotations": {
       "type": "object",
-      "description": "Additional annotations for the pod"
+      "additionalProperties": true,
+      "description": "Additional annotations for the Listmonk pod"
     },
     "extraVolumeMounts": {
       "type": "array",
-      "description": "Additional volume mounts"
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "description": "Additional volume mounts for the Listmonk container"
     },
     "extraVolumes": {
       "type": "array",
-      "description": "Additional volumes"
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "description": "Additional volumes for the Listmonk pod"
     },
     "extraManifests": {
       "type": "array",
-      "description": "Extra Kubernetes manifests"
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "description": "Extra Kubernetes manifests to deploy alongside the chart"
     },
     "externalSecrets": {
       "type": "object",
-      "description": "External Secrets Operator integration",
+      "additionalProperties": false,
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "Enable External Secrets Operator integration"
+          "description": "Enable External Secrets Operator integration",
+          "default": false
         },
         "secretStoreRef": {
           "type": "object",
-          "description": "Default SecretStore reference",
+          "additionalProperties": false,
           "properties": {
             "name": {
-              "type": "string"
+              "type": "string",
+              "description": "SecretStore name",
+              "default": ""
             },
             "kind": {
               "type": "string",
+              "description": "SecretStore kind (SecretStore or ClusterSecretStore)",
+              "default": "SecretStore",
               "enum": [
                 "SecretStore",
                 "ClusterSecretStore"
               ]
             }
-          }
+          },
+          "description": "Default SecretStore / ClusterSecretStore reference"
         },
         "refreshInterval": {
           "type": "string",
-          "pattern": "^[0-9]+(s|m|h|d)$"
+          "description": "Default refresh interval for external secrets",
+          "default": "1h"
         },
         "creationPolicy": {
           "type": "string",
+          "description": "Creation policy for target secrets (Owner, Merge, None)",
+          "default": "Owner",
           "enum": [
             "Owner",
             "Merge",
-            "None"
+            "None",
+            "Orphan"
           ]
         },
         "deletionPolicy": {
           "type": "string",
+          "description": "Deletion policy for target secrets (Retain, Delete, Merge)",
+          "default": "Retain",
           "enum": [
             "Retain",
             "Delete",
@@ -237,10 +910,14 @@
         "items": {
           "type": "array",
           "items": {
-            "type": "object"
-          }
+            "type": "object",
+            "additionalProperties": true
+          },
+          "description": "List of ExternalSecret resources to create"
         }
-      }
+      },
+      "description": "External Secrets Operator integration"
     }
-  }
+  },
+  "description": "Values for the Listmonk Helm chart: self-hosted newsletter and mailing list manager with PostgreSQL"
 }

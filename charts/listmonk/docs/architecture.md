@@ -25,13 +25,13 @@ User
    |
    | HTTP request
    v
-Ingress or port-forward
+Ingress, HTTPRoute, or port-forward
    |
    v
-Service port 80
+Service port 80 (service.port)
    |
    v
-Listmonk container port 9000
+Listmonk container port 9000 (listmonk.port)
 ```
 
 Listmonk stores application settings, including SMTP settings configured through
