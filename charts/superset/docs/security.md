@@ -33,7 +33,9 @@ NetworkPolicy is enabled by default. It selects every Superset component,
 allows ingress only on `web.containerPort`, and permits egress. Restrict ingress
 to trusted ingress-controller or monitoring peers. An egress allowlist must
 include DNS, PostgreSQL, Redis, required data sources, and the Python package
-index only when runtime package installation remains enabled.
+index only when runtime package installation remains enabled. While
+`init.enabled=true`, it must also allow the Kubernetes API server so the
+`wait-for-init` container can read the revisioned Job status.
 
 Terminate TLS at a trusted ingress or load balancer. Use PostgreSQL
 `verify-full` with a trusted CA and enable Redis TLS for managed services where

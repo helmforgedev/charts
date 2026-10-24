@@ -44,13 +44,16 @@ Scale `web.replicaCount` for HTTP traffic and `worker.replicaCount` plus
 `worker.concurrency` for asynchronous work. Size Gunicorn worker count against
 pod CPU and memory. Keep Beat at one replica. The bundled standalone PostgreSQL
 and Redis charts remain single points of failure even when the application tier
-is scaled.
+is scaled. If `init.enabled=false`, keep one web replica for as long as that
+fallback is active; enable the managed init Job before scaling web pods.
 
 ## Backup and restore
 
-The optional CronJob streams `pg_dump` output to S3-compatible storage. Alert on
-failed Jobs and object age. Redis is not included because PostgreSQL is the
-metadata source of truth.
+The optional CronJob writes the complete compressed `pg_dump` archive to
+`/backup/out` on an `emptyDir` before uploading it to S3-compatible storage.
+The archive must fit in available node ephemeral storage; size and monitor the
+backup nodes accordingly. Alert on failed Jobs and object age. Redis is not
+included because PostgreSQL is the metadata source of truth.
 
 Before declaring backups usable, restore one into an isolated PostgreSQL
 instance, deploy the same Superset version with the original `SECRET_KEY`, and

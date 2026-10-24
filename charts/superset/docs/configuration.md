@@ -49,9 +49,9 @@ Celery Beat at one replica to prevent duplicate scheduling.
 `init.enabled=true` creates a revisioned Job that runs migrations, creates the
 administrator, initializes roles and permissions, and optionally loads example
 data. The web, worker, and Beat pods use a minimal namespaced Role to wait for
-that Job. When initialization is disabled, the web pod performs migrations and
-role initialization before starting Gunicorn; use one web replica for that
-fallback.
+that Job. When initialization is disabled, every web pod start performs
+migrations and role initialization before Gunicorn. Keep one web replica while
+that fallback remains enabled, or enable the init Job before scaling.
 
 The API token is mounted into application pods only when managed initialization
 is enabled. The initialization Job never receives a token.
@@ -144,8 +144,9 @@ networkPolicy:
 ```
 
 Replace `networkPolicy.egress` with environment-specific rules only after
-including DNS, PostgreSQL, Redis, package-index access when runtime installs are
-enabled, and every external data source queried by Superset.
+including DNS, PostgreSQL, Redis, the Kubernetes API server while
+`init.enabled=true`, package-index access when runtime installs are enabled,
+and every external data source queried by Superset.
 
 ## Related guides
 

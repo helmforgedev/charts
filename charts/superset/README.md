@@ -252,7 +252,8 @@ plan. Treat `superset.extraConfig` as trusted Python code.
 The default NetworkPolicy permits only the configured Superset listener for
 ingress and allows egress. Restrict `networkPolicy.ingressFrom` and
 `networkPolicy.egress` for the ingress controller, DNS, datastores, Python
-package index, and external data sources used by the deployment.
+package index, external data sources used by the deployment, and the Kubernetes
+API server while `init.enabled=true`.
 
 ## Troubleshooting
 

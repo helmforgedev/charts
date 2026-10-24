@@ -305,7 +305,7 @@ redis-password
 
 {{- define "superset.initContainers" -}}
 - name: wait-for-postgresql
-  image: docker.io/library/busybox:1.37
+  image: docker.io/library/busybox:1.37.0
   securityContext:
     allowPrivilegeEscalation: false
     capabilities:
@@ -324,7 +324,7 @@ redis-password
       done
       echo "PostgreSQL is reachable."
 - name: wait-for-redis
-  image: docker.io/library/busybox:1.37
+  image: docker.io/library/busybox:1.37.0
   securityContext:
     allowPrivilegeEscalation: false
     capabilities:
