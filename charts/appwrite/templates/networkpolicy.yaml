@@ -1,0 +1,44 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "appwrite.fullname" . }}-workloads
+  labels:
+    {{- include "appwrite.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "appwrite.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress: []
+  egress:
+    {{- toYaml .Values.networkPolicy.egress | nindent 4 }}
+{{- $components := list (dict "name" "api" "port" .Values.api.containerPort) (dict "name" "console" "port" .Values.console.containerPort) (dict "name" "realtime" "port" .Values.realtime.containerPort) }}
+{{- range $component := $components }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "appwrite.fullname" $ }}-{{ $component.name }}-ingress
+  labels:
+    {{- include "appwrite.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $component.name }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "appwrite.componentLabels" (dict "root" $ "component" $component.name) | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: {{ $component.port }}
+      {{- with $.Values.networkPolicy.ingressFrom }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
+{{- end }}

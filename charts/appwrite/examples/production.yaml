@@ -1,0 +1,76 @@
+# SPDX-License-Identifier: Apache-2.0
+# Production-oriented example with external stateful services and TLS ingress.
+appwrite:
+  domain: appwrite.example.com
+  existingSecret: appwrite-application
+
+database:
+  mode: external
+  external:
+    host: mariadb.internal.example.com
+    port: 3306
+    rootUser: appwrite_admin
+    name: appwrite
+    existingSecret: appwrite-mariadb
+    existingSecretPasswordKey: root-password
+mariadb:
+  enabled: false
+
+cache:
+  mode: external
+  external:
+    host: redis.internal.example.com
+    port: 6379
+    existingSecret: appwrite-redis
+    existingSecretPasswordKey: password
+redis:
+  enabled: false
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: appwrite.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: appwrite-tls
+      hosts:
+        - appwrite.example.com
+
+networkPolicy:
+  enabled: true
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.0/8
+
+persistence:
+  enabled: true
+  storageClass: rwx-production
+  accessModes:
+    - ReadWriteMany
+
+backup:
+  enabled: true
+  schedule: "0 3 * * *"
+  s3:
+    endpoint: https://s3.example.com
+    bucket: appwrite-backups
+    existingSecret: appwrite-backup-s3

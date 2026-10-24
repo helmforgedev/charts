@@ -32,6 +32,10 @@ image:
   pullPolicy: IfNotPresent
 
 console:
+  # -- HTTP port listened on by the Appwrite Console process
+  containerPort: 3000
+  # -- Cluster-facing Console Service port
+  servicePort: 80
   image:
     # -- Appwrite console image repository
     repository: docker.io/appwrite/new
@@ -106,6 +110,8 @@ appwrite:
 api:
   # -- Number of API server replicas
   replicaCount: 1
+  # -- HTTP port listened on by the Appwrite API process
+  containerPort: 80
   # -- Resources for API pods
   resources: {}
   # -- Node selector for API pods
@@ -120,6 +126,10 @@ api:
 realtime:
   # -- Number of realtime server replicas
   replicaCount: 1
+  # -- WebSocket port listened on by the Appwrite realtime process
+  containerPort: 80
+  # -- Cluster-facing realtime Service port
+  servicePort: 80
   # -- Resources for realtime pods
   resources: {}
   # -- Node selector for realtime pods
@@ -386,9 +396,21 @@ service:
 
 serviceAccount:
   # -- Create a ServiceAccount
-  create: false
+  create: true
   name: ""
   annotations: {}
+  # -- Mount the Kubernetes API token into Appwrite pods
+  automountServiceAccountToken: false
+
+# -- Network isolation for Appwrite workloads
+networkPolicy:
+  # -- Create a default-deny ingress policy plus listener-specific allow policies
+  enabled: true
+  # -- Optional peers allowed to reach the API, Console, and realtime listeners. Empty allows all sources.
+  ingressFrom: []
+  # -- Egress rules shared by every Appwrite pod. The default allows all destinations.
+  egress:
+    - {}
 
 # =============================================================================
 # Security
@@ -453,14 +475,32 @@ backup:
   archivePrefix: appwrite
   images:
     # -- MariaDB client image for mysqldump
-    mariadb: docker.io/library/mariadb:11.7-noble
+    mariadb: docker.io/library/mariadb:11.8.9-noble
     # -- MinIO client image for S3 upload
     uploader: docker.io/helmforge/mc:1.0.0
   # -- Resources for backup containers
   resources: {}
+  # -- Pod security context for backup jobs
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  # -- Container security context for backup jobs
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
   database:
-    # -- Extra arguments passed to mysqldump
-    mysqldumpArgs: "--single-transaction --routines --triggers"
+    # -- Extra arguments passed to mysqldump without shell evaluation
+    mysqldumpArgs:
+      - --single-transaction
+      - --routines
+      - --triggers
   s3:
     # -- S3-compatible endpoint URL (required when backup.enabled is true)
     endpoint: ""

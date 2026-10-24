@@ -1,198 +1,113 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
---------------------------------------------------------------------
-  Appwrite has been successfully deployed!
---------------------------------------------------------------------
+Appwrite is deployed.
 
-Chart:      {{ .Chart.Name }}
-Version:    {{ .Chart.Version }}
-AppVersion: {{ .Chart.AppVersion }}
-Release:    {{ .Release.Name }}
-Namespace:  {{ .Release.Namespace }}
+1. Release summary
 
---------------------------------------------------------------------
-  ACCESS INFORMATION
---------------------------------------------------------------------
+  Release:    {{ .Release.Name }}
+  Namespace:  {{ .Release.Namespace }}
+  Chart:      {{ .Chart.Name }} {{ .Chart.Version }}
+  App:        {{ .Chart.AppVersion }}
+  API image:  {{ include "appwrite.image" . }}
+  Console:    {{ include "appwrite.consoleImage" . }}
 
-Domain: {{ include "appwrite.domain" . }}
+2. Access information
 
+  Configured domain: {{ include "appwrite.domain" . }}
 {{- if .Values.ingress.enabled }}
 {{- range $host := .Values.ingress.hosts }}
-CONSOLE:  https://{{ $host.host }}/
-API:      https://{{ $host.host }}/v1/
+  Console: https://{{ $host.host }}/
+  API:     https://{{ $host.host }}/v1/
+  Realtime uses the same origin at /v1/realtime.
+{{- end }}
+{{- else if .Values.gateway.enabled }}
+  Gateway API routing is enabled. Inspect the accepted parent and assigned
+  address before opening one of the configured hostnames:
+    kubectl get httproute -n {{ .Release.Namespace }} {{ include "appwrite.fullname" . }} -o wide
+{{- range .Values.gateway.hostnames }}
+  Hostname: {{ . }}
 {{- end }}
 {{- else }}
-Port-forward to access Appwrite Console:
+  Ingress and Gateway API routing are disabled. Appwrite Console expects the
+  Console, API, and realtime paths on one browser origin. Configure Ingress or
+  Gateway API for normal use. These port-forwards are diagnostic endpoints:
 
-  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "appwrite.fullname" . }} 8080:80
-
-  CONSOLE:  http://localhost:8080/
-  API:      http://localhost:8080/v1/
-
+    kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "appwrite.fullname" . }}-console 3000:{{ .Values.console.servicePort }}
+    kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "appwrite.fullname" . }}-api 8080:{{ .Values.service.port }}
+    kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "appwrite.fullname" . }}-realtime 8081:{{ .Values.realtime.servicePort }}
 {{- end }}
 
-Internal cluster API endpoint:
-  http://{{ include "appwrite.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local/v1
+3. Configuration summary
 
---------------------------------------------------------------------
-  CONFIGURATION
---------------------------------------------------------------------
+  API listener:       {{ .Values.api.containerPort }}
+  Console listener:   {{ .Values.console.containerPort }}
+  Realtime listener:  {{ .Values.realtime.containerPort }}
+  Database mode:      {{ include "appwrite.databaseMode" . }}
+  Database endpoint:  {{ include "appwrite.databaseHost" . }}:{{ include "appwrite.databasePort" . }}
+  Cache mode:         {{ include "appwrite.cacheMode" . }}
+  Cache endpoint:     {{ include "appwrite.redisHost" . }}:{{ include "appwrite.redisPort" . }}
+  Persistence:        {{ .Values.persistence.enabled }}
+  NetworkPolicy:      {{ .Values.networkPolicy.enabled }}
+  Backup:             {{ .Values.backup.enabled }}
 
-Deployment:
-  API Image:         {{ include "appwrite.image" . }}
-  Console Image:     {{ include "appwrite.consoleImage" . }}
-  Persistence:       {{ .Values.persistence.enabled }}
+4. Getting started
 
-Database (MariaDB):
-  Mode:              {{ include "appwrite.databaseMode" . }}
-{{- if eq (include "appwrite.databaseMode" .) "subchart" }}
-  Host:              {{ include "appwrite.databaseHost" . }}:{{ include "appwrite.databasePort" . }}
-  Database:          {{ include "appwrite.databaseName" . }}
-{{- else }}
-  Host:              {{ .Values.database.external.host }}:{{ .Values.database.external.port | default 3306 }}
-  Database:          {{ .Values.database.external.name | default "appwrite" }}
-{{- end }}
+  Wait for every Appwrite workload to become Ready:
 
-Cache (Redis):
-  Mode:              {{ include "appwrite.cacheMode" . }}
-{{- if eq (include "appwrite.cacheMode" .) "subchart" }}
-  Host:              {{ include "appwrite.redisHost" . }}:{{ include "appwrite.redisPort" . }}
-{{- else }}
-  Host:              {{ .Values.cache.external.host }}:{{ .Values.cache.external.port | default 6379 }}
-{{- end }}
+    kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }} --timeout=600s
 
-Optional:
-  Backup:            {{ .Values.backup.enabled }}
-{{- if .Values.backup.enabled }}
-  Backup Schedule:   {{ .Values.backup.schedule }}
-  Backup Bucket:     {{ .Values.backup.s3.bucket | default "<not configured>" }}
-{{- end }}
+  Open the Console through the configured shared origin, create the first
+  account, and then create a project. Functions and Sites execution require an
+  external executor/orchestrator and are not provisioned by this chart.
 
---------------------------------------------------------------------
-  GETTING STARTED
---------------------------------------------------------------------
+5. Validation commands
 
-1. Wait for all Appwrite pods to be ready:
-   kubectl wait --for=condition=ready pod \
-     -l app.kubernetes.io/instance={{ .Release.Name }} \
-     -n {{ .Release.Namespace }} --timeout=600s
+  Confirm the API version and the three Service endpoints:
 
-2. Check all pod statuses:
-   kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+    kubectl exec -n {{ .Release.Namespace }} deploy/{{ include "appwrite.fullname" . }}-api -c api -- curl -fsS http://127.0.0.1:{{ .Values.api.containerPort }}/v1/health/version
+    kubectl get endpoints -n {{ .Release.Namespace }} {{ include "appwrite.fullname" . }}-api {{ include "appwrite.fullname" . }}-console {{ include "appwrite.fullname" . }}-realtime
 
-3. View API startup logs:
-   kubectl logs -l app.kubernetes.io/component=api \
-     -n {{ .Release.Namespace }} --all-containers --tail=50 -f
+  Confirm that no Appwrite container restarted:
 
-4. Create your first account:
-   Open the Console URL, click "Sign Up" and create your admin account
+    kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
 
-5. Create a new project in the Console and use the API key to integrate
+6. Operations and upgrades
 
---------------------------------------------------------------------
-  TROUBLESHOOTING
---------------------------------------------------------------------
+  Before upgrading, back up MariaDB, every shared Appwrite PVC, and the
+  application Secret. Review the chart upgrade notes, pause traffic for schema
+  changes, upgrade, and then run the upstream migration:
 
-Check all pods:
-  kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-
-View API logs:
-  kubectl logs -l app.kubernetes.io/component=api \
-    -n {{ .Release.Namespace }} --all-containers --tail=100
-
-View worker logs:
-  kubectl logs -l app.kubernetes.io/component=worker \
-    -n {{ .Release.Namespace }} --all-containers --tail=100
-
-View realtime logs:
-  kubectl logs -l app.kubernetes.io/component=realtime \
-    -n {{ .Release.Namespace }} --all-containers --tail=50
-
-View scheduler logs:
-  kubectl logs -l app.kubernetes.io/component=scheduler \
-    -n {{ .Release.Namespace }} --all-containers --tail=50
-
-Describe pod (events and errors):
-  kubectl describe pod -l app.kubernetes.io/component=api -n {{ .Release.Namespace }}
-
-Check PVC status:
-  kubectl get pvc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-
-View all chart resources:
-  kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-
-{{- if eq (include "appwrite.databaseMode" .) "subchart" }}
-View MariaDB logs:
-  kubectl logs -l app.kubernetes.io/name=mariadb \
-    -n {{ .Release.Namespace }} --all-containers --tail=50
-{{- end }}
-
-{{- if eq (include "appwrite.cacheMode" .) "subchart" }}
-View Redis logs:
-  kubectl logs -l app.kubernetes.io/name=redis \
-    -n {{ .Release.Namespace }} --all-containers --tail=50
-{{- end }}
+    helm upgrade {{ .Release.Name }} oci://ghcr.io/helmforgedev/helm/appwrite -n {{ .Release.Namespace }} --reuse-values
+    kubectl exec -n {{ .Release.Namespace }} deploy/{{ include "appwrite.fullname" . }}-api -c api -- migrate
 
 {{- if .Values.backup.enabled }}
-Check backup CronJob:
-  kubectl get cronjob {{ include "appwrite.fullname" . }}-backup -n {{ .Release.Namespace }}
+  Scheduled backup: {{ .Values.backup.schedule }}
+  Backup bucket:    {{ .Values.backup.s3.bucket }}
 
-View last backup job logs:
-  kubectl logs -n {{ .Release.Namespace }} \
-    -l app.kubernetes.io/component=backup --all-containers --tail=50
+    kubectl get cronjob -n {{ .Release.Namespace }} {{ include "appwrite.fullname" . }}-backup
+{{- else }}
+  The optional S3 database backup CronJob is disabled. Production recovery
+  also requires independent snapshots or backups for all shared PVCs.
 {{- end }}
 
---------------------------------------------------------------------
-  WARNINGS
---------------------------------------------------------------------
+7. Troubleshooting
 
-{{- if not .Values.persistence.enabled }}
+  Inspect workload state, recent events, and component logs:
 
-WARNING: Persistence is disabled!
-Appwrite uploads, functions, and certs will be lost on pod restart.
-Enable for production:
-  helm upgrade {{ .Release.Name }} appwrite \
-    --set persistence.enabled=true --reuse-values
-{{- end }}
+    kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} -o wide
+    kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
+    kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=api --all-containers --tail=100
+    kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=realtime --all-containers --tail=100
+    kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=worker --all-containers --tail=100
 
-{{- if not .Values.ingress.enabled }}
+  Verify PVC binding and NetworkPolicy objects when storage or connectivity fails:
 
-NOTE: Ingress is not enabled. Access via port-forward (see above).
-For production, configure ingress with TLS:
-  helm upgrade {{ .Release.Name }} appwrite \
-    --set ingress.enabled=true \
-    --set "ingress.hosts[0].host=appwrite.example.com" \
-    --reuse-values
-{{- end }}
+    kubectl get pvc,networkpolicy -n {{ .Release.Namespace }}
 
-{{- if not .Values.appwrite.domain }}
+8. Additional resources
 
-WARNING: appwrite.domain is not set!
-Appwrite needs a proper domain for OAuth and function URLs.
-Set it:
-  helm upgrade {{ .Release.Name }} appwrite \
-    --set appwrite.domain=appwrite.example.com --reuse-values
-{{- end }}
-
---------------------------------------------------------------------
-  ADDITIONAL RESOURCES
---------------------------------------------------------------------
-
-Appwrite 2.0 upgrade: back up the database, shared PVCs and application Secret,
-pause traffic, then run the migration before returning traffic:
-  kubectl exec -n {{ .Release.Namespace }} deploy/{{ include "appwrite.fullname" . }}-api -c api -- migrate
-Set workers.audits.enabled=false in retained values; that worker was removed.
-Usage collection requires an explicit external ClickHouse HTTP DSN and is
-disabled by default. See the chart's Upgrade Notes for setup and rollback.
-
-Documentation:     https://helmforge.dev/docs/charts/appwrite
-Chart Repository:  https://github.com/helmforgedev/charts/tree/main/charts/appwrite
-Report Issues:     https://github.com/helmforgedev/charts/issues
-
-Appwrite Website:  https://appwrite.io
-Appwrite Docs:     https://appwrite.io/docs
-Appwrite GitHub:   https://github.com/appwrite/appwrite
-
-For questions or feedback about this chart, please visit:
-  https://github.com/helmforgedev/charts/discussions
+  Chart documentation: https://helmforge.dev/docs/charts/appwrite
+  Chart source:        https://github.com/helmforgedev/charts/tree/main/charts/appwrite
+  Appwrite docs:       https://appwrite.io/docs
+  Report issues:       https://github.com/helmforgedev/charts/issues
 
 Happy Helmforging :)

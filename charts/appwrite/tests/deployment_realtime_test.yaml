@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: deployment-realtime
+templates:
+  - templates/deployment-realtime.yaml
+  - templates/secret.yaml
+tests:
+  - it: should disable ServiceAccount token automount
+    template: templates/deployment-realtime.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.initContainers[2].name
+          value: wait-for-appwrite-schema
+
+  - it: should configure the real realtime listener on a custom port
+    set:
+      realtime.containerPort: 8081
+    template: templates/deployment-realtime.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8081
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PORT
+            value: "8081"
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.tcpSocket.port
+          value: http

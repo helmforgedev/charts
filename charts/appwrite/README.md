@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
 # Appwrite Helm Chart
 
 Self-hosted backend-as-a-service platform for web, mobile, and Flutter developers. This chart deploys Appwrite with MariaDB and Redis on Kubernetes.
@@ -47,6 +48,10 @@ This chart deploys Appwrite as multiple Kubernetes Deployments, each running a d
 
 > **Note:** The openruntimes-executor, assistant, and browser services are not included in this alpha release. Functions execution requires a separate executor setup.
 
+The [architecture guide](docs/architecture.md) describes component ownership,
+data flows, persistence, and external-service boundaries in detail. The chart's
+[design document](DESIGN.md) records production and security trade-offs.
+
 ## Ingress Routing
 
 When ingress is enabled, requests are routed by path:
@@ -76,6 +81,22 @@ When ingress is enabled, requests are routed by path:
 | `redis.enabled` | `true` | Deploy Redis subchart |
 
 See [`values.yaml`](values.yaml) for the full configuration reference.
+
+## Security
+
+The chart disables ServiceAccount token automount, drops Linux capabilities,
+disables privilege escalation, applies RuntimeDefault seccomp, and enables
+listener-specific NetworkPolicies by default. Appwrite credentials can be read
+from existing Secrets; plaintext values are intended only for development.
+
+The official Appwrite image requires writable runtime paths and is not forced to
+a non-root UID. Restrict `networkPolicy.egress` to the SMTP, OAuth, webhook,
+database, Redis, object-storage, and integration endpoints used by your
+installation. Use TLS at Ingress or Gateway API, keep the generated encryption
+Secret across upgrades, and back up both MariaDB and every shared PVC.
+
+See the [security guide](docs/security.md) for the trust boundary and a
+production checklist.
 
 ## Upgrade Notes
 
@@ -250,6 +271,23 @@ workers:
 
 - [Standalone with ingress](examples/standalone.yaml)
 - [External database](examples/external-database.yaml)
+- [Production with external services](examples/production.yaml)
+
+## Operations and troubleshooting
+
+The [operations guide](docs/operations.md) covers readiness, migrations,
+backup scope, recovery, and routine validation. Useful first checks are:
+
+```bash
+kubectl get pods,pvc -n <namespace> -l app.kubernetes.io/instance=<release>
+kubectl get events -n <namespace> --sort-by=.lastTimestamp
+kubectl logs -n <namespace> -l app.kubernetes.io/component=api \
+  --all-containers --tail=100
+```
+
+The Console, API, and realtime endpoint must share one browser origin. If the
+Console loads but API calls fail, verify the `/v1` and `/v1/realtime` routes and
+their Service endpoints before debugging application credentials.
 
 ### Security Scan: `appwrite`
 
