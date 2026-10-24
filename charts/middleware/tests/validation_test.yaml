@@ -1,0 +1,82 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Value validation
+templates:
+  - templates/deployment.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should reject two database modes
+    set:
+      postgresql.enabled: true
+      externalDatabase.enabled: true
+      externalDatabase.host: postgres.example.com
+      externalDatabase.existingSecret: database-credentials
+    asserts:
+      - failedTemplate:
+          errorMessage: postgresql.enabled and externalDatabase.enabled are mutually exclusive
+
+  - it: should require one database mode
+    set:
+      postgresql.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: 'enable exactly one database mode: postgresql.enabled or externalDatabase.enabled'
+
+  - it: should require an external database host
+    set:
+      postgresql.enabled: false
+      externalDatabase.enabled: true
+      externalDatabase.existingSecret: database-credentials
+    asserts:
+      - failedTemplate:
+          errorMessage: externalDatabase.host is required when externalDatabase.enabled=true
+
+  - it: should require external database credentials
+    set:
+      postgresql.enabled: false
+      externalDatabase.enabled: true
+      externalDatabase.host: postgres.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: externalDatabase.password or externalDatabase.existingSecret is required when externalDatabase.enabled=true
+
+  - it: should reject two external database credential sources
+    set:
+      postgresql.enabled: false
+      externalDatabase.enabled: true
+      externalDatabase.host: postgres.example.com
+      externalDatabase.password: inline
+      externalDatabase.existingSecret: database-credentials
+    asserts:
+      - failedTemplate:
+          errorMessage: 'set only one external database credential source: password or existingSecret'
+
+  - it: should reject the unsupported Redis subchart
+    set:
+      redis.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: redis.enabled is unsupported by Middleware 0.3.1 because its remote Redis client cannot authenticate and forces TLS; use the embedded Redis runtime
+
+  - it: should reject unsupported external Redis
+    set:
+      externalRedis.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: externalRedis.enabled is unsupported by Middleware 0.3.1 because its remote Redis client cannot authenticate and forces TLS
+
+  - it: should require an ingress host
+    set:
+      ingress.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: ingress.hosts must contain at least one host when ingress.enabled=true
+
+  - it: should reject reserved pod selector labels
+    set:
+      podLabels:
+        app.kubernetes.io/name: override
+    asserts:
+      - failedTemplate:
+          errorMessage: 'podLabels must not override reserved selector label "app.kubernetes.io/name"'

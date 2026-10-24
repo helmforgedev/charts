@@ -1,79 +1,68 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-============================================================
-  Middleware has been successfully deployed!
-============================================================
+Middleware {{ .Chart.AppVersion }} is deployed as release {{ .Release.Name }} in
+namespace {{ .Release.Namespace }}.
 
-Middleware is an open-source DORA metrics platform. The app image bundles the
-frontend (Next.js), the analytics API and the sync server in one container,
-backed by PostgreSQL (DORA data) and Redis (cache/queues).
+1. Access
 
-Chart:      {{ .Chart.Name }}
-Version:    {{ .Chart.Version }}
-AppVersion: {{ .Chart.AppVersion }}
-Release:    {{ .Release.Name }}
-Namespace:  {{ .Release.Namespace }}
-
-============================================================
-  ACCESS INFORMATION
-============================================================
 {{- if .Values.ingress.enabled }}
 {{- range $host := .Values.ingress.hosts }}
-  Web UI:   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+  Web UI: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
 {{- end }}
 {{- else }}
-  Port-forward to access Middleware locally:
-
-    kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "middleware.fullname" . }} 3000:{{ .Values.service.port }}
-
-  Web UI:   http://localhost:3000/
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "middleware.fullname" . }} 3000:{{ .Values.service.port }}
+  Open http://localhost:3000/
 {{- end }}
 
-============================================================
-  CONFIGURATION SUMMARY
-============================================================
+2. Readiness
 
-  PostgreSQL (DORA data): {{ if .Values.postgresql.enabled }}bundled subchart ({{ .Release.Name }}-postgresql, db "{{ .Values.postgresql.auth.database }}"){{ else if .Values.externalDatabase.enabled }}external at {{ .Values.externalDatabase.host }}:{{ .Values.externalDatabase.port }}{{ else }}NOT configured — set postgresql.enabled or externalDatabase.enabled{{ end }}
-  Redis (cache/queues):   {{ if .Values.redis.enabled }}bundled subchart ({{ .Release.Name }}-redis){{ else if .Values.externalRedis.enabled }}external at {{ .Values.externalRedis.host }}:{{ .Values.externalRedis.port }}{{ else }}NOT configured — set redis.enabled or externalRedis.enabled{{ end }}
-  Encryption keys:        {{ if .Values.persistence.enabled }}persisted on a {{ .Values.persistence.size }} PVC at /app/keys{{ else }}EPHEMERAL (persistence.enabled=false) — keys are lost on restart{{ end }}
-  Ports:                  frontend {{ .Values.middleware.frontendPort }} / analytics {{ .Values.middleware.analyticsPort }} / sync {{ .Values.middleware.syncPort }}
+  kubectl wait --for=condition=available deployment/{{ include "middleware.fullname" . }} -n {{ .Release.Namespace }} --timeout=300s
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
 
-============================================================
-  GETTING STARTED
-============================================================
+The pod becomes Ready only after the frontend, analytics, sync, and embedded
+Redis listeners are available.
 
-1. Wait for the workload to be ready:
-   kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=middleware -n {{ .Release.Namespace }} --timeout=300s
+3. Configuration
 
-2. Validate the platform responds (port-forward from ACCESS INFORMATION first):
-   curl -sf http://localhost:3000/ >/dev/null && echo "Middleware UI is serving"
+  PostgreSQL: {{ if .Values.postgresql.enabled }}bundled at {{ include "middleware.dbHost" . }}:{{ include "middleware.dbPort" . }}{{ else }}external at {{ .Values.externalDatabase.host }}:{{ .Values.externalDatabase.port }}{{ end }}
+  Redis: embedded upstream process on localhost:6385
+  Frontend: {{ .Values.middleware.frontendPort }}
+  Analytics: {{ .Values.middleware.analyticsPort }}
+  Sync: {{ .Values.middleware.syncPort }}
 
-3. Open the Web UI and connect your Git provider (GitHub/GitLab) to start
-   collecting the four DORA metrics (deployment frequency, lead time, change
-   failure rate, MTTR).
+4. Persistence and backups
 
-============================================================
-  TROUBLESHOOTING
-============================================================
+  Key storage: {{ if .Values.persistence.enabled }}PVC {{ include "middleware.dataClaimName" . }} mounted at /app/backend/analytics_server/mhq/config{{ else }}ephemeral emptyDir; unsuitable for production{{ end }}
 
-  kubectl describe pod -l app.kubernetes.io/name=middleware -n {{ .Release.Namespace }}
-  kubectl logs -l app.kubernetes.io/name=middleware -n {{ .Release.Namespace }} --all-containers --tail=100
-  kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-{{- if .Values.postgresql.enabled }}
+Back up PostgreSQL and the key PVC as one recovery set. Restoring only the
+database can leave encrypted integration credentials unreadable.
 
-  PostgreSQL logs (DORA data store):
-  kubectl logs -l app.kubernetes.io/name=postgresql -n {{ .Release.Namespace }} --all-containers --tail=50
-{{- end }}
-{{- if .Values.redis.enabled }}
+5. Security
 
-  Redis logs (cache/queues):
-  kubectl logs -l app.kubernetes.io/name=redis -n {{ .Release.Namespace }} --all-containers --tail=50
-{{- end }}
+The ServiceAccount token is {{ if .Values.serviceAccount.automountServiceAccountToken }}mounted by explicit configuration{{ else }}not mounted{{ end }}. Database passwords are read from Kubernetes Secrets. Review unrestricted egress before applying cluster-wide default-deny policies.
 
-============================================================
-  ADDITIONAL RESOURCES
-============================================================
+6. Observability
 
-  Chart docs:   https://helmforge.dev/docs/charts/middleware
-  Project:      https://middleware.io | https://github.com/middlewarehq/middleware
+  kubectl logs -n {{ .Release.Namespace }} deployment/{{ include "middleware.fullname" . }} -c migrate-database
+  kubectl logs -n {{ .Release.Namespace }} deployment/{{ include "middleware.fullname" . }} -c middleware --tail=200
+  kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
+
+7. Troubleshooting
+
+  kubectl describe pod -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl get endpoints -n {{ .Release.Namespace }} {{ include "middleware.fullname" . }}
+  kubectl exec -n {{ .Release.Namespace }} deployment/{{ include "middleware.fullname" . }} -c middleware -- test -s /app/backend/analytics_server/mhq/config/config.ini
+
+If migrations wait for PostgreSQL, verify the Service, Secret key, SSL mode,
+and NetworkPolicy path. If the UI listens but the pod is not Ready, inspect the
+analytics and sync process logs.
+
+8. Upgrade
+
+Preserve the key PVC and PostgreSQL credential Secret. Remove legacy
+redis.enabled or externalRedis.enabled overrides; Middleware 0.3.1 supports
+only its loopback Redis runtime safely.
+
+Documentation: https://helmforge.dev/docs/charts/middleware
+Source: https://github.com/middlewarehq/middleware
 
 Happy Helmforging :)

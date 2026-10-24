@@ -1,55 +1,70 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# Middleware — Using managed PostgreSQL and Redis
+# Middleware with external PostgreSQL
 
-For anything beyond a small team, run Middleware against managed datastores
-instead of the bundled subcharts. PostgreSQL holds all DORA data (the source of
-truth); Redis is the cache/queue.
+Middleware 0.3.1 supports a separate PostgreSQL connection through `DB_*`
+environment variables. The chart applies upstream migrations before starting
+the application.
 
-## PostgreSQL
+## Prepare PostgreSQL
 
-1. Create the database and a user on your managed PostgreSQL:
+Create a database and application role according to your provider's security
+model. A minimal SQL outline is:
 
-   ```sql
-   CREATE DATABASE "mhq-oss";
-   CREATE USER middleware WITH PASSWORD '<password>';
-   GRANT ALL PRIVILEGES ON DATABASE "mhq-oss" TO middleware;
-   ```
-
-2. Store the password in a secret:
-
-   ```bash
-   kubectl create secret generic middleware-db --from-literal=user-password='<password>'
-   ```
-
-3. Configure the chart:
-
-   ```yaml
-   postgresql:
-     enabled: false
-   externalDatabase:
-     enabled: true
-     host: pg.internal.example.com
-     port: 5432
-     name: mhq-oss
-     user: middleware
-     existingSecret: middleware-db
-     existingSecretPasswordKey: user-password
-   ```
-
-## Redis
-
-```yaml
-redis:
-  enabled: false
-externalRedis:
-  enabled: true
-  host: redis.internal.example.com
-  port: 6379
+```sql
+CREATE ROLE middleware LOGIN PASSWORD '<operator-supplied-password>';
+CREATE DATABASE "mhq-oss" OWNER middleware;
 ```
 
-## Notes
+Use your provider's supported administrative workflow instead when direct role
+creation is restricted.
 
-- Keep `persistence.enabled=true` even with external datastores — `/app/keys`
-  (encryption keys) is local to the app pod and must persist.
-- A full example is in [`../examples/external-datastores.yaml`](../examples/external-datastores.yaml).
-- Back up the PostgreSQL `mhq-oss` database — it is the DORA data store.
+## Store the password
+
+Create a Kubernetes Secret without placing a password in a values file:
+
+```bash
+read -r -s -p 'External PostgreSQL password: ' MIDDLEWARE_DB_PASSWORD
+printf '\n'
+kubectl create secret generic middleware-database \
+  --namespace middleware \
+  --from-literal=password="$MIDDLEWARE_DB_PASSWORD"
+unset MIDDLEWARE_DB_PASSWORD
+```
+
+An ExternalSecret, SealedSecret, or another secret controller may create the
+same target Secret.
+
+## Configure the chart
+
+```yaml
+postgresql:
+  enabled: false
+
+externalDatabase:
+  enabled: true
+  host: postgres.database.svc.cluster.local
+  port: 5432
+  name: mhq-oss
+  user: middleware
+  existingSecret: middleware-database
+  existingSecretPasswordKey: password
+  sslMode: require
+```
+
+Use `verify-ca` or `verify-full` only after mounting the provider CA and setting
+the standard PostgreSQL certificate environment through `middleware.extraEnv`.
+
+## Redis boundary
+
+Do not enable `externalRedis` or the legacy `redis` subchart. Middleware 0.3.1
+hard-codes an empty Redis password and enables TLS whenever the host is not
+`localhost`. The chart therefore uses the Redis process bundled by the official
+image on loopback and rejects unsupported remote settings.
+
+## Recovery
+
+Back up external PostgreSQL with the provider's native tools. Separately back up
+the chart's key PVC. Restore both from a consistent recovery point; database
+records encrypted with a different `config.ini` key pair cannot be decrypted.
+
+See [operations.md](operations.md) for verification and restore steps.

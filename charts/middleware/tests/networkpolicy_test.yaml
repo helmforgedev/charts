@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: NetworkPolicy
+templates:
+  - templates/networkpolicy.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should restrict ingress to the named frontend port and preserve provider egress
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: http
+      - equal:
+          path: spec.egress[0]
+          value: {}
+
+  - it: should not render when disabled
+    set:
+      networkPolicy.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should allow configured ingress peers
+    set:
+      networkPolicy.additionalIngressFrom:
+        - namespaceSelector:
+            matchLabels:
+              access: allowed
+    asserts:
+      - equal:
+          path: spec.ingress[0].from[0].namespaceSelector.matchLabels.access
+          value: allowed
