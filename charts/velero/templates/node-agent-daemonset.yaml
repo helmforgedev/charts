@@ -20,7 +20,7 @@ spec:
       labels:
         {{- include "velero.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: node-agent
-        {{- with .Values.nodeAgent.podLabels }}
+        {{- with (omit .Values.nodeAgent.podLabels "app.kubernetes.io/name" "app.kubernetes.io/instance" "app.kubernetes.io/component") }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       {{- if or .Values.nodeAgent.annotations (and .Values.credentials.useSecret (not .Values.credentials.existingSecret) .Values.credentials.secretContents) }}
@@ -95,6 +95,12 @@ spec:
               mountPath: /scratch
             - name: tmp
               mountPath: /tmp
+            {{- if eq .Values.configuration.uploaderType "kopia" }}
+            - name: kopia-repository
+              mountPath: /home/cnb/udmrepo
+            - name: kopia-cache
+              mountPath: /home/cnb/.cache
+            {{- end }}
             {{- if not .Values.nodeAgent.disableHostPath }}
             - name: host-pods
               mountPath: /host_pods
@@ -119,6 +125,12 @@ spec:
           emptyDir: {}
         - name: tmp
           emptyDir: {}
+        {{- if eq .Values.configuration.uploaderType "kopia" }}
+        - name: kopia-repository
+          emptyDir: {}
+        - name: kopia-cache
+          emptyDir: {}
+        {{- end }}
         {{- if include "velero.credentialsSecretEnabled" . }}
         - name: cloud-credentials
           secret:

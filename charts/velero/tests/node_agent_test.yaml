@@ -31,3 +31,36 @@ tests:
           content:
             name: tmp
             mountPath: /tmp
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: kopia-repository
+            mountPath: /home/cnb/udmrepo
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: kopia-cache
+            mountPath: /home/cnb/.cache
+
+  - it: protects required node-agent pod labels from user overrides
+    set:
+      nodeAgent:
+        enabled: true
+        podLabels:
+          app.kubernetes.io/name: override
+          app.kubernetes.io/instance: override
+          app.kubernetes.io/component: override
+          custom.example.com/team: backup
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/name"]
+          value: velero
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/instance"]
+          value: RELEASE-NAME
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/component"]
+          value: node-agent
+      - equal:
+          path: spec.template.metadata.labels["custom.example.com/team"]
+          value: backup

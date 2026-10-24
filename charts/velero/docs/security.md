@@ -49,9 +49,13 @@ encryption, versioning, retention, and audit logs where available.
 
 The default NetworkPolicy admits only the metrics listener. Egress remains open
 because the Kubernetes API address and object-storage endpoints vary by
-cluster. Define a separate environment-specific egress policy when those
-destinations and DNS requirements are known. Disabling external egress without
-replacement rules prevents Velero from reaching its control plane and storage.
+cluster. To replace it with a restrictive environment-specific policy, set
+`networkPolicy.allowExternalEgress=false` before adding the required Kubernetes
+API, DNS, and object-storage rules. NetworkPolicy rules are additive, so leaving
+the chart's allow-all egress rule enabled defeats a second restrictive policy.
+Disabling external egress without replacement rules prevents the server from
+reaching its control plane and storage. The chart policy selects only the
+server; node-agent networking must be restricted separately.
 
 ## Node-Agent Exception
 
@@ -60,3 +64,10 @@ filesystem backup. It remains unprivileged, drops all capabilities, blocks
 privilege escalation, uses a read-only root filesystem, and applies
 RuntimeDefault seccomp. Enable it only on trusted nodes after reviewing Pod
 Security admission, hostPath policy, and workload isolation.
+
+When the node-agent uses the Kopia uploader, the chart mounts ephemeral writable
+volumes at `/home/cnb/udmrepo` and `/home/cnb/.cache` in both the server and
+node-agent. These paths hold Kopia configuration and cache data and keep the
+remaining root filesystem read-only. The mounts are enabled with the node-agent
+so per-backup annotations and schedules can opt into filesystem backup even
+when `configuration.defaultVolumesToFsBackup=false`.

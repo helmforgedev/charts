@@ -4,7 +4,11 @@ Enable `nodeAgent.enabled=true` when you need filesystem backup for pod volumes.
 
 ## What this chart does
 
-When enabled, the chart deploys the Velero node-agent as a DaemonSet and wires the host paths required for pod volume access.
+When enabled, the chart deploys the Velero node-agent as a DaemonSet and wires
+the host paths required for pod volume access. With the default Kopia uploader,
+both the server and node-agent also receive ephemeral writable volumes at
+`/home/cnb/udmrepo` and `/home/cnb/.cache`. This preserves the read-only root
+filesystem while allowing Kopia to store configuration and cache data.
 
 ## What to validate
 

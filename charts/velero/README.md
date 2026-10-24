@@ -155,8 +155,12 @@ metrics:
   contexts; the optional node-agent runs as UID 0 because filesystem backup
   requires kubelet host-path access
 - NetworkPolicy egress is open by default because the Kubernetes API and
-  object-storage endpoints are installation-specific; constrain it with an
-  environment-specific policy when those destinations are known
+  object-storage endpoints are installation-specific; set
+  `networkPolicy.allowExternalEgress=false` before adding a restrictive
+  environment-specific policy, because NetworkPolicy rules are additive
+- when the node-agent uses Kopia, the chart mounts ephemeral writable
+  `/home/cnb/udmrepo` and `/home/cnb/.cache` paths in the server and node-agent
+  while keeping their root filesystems read-only
 
 Velero v1.18.4 fixes a backup queue that could remain stuck when a dequeued
 backup completed during its status patch. Review the

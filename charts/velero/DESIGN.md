@@ -88,7 +88,9 @@ their official images. Their containers drop all Linux capabilities, disallow
 privilege escalation, use a read-only root filesystem, and run with the
 RuntimeDefault seccomp profile. The server keeps writable `emptyDir` volumes at
 `/scratch`, `/plugins`, and `/tmp` because Velero and its plugin processes need
-those paths at runtime.
+those paths at runtime. Enabling the node-agent with the Kopia uploader also
+mounts writable `/home/cnb/udmrepo` and `/home/cnb/.cache` volumes in both
+affected workloads for repository configuration and cache data.
 
 The node-agent is a deliberate exception. Filesystem backup needs access to
 kubelet host paths and therefore runs as UID 0. Its container remains

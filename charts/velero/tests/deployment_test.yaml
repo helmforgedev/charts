@@ -48,6 +48,49 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: AWS_SHARED_CREDENTIALS_FILE
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: kopia-cache
+
+  - it: protects required pod labels from user overrides
+    set:
+      podLabels:
+        app.kubernetes.io/name: override
+        app.kubernetes.io/instance: override
+        app.kubernetes.io/component: override
+        custom.example.com/team: backup
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/name"]
+          value: velero
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/instance"]
+          value: RELEASE-NAME
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/component"]
+          value: server
+      - equal:
+          path: spec.template.metadata.labels["custom.example.com/team"]
+          value: backup
+
+  - it: mounts writable Kopia paths when the node-agent can run filesystem backups
+    set:
+      nodeAgent.enabled: true
+      configuration.uploaderType: kopia
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: kopia-repository
+            mountPath: /home/cnb/udmrepo
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: kopia-cache
+            mountPath: /home/cnb/.cache
   - it: renders credentials secret when secret content is provided
     set:
       credentials.secretContents: |
