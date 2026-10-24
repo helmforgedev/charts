@@ -179,7 +179,7 @@ app.kubernetes.io/part-of: helmforge
 - name: WO_HOST
   value: {{ .Values.webodm.host | quote }}
 - name: WO_PORT
-  value: "8000"
+  value: {{ .Values.web.containerPort | quote }}
 - name: WO_DEBUG
   value: {{ ternary "YES" "NO" .Values.webodm.debug | quote }}
 - name: WO_SSL

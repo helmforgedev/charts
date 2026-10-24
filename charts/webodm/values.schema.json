@@ -12,7 +12,16 @@
     "nameOverride": {"type": "string"},
     "fullnameOverride": {"type": "string"},
     "commonLabels": {"type": "object"},
-    "image": {"$ref": "#/definitions/image"},
+    "image": {
+      "type": "object",
+      "required": ["repository", "tag", "digest", "pullPolicy"],
+      "properties": {
+        "repository": {"type": "string", "pattern": "^[a-z0-9.-]+/.+"},
+        "tag": {"type": "string", "minLength": 1, "not": {"enum": ["latest", "main", "master", "dev", "nightly", "edge", "stable"]}},
+        "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "pullPolicy": {"type": "string", "enum": ["Always", "IfNotPresent", "Never"]}
+      }
+    },
     "imagePullSecrets": {"type": "array", "items": {"type": "object"}},
     "webodm": {
       "type": "object",
@@ -31,10 +40,26 @@
     },
     "web": {
       "type": "object",
-      "required": ["concurrency", "resources", "startupFailureThreshold", "startupPeriodSeconds", "terminationGracePeriodSeconds"],
+      "required": ["containerPort", "concurrency", "resources", "startupFailureThreshold", "startupPeriodSeconds", "terminationGracePeriodSeconds"],
       "properties": {
+        "containerPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
         "concurrency": {"type": "integer", "minimum": 1},
-        "resources": {"type": "object"},
+        "resources": {
+          "type": "object",
+          "required": ["requests", "limits"],
+          "properties": {
+            "requests": {
+              "type": "object",
+              "required": ["cpu", "memory"],
+              "properties": {"cpu": {"type": ["string", "number"]}, "memory": {"type": "string"}}
+            },
+            "limits": {
+              "type": "object",
+              "required": ["cpu", "memory"],
+              "properties": {"cpu": {"type": ["string", "number"]}, "memory": {"type": "string"}}
+            }
+          }
+        },
         "startupFailureThreshold": {"type": "integer", "minimum": 1},
         "startupPeriodSeconds": {"type": "integer", "minimum": 1},
         "terminationGracePeriodSeconds": {"type": "integer", "minimum": 30}
@@ -46,22 +71,56 @@
       "properties": {
         "replicaCount": {"type": "integer", "minimum": 1},
         "concurrency": {"type": "integer", "minimum": 2},
-        "resources": {"type": "object"},
+        "resources": {
+          "type": "object",
+          "required": ["requests", "limits"],
+          "properties": {
+            "requests": {
+              "type": "object",
+              "required": ["cpu", "memory"],
+              "properties": {"cpu": {"type": ["string", "number"]}, "memory": {"type": "string"}}
+            },
+            "limits": {
+              "type": "object",
+              "required": ["cpu", "memory"],
+              "properties": {"cpu": {"type": ["string", "number"]}, "memory": {"type": "string"}}
+            }
+          }
+        },
         "terminationGracePeriodSeconds": {"type": "integer", "minimum": 60}
       }
     },
     "processing": {
       "type": "object",
-      "required": ["enabled", "image", "gpu", "label", "parallelQueueProcessing", "maxImages", "maxConcurrency", "maxRuntime", "cleanupTasksAfter", "cleanupUploadsAfter", "resources", "terminationGracePeriodSeconds", "persistence", "tmpSizeLimit"],
+      "required": ["enabled", "containerPort", "image", "gpu", "label", "parallelQueueProcessing", "maxImages", "maxConcurrency", "maxRuntime", "cleanupTasksAfter", "cleanupUploadsAfter", "resources", "terminationGracePeriodSeconds", "persistence", "tmpSizeLimit"],
       "properties": {
         "enabled": {"type": "boolean"},
-        "image": {"$ref": "#/definitions/image"},
+        "containerPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
+        "image": {
+          "type": "object",
+          "required": ["repository", "tag", "digest", "pullPolicy"],
+          "properties": {
+            "repository": {"type": "string", "pattern": "^[a-z0-9.-]+/.+"},
+            "tag": {"type": "string", "minLength": 1, "not": {"enum": ["latest", "main", "master", "dev", "nightly", "edge", "stable"]}},
+            "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+            "pullPolicy": {"type": "string", "enum": ["Always", "IfNotPresent", "Never"]}
+          }
+        },
         "gpu": {
           "type": "object",
           "required": ["enabled", "image", "count", "runtimeClassName", "nodeSelector", "tolerations"],
           "properties": {
             "enabled": {"type": "boolean"},
-            "image": {"$ref": "#/definitions/image"},
+            "image": {
+              "type": "object",
+              "required": ["repository", "tag", "digest", "pullPolicy"],
+              "properties": {
+                "repository": {"type": "string", "pattern": "^[a-z0-9.-]+/.+"},
+                "tag": {"type": "string", "minLength": 1, "not": {"enum": ["latest", "main", "master", "dev", "nightly", "edge", "stable"]}},
+                "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+                "pullPolicy": {"type": "string", "enum": ["Always", "IfNotPresent", "Never"]}
+              }
+            },
             "count": {"type": "integer", "minimum": 1},
             "runtimeClassName": {"type": "string"},
             "nodeSelector": {"type": "object"},
@@ -75,15 +134,81 @@
         "maxRuntime": {"type": "integer", "minimum": 0},
         "cleanupTasksAfter": {"type": "integer", "minimum": 1},
         "cleanupUploadsAfter": {"type": "integer", "minimum": 1},
-        "resources": {"type": "object"},
+        "resources": {
+          "type": "object",
+          "required": ["requests", "limits"],
+          "properties": {
+            "requests": {
+              "type": "object",
+              "required": ["cpu", "memory", "ephemeral-storage"],
+              "properties": {
+                "cpu": {"type": ["string", "number"]},
+                "memory": {"type": "string"},
+                "ephemeral-storage": {"type": "string"}
+              }
+            },
+            "limits": {
+              "type": "object",
+              "required": ["cpu", "memory", "ephemeral-storage"],
+              "properties": {
+                "cpu": {"type": ["string", "number"]},
+                "memory": {"type": "string"},
+                "ephemeral-storage": {"type": "string"}
+              }
+            }
+          }
+        },
         "terminationGracePeriodSeconds": {"type": "integer", "minimum": 60},
-        "persistence": {"$ref": "#/definitions/persistence"},
+        "persistence": {
+          "type": "object",
+          "required": ["enabled", "existingClaim", "storageClass", "accessModes", "size", "retain", "annotations"],
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "existingClaim": {"type": "string"},
+            "storageClass": {"type": "string"},
+            "accessModes": {"type": "array", "minItems": 1, "items": {"type": "string", "enum": ["ReadWriteOnce", "ReadOnlyMany", "ReadWriteMany", "ReadWriteOncePod"]}},
+            "size": {"type": "string", "pattern": "^[1-9][0-9]*(Ei|Pi|Ti|Gi|Mi|Ki)$"},
+            "retain": {"type": "boolean"},
+            "annotations": {"type": "object"}
+          }
+        },
         "tmpSizeLimit": {"type": "string", "pattern": "^[1-9][0-9]*(Ei|Pi|Ti|Gi|Mi|Ki)$"}
       }
     },
-    "persistence": {"$ref": "#/definitions/persistence"},
-    "service": {"$ref": "#/definitions/service"},
-    "processingService": {"$ref": "#/definitions/service"},
+    "persistence": {
+      "type": "object",
+      "required": ["enabled", "existingClaim", "storageClass", "accessModes", "size", "retain", "annotations"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "existingClaim": {"type": "string"},
+        "storageClass": {"type": "string"},
+        "accessModes": {"type": "array", "minItems": 1, "items": {"type": "string", "enum": ["ReadWriteOnce", "ReadOnlyMany", "ReadWriteMany", "ReadWriteOncePod"]}},
+        "size": {"type": "string", "pattern": "^[1-9][0-9]*(Ei|Pi|Ti|Gi|Mi|Ki)$"},
+        "retain": {"type": "boolean"},
+        "annotations": {"type": "object"}
+      }
+    },
+    "service": {
+      "type": "object",
+      "required": ["type", "port", "annotations", "ipFamilyPolicy", "ipFamilies"],
+      "properties": {
+        "type": {"type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"]},
+        "port": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "annotations": {"type": "object"},
+        "ipFamilyPolicy": {"type": "string", "enum": ["", "SingleStack", "PreferDualStack", "RequireDualStack"]},
+        "ipFamilies": {"type": "array", "maxItems": 2, "uniqueItems": true, "items": {"type": "string", "enum": ["IPv4", "IPv6"]}}
+      }
+    },
+    "processingService": {
+      "type": "object",
+      "required": ["port", "annotations", "ipFamilyPolicy", "ipFamilies"],
+      "properties": {
+        "port": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "annotations": {"type": "object"},
+        "ipFamilyPolicy": {"type": "string", "enum": ["", "SingleStack", "PreferDualStack", "RequireDualStack"]},
+        "ipFamilies": {"type": "array", "maxItems": 2, "uniqueItems": true, "items": {"type": "string", "enum": ["IPv4", "IPv6"]}}
+      }
+    },
     "oidc": {
       "type": "object",
       "required": ["enabled", "name", "clientId", "existingSecret", "existingSecretClientSecretKey", "authEndpoint", "tokenEndpoint", "userinfoEndpoint", "icon", "allowedEmails", "updateProfile", "customScopes", "groupClaims", "createGroups", "ignoreGroups"],
@@ -105,9 +230,37 @@
         "ignoreGroups": {"type": "array", "items": {"type": "string"}}
       }
     },
-    "ingress": {"type": "object"},
-    "gatewayAPI": {"type": "object"},
-    "networkPolicy": {"type": "object"},
+    "ingress": {
+      "type": "object",
+      "required": ["enabled", "ingressClassName", "annotations", "hosts", "tls"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "ingressClassName": {"type": "string"},
+        "annotations": {"type": "object"},
+        "hosts": {"type": "array", "minItems": 1, "items": {"type": "object"}},
+        "tls": {"type": "array", "items": {"type": "object"}}
+      }
+    },
+    "gatewayAPI": {
+      "type": "object",
+      "required": ["enabled", "parentRefs", "hostnames", "annotations", "rules"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "parentRefs": {"type": "array", "items": {"type": "object"}},
+        "hostnames": {"type": "array", "items": {"type": "string"}},
+        "annotations": {"type": "object"},
+        "rules": {"type": "array", "minItems": 1, "items": {"type": "object"}}
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "required": ["enabled", "ingressFrom", "extraEgress"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "ingressFrom": {"type": "array", "items": {"type": "object"}},
+        "extraEgress": {"type": "array", "items": {"type": "object"}}
+      }
+    },
     "pdb": {
       "type": "object",
       "required": ["enabled", "minAvailable"],
@@ -148,12 +301,133 @@
         "existingSecretPasswordKey": {"type": "string", "minLength": 1}
       }
     },
-    "postgresql": {"type": "object"},
-    "redis": {"type": "object"},
+    "postgresql": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["enabled", "image", "architecture", "auth", "initdb", "standalone"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "image": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["repository", "tag", "pullPolicy"],
+          "properties": {
+            "repository": {"type": "string", "pattern": "^[a-z0-9.-]+/.+"},
+            "tag": {"type": "string", "minLength": 1},
+            "pullPolicy": {"type": "string", "enum": ["Always", "IfNotPresent", "Never"]}
+          }
+        },
+        "architecture": {"type": "string", "enum": ["standalone", "replication"]},
+        "auth": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["database", "username", "password", "existingSecret", "existingSecretUserPasswordKey"],
+          "properties": {
+            "database": {"type": "string", "minLength": 1},
+            "username": {"type": "string", "minLength": 1},
+            "password": {"type": "string"},
+            "existingSecret": {"type": "string"},
+            "existingSecretUserPasswordKey": {"type": "string", "minLength": 1}
+          }
+        },
+        "initdb": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["runDefaultScript", "scripts"],
+          "properties": {
+            "runDefaultScript": {"type": "boolean"},
+            "scripts": {
+              "type": "object",
+              "required": ["10-webodm-postgis.sql"],
+              "properties": {"10-webodm-postgis.sql": {"type": "string", "minLength": 1}}
+            }
+          }
+        },
+        "standalone": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["persistence"],
+          "properties": {
+            "persistence": {
+              "type": "object",
+              "additionalProperties": true,
+              "required": ["enabled", "size"],
+              "properties": {
+                "enabled": {"type": "boolean"},
+                "size": {"type": "string", "pattern": "^[1-9][0-9]*(Ei|Pi|Ti|Gi|Mi|Ki)$"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "redis": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["enabled", "architecture", "auth", "standalone"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "architecture": {"type": "string", "enum": ["standalone", "replication"]},
+        "auth": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["enabled", "password", "existingSecret", "existingSecretPasswordKey"],
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "password": {"type": "string"},
+            "existingSecret": {"type": "string"},
+            "existingSecretPasswordKey": {"type": "string", "minLength": 1}
+          }
+        },
+        "standalone": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["persistence"],
+          "properties": {
+            "persistence": {
+              "type": "object",
+              "additionalProperties": true,
+              "required": ["enabled", "size"],
+              "properties": {
+                "enabled": {"type": "boolean"},
+                "size": {"type": "string", "pattern": "^[1-9][0-9]*(Ei|Pi|Ti|Gi|Mi|Ki)$"}
+              }
+            }
+          }
+        }
+      }
+    },
     "podLabels": {"type": "object"},
     "podAnnotations": {"type": "object"},
-    "podSecurityContext": {"type": "object"},
-    "securityContext": {"type": "object"},
+    "podSecurityContext": {
+      "type": "object",
+      "required": ["seccompProfile"],
+      "properties": {
+        "seccompProfile": {
+          "type": "object",
+          "required": ["type"],
+          "properties": {"type": {"type": "string", "enum": ["RuntimeDefault", "Localhost", "Unconfined"]}}
+        }
+      }
+    },
+    "securityContext": {
+      "type": "object",
+      "required": ["runAsUser", "runAsNonRoot", "allowPrivilegeEscalation", "readOnlyRootFilesystem", "capabilities"],
+      "properties": {
+        "runAsUser": {"type": "integer", "minimum": 0},
+        "runAsNonRoot": {"type": "boolean"},
+        "allowPrivilegeEscalation": {"type": "boolean"},
+        "readOnlyRootFilesystem": {"type": "boolean"},
+        "capabilities": {
+          "type": "object",
+          "required": ["drop", "add"],
+          "properties": {
+            "drop": {"type": "array", "items": {"type": "string"}},
+            "add": {"type": "array", "items": {"type": "string"}}
+          }
+        }
+      }
+    },
     "nodeSelector": {"type": "object"},
     "tolerations": {"type": "array", "items": {"type": "object"}},
     "affinity": {"type": "object"},
@@ -172,6 +446,37 @@
   },
   "required": ["image", "webodm", "web", "worker", "processing", "persistence", "service", "processingService", "oidc", "ingress", "gatewayAPI", "networkPolicy", "pdb", "externalSecrets", "externalDatabase", "externalRedis", "postgresql", "redis", "serviceAccount"],
   "definitions": {
+    "resources": {
+      "type": "object",
+      "required": ["requests", "limits"],
+      "properties": {
+        "requests": {
+          "type": "object",
+          "required": ["cpu", "memory"],
+          "properties": {
+            "cpu": {"type": ["string", "number"]},
+            "memory": {"type": "string"}
+          }
+        },
+        "limits": {
+          "type": "object",
+          "required": ["cpu", "memory"],
+          "properties": {
+            "cpu": {"type": ["string", "number"]},
+            "memory": {"type": "string"}
+          }
+        }
+      }
+    },
+    "processingResources": {
+      "type": "object",
+      "required": ["cpu", "memory", "ephemeral-storage"],
+      "properties": {
+        "cpu": {"type": ["string", "number"]},
+        "memory": {"type": "string"},
+        "ephemeral-storage": {"type": "string"}
+      }
+    },
     "image": {
       "type": "object",
       "required": ["repository", "tag", "digest", "pullPolicy"],

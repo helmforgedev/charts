@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # External Secrets
 
 External Secrets Operator is installed out of band. Enable

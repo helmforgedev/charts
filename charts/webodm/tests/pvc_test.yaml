@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: WebODM persistent claims
+templates:
+  - templates/pvc.yaml
+tests:
+  - it: renders retained media and processing claims
+    asserts:
+      - hasDocuments: {count: 2}
+      - isKind: {of: PersistentVolumeClaim, documentIndex: 0}
+      - equal: {path: spec.resources.requests.storage, value: 20Gi, documentIndex: 0}
+      - isKind: {of: PersistentVolumeClaim, documentIndex: 1}
+      - equal: {path: spec.resources.requests.storage, value: 20Gi, documentIndex: 1}
+  - it: reuses existing claims without rendering replacements
+    set:
+      persistence.existingClaim: shared-media
+      processing.persistence.existingClaim: processor-data
+    asserts:
+      - hasDocuments: {count: 0}
+

@@ -1,7 +1,22 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # WebODM Helm Chart
 
 WebODM provides browser-based aerial imagery processing backed by PostgreSQL
 with PostGIS, Redis, Celery, and a private NodeODM processor.
+
+## Features
+
+- Official WebODM and NodeODM images pinned by version and immutable digest.
+- Separate web, Celery worker, and authenticated processing workloads.
+- Configurable application and processing listeners independent from Services.
+- Bundled maintained PostgreSQL/PostGIS and Redis dependencies or external
+  service contracts backed by existing Secrets.
+- Retained media and processing claims, CPU and NVIDIA GPU modes, OIDC,
+  Ingress, Gateway API, External Secrets, PodDisruptionBudget, and scheduling
+  controls.
+- NetworkPolicy enabled by default, restricted service-account token mounting,
+  RuntimeDefault seccomp, probes, Helm tests, and behavioral k3d validation.
 
 ## Install
 
@@ -29,7 +44,9 @@ equivalent co-location rules unless the media claim supports `ReadWriteMany`.
 The official upstream images currently initialize services as root. The chart
 drops all capabilities except the small set required by the upstream startup
 scripts, disables privilege escalation, and does not mount service account
-tokens. Keep the NodeODM Service private and expose only the WebODM HTTP Service.
+tokens. NetworkPolicy is enabled by default. Keep the NodeODM Service private,
+expose only the WebODM HTTP Service, and add explicit controller or external
+service peers when the cluster CNI enforces policy.
 
 ## Architecture support
 
@@ -72,6 +89,53 @@ projected target. See [External Secrets](docs/external-secrets.md).
 The complete values contract is documented inline in [values.yaml](values.yaml)
 and enforced by [values.schema.json](values.schema.json). Production examples
 are available under [examples](examples).
+
+| Parameter | Default | Purpose |
+| --- | --- | --- |
+| `web.containerPort` | `8000` | Configures the actual upstream WebODM NGINX listener through `WO_PORT`. |
+| `service.port` | `80` | Exposes WebODM inside the cluster without changing the process listener. |
+| `worker.replicaCount` | `1` | Scales Celery workers; values above one require RWX media storage. |
+| `processing.enabled` | `true` | Deploys and registers a private NodeODM processor. |
+| `processing.containerPort` | `3000` | Configures the actual NodeODM `--port` listener. |
+| `processingService.port` | `3000` | Exposes NodeODM privately and independently from its process listener. |
+| `processing.gpu.enabled` | `false` | Selects the pinned CUDA image and requests NVIDIA resources. |
+| `persistence.size` | `20Gi` | Sizes the shared WebODM media claim. |
+| `processing.persistence.size` | `20Gi` | Sizes retained NodeODM task storage. |
+| `networkPolicy.enabled` | `true` | Isolates chart workloads while permitting required in-release traffic. |
+| `webodm.existingSecret` | `""` | Uses an externally managed Django key and processor token Secret. |
+| `oidc.enabled` | `false` | Renders one WebODM OIDC provider from non-secret values and a Secret. |
+
+Application listener ports and Service ports are separate by design. Changing
+`web.containerPort` updates `WO_PORT`, the container port, and probes; changing
+`processing.containerPort` updates the NodeODM command, container port, and
+probes. Services continue to route by the named `http` target port.
+
+## Examples
+
+- [Simple evaluation](examples/simple.yaml)
+- [Production-oriented sizing](examples/production.yaml)
+- [OIDC login](examples/oidc.yaml)
+- [NVIDIA GPU processing](examples/gpu.yaml)
+- [Gateway API exposure](examples/gateway-api.yaml)
+- [External Secrets Operator](examples/external-secrets.yaml)
+
+Use the examples as starting points and review every resource, persistence, and
+network value against the target cluster. They do not contain production
+credentials and do not replace a restore or representative processing test.
+
+## Architecture and operations
+
+The detailed guides separate design intent from day-two procedures:
+
+- [Architecture](docs/architecture.md)
+- [Security](docs/security.md)
+- [Operations](docs/operations.md)
+- [OIDC](docs/oidc.md)
+- [External Secrets](docs/external-secrets.md)
+
+When an external application, OIDC, database, or Redis Secret is rotated, Helm
+cannot checksum the data it does not own. Restart the consuming Deployments and
+wait for their rollouts after the secret manager updates the Kubernetes Secret.
 
 ## Validation
 

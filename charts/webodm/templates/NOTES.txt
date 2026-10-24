@@ -7,6 +7,8 @@ WebODM has been installed.
 - Release: {{ .Release.Name }}
 - Namespace: {{ .Release.Namespace }}
 - WebODM: {{ .Chart.AppVersion }}
+- Web listener: {{ .Values.web.containerPort }}
+- Processing listener: {{ .Values.processing.containerPort }}
 - Processing: {{ ternary "GPU" "CPU" .Values.processing.gpu.enabled }}
 - Web workers: 1
 - Celery workers: {{ .Values.worker.replicaCount }}
@@ -56,6 +58,14 @@ GPU mode requires the NVIDIA device plugin and an amd64 GPU node.
 
 Do not print or rotate the Django secret key or processing token during a
 routine upgrade. OIDC client secrets must come from an existing Secret or ESO.
+{{- if or .Values.webodm.existingSecret .Values.oidc.existingSecret .Values.externalDatabase.existingSecret .Values.externalRedis.existingSecret .Values.postgresql.auth.existingSecret .Values.redis.auth.existingSecret }}
+
+After rotating an externally managed Secret, restart its consumers because
+Helm cannot checksum external Secret data:
+
+  kubectl -n {{ .Release.Namespace }} rollout restart deployment/{{ include "webodm.fullname" . }} deployment/{{ include "webodm.fullname" . }}-worker{{ if .Values.processing.enabled }} deployment/{{ include "webodm.processingServiceName" . }}{{ end }}
+  kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "webodm.fullname" . }} --timeout=300s
+{{- end }}
 
 5. Storage and backup
 =====================

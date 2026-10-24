@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: WebODM OIDC ConfigMap
+templates:
+  - templates/oidc-configmap.yaml
+tests:
+  - it: is absent by default
+    asserts:
+      - hasDocuments: {count: 0}
+  - it: renders provider settings without embedding the client secret
+    set:
+      oidc.enabled: true
+      oidc.clientId: webodm
+      oidc.existingSecret: webodm-oidc
+      oidc.authEndpoint: https://idp.example/authorize
+      oidc.tokenEndpoint: https://idp.example/token
+      oidc.userinfoEndpoint: https://idp.example/userinfo
+    asserts:
+      - isKind: {of: ConfigMap}
+      - matchRegex: {path: 'data["settings_override.py"]', pattern: 'os\.environ\.get\("WEBODM_OIDC_CLIENT_SECRET"'}
+      - notMatchRegex: {path: 'data["settings_override.py"]', pattern: 'client-secret:'}
+

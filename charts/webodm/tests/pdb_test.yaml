@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: WebODM worker disruption budget
+templates:
+  - templates/pdb.yaml
+tests:
+  - it: is absent for the singleton default
+    asserts:
+      - hasDocuments: {count: 0}
+  - it: selects worker pods when enabled
+    set:
+      worker.replicaCount: 2
+      persistence.accessModes: [ReadWriteMany]
+      pdb.enabled: true
+    asserts:
+      - isKind: {of: PodDisruptionBudget}
+      - equal: {path: spec.minAvailable, value: 1}
+      - equal: {path: 'spec.selector.matchLabels["app.kubernetes.io/component"]', value: worker}
+
