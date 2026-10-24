@@ -71,6 +71,12 @@ Image string with tag fallback to appVersion.
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag }}
 {{- end }}
 
+{{/* Recognize equivalent references that Docker normalizes to the official WordPress image. */}}
+{{- define "wordpress.isOfficialImageRepository" -}}
+{{- $officialRepositories := list "wordpress" "library/wordpress" "docker.io/wordpress" "docker.io/library/wordpress" "index.docker.io/wordpress" "index.docker.io/library/wordpress" -}}
+{{- if has . $officialRepositories -}}true{{- else -}}false{{- end -}}
+{{- end -}}
+
 {{/*
 Whether the chart should prepare Apache configuration for a non-default port.
 Null auto-enables the behavior only for the official WordPress image. Custom
@@ -81,7 +87,7 @@ images retain their own startup contract unless they explicitly opt in.
 false
 {{- else if kindIs "bool" .Values.image.configureApachePort -}}
 {{- .Values.image.configureApachePort -}}
-{{- else if eq .Values.image.repository "docker.io/library/wordpress" -}}
+{{- else if eq (include "wordpress.isOfficialImageRepository" .Values.image.repository) "true" -}}
 true
 {{- else -}}
 false
@@ -698,7 +704,7 @@ $memcached_servers = array(
     {{- if and (eq .Values.objectCache.memcached.mode "external") (not .Values.objectCache.memcached.external.host) -}}
       {{- fail "objectCache.memcached.external.host is required when objectCache.memcached.mode=external" -}}
     {{- end -}}
-    {{- if and (or (eq .Values.image.repository "docker.io/library/wordpress") (eq .Values.plugins.installer.image.repository "docker.io/library/wordpress")) (not .Values.objectCache.memcached.allowOfficialImageWithoutExtension) -}}
+    {{- if and (or (eq (include "wordpress.isOfficialImageRepository" .Values.image.repository) "true") (eq (include "wordpress.isOfficialImageRepository" .Values.plugins.installer.image.repository) "true")) (not .Values.objectCache.memcached.allowOfficialImageWithoutExtension) -}}
       {{- fail "objectCache.provider=memcached requires custom WordPress and installer images with the php-memcached extension, or set objectCache.memcached.allowOfficialImageWithoutExtension=true to acknowledge the official image limitation" -}}
     {{- end -}}
   {{- end -}}
