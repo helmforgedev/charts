@@ -655,6 +655,11 @@ $memcached_servers = array(
   {{- if not (regexMatch "^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$" $name) -}}
     {{- fail (printf "plugins.custom[%d].name is required and must be a safe plugin directory name" $i) -}}
   {{- end -}}
+  {{- range $.Values.plugins.items -}}
+    {{- if eq $name (default "" .slug) -}}
+      {{- fail (printf "plugins.custom[%d].name conflicts with plugins.items[].slug %s" $i $name) -}}
+    {{- end -}}
+  {{- end -}}
   {{- if not (regexMatch "^[A-Fa-f0-9]{64}$" $sha256) -}}
     {{- fail (printf "plugins.custom[%d].sha256 is required and must be a 64-character SHA-256 digest" $i) -}}
   {{- end -}}

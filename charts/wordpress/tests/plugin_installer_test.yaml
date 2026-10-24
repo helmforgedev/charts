@@ -117,6 +117,20 @@ tests:
       - failedTemplate:
           errorMessage: "plugins.custom[0].sha256 is required and must be a 64-character SHA-256 digest"
 
+  - it: should reject a custom plugin name that matches an official plugin slug
+    set:
+      plugins.enabled: true
+      plugins.installer.enabled: true
+      plugins.items:
+        - slug: company-plugin
+      plugins.custom:
+        - name: company-plugin
+          url: https://artifacts.example.com/company-plugin.zip
+          sha256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    asserts:
+      - failedTemplate:
+          errorMessage: "plugins.custom[0].name conflicts with plugins.items[].slug company-plugin"
+
   - it: should reject insecure custom plugin URLs by default
     set:
       plugins.enabled: true
@@ -194,6 +208,12 @@ tests:
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
           pattern: "Download failed for custom plugin"
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "Restoring previous custom plugin"
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'mv "\$backup_plugin" "\$target_plugin"'
 
   - it: should add Redis Object Cache plugin and drop-in command
     set:

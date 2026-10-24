@@ -240,11 +240,29 @@ spec:
                     return 1
                   }
 
+                  target_plugin="/var/www/html/wp-content/plugins/$name"
                   staged_plugin="/var/www/html/wp-content/plugins/.helmforge-${name}-stage"
-                  rm -rf "$staged_plugin"
+                  backup_plugin="/var/www/html/wp-content/plugins/.helmforge-${name}-backup"
+                  if [ -d "$backup_plugin" ] && [ ! -d "$target_plugin" ]; then
+                    echo "Restoring previous custom plugin $name after an interrupted replacement."
+                    mv "$backup_plugin" "$target_plugin"
+                  fi
+                  rm -rf "$staged_plugin" "$backup_plugin"
                   cp -a "$extract_dir/$name" "$staged_plugin"
-                  rm -rf "/var/www/html/wp-content/plugins/$name"
-                  mv "$staged_plugin" "/var/www/html/wp-content/plugins/$name"
+                  if [ -d "$target_plugin" ]; then
+                    mv "$target_plugin" "$backup_plugin"
+                  fi
+                  if ! mv "$staged_plugin" "$target_plugin"; then
+                    echo "Custom plugin replacement failed for $name." >&2
+                    rm -rf "$target_plugin"
+                    if [ -d "$backup_plugin" ]; then
+                      echo "Restoring previous custom plugin $name."
+                      mv "$backup_plugin" "$target_plugin"
+                    fi
+                    rm -rf "$work_dir"
+                    return 1
+                  fi
+                  rm -rf "$backup_plugin"
                   rm -rf "$work_dir"
                   echo "Installed verified custom plugin $name."
                 fi
