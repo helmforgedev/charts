@@ -34,3 +34,23 @@ tests:
       - equal:
           path: spec.ingress[0].from[0].namespaceSelector.matchLabels.access
           value: allowed
+
+  - it: should replace unrestricted egress with configured rules
+    set:
+      networkPolicy.additionalEgress:
+        - to:
+            - namespaceSelector:
+                matchLabels:
+                  access: providers
+          ports:
+            - port: 443
+              protocol: TCP
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.egress[0].to[0].namespaceSelector.matchLabels.access
+          value: providers
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 443

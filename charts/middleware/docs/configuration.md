@@ -84,7 +84,10 @@ configurable through `podSecurityContext` and `securityContext`.
 
 `networkPolicy.enabled` restricts ingress to the named frontend port. Use
 `networkPolicy.additionalIngressFrom` to limit that access to selected
-namespaces or pods. Egress remains open for user-configured provider endpoints.
+namespaces or pods; despite the legacy key name, a nonempty list is the complete
+allowlist. Egress remains open when `networkPolicy.additionalEgress` is empty.
+A nonempty egress list replaces unrestricted access and must include DNS,
+PostgreSQL, and every configured provider endpoint.
 
 Scheduling controls include `nodeSelector`, `affinity`, `tolerations`,
 `topologySpreadConstraints`, and `priorityClassName`. Additional files can be

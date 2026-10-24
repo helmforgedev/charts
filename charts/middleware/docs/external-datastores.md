@@ -53,6 +53,9 @@ externalDatabase:
 
 Use `verify-ca` or `verify-full` only after mounting the provider CA and setting
 the standard PostgreSQL certificate environment through `middleware.extraEnv`.
+The chart passes both `middleware.extraEnv` and `extraVolumeMounts` to the
+migration init container and the application container so both clients use the
+same certificate configuration.
 
 ## Redis boundary
 

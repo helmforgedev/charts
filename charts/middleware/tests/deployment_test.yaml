@@ -256,3 +256,31 @@ tests:
             name: ca
             mountPath: /etc/custom-ca
             readOnly: true
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: ca
+            mountPath: /etc/custom-ca
+            readOnly: true
+
+  - it: should apply TLS environment and resources to database migration
+    set:
+      middleware.extraEnv:
+        - name: PGSSLROOTCERT
+          value: /etc/custom-ca/ca.crt
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: PGSSLROOTCERT
+            value: /etc/custom-ca/ca.crt
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.cpu
+          value: 100m
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.memory
+          value: 128Mi
