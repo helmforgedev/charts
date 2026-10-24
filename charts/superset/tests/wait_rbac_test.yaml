@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Init wait RBAC
+templates:
+  - templates/wait-rbac.yaml
+release:
+  name: test
+  namespace: analytics
+tests:
+  - it: should create namespaced read-only Job RBAC by default
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 0
+        isKind:
+          of: Role
+      - documentIndex: 0
+        equal:
+          path: rules[0].verbs
+          value:
+            - get
+            - list
+            - watch
+      - documentIndex: 1
+        isKind:
+          of: RoleBinding
+      - documentIndex: 1
+        equal:
+          path: subjects[0].namespace
+          value: analytics
+
+  - it: should omit RBAC when the managed init Job is disabled
+    set:
+      init.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

@@ -1,4 +1,5 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- include "superset.validate" . }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -38,6 +39,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "superset.serviceAccountName" . }}
+      automountServiceAccountToken: {{ and .Values.init.enabled .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -71,7 +73,7 @@ spec:
                      writes (which would deadlock with web.replicaCount > 1). */}}
               {{- end }}
               gunicorn \
-                --bind 0.0.0.0:8088 \
+                --bind 0.0.0.0:{{ .Values.web.containerPort }} \
                 --workers {{ .Values.web.workers }} \
                 --timeout {{ .Values.web.timeout }} \
                 --limit-request-line 0 \
@@ -88,7 +90,7 @@ spec:
             {{- end }}
           ports:
             - name: http
-              containerPort: 8088
+              containerPort: {{ .Values.web.containerPort }}
               protocol: TCP
           {{- with .Values.probes.startup }}
           startupProbe:
@@ -106,6 +108,7 @@ spec:
             - name: superset-config
               mountPath: /app/pythonpath/superset_config.py
               subPath: superset_config.py
+            {{- include "superset.runtimeVolumeMounts" . | nindent 12 }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -117,6 +120,7 @@ spec:
         - name: superset-config
           configMap:
             name: {{ include "superset.fullname" . }}-config
+        {{- include "superset.runtimeVolumes" . | nindent 8 }}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
