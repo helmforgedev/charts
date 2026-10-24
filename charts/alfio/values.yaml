@@ -7,6 +7,7 @@
 nameOverride: ""
 fullnameOverride: ""
 commonLabels: {}
+global: {}
 
 # =============================================================================
 # Image
@@ -16,7 +17,7 @@ image:
   # -- alf.io container image
   repository: docker.io/alfio/alf.io
   # -- Image tag
-  tag: "2.0-M5-2606"
+  tag: "2.0-M5-2609"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -26,10 +27,12 @@ imagePullSecrets: []
 # =============================================================================
 
 alfio:
+  # -- HTTP port used by the alf.io process inside the container
+  containerPort: 8080
   # -- Public URL of the alf.io instance (e.g. https://tickets.example.com)
   baseUrl: ""
-  # -- Spring profiles to activate (dev for development, spring-boot for production)
-  profiles: "dev"
+  # -- Additional Spring profiles. jdbc-session matches the upstream container example.
+  profiles: "jdbc-session"
   # -- Extra environment variables for the container
   # -- @default -- `[]`
   extraEnv: []
@@ -64,6 +67,8 @@ serviceAccount:
   name: ""
   # -- Annotations for the ServiceAccount
   annotations: {}
+  # -- Mount a Kubernetes API token into the application pod
+  automountServiceAccountToken: false
 
 # =============================================================================
 # Service
@@ -133,9 +138,29 @@ probes:
 
 resources: {}
 
-podSecurityContext: {}
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
 
-securityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsGroup: 1001
+  runAsNonRoot: true
+  runAsUser: 1001
+
+# =============================================================================
+# Network Policy
+# =============================================================================
+
+networkPolicy:
+  # -- Restrict inbound traffic to the named HTTP listener
+  enabled: true
+  # -- Additional ingress rules appended to the default HTTP rule
+  extraIngress: []
 
 # =============================================================================
 # Scheduling

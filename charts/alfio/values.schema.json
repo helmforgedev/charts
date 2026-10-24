@@ -3,6 +3,7 @@
   "title": "alf.io Helm Chart Values",
   "description": "Values for the alf.io Helm chart — open-source event management and ticketing platform with PostgreSQL backend",
   "type": "object",
+  "required": ["global"],
   "additionalProperties": true,
   "properties": {
     "global": {
@@ -36,8 +37,8 @@
         },
         "tag": {
           "type": "string",
-          "description": "Image tag (defaults to appVersion)",
-          "default": ""
+          "description": "Pinned alf.io image tag",
+          "default": "2.0-M5-2609"
         },
         "pullPolicy": {
           "type": "string",
@@ -59,6 +60,13 @@
       "description": "alf.io application configuration",
       "additionalProperties": false,
       "properties": {
+        "containerPort": {
+          "type": "integer",
+          "description": "HTTP port used by the alf.io process inside the container",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 8080
+        },
         "baseUrl": {
           "type": "string",
           "description": "Public URL of the alf.io instance (e.g. https://tickets.example.com)",
@@ -66,8 +74,9 @@
         },
         "profiles": {
           "type": "string",
-          "description": "Spring profiles to activate (dev for development, spring-boot for production)",
-          "default": "dev"
+          "description": "Additional Spring profiles to activate",
+          "minLength": 1,
+          "default": "jdbc-session"
         },
         "extraEnv": {
           "type": "array",
@@ -144,6 +153,11 @@
         "annotations": {
           "type": "object",
           "description": "Annotations for the ServiceAccount"
+        },
+        "automountServiceAccountToken": {
+          "type": "boolean",
+          "description": "Mount a Kubernetes API token into the application pod",
+          "default": false
         }
       }
     },
@@ -270,11 +284,56 @@
     },
     "podSecurityContext": {
       "type": "object",
-      "description": "Pod-level security context"
+      "description": "Pod-level security context",
+      "additionalProperties": true,
+      "properties": {
+        "seccompProfile": {
+          "type": "object",
+          "description": "Seccomp profile for pod containers",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["RuntimeDefault", "Localhost", "Unconfined"]
+            }
+          }
+        }
+      }
     },
     "securityContext": {
       "type": "object",
-      "description": "Container-level security context"
+      "description": "Container-level security context",
+      "additionalProperties": true,
+      "properties": {
+        "allowPrivilegeEscalation": { "type": "boolean" },
+        "readOnlyRootFilesystem": { "type": "boolean" },
+        "runAsGroup": { "type": "integer", "minimum": 0 },
+        "runAsNonRoot": { "type": "boolean" },
+        "runAsUser": { "type": "integer", "minimum": 0 },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "add": { "type": "array", "items": { "type": "string" } },
+            "drop": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "description": "NetworkPolicy configuration",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Restrict inbound traffic to the named HTTP listener",
+          "default": true
+        },
+        "extraIngress": {
+          "type": "array",
+          "description": "Additional ingress rules appended to the default HTTP rule",
+          "items": { "type": "object" }
+        }
+      }
     },
     "nodeSelector": {
       "type": "object",
