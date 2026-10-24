@@ -14,7 +14,14 @@ Anonymous access is enabled when `auth.enabled=false`. Production and
 internet-facing deployments should enable password authentication, configure
 least-privilege ACL rules, and source credentials from `auth.existingSecret`.
 Mosquitto 2.1 password and ACL plugins read generated files at runtime. Rotate
-the source Secret and perform a Helm upgrade so the checksum triggers a rollout.
+the source Secret and explicitly roll out the broker StatefulSet. When
+`auth.existingSecret` is set, Helm cannot checksum its external data, so an
+upgrade with unchanged values does not regenerate the password file.
+
+```bash
+kubectl rollout restart statefulset/<release-name> -n <namespace>
+kubectl rollout status statefulset/<release-name> -n <namespace>
+```
 
 ## Transport security
 

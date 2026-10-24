@@ -49,6 +49,13 @@
 
   Read generated username:
     kubectl get secret -n {{ $namespace }} {{ include "mosquitto.authSecretName" . }} -o jsonpath='{.data.{{ .Values.auth.existingSecretUsernameKey }}}' | base64 -d; echo
+{{- if .Values.auth.existingSecret }}
+
+  After rotating this externally managed Secret, regenerate the runtime
+  password file with an explicit rollout:
+    kubectl rollout restart statefulset/{{ include "mosquitto.statefulsetName" . }} -n {{ $namespace }}
+    kubectl rollout status statefulset/{{ include "mosquitto.statefulsetName" . }} -n {{ $namespace }}
+{{- end }}
 {{- else }}
   Authentication is disabled. Do not expose this broker outside trusted networks.
 {{- end }}
