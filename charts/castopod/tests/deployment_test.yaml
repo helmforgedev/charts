@@ -26,10 +26,16 @@ tests:
           path: spec.replicas
           value: 1
 
-  - it: should set the correct image with appVersion tag
+  - it: should set the pinned image on every container
     asserts:
       - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: "docker.io/castopod/castopod:1.15.5"
+      - equal:
           path: spec.template.spec.containers[0].image
+          value: "docker.io/castopod/castopod:1.15.5"
+      - equal:
+          path: spec.template.spec.containers[1].image
           value: "docker.io/castopod/castopod:1.15.5"
 
   - it: should set custom image tag
@@ -40,33 +46,97 @@ tests:
           path: spec.template.spec.containers[0].image
           value: "docker.io/castopod/castopod:1.14.0"
 
-  - it: should set default env vars with subchart database
+  - it: should run FrankenPHP directly and the scheduler as a sidecar
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: castopod
+      - equal:
+          path: spec.template.spec.containers[0].command
+          value: [frankenphp, run, --config, /etc/frankenphp/Caddyfile, --adapter, caddyfile]
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: scheduler
+      - equal:
+          path: spec.template.spec.containers[1].command
+          value: [supercronic, /etc/s6-overlay/s6-rc.d/supercronic/crontab]
+
+  - it: should drop the scheduler sidecar when disabled
+    set:
+      scheduler.enabled: false
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.containers
+          count: 1
+
+  - it: should run a setup init container that installs the schema and superadmin
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: setup
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: prepare-environment\.sh
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: install:create-superadmin
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: CASTOPOD_ADMIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-castopod-admin
+                key: admin-password
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: CASTOPOD_ADMIN_EMAIL
+            value: admin@example.com
+
+  - it: should skip superadmin creation when disabled
+    set:
+      castopod.admin.create: false
     asserts:
       - contains:
-          path: spec.template.spec.containers[0].env
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: CASTOPOD_ADMIN_CREATE
+            value: "false"
+      - notContains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: CASTOPOD_ADMIN_USERNAME
+            value: admin
+
+  - it: should use an existing admin secret
+    set:
+      castopod.admin.existingSecret: castopod-admin
+      castopod.admin.existingSecretPasswordKey: pw
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: CASTOPOD_ADMIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: castopod-admin
+                key: pw
+
+  - it: should set database env vars for the subchart
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].env
           content:
             name: CP_DATABASE_HOSTNAME
             value: "test-mariadb"
       - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: CP_DATABASE_PORT
-            value: "3306"
-      - contains:
-          path: spec.template.spec.containers[0].env
+          path: spec.template.spec.initContainers[0].env
           content:
             name: CP_DATABASE_NAME
             value: "castopod"
       - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: CP_DATABASE_USERNAME
-            value: "castopod"
-
-  - it: should reference mariadb subchart secret for database password
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
+          path: spec.template.spec.initContainers[0].env
           content:
             name: CP_DATABASE_PASSWORD
             valueFrom:
@@ -74,51 +144,41 @@ tests:
                 name: test-mariadb-auth
                 key: mariadb-user-password
 
-  - it: should reference analytics secret
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: CP_ANALYTICS_SALT
-            valueFrom:
-              secretKeyRef:
-                name: test-castopod-analytics
-                key: analytics-salt
-
-  - it: should have wait-for-db init container
-    asserts:
-      - equal:
-          path: spec.template.spec.initContainers[0].name
-          value: wait-for-db
-
-  - it: should set external database host when subchart is disabled
+  - it: should pass the database port to Castopod at runtime
     set:
       mariadb.enabled: false
       database.external.host: db.example.com
       database.external.port: "3307"
       database.external.name: my_castopod
       database.external.username: castopod_user
+      database.external.password: secret
     asserts:
       - contains:
-          path: spec.template.spec.containers[0].env
+          path: spec.template.spec.initContainers[0].env
           content:
             name: CP_DATABASE_HOSTNAME
             value: "db.example.com"
       - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: CP_DATABASE_PORT
-            value: "3307"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: CP_DATABASE_NAME
-            value: "my_castopod"
-      - contains:
-          path: spec.template.spec.containers[0].env
+          path: spec.template.spec.initContainers[0].env
           content:
             name: CP_DATABASE_USERNAME
             value: "castopod_user"
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: CP_DATABASE_PORT
+            value: "3307"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: 'database\.default\.port=\$\{CP_DATABASE_PORT\}'
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: CP_DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-castopod-db
+                key: password
 
   - it: should use existing secret for external db password
     set:
@@ -128,7 +188,7 @@ tests:
       database.external.existingSecretPasswordKey: db-pass
     asserts:
       - contains:
-          path: spec.template.spec.containers[0].env
+          path: spec.template.spec.initContainers[0].env
           content:
             name: CP_DATABASE_PASSWORD
             valueFrom:
@@ -136,47 +196,161 @@ tests:
                 name: my-db-secret
                 key: db-pass
 
+  - it: should reference the analytics secret
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: CP_ANALYTICS_SALT
+            valueFrom:
+              secretKeyRef:
+                name: test-castopod-analytics
+                key: analytics-salt
+
   - it: should not set redis env when redis is disabled
     asserts:
       - notContains:
-          path: spec.template.spec.containers[0].env
+          path: spec.template.spec.initContainers[0].env
           content:
-            name: CP_CACHE_HANDLER
-            value: redis
+            name: CP_REDIS_HOST
+            value: test-redis-client
 
-  - it: should set redis env when redis is enabled
+  - it: should wire the Redis client Service and password when redis is enabled
     set:
       redis.enabled: true
     asserts:
       - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: CP_CACHE_HANDLER
-            value: redis
-      - contains:
-          path: spec.template.spec.containers[0].env
+          path: spec.template.spec.initContainers[0].env
           content:
             name: CP_REDIS_HOST
-            value: "test-redis"
+            value: "test-redis-client"
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: CP_REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-redis-auth
+                key: redis-password
+
+  - it: should follow subchart naming when the release name contains the subchart name
+    release:
+      name: mariadb-redis
+    set:
+      redis.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: CP_DATABASE_HOSTNAME
+            value: "mariadb-redis"
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: CP_DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: mariadb-redis-auth
+                key: mariadb-user-password
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: CP_REDIS_HOST
+            value: "mariadb-redis-client"
+
+  - it: should change the real listener with castopod.port
+    set:
+      castopod.port: 9090
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 9090
       - contains:
           path: spec.template.spec.containers[0].env
           content:
-            name: CP_REDIS_PORT
-            value: "6379"
+            name: CADDY_HTTP_PORT
+            value: "9090"
 
-  - it: should set TCP probes
+  - it: should use HTTP probes on the healthcheck path
     asserts:
       - equal:
-          path: spec.template.spec.containers[0].startupProbe.tcpSocket.port
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /healthcheck
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.port
           value: http
       - equal:
-          path: spec.template.spec.containers[0].livenessProbe.tcpSocket.port
-          value: http
-      - equal:
-          path: spec.template.spec.containers[0].readinessProbe.tcpSocket.port
-          value: http
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /healthcheck
 
-  - it: should mount data volume when persistence is enabled
+  - it: should default the base URL to localhost and disable HTTPS redirection
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: CP_BASEURL
+            value: "http://localhost:8080"
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: CP_DISABLE_HTTPS
+            value: "1"
+
+  - it: should keep HTTPS redirection for an https base URL
+    set:
+      castopod.baseURL: "https://podcast.example.com"
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: CP_BASEURL
+            value: "https://podcast.example.com"
+      - notContains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: CP_DISABLE_HTTPS
+            value: "1"
+
+  - it: should derive the base URL from the first TLS ingress host
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: podcast.example.com
+      ingress.tls:
+        - hosts: [podcast.example.com]
+          secretName: castopod-tls
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: CP_BASEURL
+            value: "https://podcast.example.com"
+
+  - it: should apply the hardened security contexts
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 33
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          value: [ALL]
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.capabilities.add
+          value: [NET_BIND_SERVICE]
+
+  - it: should persist writable files and uploaded media
     asserts:
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
@@ -184,23 +358,51 @@ tests:
             name: data
             mountPath: /var/www/html/writable
       - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /var/www/html/public/media
+            subPath: public-media
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: env
+            mountPath: /var/www/html/.env
+            subPath: .env
+            readOnly: true
+      - contains:
           path: spec.template.spec.volumes
           content:
             name: data
             persistentVolumeClaim:
               claimName: test-castopod-data
 
-  - it: should set extra env vars
+  - it: should use an emptyDir when persistence is disabled
+    set:
+      persistence.enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+
+  - it: should set extra env vars on every container
     set:
       castopod.extraEnv:
-        - name: CP_MEDIA_BASE_URL
-          value: "https://cdn.example.com"
+        - name: CP_EMAIL_FROM
+          value: "podcast@example.com"
     asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: CP_EMAIL_FROM
+            value: "podcast@example.com"
       - contains:
           path: spec.template.spec.containers[0].env
           content:
-            name: CP_MEDIA_BASE_URL
-            value: "https://cdn.example.com"
+            name: CP_EMAIL_FROM
+            value: "podcast@example.com"
 
   - it: should set resources
     set:
@@ -208,17 +410,13 @@ tests:
         requests:
           cpu: 100m
           memory: 128Mi
+      scheduler.resources:
+        requests:
+          cpu: 10m
     asserts:
       - equal:
           path: spec.template.spec.containers[0].resources.requests.cpu
           value: 100m
-
-  - it: should set base URL
-    set:
-      castopod.baseURL: "https://podcast.example.com"
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: CP_BASEURL
-            value: "https://podcast.example.com"
+      - equal:
+          path: spec.template.spec.containers[1].resources.requests.cpu
+          value: 10m

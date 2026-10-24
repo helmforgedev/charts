@@ -1,7 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema#",
   "title": "Castopod Helm Chart Values",
-  "description": "Values for the Castopod Helm chart — open-source podcast hosting platform with MariaDB and optional Redis",
   "type": "object",
   "additionalProperties": true,
   "properties": {
@@ -22,11 +21,11 @@
     },
     "commonLabels": {
       "type": "object",
+      "additionalProperties": true,
       "description": "Labels added to every resource created by this chart"
     },
     "image": {
       "type": "object",
-      "description": "Container image configuration",
       "additionalProperties": false,
       "properties": {
         "repository": {
@@ -36,56 +35,170 @@
         },
         "tag": {
           "type": "string",
-          "description": "Image tag (defaults to appVersion)",
-          "default": ""
+          "description": "Castopod image tag (pinned; floating tags are rejected)",
+          "default": "1.15.5",
+          "minLength": 1
         },
         "pullPolicy": {
           "type": "string",
           "description": "Image pull policy",
-          "enum": ["Always", "IfNotPresent", "Never"],
-          "default": "IfNotPresent"
+          "default": "IfNotPresent",
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ]
         }
       }
     },
     "imagePullSecrets": {
       "type": "array",
-      "description": "Image pull secrets for private registries",
       "items": {
-        "type": "object"
-      }
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Image pull secrets for private registries"
     },
     "castopod": {
       "type": "object",
-      "description": "Castopod application configuration",
       "additionalProperties": false,
       "properties": {
         "baseURL": {
           "type": "string",
-          "description": "Application base URL (required, e.g. https://podcast.example.com)",
-          "default": ""
+          "description": "Public base URL with scheme and no trailing slash. When empty, the chart",
+          "default": "",
+          "pattern": "^(https?://[^/]+(/.*[^/])?)?$"
+        },
+        "mediaBaseURL": {
+          "type": "string",
+          "description": "Base URL for media files; defaults to the base URL when empty",
+          "default": "",
+          "pattern": "^(https?://[^/]+(/.*[^/])?)?$"
         },
         "port": {
           "type": "integer",
-          "description": "Application port (FrankenPHP)",
-          "default": 80
+          "description": "FrankenPHP listener inside the container (CADDY_HTTP_PORT, 1024-65535)",
+          "default": 8080,
+          "minimum": 1024,
+          "maximum": 65535
+        },
+        "adminGateway": {
+          "type": "string",
+          "description": "Admin area path segment",
+          "default": "cp-admin",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "authGateway": {
+          "type": "string",
+          "description": "Authentication area path segment",
+          "default": "cp-auth",
+          "pattern": "^[A-Za-z0-9_-]+$"
         },
         "extraEnv": {
           "type": "array",
-          "description": "Extra environment variables for the container",
           "items": {
-            "type": "object"
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "additionalProperties": true
+          },
+          "description": "Extra environment variables for every Castopod container. CP_* variables"
+        },
+        "admin": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "create": {
+              "type": "boolean",
+              "description": "Create the instance superadmin during setup when none exists. Disable",
+              "default": true
+            },
+            "username": {
+              "type": "string",
+              "description": "Superadmin username",
+              "default": "admin"
+            },
+            "email": {
+              "type": "string",
+              "description": "Superadmin email (used to log in)",
+              "default": "admin@example.com",
+              "pattern": "^[^@ ]+@[^@ ]+$"
+            },
+            "password": {
+              "type": "string",
+              "description": "Superadmin password (at least 8 characters); generated once when empty",
+              "default": "",
+              "anyOf": [
+                {
+                  "maxLength": 0
+                },
+                {
+                  "minLength": 8
+                }
+              ]
+            },
+            "existingSecret": {
+              "type": "string",
+              "description": "Existing Secret with the superadmin password",
+              "default": ""
+            },
+            "existingSecretPasswordKey": {
+              "type": "string",
+              "description": "Key in castopod.admin.existingSecret",
+              "default": "admin-password"
+            }
           }
+        }
+      }
+    },
+    "setup": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "databaseWaitTimeoutSeconds": {
+          "type": "integer",
+          "description": "Seconds the setup init container waits for MariaDB",
+          "default": 300,
+          "minimum": 10
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Resources for the setup init container"
+        }
+      }
+    },
+    "scheduler": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Run the Castopod task scheduler (spark tasks:run every minute) as a sidecar",
+          "default": true
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Resources for the scheduler container"
         }
       }
     },
     "analytics": {
       "type": "object",
-      "description": "Analytics configuration",
       "additionalProperties": false,
       "properties": {
         "salt": {
           "type": "string",
-          "description": "Analytics salt for hashing (auto-generated 64 chars if empty)",
+          "description": "Analytics salt for hashing (generated once when empty and kept on upgrade)",
           "default": ""
         },
         "existingSecret": {
@@ -102,36 +215,41 @@
     },
     "database": {
       "type": "object",
-      "description": "External database configuration",
       "additionalProperties": false,
       "properties": {
         "external": {
           "type": "object",
-          "description": "External MariaDB configuration (used when mariadb subchart is disabled)",
+          "additionalProperties": false,
           "properties": {
             "host": {
               "type": "string",
-              "description": "Database host",
+              "description": "External MariaDB host",
               "default": ""
             },
             "port": {
-              "type": ["string", "integer"],
-              "description": "Database port",
-              "default": "3306"
+              "type": [
+                "string",
+                "integer"
+              ],
+              "description": "External MariaDB port",
+              "default": "3306",
+              "pattern": "^[0-9]+$",
+              "minimum": 1,
+              "maximum": 65535
             },
             "name": {
               "type": "string",
-              "description": "Database name",
+              "description": "External database name",
               "default": "castopod"
             },
             "username": {
               "type": "string",
-              "description": "Database username",
+              "description": "External database user",
               "default": "castopod"
             },
             "password": {
               "type": "string",
-              "description": "Database password",
+              "description": "Inline database password (stored in a chart Secret)",
               "default": ""
             },
             "existingSecret": {
@@ -144,18 +262,18 @@
               "description": "Key in the existing secret containing the password",
               "default": "password"
             }
-          }
+          },
+          "description": "External MariaDB configuration (used when mariadb.enabled is false)"
         }
       }
     },
     "persistence": {
       "type": "object",
-      "description": "Persistent storage for /var/www/html/writable",
       "additionalProperties": false,
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "Enable persistent storage for writable directory",
+          "description": "Persist /var/www/html/writable and the uploaded media in /var/www/html/public/media",
           "default": true
         },
         "existingClaim": {
@@ -171,23 +289,29 @@
         "accessMode": {
           "type": "string",
           "description": "Access mode for the PVC",
-          "enum": ["ReadWriteOnce", "ReadWriteMany", "ReadOnlyMany"],
-          "default": "ReadWriteOnce"
+          "default": "ReadWriteOnce",
+          "enum": [
+            "ReadWriteOnce",
+            "ReadOnlyMany",
+            "ReadWriteMany",
+            "ReadWriteOncePod"
+          ]
         },
         "size": {
           "type": "string",
           "description": "Size of the persistent volume",
-          "default": "10Gi"
+          "default": "10Gi",
+          "pattern": "^[0-9]+([.][0-9]+)?(Ki|Mi|Gi|Ti|Pi|Ei|k|M|G|T|P|E)?$"
         },
         "annotations": {
           "type": "object",
+          "additionalProperties": true,
           "description": "Annotations for the PVC"
         }
       }
     },
     "serviceAccount": {
       "type": "object",
-      "description": "ServiceAccount configuration",
       "additionalProperties": false,
       "properties": {
         "create": {
@@ -202,35 +326,46 @@
         },
         "annotations": {
           "type": "object",
+          "additionalProperties": true,
           "description": "Annotations for the ServiceAccount"
         }
       }
     },
+    "automountServiceAccountToken": {
+      "type": "boolean",
+      "description": "Mount the ServiceAccount token in the pod (Castopod does not call the Kubernetes API)",
+      "default": false
+    },
     "service": {
       "type": "object",
-      "description": "Service configuration",
       "additionalProperties": false,
       "properties": {
         "type": {
           "type": "string",
           "description": "Service type",
-          "enum": ["ClusterIP", "NodePort", "LoadBalancer"],
-          "default": "ClusterIP"
+          "default": "ClusterIP",
+          "enum": [
+            "ClusterIP",
+            "NodePort",
+            "LoadBalancer"
+          ]
         },
         "port": {
           "type": "integer",
           "description": "HTTP service port",
-          "default": 80
+          "default": 80,
+          "minimum": 1,
+          "maximum": 65535
         },
         "annotations": {
           "type": "object",
+          "additionalProperties": true,
           "description": "Annotations for the Service"
         }
       }
     },
     "ingress": {
       "type": "object",
-      "description": "Ingress configuration for Castopod",
       "additionalProperties": false,
       "properties": {
         "enabled": {
@@ -245,160 +380,245 @@
         },
         "annotations": {
           "type": "object",
-          "description": "Annotations for the ingress"
+          "additionalProperties": true,
+          "description": "Ingress annotations"
         },
         "hosts": {
           "type": "array",
-          "description": "Ingress hosts",
           "items": {
             "type": "object",
+            "required": [
+              "host"
+            ],
             "properties": {
-              "host": { "type": "string" },
+              "host": {
+                "type": "string"
+              },
               "paths": {
                 "type": "array",
                 "items": {
                   "type": "object",
                   "properties": {
-                    "path": { "type": "string" },
-                    "pathType": { "type": "string" }
+                    "path": {
+                      "type": "string"
+                    },
+                    "pathType": {
+                      "type": "string",
+                      "enum": [
+                        "Prefix",
+                        "Exact",
+                        "ImplementationSpecific"
+                      ]
+                    }
                   }
                 }
               }
             }
-          }
+          },
+          "description": "Ingress hosts"
         },
         "tls": {
           "type": "array",
-          "description": "Ingress TLS configuration",
           "items": {
             "type": "object",
             "properties": {
-              "hosts": { "type": "array", "items": { "type": "string" } },
-              "secretName": { "type": "string" }
+              "hosts": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "secretName": {
+                "type": "string"
+              }
             }
-          }
+          },
+          "description": "Ingress TLS configuration"
+        }
+      }
+    },
+    "gatewayAPI": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Render Gateway API HTTPRoute resources",
+          "default": false
+        },
+        "httpRoutes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "parentRefs": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "hostnames": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "rules": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "labels": {
+                "type": "object"
+              },
+              "annotations": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "HTTPRoute definitions routed to the Castopod Service by default"
         }
       }
     },
     "probes": {
       "type": "object",
-      "description": "Health probe configuration",
       "additionalProperties": false,
       "properties": {
+        "path": {
+          "type": "string",
+          "description": "HTTP path answered by the FrankenPHP server",
+          "default": "/healthcheck",
+          "pattern": "^/"
+        },
         "startup": {
           "type": "object",
-          "description": "Startup probe configuration",
+          "additionalProperties": false,
           "properties": {
-            "enabled": { "type": "boolean", "default": true },
-            "path": { "type": "string", "default": "/health" },
-            "initialDelaySeconds": { "type": "integer" },
-            "periodSeconds": { "type": "integer" },
-            "timeoutSeconds": { "type": "integer" },
-            "failureThreshold": { "type": "integer" }
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable the startup probe",
+              "default": true
+            },
+            "initialDelaySeconds": {
+              "type": "integer",
+              "description": "Startup probe initial delay",
+              "default": 5
+            },
+            "periodSeconds": {
+              "type": "integer",
+              "description": "Startup probe period",
+              "default": 5
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "description": "Startup probe timeout",
+              "default": 3
+            },
+            "failureThreshold": {
+              "type": "integer",
+              "description": "Startup probe failure threshold",
+              "default": 30
+            }
           }
         },
         "liveness": {
           "type": "object",
-          "description": "Liveness probe configuration",
+          "additionalProperties": false,
           "properties": {
-            "enabled": { "type": "boolean", "default": true },
-            "path": { "type": "string", "default": "/health" },
-            "initialDelaySeconds": { "type": "integer" },
-            "periodSeconds": { "type": "integer" },
-            "timeoutSeconds": { "type": "integer" },
-            "failureThreshold": { "type": "integer" }
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable the liveness probe",
+              "default": true
+            },
+            "initialDelaySeconds": {
+              "type": "integer",
+              "description": "Liveness probe initial delay",
+              "default": 0
+            },
+            "periodSeconds": {
+              "type": "integer",
+              "description": "Liveness probe period",
+              "default": 15
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "description": "Liveness probe timeout",
+              "default": 5
+            },
+            "failureThreshold": {
+              "type": "integer",
+              "description": "Liveness probe failure threshold",
+              "default": 3
+            }
           }
         },
         "readiness": {
           "type": "object",
-          "description": "Readiness probe configuration",
+          "additionalProperties": false,
           "properties": {
-            "enabled": { "type": "boolean", "default": true },
-            "path": { "type": "string", "default": "/health" },
-            "initialDelaySeconds": { "type": "integer" },
-            "periodSeconds": { "type": "integer" },
-            "timeoutSeconds": { "type": "integer" },
-            "failureThreshold": { "type": "integer" }
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable the readiness probe",
+              "default": true
+            },
+            "initialDelaySeconds": {
+              "type": "integer",
+              "description": "Readiness probe initial delay",
+              "default": 0
+            },
+            "periodSeconds": {
+              "type": "integer",
+              "description": "Readiness probe period",
+              "default": 10
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "description": "Readiness probe timeout",
+              "default": 5
+            },
+            "failureThreshold": {
+              "type": "integer",
+              "description": "Readiness probe failure threshold",
+              "default": 3
+            }
           }
         }
       }
     },
     "resources": {
       "type": "object",
-      "description": "CPU and memory requests/limits for the main container"
+      "additionalProperties": true,
+      "description": "Resources for the Castopod container"
     },
     "podSecurityContext": {
       "type": "object",
-      "description": "Pod-level security context"
+      "description": "Pod security context (the image runs as www-data, uid 33)",
+      "additionalProperties": true
     },
     "securityContext": {
       "type": "object",
-      "description": "Container-level security context"
-    },
-    "nodeSelector": {
-      "type": "object",
-      "description": "Node selector for pod scheduling"
-    },
-    "tolerations": {
-      "type": "array",
-      "description": "Tolerations for pod scheduling",
-      "items": { "type": "object" }
-    },
-    "affinity": {
-      "type": "object",
-      "description": "Affinity rules for pod scheduling"
-    },
-    "topologySpreadConstraints": {
-      "type": "array",
-      "description": "Topology spread constraints",
-      "items": { "type": "object" }
-    },
-    "priorityClassName": {
-      "type": "string",
-      "description": "Priority class name",
-      "default": ""
-    },
-    "terminationGracePeriodSeconds": {
-      "type": "integer",
-      "description": "Grace period for shutdown (seconds)",
-      "default": 30
-    },
-    "podLabels": {
-      "type": "object",
-      "description": "Additional labels for the pod"
-    },
-    "podAnnotations": {
-      "type": "object",
-      "description": "Additional annotations for the pod"
-    },
-    "extraVolumes": {
-      "type": "array",
-      "description": "Additional volumes for the pod",
-      "items": { "type": "object" }
-    },
-    "extraVolumeMounts": {
-      "type": "array",
-      "description": "Additional volume mounts for the container",
-      "items": { "type": "object" }
-    },
-    "extraManifests": {
-      "type": "array",
-      "description": "Extra Kubernetes manifests to deploy alongside the chart",
-      "items": { "type": "object" }
+      "description": "Container security context for the setup, Castopod, and scheduler containers",
+      "additionalProperties": true
     },
     "backup": {
       "type": "object",
-      "description": "Scheduled writable directory backups to S3-compatible storage",
+      "additionalProperties": false,
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "Enable scheduled backups to S3-compatible storage",
+          "description": "Enable scheduled backups of the data volume (writable files and media) to S3-compatible storage",
           "default": false
         },
         "schedule": {
           "type": "string",
-          "description": "Cron schedule for backups",
-          "default": "0 3 * * *"
+          "description": "Cron schedule for backups (default: daily at 03:00 UTC)",
+          "default": "0 3 * * *",
+          "minLength": 1
         },
         "suspend": {
           "type": "boolean",
@@ -407,9 +627,28 @@
         },
         "concurrencyPolicy": {
           "type": "string",
-          "description": "Concurrency policy for the CronJob",
-          "enum": ["Forbid", "Replace", "Allow"],
-          "default": "Forbid"
+          "description": "Concurrency policy: Forbid, Replace, Allow",
+          "default": "Forbid",
+          "enum": [
+            "Allow",
+            "Forbid",
+            "Replace"
+          ]
+        },
+        "successfulJobsHistoryLimit": {
+          "type": "integer",
+          "description": "Number of successful job records to keep",
+          "default": 3
+        },
+        "failedJobsHistoryLimit": {
+          "type": "integer",
+          "description": "Number of failed job records to keep",
+          "default": 3
+        },
+        "backoffLimit": {
+          "type": "integer",
+          "description": "Maximum retries per backup job",
+          "default": 1
         },
         "archivePrefix": {
           "type": "string",
@@ -418,21 +657,152 @@
         },
         "images": {
           "type": "object",
-          "description": "Container images used for backup jobs"
+          "additionalProperties": false,
+          "properties": {
+            "archiver": {
+              "type": "string",
+              "description": "Image used for tar/gzip backup",
+              "default": "docker.io/library/busybox:1.37"
+            },
+            "uploader": {
+              "type": "string",
+              "description": "Image used for S3 upload (MinIO client)",
+              "default": "docker.io/helmforge/mc:1.0.0"
+            }
+          }
         },
         "resources": {
           "type": "object",
-          "description": "CPU and memory requests/limits for backup containers"
+          "additionalProperties": true,
+          "description": "Resources for backup containers"
         },
         "s3": {
           "type": "object",
-          "description": "S3-compatible storage configuration for backups"
+          "additionalProperties": false,
+          "properties": {
+            "endpoint": {
+              "type": "string",
+              "description": "S3-compatible endpoint URL",
+              "default": ""
+            },
+            "bucket": {
+              "type": "string",
+              "description": "Target bucket name",
+              "default": ""
+            },
+            "prefix": {
+              "type": "string",
+              "description": "Key prefix within the bucket",
+              "default": "castopod"
+            },
+            "createBucketIfNotExists": {
+              "type": "boolean",
+              "description": "Auto-create the bucket if it does not exist",
+              "default": true
+            },
+            "existingSecret": {
+              "type": "string",
+              "description": "Use an existing secret for S3 credentials",
+              "default": ""
+            },
+            "existingSecretAccessKeyKey": {
+              "type": "string",
+              "description": "Key in the existing secret for the access key",
+              "default": "access-key"
+            },
+            "existingSecretSecretKeyKey": {
+              "type": "string",
+              "description": "Key in the existing secret for the secret key",
+              "default": "secret-key"
+            },
+            "accessKey": {
+              "type": "string",
+              "description": "Inline S3 access key (ignored when existingSecret is set)",
+              "default": ""
+            },
+            "secretKey": {
+              "type": "string",
+              "description": "Inline S3 secret key (ignored when existingSecret is set)",
+              "default": ""
+            }
+          }
         }
       }
     },
+    "nodeSelector": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Node selector for the pod"
+    },
+    "tolerations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "description": "Tolerations for the pod"
+    },
+    "affinity": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Affinity rules for the pod"
+    },
+    "topologySpreadConstraints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "description": "Topology spread constraints for the pod"
+    },
+    "priorityClassName": {
+      "type": "string",
+      "description": "Priority class name for the pod",
+      "default": ""
+    },
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "description": "Termination grace period in seconds",
+      "default": 30,
+      "minimum": 0
+    },
+    "podLabels": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Extra labels for the pod"
+    },
+    "podAnnotations": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Extra annotations for the pod"
+    },
+    "extraVolumes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "description": "Extra volumes for the pod"
+    },
+    "extraVolumeMounts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "description": "Extra volume mounts for the Castopod container"
+    },
+    "extraManifests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "description": "Extra manifests to deploy alongside the chart"
+    },
     "mariadb": {
       "type": "object",
-      "description": "MariaDB subchart configuration",
+      "additionalProperties": true,
       "properties": {
         "enabled": {
           "type": "boolean",
@@ -441,15 +811,23 @@
         },
         "architecture": {
           "type": "string",
-          "description": "MariaDB architecture",
+          "description": "MariaDB subchart architecture",
           "default": "standalone"
         },
         "auth": {
           "type": "object",
-          "description": "MariaDB authentication configuration",
+          "additionalProperties": true,
           "properties": {
-            "database": { "type": "string", "default": "castopod" },
-            "username": { "type": "string", "default": "castopod" },
+            "database": {
+              "type": "string",
+              "description": "Database created by the subchart",
+              "default": "castopod"
+            },
+            "username": {
+              "type": "string",
+              "description": "Database user created by the subchart",
+              "default": "castopod"
+            },
             "password": {
               "type": "string",
               "description": "MariaDB password (auto-generated if empty)",
@@ -461,30 +839,36 @@
     },
     "redis": {
       "type": "object",
-      "description": "Redis subchart configuration (optional cache)",
+      "additionalProperties": true,
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "Deploy Redis as a subchart",
+          "description": "Deploy Redis as a subchart for the Castopod cache (authentication is required by Castopod)",
           "default": false
         },
         "architecture": {
           "type": "string",
-          "description": "Redis architecture",
+          "description": "Redis subchart architecture",
           "default": "standalone"
         },
         "auth": {
           "type": "object",
-          "description": "Redis authentication configuration",
+          "additionalProperties": true,
           "properties": {
             "enabled": {
               "type": "boolean",
-              "description": "Enable Redis authentication",
-              "default": false
+              "description": "Redis authentication; Castopod refuses to start with Redis but no password",
+              "default": true
+            },
+            "password": {
+              "type": "string",
+              "description": "Redis password (auto-generated by the subchart if empty)",
+              "default": ""
             }
           }
         }
       }
     }
-  }
+  },
+  "description": "Values for the Castopod Helm chart: open-source podcast hosting with MariaDB and optional Redis"
 }

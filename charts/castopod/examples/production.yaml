@@ -1,8 +1,23 @@
 # SPDX-License-Identifier: Apache-2.0
-# Production-leaning Castopod: public ingress+TLS (required for feeds/player),
-# Redis cache, generous media PVC. Single app replica (RWO media volume).
+# Production-leaning Castopod: public HTTPS URL (required for feeds and
+# federation), superadmin and analytics salt from existing Secrets, Redis
+# cache, generous media volume, and daily S3 backups of the data volume.
+# Single app replica (ReadWriteOnce media volume).
 #
+#   kubectl create secret generic castopod-admin --from-literal=admin-password='<strong password>'
+#   kubectl create secret generic castopod-analytics --from-literal=analytics-salt="$(openssl rand -hex 32)"
+#   kubectl create secret generic castopod-backup-s3 --from-literal=access-key=... --from-literal=secret-key=...
 #   helm install castopod helmforge/castopod -f production.yaml
+
+castopod:
+  baseURL: https://podcast.example.com
+  admin:
+    username: owner
+    email: owner@example.com
+    existingSecret: castopod-admin
+
+analytics:
+  existingSecret: castopod-analytics
 
 ingress:
   enabled: true
@@ -19,16 +34,31 @@ ingress:
         - podcast.example.com
       secretName: castopod-tls
 
-# Optional cache.
+# Cache handler; the subchart generates the Redis password Castopod requires.
 redis:
   enabled: true
 
-# Media payloads (audio + artwork) — size generously.
+# Writable files plus uploaded audio and artwork: size generously.
 persistence:
   enabled: true
   size: 50Gi
 
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    memory: 1Gi
+
 # Bundled MariaDB is fine for small instances; for scale use managed MariaDB
-# (mariadb.enabled=false + database.external.*).
+# (mariadb.enabled=false + database.external.*). Back up MariaDB separately.
 mariadb:
   enabled: true
+
+backup:
+  enabled: true
+  schedule: "0 3 * * *"
+  s3:
+    endpoint: https://s3.example.com
+    bucket: castopod-backups
+    existingSecret: castopod-backup-s3

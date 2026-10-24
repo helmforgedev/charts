@@ -1,4 +1,25 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- define "castopod.runtimeEnv" -}}
+- name: CADDY_HTTP_PORT
+  value: {{ .Values.castopod.port | quote }}
+- name: HEALTHCHECK_PATH
+  value: {{ .Values.probes.path | quote }}
+{{- with .Values.castopod.extraEnv }}
+{{ toYaml . }}
+{{- end }}
+{{- end -}}
+{{- define "castopod.dataMounts" -}}
+- name: data
+  mountPath: /var/www/html/writable
+- name: data
+  mountPath: /var/www/html/public/media
+  subPath: public-media
+- name: env
+  mountPath: /var/www/html/.env
+  subPath: .env
+  readOnly: true
+{{- end -}}
+{{- $baseURL := include "castopod.baseURL" . -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -31,6 +52,7 @@ spec:
       {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "castopod.serviceAccountName" . }}
       {{- end }}
+      automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . }}
       {{- end }}
@@ -40,29 +62,66 @@ spec:
       {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       initContainers:
-        - name: wait-for-db
-          image: docker.io/library/busybox:1.37
+        - name: setup
+          image: {{ include "castopod.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           command:
             - sh
             - -c
             - |
-              echo "Waiting for database at {{ include "castopod.dbHost" . }}:{{ include "castopod.dbPort" . }}..."
-              until nc -z -w2 {{ include "castopod.dbHost" . }} {{ include "castopod.dbPort" . }}; do
-                echo "Database not ready, retrying in 2s..."
-                sleep 2
+              set -eu
+              deadline=$(( $(date +%s) + DATABASE_WAIT_TIMEOUT ))
+              until php -r 'try { new PDO("mysql:host=".getenv("CP_DATABASE_HOSTNAME").";port=".getenv("CP_DATABASE_PORT").";dbname=".getenv("CP_DATABASE_NAME"), getenv("CP_DATABASE_USERNAME"), getenv("CP_DATABASE_PASSWORD")); } catch (Throwable $e) { exit(1); }'; do
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "Database ${CP_DATABASE_HOSTNAME}:${CP_DATABASE_PORT} not reachable after ${DATABASE_WAIT_TIMEOUT}s" >&2
+                  exit 1
+                fi
+                echo "Waiting for database ${CP_DATABASE_HOSTNAME}:${CP_DATABASE_PORT}..."
+                sleep 3
               done
-              echo "Database is ready."
-      containers:
-        - name: castopod
-          image: {{ include "castopod.image" . | quote }}
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          ports:
-            - name: http
-              containerPort: {{ .Values.castopod.port }}
-              protocol: TCP
+              mkdir -p /mnt/data/public-media
+              cp -an /var/www/html/public/media/. /mnt/data/public-media/
+              # The upstream bootstrap writes .env, runs migrations, and clears the cache.
+              # It does not write the database port, so a patched copy adds it to .env.
+              # Its log prints the whole .env, so only non-secret lines are shown.
+              sed '/^database.default.DBPrefix=/a database.default.port=${CP_DATABASE_PORT}'                 /etc/s6-overlay/s6-rc.d/bootstrap/prepare-environment.sh > /tmp/prepare-environment.sh
+              if ! grep -q '^database.default.port=' /tmp/prepare-environment.sh; then
+                echo "Unable to add the database port to the upstream bootstrap script" >&2
+                exit 1
+              fi
+              if ! sh /tmp/prepare-environment.sh > /tmp/prepare.log 2>&1; then
+                grep -vE '^[A-Za-z0-9_.]+=' /tmp/prepare.log >&2 || true
+                exit 1
+              fi
+              grep -vE '^[A-Za-z0-9_.]+=' /tmp/prepare.log || true
+              cp /var/www/html/.env /mnt/env/.env
+              if [ "${CASTOPOD_ADMIN_CREATE}" = "true" ]; then
+                if out=$(printf '%s\n%s\n' "$CASTOPOD_ADMIN_PASSWORD" "$CASTOPOD_ADMIN_PASSWORD" | php spark install:create-superadmin -n "$CASTOPOD_ADMIN_USERNAME" -e "$CASTOPOD_ADMIN_EMAIL" 2>&1); then
+                  echo "Superadmin ${CASTOPOD_ADMIN_USERNAME} created"
+                elif printf '%s' "$out" | grep -q "already created"; then
+                  echo "Superadmin already exists; skipped"
+                else
+                  printf '%s\n' "$out" | grep -vF "$CASTOPOD_ADMIN_PASSWORD" >&2
+                  exit 1
+                fi
+              fi
           env:
+            - name: DATABASE_WAIT_TIMEOUT
+              value: {{ .Values.setup.databaseWaitTimeoutSeconds | quote }}
             - name: CP_BASEURL
-              value: {{ .Values.castopod.baseURL | quote }}
+              value: {{ $baseURL | quote }}
+            {{- with .Values.castopod.mediaBaseURL }}
+            - name: CP_MEDIA_BASEURL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if hasPrefix "http://" $baseURL }}
+            - name: CP_DISABLE_HTTPS
+              value: "1"
+            {{- end }}
+            - name: CP_ADMIN_GATEWAY
+              value: {{ .Values.castopod.adminGateway | quote }}
+            - name: CP_AUTH_GATEWAY
+              value: {{ .Values.castopod.authGateway | quote }}
             - name: CP_DATABASE_HOSTNAME
               value: {{ include "castopod.dbHost" . | quote }}
             - name: CP_DATABASE_PORT
@@ -82,19 +141,64 @@ spec:
                   name: {{ include "castopod.analyticsSecretName" . }}
                   key: {{ include "castopod.analyticsSecretKey" . }}
             {{- if .Values.redis.enabled }}
-            - name: CP_CACHE_HANDLER
-              value: redis
             - name: CP_REDIS_HOST
               value: {{ include "castopod.redisHost" . | quote }}
             - name: CP_REDIS_PORT
               value: "6379"
+            - name: CP_REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "castopod.redisSecretName" . }}
+                  key: {{ include "castopod.redisSecretKey" . }}
             {{- end }}
-            {{- with .Values.castopod.extraEnv }}
+            - name: CASTOPOD_ADMIN_CREATE
+              value: {{ .Values.castopod.admin.create | quote }}
+            {{- if .Values.castopod.admin.create }}
+            - name: CASTOPOD_ADMIN_USERNAME
+              value: {{ .Values.castopod.admin.username | quote }}
+            - name: CASTOPOD_ADMIN_EMAIL
+              value: {{ .Values.castopod.admin.email | quote }}
+            - name: CASTOPOD_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "castopod.adminSecretName" . }}
+                  key: {{ include "castopod.adminSecretKey" . }}
+            {{- end }}
+            {{- include "castopod.runtimeEnv" . | nindent 12 }}
+          {{- with .Values.setup.resources }}
+          resources:
             {{- toYaml . | nindent 12 }}
-            {{- end }}
+          {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /mnt/data
+            - name: env
+              mountPath: /mnt/env
+      containers:
+        - name: castopod
+          image: {{ include "castopod.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - frankenphp
+            - run
+            - --config
+            - /etc/frankenphp/Caddyfile
+            - --adapter
+            - caddyfile
+          ports:
+            - name: http
+              containerPort: {{ .Values.castopod.port }}
+              protocol: TCP
+          env:
+            {{- include "castopod.runtimeEnv" . | nindent 12 }}
           {{- if .Values.probes.startup.enabled }}
           startupProbe:
-            tcpSocket:
+            httpGet:
+              path: {{ .Values.probes.path }}
               port: http
             initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.startup.periodSeconds }}
@@ -103,7 +207,8 @@ spec:
           {{- end }}
           {{- if .Values.probes.liveness.enabled }}
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: {{ .Values.probes.path }}
               port: http
             initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
@@ -112,7 +217,8 @@ spec:
           {{- end }}
           {{- if .Values.probes.readiness.enabled }}
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: {{ .Values.probes.path }}
               port: http
             initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
@@ -128,19 +234,42 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           volumeMounts:
-            {{- if .Values.persistence.enabled }}
-            - name: data
-              mountPath: /var/www/html/writable
-            {{- end }}
+            {{- include "castopod.dataMounts" . | nindent 12 }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+        {{- if .Values.scheduler.enabled }}
+        - name: scheduler
+          image: {{ include "castopod.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - supercronic
+            - /etc/s6-overlay/s6-rc.d/supercronic/crontab
+          env:
+            {{- include "castopod.runtimeEnv" . | nindent 12 }}
+          {{- with .Values.scheduler.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            {{- include "castopod.dataMounts" . | nindent 12 }}
+        {{- end }}
       volumes:
-        {{- if .Values.persistence.enabled }}
         - name: data
+          {{- if .Values.persistence.enabled }}
           persistentVolumeClaim:
             claimName: {{ include "castopod.pvcName" . }}
-        {{- end }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: env
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Mi
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
