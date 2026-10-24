@@ -39,6 +39,10 @@ helm install castopod oci://ghcr.io/helmforgedev/helm/castopod \
   --set castopod.baseURL=https://podcast.example.com
 ```
 
+`castopod.baseURL` only sets the URL Castopod embeds in links and feeds; it
+does not expose the Service. Enable `ingress` or `gatewayAPI` for that
+hostname before using the public URL.
+
 ## Quick Start
 
 Without a base URL, Ingress, or HTTPRoute, the chart uses
