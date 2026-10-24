@@ -45,13 +45,50 @@ tests:
           value: postgres-backup
       - equal:
           path: spec.jobTemplate.spec.template.spec.initContainers[0].image
-          value: "docker.io/library/postgres:18-alpine"
+          value: "docker.io/library/postgres:18.6-alpine"
       - equal:
           path: spec.jobTemplate.spec.template.spec.containers[0].name
           value: upload
       - equal:
           path: spec.jobTemplate.spec.template.spec.containers[0].image
           value: "docker.io/helmforge/mc:1.0.0"
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: MC_CONFIG_DIR
+            value: /tmp/.mc
+
+  - it: passes pg_dump arguments without a shell-expanded environment variable
+    template: templates/backup-cronjob.yaml
+    set:
+      postgresql.enabled: true
+      backup.enabled: true
+      backup.database.pgDumpArgs:
+        - --no-owner
+        - --no-acl
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: test-bucket
+      backup.s3.accessKey: AKIA123
+      backup.s3.secretKey: secret123
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].args[0]
+          value: --no-owner
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].args[1]
+          value: --no-acl
 
   - it: should render CronJob when backup enabled with external postgres
     template: templates/backup-cronjob.yaml

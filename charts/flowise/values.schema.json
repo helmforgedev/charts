@@ -4,6 +4,47 @@
   "description": "Configuration values for the Flowise Helm chart with standalone SQLite mode or scalable queue mode using Redis and PostgreSQL.",
   "type": "object",
   "additionalProperties": true,
+  "definitions": {
+    "httpProbe": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "path": { "type": "string", "minLength": 1 },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "properties": {
+        "runAsNonRoot": { "type": "boolean" },
+        "runAsUser": { "type": "integer", "minimum": 0 },
+        "runAsGroup": { "type": "integer", "minimum": 0 },
+        "fsGroup": { "type": "integer", "minimum": 0 },
+        "seccompProfile": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string", "enum": ["RuntimeDefault", "Localhost", "Unconfined"] }
+          }
+        }
+      }
+    },
+    "containerSecurityContext": {
+      "type": "object",
+      "properties": {
+        "allowPrivilegeEscalation": { "type": "boolean" },
+        "readOnlyRootFilesystem": { "type": "boolean" },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "drop": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    }
+  },
   "properties": {
     "global": {
       "type": "object",
@@ -35,9 +76,12 @@
       "description": "Main Flowise application settings",
       "properties": {
         "replicaCount": { "type": "integer", "description": "Number of main Flowise server replicas" },
+        "containerPort": { "type": "integer", "minimum": 1, "maximum": 65535, "description": "HTTP port listened on by the Flowise process" },
         "startupDelaySeconds": { "type": "integer", "minimum": 0, "description": "Delay before starting the main Flowise server, in seconds" },
         "appUrl": { "type": "string", "description": "Public application URL. Auto-detected from the first ingress host when empty." },
         "logLevel": { "type": "string", "description": "Log level: error | warn | info | verbose | debug" },
+        "logPath": { "type": "string", "minLength": 1, "description": "Writable directory for Flowise application logs" },
+        "secretKeyPath": { "type": "string", "minLength": 1, "description": "Writable directory used by Flowise for local secret-key state" },
         "numberOfProxies": { "type": "integer", "description": "Rate-limit proxy count when running behind ingress or load balancers" },
         "corsOrigins": { "type": "string", "description": "Allowed CORS origins" },
         "iframeOrigins": { "type": "string", "description": "Allowed iframe origins" },
@@ -48,17 +92,75 @@
         "extraEnv": { "type": "array", "description": "Extra environment variables for the main Flowise container", "items": { "type": "object" } }
       }
     },
-    "auth": { "type": "object", "description": "Authentication and encryption secret settings" },
+    "auth": {
+      "type": "object",
+      "description": "Authentication and encryption secret settings",
+      "properties": {
+        "existingSecret": { "type": "string" },
+        "existingSecretEncryptionKeyKey": { "type": "string", "minLength": 1 },
+        "existingSecretJwtAuthTokenSecretKey": { "type": "string", "minLength": 1 },
+        "existingSecretJwtRefreshTokenSecretKey": { "type": "string", "minLength": 1 },
+        "existingSecretExpressSessionSecretKey": { "type": "string", "minLength": 1 },
+        "existingSecretTokenHashSecretKey": { "type": "string", "minLength": 1 },
+        "encryptionKey": { "type": "string" },
+        "jwtAuthTokenSecret": { "type": "string" },
+        "jwtRefreshTokenSecret": { "type": "string" },
+        "expressSessionSecret": { "type": "string" },
+        "tokenHashSecret": { "type": "string" },
+        "secureCookies": { "type": "boolean" }
+      }
+    },
     "database": {
       "type": "object",
       "description": "Database selection and external database settings",
       "properties": {
         "mode": { "type": "string", "description": "Database mode: auto | sqlite | external | postgresql", "enum": ["auto", "sqlite", "external", "postgresql"] },
-        "sqlite": { "type": "object", "description": "SQLite settings" },
-        "external": { "type": "object", "description": "External database settings" }
+        "sqlite": {
+          "type": "object",
+          "description": "SQLite settings",
+          "properties": {
+            "path": { "type": "string", "minLength": 1 }
+          }
+        },
+        "external": {
+          "type": "object",
+          "description": "External database settings",
+          "properties": {
+            "vendor": { "type": "string", "enum": ["postgres", "mysql"] },
+            "host": { "type": "string" },
+            "port": { "type": ["integer", "string"], "pattern": "^[0-9]*$" },
+            "name": { "type": "string", "minLength": 1 },
+            "username": { "type": "string", "minLength": 1 },
+            "password": { "type": "string" },
+            "existingSecret": { "type": "string" },
+            "existingSecretPasswordKey": { "type": "string", "minLength": 1 },
+            "ssl": { "type": "boolean" },
+            "rejectUnauthorized": { "type": "boolean" },
+            "sslKeyBase64": { "type": "string" }
+          }
+        }
       }
     },
-    "postgresql": { "type": "object", "description": "PostgreSQL subchart configuration" },
+    "postgresql": {
+      "type": "object",
+      "description": "PostgreSQL subchart configuration",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "architecture": { "type": "string" },
+        "auth": {
+          "type": "object",
+          "properties": {
+            "database": { "type": "string" },
+            "username": { "type": "string" },
+            "password": { "type": "string" },
+            "postgresPassword": { "type": "string" }
+          }
+        },
+        "standalone": { "type": "object", "additionalProperties": true },
+        "initdb": { "type": "object", "additionalProperties": true }
+      }
+    },
     "queue": {
       "type": "object",
       "description": "Queue mode settings including worker replicas and concurrency",
@@ -85,17 +187,76 @@
         }
       }
     },
-    "redis": { "type": "object", "description": "Redis subchart or external Redis configuration" },
+    "redis": {
+      "type": "object",
+      "description": "Redis subchart or external Redis configuration",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "architecture": { "type": "string" },
+        "auth": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "password": { "type": "string" }
+          }
+        },
+        "standalone": { "type": "object", "additionalProperties": true },
+        "external": {
+          "type": "object",
+          "properties": {
+            "host": { "type": "string" },
+            "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+            "username": { "type": "string" },
+            "password": { "type": "string" },
+            "existingSecret": { "type": "string" },
+            "existingSecretPasswordKey": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
     "storage": {
       "type": "object",
       "description": "Blob storage settings",
       "properties": {
         "type": { "type": "string", "description": "Storage type: local | s3", "enum": ["local", "s3"] },
-        "local": { "type": "object", "description": "Local blob storage settings" },
-        "s3": { "type": "object", "description": "S3-compatible blob storage settings" }
+        "local": {
+          "type": "object",
+          "description": "Local blob storage settings",
+          "properties": {
+            "path": { "type": "string", "minLength": 1 }
+          }
+        },
+        "s3": {
+          "type": "object",
+          "description": "S3-compatible blob storage settings",
+          "properties": {
+            "bucketName": { "type": "string" },
+            "accessKeyId": { "type": "string" },
+            "secretAccessKey": { "type": "string" },
+            "region": { "type": "string", "minLength": 1 },
+            "endpointUrl": { "type": "string" },
+            "forcePathStyle": { "type": "boolean" },
+            "existingSecret": { "type": "string" },
+            "existingSecretAccessKeyKey": { "type": "string", "minLength": 1 },
+            "existingSecretSecretKeyKey": { "type": "string", "minLength": 1 }
+          }
+        }
       }
     },
-    "persistence": { "type": "object", "description": "Persistent storage settings for local Flowise data" },
+    "persistence": {
+      "type": "object",
+      "description": "Persistent storage settings for local Flowise data",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "storageClass": { "type": "string" },
+        "accessMode": { "type": "string", "minLength": 1 },
+        "size": { "type": "string", "minLength": 1 },
+        "existingClaim": { "type": "string" },
+        "mountPath": { "type": "string", "minLength": 1 },
+        "annotations": { "type": "object" }
+      }
+    },
     "service": {
       "type": "object",
       "description": "Service configuration for the Flowise web application",
@@ -107,14 +268,103 @@
         "annotations": { "type": "object", "description": "Annotations for the service" }
       }
     },
-    "ingress": { "type": "object", "description": "Ingress configuration for Flowise" },
-    "startupProbe": { "type": "object", "description": "Startup probe for the main Flowise server" },
-    "livenessProbe": { "type": "object", "description": "Liveness probe for the main Flowise server" },
-    "readinessProbe": { "type": "object", "description": "Readiness probe for the main Flowise server" },
+    "ingress": {
+      "type": "object",
+      "description": "Ingress configuration for Flowise",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "ingressClassName": { "type": "string" },
+        "annotations": { "type": "object" },
+        "hosts": { "type": "array", "items": { "type": "object" } },
+        "tls": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "startupProbe": {
+      "type": "object",
+      "description": "Startup probe for the main Flowise server",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "path": { "type": "string", "minLength": 1 },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "livenessProbe": {
+      "type": "object",
+      "description": "Liveness probe for the main Flowise server",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "path": { "type": "string", "minLength": 1 },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "readinessProbe": {
+      "type": "object",
+      "description": "Readiness probe for the main Flowise server",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "path": { "type": "string", "minLength": 1 },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
+    },
     "resources": { "type": "object", "description": "CPU and memory requests/limits for the main Flowise container" },
-    "podSecurityContext": { "type": "object", "description": "Pod-level security context" },
-    "securityContext": { "type": "object", "description": "Container-level security context" },
-    "serviceAccount": { "type": "object", "description": "ServiceAccount configuration" },
+    "podSecurityContext": {
+      "type": "object",
+      "description": "Pod-level security context",
+      "properties": {
+        "runAsNonRoot": { "type": "boolean" },
+        "runAsUser": { "type": "integer", "minimum": 0 },
+        "runAsGroup": { "type": "integer", "minimum": 0 },
+        "fsGroup": { "type": "integer", "minimum": 0 },
+        "seccompProfile": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string", "enum": ["RuntimeDefault", "Localhost", "Unconfined"] }
+          }
+        }
+      }
+    },
+    "securityContext": {
+      "type": "object",
+      "description": "Container-level security context",
+      "properties": {
+        "allowPrivilegeEscalation": { "type": "boolean" },
+        "readOnlyRootFilesystem": { "type": "boolean" },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "drop": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "description": "ServiceAccount configuration",
+      "properties": {
+        "create": { "type": "boolean" },
+        "name": { "type": "string" },
+        "annotations": { "type": "object" },
+        "automountServiceAccountToken": { "type": "boolean" }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "description": "Component-scoped NetworkPolicy configuration",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "ingressFrom": { "type": "array", "items": { "type": "object" } },
+        "egress": { "type": "array", "items": { "type": "object" } }
+      }
+    },
     "priorityClassName": { "type": "string", "description": "Priority class name" },
     "podLabels": { "type": "object", "description": "Labels added to the main Flowise pod" },
     "podAnnotations": { "type": "object", "description": "Annotations added to the main Flowise pod" },
@@ -173,11 +423,39 @@
           "type": "object",
           "description": "Resources for backup containers"
         },
+        "podSecurityContext": {
+          "type": "object",
+          "properties": {
+            "runAsNonRoot": { "type": "boolean" },
+            "runAsUser": { "type": "integer", "minimum": 0 },
+            "runAsGroup": { "type": "integer", "minimum": 0 },
+            "fsGroup": { "type": "integer", "minimum": 0 },
+            "seccompProfile": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string", "enum": ["RuntimeDefault", "Localhost", "Unconfined"] }
+              }
+            }
+          }
+        },
+        "securityContext": {
+          "type": "object",
+          "properties": {
+            "allowPrivilegeEscalation": { "type": "boolean" },
+            "readOnlyRootFilesystem": { "type": "boolean" },
+            "capabilities": {
+              "type": "object",
+              "properties": {
+                "drop": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
+        },
         "database": {
           "type": "object",
           "description": "Override pg_dump arguments for backup",
           "properties": {
-            "pgDumpArgs": { "type": "string", "description": "Extra arguments passed to pg_dump" }
+            "pgDumpArgs": { "type": "array", "description": "Extra arguments passed to pg_dump without shell evaluation", "items": { "type": "string" } }
           }
         },
         "s3": {
