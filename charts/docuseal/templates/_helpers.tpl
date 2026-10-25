@@ -62,6 +62,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
   value: {{ printf "redis://:$(REDIS_PASSWORD)@%s:%v/%v" (include "docuseal.redisHost" .root) (include "docuseal.redisPort" .root) (include "docuseal.redisDatabase" .root) | quote }}
 - name: RUN_MIGRATIONS
   value: {{ .runMigrations | quote }}
+- name: PORT
+  value: {{ .root.Values.containerPorts.http | quote }}
 - name: APP_URL
   value: {{ trimSuffix "/" .root.Values.docuseal.appUrl | quote }}
 - name: FORCE_SSL

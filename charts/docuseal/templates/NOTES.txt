@@ -21,8 +21,7 @@ Then open http://127.0.0.1:3000/setup.
 
 3. Getting started
 ==================
-Wait for the migration Job and Deployment:
-  kubectl -n {{ .Release.Namespace }} wait --for=condition=complete job/{{ include "docuseal.fullname" . }}-migrate --timeout=10m
+Wait for the migration init container and Deployment:
   kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "docuseal.fullname" . }}
 Create the first administrator through /setup. No administrator password is
 stored in chart values.
@@ -42,18 +41,19 @@ Attachments: {{ .Values.storage.type }}
 SMTP enabled: {{ .Values.smtp.enabled }}
 NetworkPolicy enabled: {{ .Values.networkPolicy.enabled }}
 Migration hook enabled: {{ .Values.migrations.enabled }}
+Application listener: {{ .Values.containerPorts.http }}
 
 6. Validation commands
 ======================
   helm -n {{ .Release.Namespace }} status {{ .Release.Name }}
-  kubectl -n {{ .Release.Namespace }} get deploy,pod,service,pvc,job
+  kubectl -n {{ .Release.Namespace }} get deploy,pod,service,pvc
   kubectl -n {{ .Release.Namespace }} get endpoints
-  kubectl -n {{ .Release.Namespace }} exec deploy/{{ include "docuseal.fullname" . }} -- ruby -rnet/http -e 'abort unless Net::HTTP.get_response(URI("http://127.0.0.1:3000/up")).is_a?(Net::HTTPSuccess)'
+  kubectl -n {{ .Release.Namespace }} exec deploy/{{ include "docuseal.fullname" . }} -- ruby -rnet/http -e 'abort unless Net::HTTP.get_response(URI("http://127.0.0.1:{{ .Values.containerPorts.http }}/up")).is_a?(Net::HTTPSuccess)'
 
 7. Troubleshooting
 ==================
   kubectl -n {{ .Release.Namespace }} get events --sort-by=.lastTimestamp
-  kubectl -n {{ .Release.Namespace }} logs job/{{ include "docuseal.fullname" . }}-migrate
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "docuseal.fullname" . }} -c migrate
   kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "docuseal.fullname" . }}
   kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "docuseal.fullname" . }} --previous
 Check database, Redis, storage, SMTP, Secret keys, and private egress peers.
@@ -62,7 +62,7 @@ Check database, Redis, storage, SMTP, Secret keys, and private egress peers.
 ================================
 Back up PostgreSQL, attachments, Redis queues, and the application Secret as
 one recovery set. Test restoration in an isolated namespace. The pre-upgrade
-migration hook can change the database schema, so an image rollback alone is
+migration init container can change the database schema, so an image rollback alone is
 not a complete rollback procedure.
 
 Documentation: https://helmforge.dev/docs/charts/docuseal
