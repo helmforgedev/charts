@@ -63,9 +63,10 @@ Services:
 4. Application & Cluster Configuration
 ======================================
 
-- default replication factor: {{ .Values.config.defaultReplicationFactor }}
-- offsets topic replication factor: {{ .Values.config.offsetsTopicReplicationFactor }}
-- transaction state log replication factor: {{ .Values.config.transactionStateLogReplicationFactor }}
+- default replication factor: {{ include "kafka.internalReplicationFactor" . }}
+- offsets and transaction state topics replication factor: {{ include "kafka.internalReplicationFactor" . }}
+- min.insync.replicas: {{ include "kafka.minInSyncReplicas" . }}
+- default partitions: {{ .Values.config.numPartitions }}
 - auto-create topics enabled: {{ .Values.config.autoCreateTopicsEnabled }}
 
 5. Operations & Workload Inspection
@@ -75,9 +76,11 @@ Inspect release objects:
 - kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
 - kubectl get svc -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
 - kubectl get pvc -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+{{- if eq .Values.runtime "jvm" }}
 
-Run Helm tests:
-- helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
+List topics from inside a broker pod:
+- kubectl exec -n {{ .Release.Namespace }} {{ if eq .Values.architecture "single-broker" }}{{ include "kafka.singleStatefulSetName" . }}{{ else if eq (int .Values.cluster.brokers.replicaCount) 0 }}{{ include "kafka.controllerStatefulSetName" . }}{{ else }}{{ include "kafka.brokerStatefulSetName" . }}{{ end }}-0 -- env KAFKA_OPTS= /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:{{ .Values.listeners.client.port }} --list
+{{- end }}
 
 6. Observability & Health Verification
 ======================================
