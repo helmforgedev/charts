@@ -11,12 +11,15 @@ export async function verifyMetrics({k,forward,values,namespace}){
   console.log('PASS native Prometheus exposition; families: '+families.slice(0,18).join(', '));
  },values.metrics.port);
  if(!values.metrics.serviceMonitor.enabled)return;
+ const serviceMonitor=JSON.parse(k(['get','servicemonitor','pocket-id-metrics','-o','json']));
+ assert.equal(serviceMonitor.spec.endpoints[0].port,'metrics');
+ if(values.metrics.prometheusRule.enabled){const rule=JSON.parse(k(['get','prometheusrule','pocket-id-metrics','-o','json']));assert.ok(rule.spec.groups.some(group=>group.rules.some(item=>item.alert==='PocketIDMetricsUnavailable')));}
  k(['rollout','status','statefulset/prometheus-pocket-id-monitor','--timeout=90s']);
  await forward(async base=>{
   const deadline=Date.now()+45000;let result=[];
   while(Date.now()<deadline){const response=await fetch(base+'/api/v1/query?query='+encodeURIComponent('up{namespace="'+namespace+'",endpoint="metrics"}'),{signal:AbortSignal.timeout(10000)});assert.equal(response.status,200);const data=await response.json();result=data.data?.result??[];if(result.length&&result.every(row=>row.value[1]==='1'))break;await new Promise(resolve=>setTimeout(resolve,1500));}
   assert.ok(result.length);assert.ok(result.every(row=>row.value[1]==='1'),'Real Prometheus must scrape the native metrics ServiceMonitor');
   if(values.metrics.prometheusRule.enabled){const response=await fetch(base+'/api/v1/rules');assert.equal(response.status,200);const data=await response.json();assert.ok(data.data.groups.some(group=>group.rules.some(rule=>rule.name==='PocketIDMetricsUnavailable')));}
-  console.log('PASS real Prometheus ServiceMonitor scrape up=1 and loaded native target availability rule');
+  console.log('PASS rendered ServiceMonitor/PrometheusRule contract and real Prometheus scrape up=1');
  },9090,'service/pocket-id-monitor');
 }

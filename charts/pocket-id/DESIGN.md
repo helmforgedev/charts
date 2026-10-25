@@ -1,53 +1,116 @@
-# Pocket ID design
+# Pocket ID chart design
 
-## Upstream contract
+## Scope
 
-Use the official `ghcr.io/pocket-id/pocket-id:v2.14.0` image and its unchanged startup entrypoint. This release includes
-a static Go binary and embedded frontend. Its native first-user API is public while no user exists, so merely placing
-the Service after a Deployment does not protect setup.
+This chart deploys one Pocket ID identity provider from the official pinned
+image. It owns private first-administrator initialization, HTTP exposure,
+application identity, persistent files, optional PostgreSQL integration,
+native Prometheus export, and the Kubernetes security controls required around
+those components. It supports SQLite for the default singleton topology and a
+HelmForge PostgreSQL subchart or prepared external PostgreSQL service.
 
-## Private bootstrap
+## Architecture
 
-An initializer copies the exact binary to a pod-local emptyDir. A pinned official Node helper runs that binary with
-`HOST=127.0.0.1` and `ACTORS_HOST=127.0.0.1`, preserving the final HTTPS `APP_URL`. This uses native binding controls
-and does not patch application code. The helper creates the first administrator through the native API, verifies its
-role and the closed setup response, then gracefully terminates the process. The main container starts afterward using
-its original entrypoint.
+The Deployment uses init containers to copy the exact upstream binary, verify
+database admission, run native migrations when PostgreSQL is selected, and
+complete first-user setup on loopback before the public application container
+starts. The Service exposes only the application listener. The actor listener
+stays on loopback, and the optional native metrics listener uses a separate
+Service and NetworkPolicy ingress rule.
 
-For existing databases the helper verifies closed setup and preserves users and credentials. Disabled account creation
-still performs this private admission check. Unexpected HTTP responses fail rather than being interpreted as an existing
-installation. An operator invokes the native CLI for a fresh one-hour login link when ready to enroll a passkey.
+```mermaid
+flowchart LR
+  Client[OIDC and passkey clients] --> Edge[Ingress or HTTPRoute]
+  Edge --> Service[Application Service]
+  Service --> App[Pocket ID]
+  Init[Private bootstrap init container] --> Data[(SQLite or PostgreSQL)]
+  App --> Data
+  App --> Files[(Retained files PVC)]
+  Identity[Encryption Secret] --> Init
+  Identity --> App
+  Prometheus[Prometheus] -. optional scrape .-> Metrics[Metrics Service]
+  Metrics --> App
+```
 
-## Storage and availability
+## Design decisions
 
-SQLite and uploads live on one retained PVC. The generated encryption Secret uses Helm lookup to retain its exact key
-across upgrades. An existing Secret supports external ownership. This key encrypts sensitive native fields rather than
-the complete database file.
+- Private bootstrap binds the native HTTP and actor listeners to loopback,
+  creates the first administrator through the upstream API, verifies its role
+  and the closed setup response, then terminates before public traffic starts.
+- The upstream binary and entrypoint remain unchanged; the helper orchestrates
+  native interfaces instead of patching application code.
+- One replica and `Recreate` upgrades are deliberate. Upstream HA is unfinished
+  and is not exposed as a supported environment flag.
+- The encryption key is generated once with Helm lookup or supplied through an
+  existing Secret. It must remain stable across upgrades and recovery.
+- PostgreSQL connection components are encoded into a mode-0600 memory-backed
+  file, avoiding credentials in process arguments and rendered URLs.
+- Application HTTP, actor, and metrics listeners have separate trust and
+  exposure boundaries.
 
-Single replica and Recreate upgrades are deliberate with either SQLite or PostgreSQL: upstream HA is unfinished and is
-not exposed as a supported environment flag. No HPA or misleading multi-replica availability is offered.
+## Production boundary
 
-## PostgreSQL migrations
+The chart manages Kubernetes resources and the optional HelmForge PostgreSQL
+dependency. Operators own DNS, trusted HTTPS certificates, ingress or Gateway
+controllers, passkey relying-party origin stability, external database
+availability, backup storage, capacity, and disaster-recovery execution.
+External PostgreSQL must already provide `citext`, `pgcrypto`, schema
+permissions, and a clean migration state. A PostgreSQL backend does not turn
+the application into a supported high-availability deployment.
 
-The optional HelmForge subchart initializes `citext` and `pgcrypto` with its DBA role. The former is required by
-application migrations, the latter by the independent Francis actor migration runner. External databases require
-equivalent preparation. A read-only PostgreSQL client checks extensions, separate schema USAGE/CREATE privileges and the
-application's dirty migration flag before the private bootstrap executes either native runner. No runtime superuser
-grant, database CREATE grant, forced migration version or automatic dirty-state repair is used.
+## Security boundary
 
-The connection URL is assembled with encoded components in a mode-0600 memory-backed file. External PostgreSQL defaults
-to `verify-full`; a mounted optional CA enables private trust without disabling hostname validation.
+The Pod runs as UID/GID 1000 with a read-only root filesystem, RuntimeDefault
+seccomp, all capabilities dropped, no privilege escalation, and no mounted
+service-account token. NetworkPolicy restricts ingress and makes application
+egress explicit. The initialization listener is never exposed by a Service.
+The chart prevents overrides of managed environment variables that protect
+bootstrap, callback, logging, downgrade, analytics, and telemetry behavior.
 
-## Monitoring boundary
+The retained encryption key protects sensitive native fields and signing
+material; it does not encrypt the entire SQLite database or PVC. Operators
+must protect backups, one-time login URLs, database credentials, and external
+Secret access separately.
 
-Native OpenTelemetry Prometheus export uses a separate port, Service and NetworkPolicy ingress rule. ServiceMonitor and
-PrometheusRule are optional and depend on installed operator CRDs. The private initialization process overrides metric
-export to none, so it exposes no additional bootstrap listener. The availability alert evaluates discovered targets;
-missing monitoring discovery requires separate platform alerts.
+## Observability boundary
+
+Startup, readiness, and liveness probes use the native `/healthz` endpoint on
+the named HTTP port. Optional OpenTelemetry Prometheus export listens on its
+own port and can render a ServiceMonitor and PrometheusRule when the operator
+CRDs are installed. The private bootstrap disables metric export. Kubernetes
+events, init-container logs, application logs, and target availability remain
+the primary troubleshooting signals; missing discovery requires platform-level
+alerts outside this chart.
+
+## Upgrade and recovery
+
+Back up the complete data directory and the original encryption Secret as one
+recovery set. PostgreSQL deployments also require a database-consistent backup.
+Restore the same chart and application version on a fresh volume, validate the
+native operator login, passkey authentication, OIDC authorization-code flow,
+uploads, and metrics, then upgrade. Never repair a dirty migration flag or
+force a schema version without an upstream-supported recovery plan.
+
+## Known gaps and limitations
+
+- Only one application replica is supported, with planned upgrade downtime.
+- The actor process is embedded and cannot be scaled independently.
+- Passkeys remain coupled to the configured HTTPS relying-party origin.
+- ServiceMonitor and PrometheusRule require separately installed operator CRDs.
+- External database preparation and managed-service recovery are operator work.
+
+## Non-goals
+
+The chart does not provision DNS, TLS certificates, external PostgreSQL,
+Prometheus Operator, backup infrastructure, or passkeys. It does not expose the
+private actor listener, generate an initial password, claim upstream HA, rotate
+the encryption identity, or automatically repair database migration state.
 
 ## Validation plan
 
-Validate private first-user setup, native operator token exchange/replay rejection, identity and key retention, real
-browser passkey enrollment/login and OIDC authorization code with S256. Release readiness remains pending until the
-complete HelmForge gate passes. The browser fixture must generate a new credential with an empty virtual authenticator;
-seeded private keys and upstream test-only API routes cannot establish production behavior.
+Release validation covers private first-user setup, native one-time token
+exchange and replay rejection, retained identity, fresh-volume restore, browser
+passkey enrollment and login, OIDC authorization code with PKCE, bundled and
+external PostgreSQL, and real Prometheus scraping. Runtime fixtures must create
+new credentials; seeded private keys and test-only upstream APIs do not prove
+production passkey behavior.

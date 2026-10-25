@@ -4,6 +4,16 @@ A singleton Pocket ID identity provider using the official pinned image, passkey
 Connect. The chart initializes its first administrator privately before exposing HTTP and retains the application's
 encryption key across upgrades.
 
+## Features
+
+- Private native first-administrator bootstrap before public HTTP starts.
+- Official Pocket ID image pinned to an explicit upstream release.
+- Default SQLite or bundled/external PostgreSQL with admission checks.
+- Retained files and encryption identity with existing Secret support.
+- Ingress, Gateway API, External Secrets, dual-stack, and NetworkPolicy.
+- Optional native Prometheus Service, ServiceMonitor, and PrometheusRule.
+- Restricted non-root runtime with no service-account token.
+
 ## Installation
 
 Configure a dedicated HTTPS origin before enrolling any passkeys:
@@ -32,7 +42,7 @@ ingress:
 Install with `helm install identity helmforge/pocket-id -n identity --create-namespace -f values.yaml`. See
 [onboarding](docs/onboarding.md) before the first login.
 
-## Authentication and onboarding
+## Architecture and authentication
 
 The initializer copies the unchanged static application binary from the official image and starts it with native HTTP
 and actor listeners bound to loopback. It uses the native initial-signup API, verifies the administrator role and closed
@@ -74,6 +84,35 @@ restoration and operator access.
 Do not claim high availability by raising the replica count. The pinned upstream release does not expose its unfinished
 HA mode as an environment configuration option.
 
+## Configuration
+
+The main runtime contracts are explicit and independently configurable:
+
+| Value | Default | Purpose |
+| --- | ---: | --- |
+| `server.publicUrl` | `https://id.example.com` | HTTPS issuer and passkey relying-party origin |
+| `server.port` | `1411` | Native application listener |
+| `service.port` | `1411` | Cluster-facing Service port |
+| `database.type` | `sqlite` | SQLite or PostgreSQL backend |
+| `postgresql.enabled` | `false` | HelmForge PostgreSQL 2.1.1 dependency |
+| `persistence.size` | `5Gi` | SQLite and uploads workspace capacity |
+| `encryption.existingSecret` | `""` | Externally managed stable encryption identity |
+| `bootstrap.enabled` | `true` | Create the first administrator privately |
+| `metrics.enabled` | `false` | Native Prometheus listener and Service |
+| `networkPolicy.enabled` | `true` | Application ingress and egress isolation |
+
+Every value is documented in [values.yaml](values.yaml) and constrained by
+[values.schema.json](values.schema.json). Keep `server.publicUrl` on its final
+HTTPS origin before enrolling passkeys.
+
+## Examples
+
+- [Production SQLite](examples/production-sqlite.yaml)
+- [Bundled PostgreSQL](examples/bundled-postgresql.yaml)
+- [External PostgreSQL](examples/external-postgresql.yaml)
+- [Database preparation](docs/database.md)
+- [Monitoring](docs/monitoring.md)
+
 ## Monitoring
 
 Enable `metrics.enabled` for the native Prometheus exporter on its own private Service. Optional ServiceMonitor and
@@ -82,7 +121,7 @@ PrometheusRule resources integrate with Prometheus Operator. The bootstrap proce
 
 ## Validation
 
-The complete HelmForge gate passed: 23 layers, 13 runtime scenarios and 12 Helm unit tests. Coverage includes native
+The complete HelmForge gate covers 23 layers, 13 runtime scenarios and 25 Helm unit tests. Coverage includes native
 bootstrap, browser passkey enrollment/login, OIDC code flow with PKCE, bundled and external PostgreSQL, real Prometheus
 scraping, External Secrets and fresh-volume identity recovery. Runtime tests use the owned local k3d cluster;
 production capacity and external relying-party availability remain deployment-specific.
@@ -98,6 +137,24 @@ production capacity and external relying-party availability remain deployment-sp
 
 Kubescape 4.0.13, default rendered manifests, 2026-09-10. No findings and no control suppressions. This configuration
 scan does not replace image vulnerability management or application security review.
+
+## Troubleshooting
+
+Inspect init containers separately because bootstrap and database admission
+finish before the application container starts:
+
+```bash
+kubectl -n identity get pod,service,pvc
+kubectl -n identity describe pod -l app.kubernetes.io/instance=identity
+kubectl -n identity logs deployment/identity-pocket-id -c bootstrap
+kubectl -n identity logs deployment/identity-pocket-id -c pocket-id
+kubectl -n identity get events --sort-by=.lastTimestamp
+```
+
+For setup failures, verify the final HTTPS `server.publicUrl`, encryption
+Secret key, writable retained storage, and PostgreSQL extensions and schema
+permissions. For login failures after an origin change, follow the documented
+[recovery procedure](docs/recovery.md) instead of rotating encryption state.
 
 ## Sources
 
