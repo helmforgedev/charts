@@ -100,6 +100,15 @@ tests:
       - equal:
           path: spec.template.spec.initContainers[0].imagePullPolicy
           value: IfNotPresent
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - contains:
+          path: spec.template.spec.initContainers[0].securityContext.capabilities.drop
+          content: ALL
 
   - it: should use secure pod and container defaults
     asserts:
@@ -185,7 +194,25 @@ tests:
           content:
             name: persistent-plugins
             mountPath: /plugins
-      - notContains:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: runtime-plugins
+            emptyDir:
+              sizeLimit: 512Mi
+
+  - it: should retain a chart runtime volume when an override mount references its name
+    set:
+      extraVolumeMounts:
+        - name: runtime-plugins
+          mountPath: /plugins
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: runtime-plugins
+            mountPath: /plugins
+      - contains:
           path: spec.template.spec.volumes
           content:
             name: runtime-plugins
