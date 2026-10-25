@@ -18,10 +18,10 @@ authentication and authorization, and network paths in both directions:
    runtime integration.
 4. Cluster DNS must resolve Kubernetes services when egress policy is enabled.
 
-Confirm the distribution supports Metrics Server `0.9.x` and the chart's
-minimum Kubernetes version before installation. The upstream project tests the
-last three Kubernetes minor releases; do not infer support for an older cluster
-only because Helm can render its manifests.
+Confirm the distribution supports Metrics Server `0.9.x` and Kubernetes 1.34
+or newer before installation. The upstream project tests the last three
+Kubernetes minor releases; do not infer support for an older cluster only
+because Helm can render its manifests.
 
 ## Secure Kubelet TLS
 

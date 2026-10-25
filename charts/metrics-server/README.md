@@ -45,9 +45,10 @@ helm install metrics-server \
   --create-namespace
 ```
 
-Metrics Server `0.9.x` is tested upstream against the last three Kubernetes
-minor releases. This chart declares `kubeVersion: >=1.31.0-0`; verify the
-upstream compatibility matrix whenever upgrading Kubernetes or overriding the
+The upstream compatibility matrix requires Kubernetes 1.34 or newer for
+Metrics Server `0.9.x`. This chart therefore declares
+`kubeVersion: >=1.34.0-0`. Upstream tests the last three Kubernetes minor
+releases; verify the matrix whenever upgrading Kubernetes or overriding the
 image tag.
 
 ## Architecture

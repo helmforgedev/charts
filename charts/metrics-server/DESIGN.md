@@ -48,10 +48,10 @@ address and that secure port rather than a pod IP.
 
 The chart pins the official
 `registry.k8s.io/metrics-server/metrics-server:v0.9.0` image. The upstream
-project tests Metrics Server against the last three Kubernetes minor releases;
-this chart declares Kubernetes `>=1.31.0-0` for the selected release baseline.
-The image tag and chart compatibility constraint must be reviewed together on
-every application upgrade.
+compatibility matrix requires Kubernetes 1.34 or newer for Metrics Server 0.9.x,
+and the project tests the last three Kubernetes minor releases. This chart
+therefore declares Kubernetes `>=1.34.0-0`. The image tag and chart compatibility
+constraint must be reviewed together on every application upgrade.
 
 ### Typed flags with an escape hatch
 
