@@ -1,0 +1,77 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Validation
+templates:
+  - templates/validate.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should accept the default values
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should require an external database host without the subchart
+    set:
+      postgresql.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: database.external.host is required when postgresql.enabled=false
+
+  - it: should require external database credentials without the subchart
+    set:
+      postgresql.enabled: false
+      database.external.host: pg.example.internal
+    asserts:
+      - failedTemplate:
+          errorMessage: database.external.password or database.external.existingSecret is required when postgresql.enabled=false
+
+  - it: should reject the Redis subchart together with external Redis
+    set:
+      redis.enabled: true
+      externalRedis.host: redis.example.internal
+    asserts:
+      - failedTemplate:
+          errorMessage: set either redis.enabled=true or externalRedis.host, not both
+
+  - it: should require an admin username when setup is enabled
+    set:
+      wallabag.admin.username: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: wallabag.admin.username is required when setup.enabled=true
+
+  - it: should require at least one HTTPRoute when Gateway API is enabled
+    set:
+      gatewayAPI.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: gatewayAPI.httpRoutes must contain at least one route when gatewayAPI.enabled=true
+
+  - it: should require parentRefs on every HTTPRoute
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - name: public
+    asserts:
+      - failedTemplate:
+          errorMessage: every gatewayAPI.httpRoutes[] entry requires parentRefs
+
+  - it: should reject floating image tags
+    set:
+      image.tag: latest
+    asserts:
+      - failedTemplate:
+          errorMessage: image.tag must be an immutable release tag
+
+  - it: should reject HTTPRoutes that render the same name
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - parentRefs:
+            - name: gw-a
+        - parentRefs:
+            - name: gw-b
+    asserts:
+      - failedTemplate:
+          errorPattern: "renders the HTTPRoute name"

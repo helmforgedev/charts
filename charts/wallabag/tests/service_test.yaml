@@ -6,10 +6,42 @@ release:
   name: test
   namespace: default
 tests:
-  - it: should render a Service
+  - it: should render a ClusterIP Service targeting the named port
     asserts:
       - isKind:
           of: Service
       - equal:
           path: metadata.name
           value: test-wallabag
+      - equal:
+          path: spec.type
+          value: ClusterIP
+      - equal:
+          path: spec.ports[0]
+          value:
+            name: http
+            port: 80
+            targetPort: http
+            protocol: TCP
+
+  - it: should keep the Service port independent from the listener
+    set:
+      wallabag.port: 8080
+      service.port: 8088
+      service.type: NodePort
+      service.annotations:
+        example.com/team: reading
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 8088
+      - equal:
+          path: spec.ports[0].targetPort
+          value: http
+      - equal:
+          path: spec.type
+          value: NodePort
+      - equal:
+          path: metadata.annotations
+          value:
+            example.com/team: reading

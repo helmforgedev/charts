@@ -4,8 +4,14 @@
 # =============================================================================
 # Focus: self-hosted read-it-later with PostgreSQL and optional Redis
 
+# -- Global values shared with parent charts and subcharts
+global: {}
+
+# -- Override the chart name used in resource names
 nameOverride: ""
+# -- Override the full resource name prefix
 fullnameOverride: ""
+# -- Labels added to every rendered resource
 commonLabels: {}
 
 # =============================================================================
@@ -17,8 +23,10 @@ image:
   repository: docker.io/wallabag/wallabag
   # -- Image tag
   tag: "2.6.14"
+  # -- Image pull policy
   pullPolicy: IfNotPresent
 
+# -- Image pull secrets for private registries
 imagePullSecrets: []
 
 # =============================================================================
@@ -26,37 +34,66 @@ imagePullSecrets: []
 # =============================================================================
 
 wallabag:
-  # -- Application port
+  # -- Port the bundled nginx listener binds inside the container
   port: 80
-  # -- Public domain name (required)
+  # -- Public URL users reach Wallabag through (scheme and host, no trailing slash)
   domainName: "https://wallabag.example.com"
-  # -- Symfony secret (auto-generated if empty)
+  # -- Instance name shown in the Wallabag UI and API
+  serverName: "Wallabag"
+  # -- Symfony secret (generated once and preserved across upgrades when empty)
   secret: ""
-  # -- Existing secret containing the Symfony secret
+  # -- Existing Secret containing the Symfony secret
   existingSecret: ""
-  # -- Key in the existing secret
+  # -- Key in the existing Secret holding the Symfony secret
   existingSecretKey: symfony-secret
-  # -- Allow user registration
+  # -- Allow public user registration
   registration: false
-  # -- Extra environment variables for the container
-  # -- @default -- `[]`
+  admin:
+    # -- Username of the initial super-admin created on first install
+    username: wallabag
+    # -- Email of the initial super-admin created on first install
+    email: wallabag@example.com
+    # -- Initial super-admin password (generated once and preserved when empty)
+    password: ""
+    # -- Existing Secret containing the initial super-admin password
+    existingSecret: ""
+    # -- Key in the existing Secret holding the super-admin password
+    existingSecretPasswordKey: admin-password
+  # -- Extra environment variables for the Wallabag container
+  # @default -- `[]`
   extraEnv: []
+
+# =============================================================================
+# Database setup
+# =============================================================================
+
+setup:
+  # -- Run the database setup init container (schema install on first start, migrations on upgrade)
+  enabled: true
+  # -- Seconds to wait for PostgreSQL before the setup init container fails
+  databaseWaitTimeoutSeconds: 300
+  # -- Resources for the setup init container
+  resources: {}
 
 # =============================================================================
 # Database
 # =============================================================================
 
 database:
-  # -- External PostgreSQL configuration (used when postgresql subchart is disabled)
   external:
+    # -- External PostgreSQL host (required when postgresql.enabled=false)
     host: ""
+    # -- External PostgreSQL port
     port: "5432"
+    # -- External PostgreSQL database name
     name: wallabag
+    # -- External PostgreSQL username
     username: wallabag
+    # -- External PostgreSQL password (ignored when existingSecret is set)
     password: ""
-    # -- Existing secret containing the database password
+    # -- Existing Secret containing the database password
     existingSecret: ""
-    # -- Key in the existing secret containing the password
+    # -- Key in the existing Secret containing the password
     existingSecretPasswordKey: password
 
 # =============================================================================
@@ -64,9 +101,16 @@ database:
 # =============================================================================
 
 externalRedis:
-  # -- External Redis host (used when redis subchart is disabled)
+  # -- External Redis host for asynchronous imports (used when redis.enabled=false)
   host: ""
+  # -- External Redis port
   port: "6379"
+  # -- External Redis password (ignored when existingSecret is set)
+  password: ""
+  # -- Existing Secret containing the external Redis password
+  existingSecret: ""
+  # -- Key in the existing Secret containing the Redis password
+  existingSecretPasswordKey: redis-password
 
 # =============================================================================
 # Persistence
@@ -97,6 +141,9 @@ serviceAccount:
   # -- Annotations for the ServiceAccount
   annotations: {}
 
+# -- Mount the ServiceAccount token into the pod (Wallabag does not call the Kubernetes API)
+automountServiceAccountToken: false
+
 # =============================================================================
 # Service
 # =============================================================================
@@ -118,6 +165,7 @@ ingress:
   enabled: false
   # -- Ingress class name (for example: traefik, nginx)
   ingressClassName: traefik
+  # -- Annotations for the Ingress
   annotations: {}
     # cert-manager.io/cluster-issuer: letsencrypt
   # -- Ingress hosts
@@ -133,38 +181,91 @@ ingress:
     #   secretName: wallabag-tls
 
 # =============================================================================
+# Gateway API
+# =============================================================================
+
+gatewayAPI:
+  # -- Render Gateway API HTTPRoute resources
+  enabled: false
+  # -- HTTPRoute definitions routed to the Wallabag Service by default
+  # @default -- `[]`
+  httpRoutes: []
+    # - name: public
+    #   parentRefs:
+    #     - name: shared-gateway
+    #       namespace: gateway-system
+    #       sectionName: https
+    #   hostnames:
+    #     - wallabag.example.com
+
+# =============================================================================
 # Probes
 # =============================================================================
 
 probes:
+  # -- HTTP path used by every probe (served by Wallabag through nginx and PHP-FPM)
+  path: /api/info
   startup:
+    # -- Enable the startup probe
     enabled: true
+    # -- Initial delay before the first startup probe
     initialDelaySeconds: 15
+    # -- Startup probe period
     periodSeconds: 10
+    # -- Startup probe timeout
     timeoutSeconds: 5
+    # -- Startup probe failure threshold
     failureThreshold: 30
   liveness:
+    # -- Enable the liveness probe
     enabled: true
+    # -- Initial delay before the first liveness probe
     initialDelaySeconds: 0
+    # -- Liveness probe period
     periodSeconds: 15
+    # -- Liveness probe timeout
     timeoutSeconds: 5
+    # -- Liveness probe failure threshold
     failureThreshold: 3
   readiness:
+    # -- Enable the readiness probe
     enabled: true
+    # -- Initial delay before the first readiness probe
     initialDelaySeconds: 0
+    # -- Readiness probe period
     periodSeconds: 10
+    # -- Readiness probe timeout
     timeoutSeconds: 5
+    # -- Readiness probe failure threshold
     failureThreshold: 3
 
 # =============================================================================
 # Resources and Security
 # =============================================================================
 
+# -- Resources for the Wallabag container
 resources: {}
 
-podSecurityContext: {}
+# -- Pod security context. The upstream image starts as root and drops to nobody for PHP.
+podSecurityContext:
+  fsGroup: 65534
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
 
-securityContext: {}
+# -- Container security context for the Wallabag and setup containers
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+    add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+      - NET_BIND_SERVICE
 
 # =============================================================================
 # S3 Backup
@@ -215,34 +316,52 @@ backup:
     secretKey: ""
   # -- Override database credentials for backup (uses app credentials if empty)
   database:
+    # -- Backup database host override
     host: ""
+    # -- Backup database port override
     port: ""
+    # -- Backup database name override
     name: ""
+    # -- Backup database username override
     username: ""
+    # -- Backup database password override
     password: ""
+    # -- Existing Secret with the backup database password
     existingSecret: ""
+    # -- Key in the backup database Secret
     existingSecretPasswordKey: password
+    # -- Extra arguments appended to pg_dump
     postgresDumpArgs: ""
 
 # =============================================================================
 # Scheduling
 # =============================================================================
 
+# -- Node selector for the Wallabag pod
 nodeSelector: {}
+# -- Tolerations for the Wallabag pod
 tolerations: []
+# -- Affinity rules for the Wallabag pod
 affinity: {}
+# -- Topology spread constraints for the Wallabag pod
 topologySpreadConstraints: []
+# -- Priority class name for the Wallabag pod
 priorityClassName: ""
+# -- Grace period for PHP-FPM and nginx to drain
 terminationGracePeriodSeconds: 30
 
+# -- Extra labels for the Wallabag pod
 podLabels: {}
+# -- Extra annotations for the Wallabag pod
 podAnnotations: {}
 
 # =============================================================================
 # Extra
 # =============================================================================
 
+# -- Extra volumes for the Wallabag pod
 extraVolumes: []
+# -- Extra volume mounts for the Wallabag container
 extraVolumeMounts: []
 
 # -- Extra manifests to deploy alongside the chart
@@ -255,16 +374,21 @@ extraManifests: []
 postgresql:
   # -- Deploy PostgreSQL as a subchart
   enabled: true
+  # -- PostgreSQL subchart architecture
   architecture: standalone
   auth:
+    # -- Database created for Wallabag
     database: wallabag
+    # -- Database user created for Wallabag
     username: wallabag
     # -- PostgreSQL password (auto-generated if empty)
     password: ""
 
 redis:
-  # -- Deploy Redis as a subchart (optional, for cache and sessions)
+  # -- Deploy Redis as a subchart (asynchronous import queue; requires import workers, see DESIGN.md)
   enabled: false
+  # -- Redis subchart architecture
   architecture: standalone
   auth:
+    # -- Redis password (auto-generated by the subchart if empty)
     password: ""

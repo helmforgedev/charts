@@ -1,8 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
-# Production-leaning Wallabag: ingress+TLS, Redis async queues, daily DB backup,
-# persisted assets, resource requests/limits. Single app replica by design.
+# Production-leaning Wallabag: Ingress with TLS, Redis for the import queue,
+# daily database backups, persisted article images, and resource limits.
+# Single application replica by design.
 #
+#   kubectl create secret generic wallabag-admin --from-literal=admin-password=<password>
+#   kubectl create secret generic wallabag-app --from-literal=symfony-secret=<random>
+#   kubectl create secret generic wallabag-backup-s3 \
+#     --from-literal=access-key=<key> --from-literal=secret-key=<secret>
 #   helm install wallabag helmforge/wallabag -f production-with-redis-and-backup.yaml
+
+wallabag:
+  domainName: "https://wallabag.example.com"
+  existingSecret: wallabag-app
+  admin:
+    username: reader
+    email: reader@example.com
+    existingSecret: wallabag-admin
 
 ingress:
   enabled: true
@@ -19,14 +32,20 @@ ingress:
         - wallabag.example.com
       secretName: wallabag-tls
 
-# Async imports/annotations.
+# Redis queue for asynchronous imports. Workers are not deployed by the chart;
+# see DESIGN.md before enabling asynchronous imports in the Wallabag settings.
 redis:
   enabled: true
 
-# Daily database backup to S3 (fill the S3 destination in backup.* per values.yaml).
+# Daily database backup to S3-compatible storage.
 backup:
   enabled: true
   schedule: "0 3 * * *"
+  s3:
+    endpoint: https://s3.example.com
+    bucket: wallabag-backups
+    prefix: daily
+    existingSecret: wallabag-backup-s3
 
 persistence:
   enabled: true

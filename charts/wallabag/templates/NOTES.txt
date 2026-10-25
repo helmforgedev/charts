@@ -1,83 +1,91 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- $fullname := include "wallabag.fullname" . -}}
+{{- $ns := .Release.Namespace -}}
 ============================================================
-  Wallabag has been successfully deployed!
+  Wallabag has been deployed
 ============================================================
 
-Wallabag is a self-hosted read-it-later app: save web articles and read them
-later (web UI, REST API, browser extensions), backed by PostgreSQL.
+1. Installation Summary
 
-Chart:      {{ .Chart.Name }}
-Version:    {{ .Chart.Version }}
-AppVersion: {{ .Chart.AppVersion }}
-Release:    {{ .Release.Name }}
-Namespace:  {{ .Release.Namespace }}
+  Release:     {{ .Release.Name }}
+  Namespace:   {{ $ns }}
+  Chart:       {{ .Chart.Name }}-{{ .Chart.Version }}
+  Wallabag:    {{ .Chart.AppVersion }} ({{ include "wallabag.image" . }})
+  Public URL:  {{ .Values.wallabag.domainName }}
 
-============================================================
-  ACCESS INFORMATION
-============================================================
+2. Service Access and Endpoints
+
+  Service:     {{ $fullname }} port {{ .Values.service.port }} -> container port {{ .Values.wallabag.port }} (http)
 {{- if .Values.ingress.enabled }}
 {{- range $host := .Values.ingress.hosts }}
-  Web UI:   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+  Ingress:     http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
 {{- end }}
+{{- end }}
+{{- if .Values.gatewayAPI.enabled }}
+{{- range .Values.gatewayAPI.httpRoutes }}
+  HTTPRoute:   {{ include "wallabag.httpRouteName" (dict "root" $ "route" .) }}{{ with .hostnames }} ({{ join ", " . }}){{ end }}
+{{- end }}
+{{- end }}
+
+  Local access:
+    kubectl port-forward -n {{ $ns }} svc/{{ $fullname }} 8080:{{ .Values.service.port }}
+    Open http://localhost:8080/
+
+3. Credentials and Security
+
+{{- if .Values.setup.enabled }}
+  Initial super-admin: {{ .Values.wallabag.admin.username }} ({{ .Values.wallabag.admin.email }})
+  Password:
+    kubectl get secret {{ include "wallabag.adminSecretName" . }} -n {{ $ns }} \
+      -o jsonpath='{.data.{{ include "wallabag.adminSecretKey" . }}}' | base64 -d; echo
+
+  The password is applied once, on the first install. Change it later in the
+  Wallabag UI or with fos:user:change-password.
 {{- else }}
-  Port-forward to access Wallabag locally:
+  setup.enabled=false: the chart does not install the schema or the admin user.
+{{- end }}
+  Registration: {{ if .Values.wallabag.registration }}open to anyone who can reach the UI{{ else }}disabled{{ end }}
+  Symfony secret: {{ include "wallabag.appSecretName" . }} (key {{ include "wallabag.appSecretKey" . }})
 
-    kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "wallabag.fullname" . }} 8080:{{ .Values.service.port }}
+4. Application Configuration
 
-  Web UI:   http://localhost:8080/
+  Database:    {{ if .Values.postgresql.enabled }}bundled PostgreSQL {{ include "wallabag.dbHost" . }}{{ else }}external PostgreSQL {{ include "wallabag.dbHost" . }}:{{ include "wallabag.dbPort" . }}{{ end }} (database {{ include "wallabag.dbName" . }})
+  Redis:       {{ if include "wallabag.redisEnabled" . }}{{ include "wallabag.redisHost" . }}:{{ include "wallabag.redisPort" . }} (asynchronous imports need workers, see DESIGN.md){{ else }}not configured{{ end }}
+  Setup:       {{ if .Values.setup.enabled }}schema install on first start, migrations on every start{{ else }}disabled{{ end }}
+
+5. Persistence and Storage
+
+{{- if .Values.persistence.enabled }}
+  Data volume: {{ include "wallabag.dataClaimName" . }} mounted at /var/www/wallabag/data ({{ .Values.persistence.size }})
+{{- else }}
+  Data volume: emptyDir. Downloaded article images are lost when the pod restarts.
+{{- end }}
+  Backups:     {{ if .Values.backup.enabled }}CronJob {{ $fullname }}-backup, schedule "{{ .Values.backup.schedule }}"{{ else }}disabled (set backup.enabled=true){{ end }}
+
+6. Observability and Health Verification
+
+  kubectl rollout status deploy/{{ $fullname }} -n {{ $ns }} --timeout=300s
+  kubectl exec -n {{ $ns }} deploy/{{ $fullname }} -c wallabag -- wget -qO- http://127.0.0.1:{{ .Values.wallabag.port }}{{ .Values.probes.path }}
+{{- if .Values.backup.enabled }}
+  kubectl create job -n {{ $ns }} --from=cronjob/{{ $fullname }}-backup {{ $fullname }}-backup-manual
 {{- end }}
 
-============================================================
-  CREDENTIALS
-============================================================
+7. Logs and Diagnostics
 
-  Admin password:
-    kubectl get secret {{ include "wallabag.fullname" . }} -n {{ .Release.Namespace }} \
-      -o jsonpath='{.data.wallabag-password}' | base64 -d
-
-============================================================
-  CONFIGURATION SUMMARY
-============================================================
-
-  Database: {{ if .Values.postgresql.enabled }}bundled PostgreSQL ({{ .Release.Name }}-postgresql, db "{{ .Values.postgresql.auth.database }}"){{ else }}external PostgreSQL at {{ .Values.database.external.host }}:{{ .Values.database.external.port }}{{ end }}
-  Redis:    {{ if .Values.redis.enabled }}bundled (async import/annotation queues){{ else }}disabled (synchronous imports){{ end }}
-  Storage:  {{ if .Values.persistence.enabled }}persisted on a {{ .Values.persistence.size }} PVC (article images/data){{ else }}EPHEMERAL (persistence.enabled=false){{ end }}
-  Backup:   {{ if .Values.backup.enabled }}CronJob enabled (schedule {{ .Values.backup.schedule }}){{ else }}disabled (set backup.enabled=true){{ end }}
-
-============================================================
-  GETTING STARTED
-============================================================
-
-1. Wait for the workload to be ready:
-   kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=wallabag -n {{ .Release.Namespace }} --timeout=300s
-
-2. Validate Wallabag responds (port-forward from ACCESS INFORMATION first):
-   curl -sf http://localhost:8080/ >/dev/null && echo "Wallabag is serving"
-
-3. Log in with the admin credentials above and start saving articles.
-
-============================================================
-  TROUBLESHOOTING
-============================================================
-
-  kubectl describe pod -l app.kubernetes.io/name=wallabag -n {{ .Release.Namespace }}
-  kubectl logs -l app.kubernetes.io/name=wallabag -n {{ .Release.Namespace }} --all-containers --tail=100
-  kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+  kubectl logs -n {{ $ns }} deploy/{{ $fullname }} -c setup
+  kubectl logs -n {{ $ns }} deploy/{{ $fullname }} -c wallabag --tail=100
+  kubectl describe pod -n {{ $ns }} -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name={{ include "wallabag.name" . }}
 {{- if .Values.postgresql.enabled }}
-
-  PostgreSQL logs:
-  kubectl logs -l app.kubernetes.io/name=postgresql -n {{ .Release.Namespace }} --all-containers --tail=50
-{{- end }}
-{{- if not .Values.ingress.enabled }}
-
-  Note: Ingress is disabled — access via the port-forward above.
+  kubectl logs -n {{ $ns }} {{ .Release.Name }}-postgresql-0 --tail=50
 {{- end }}
 
-============================================================
-  ADDITIONAL RESOURCES
-============================================================
+  HTTP 500 on every page usually means the schema is missing: check the setup
+  container logs above.
 
-  Chart docs:   https://helmforge.dev/docs/charts/wallabag
-  Project:      https://wallabag.org | https://github.com/wallabag/wallabag
+8. Documentation and Useful Links
+
+  Chart docs:  https://helmforge.dev/docs/charts/wallabag
+  Wallabag:    https://doc.wallabag.org
+  Source:      https://github.com/wallabag/wallabag
 
 Happy Helmforging :)
