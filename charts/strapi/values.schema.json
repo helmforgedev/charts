@@ -562,11 +562,43 @@
     },
     "podSecurityContext": {
       "type": "object",
-      "description": "Pod-level security context."
+      "description": "Pod-level security context.",
+      "properties": {
+        "fsGroup": { "type": "integer" },
+        "fsGroupChangePolicy": { "type": "string", "enum": ["Always", "OnRootMismatch"] },
+        "seccompProfile": {
+          "type": "object",
+          "required": ["type"],
+          "properties": {
+            "type": { "type": "string", "enum": ["RuntimeDefault", "Unconfined", "Localhost"] },
+            "localhostProfile": { "type": "string", "minLength": 1 }
+          },
+          "if": { "properties": { "type": { "const": "Localhost" } } },
+          "then": { "required": ["localhostProfile"] },
+          "else": { "not": { "required": ["localhostProfile"] } }
+        }
+      }
     },
     "securityContext": {
       "type": "object",
-      "description": "Container-level security context."
+      "description": "Container-level security context.",
+      "properties": {
+        "runAsNonRoot": { "type": "boolean" },
+        "runAsUser": { "type": "integer" },
+        "runAsGroup": { "type": "integer" },
+        "allowPrivilegeEscalation": { "type": "boolean" },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "drop": { "type": "array", "items": { "type": "string" } },
+            "add": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+    "automountServiceAccountToken": {
+      "type": "boolean",
+      "description": "Mount the ServiceAccount token (Strapi does not call the Kubernetes API)."
     },
     "startupProbe": {
       "type": "object",

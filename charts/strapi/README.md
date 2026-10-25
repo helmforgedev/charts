@@ -116,7 +116,7 @@ database:
 | `database.sqlite.filename` | `data.db` | SQLite filename |
 | `database.external.vendor` | `postgres` | External DB vendor (postgres, mysql) |
 | `database.external.host` | `""` | External DB host |
-| `postgresql.enabled` | `false` | Deploy PostgreSQL subchart |
+| `postgresql.enabled` | `true` | Deploy PostgreSQL subchart |
 | `mysql.enabled` | `false` | Deploy MySQL subchart |
 | `persistence.enabled` | `true` | Enable uploads and SQLite persistence |
 | `persistence.size` | `5Gi` | PVC size |
@@ -164,7 +164,7 @@ database and uploads PVC before upgrading production workloads.
 
 | Framework | Score |
 |---|---|
-| MITRE + NSA + SOC2 | **72.72727%** |
+| MITRE + NSA + SOC2 | **87.57576%** |
 
 > Security posture acceptable.
 

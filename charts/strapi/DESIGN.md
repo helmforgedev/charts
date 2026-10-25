@@ -57,6 +57,34 @@ Production users should set explicit values for:
 - object storage upload provider for multi-replica deployments
 - backup S3 credentials when `backup.enabled` is true
 
+## Security Boundary
+
+- Containers run as uid and gid 1000 with `runAsNonRoot`, no privilege
+  escalation, every capability dropped, and `RuntimeDefault` seccomp; the pod
+  does not mount a ServiceAccount token.
+- The root filesystem stays writable; Strapi has not been validated with a
+  read-only root filesystem across project images.
+- Application secrets (`APP_KEYS`, JWT and token salts) come from a chart
+  Secret, `secrets.existingSecret`, or ExternalSecret resources. Rotating them
+  invalidates sessions and API tokens.
+- The admin panel is served by the same Service as the API; restrict it with
+  Ingress or Gateway policies when the API is public.
+
+## Observability Boundary
+
+- Startup, liveness, and readiness probes call `/_health`, which confirms the
+  Strapi server answers; it does not check the database or upload provider.
+- Logs go to the container stdout. The chart ships no metrics endpoint or
+  ServiceMonitor because Strapi does not expose Prometheus metrics by default.
+
+## Current Gaps and Improvement Candidates
+
+- No NetworkPolicy template.
+- Local filesystem uploads limit the chart to one replica unless an object
+  storage upload provider is configured in the project image.
+- The backup CronJob dumps the database only; uploads on the PVC need a
+  separate backup.
+
 ## Non-Goals
 
 - Building Strapi source code inside Kubernetes
