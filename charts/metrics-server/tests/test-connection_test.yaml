@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Helm test connection
+templates:
+  - templates/tests/test-connection.yaml
+release:
+  name: test
+  namespace: metrics
+tests:
+  - it: should render a hardened readiness test pod
+    asserts:
+      - isKind:
+          of: Pod
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: test
+      - equal:
+          path: spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - matchRegex:
+          path: spec.containers[0].args[0]
+          pattern: "https://test-metrics-server:443/readyz"
+
+  - it: should not render when chart tests are disabled
+    set:
+      tests.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
