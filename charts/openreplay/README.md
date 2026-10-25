@@ -1,10 +1,12 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # OpenReplay Helm Chart
 
 Production-oriented OpenReplay 1.28 deployment with pinned official images,
 portable Ingress and Gateway API exposure, External Secrets support, and no
 bundled ingress controller.
 
-## What this chart deploys
+## Features
 
 OpenReplay is not a single container. The chart models its fifteen OSS
 application services, migration workflow, RWX recording scratch space,
@@ -15,6 +17,15 @@ included.
 The OpenReplay application images are linux/amd64 only. Kubernetes 1.31+ and an
 amd64 node pool are required. Upstream's minimum for low/moderate traffic is 2
 vCPU, 8 GiB memory, and 50 GiB storage; production capacity needs load testing.
+
+## Architecture
+
+Public traffic terminates at an operator-managed Ingress controller or Gateway and reaches the chart's Caddy router.
+The router owns OpenReplay path routing and proxies requests to fifteen internal application Services. PostgreSQL stores
+relational metadata, ClickHouse stores analytical events, Redis coordinates transient work, and RustFS or an external
+S3-compatible endpoint stores recording objects. Pipeline workers exchange in-flight data through the scratch volume.
+
+See [the architecture guide](docs/architecture.md) for component boundaries, dependency modes, and availability limits.
 
 ## Installation
 
@@ -36,6 +47,52 @@ helm install openreplay helmforge/openreplay \
 HTTPS is required for tracker recording and replay in real environments. The
 chart does not install an Ingress controller, Gateway, GatewayClass, certificate
 controller, Prometheus stack, CSI driver, or External Secrets Operator.
+
+## Configuration
+
+The chart exposes separate contracts for application listeners and Kubernetes Service ports. Changing
+`router.containerPorts.http` rewrites Caddy's real bind address, while `service.port` changes only the public Service.
+RustFS follows the same model through `rustfs.containerPorts` and `rustfs.service.ports`.
+
+| Value | Default | Description |
+| --- | --- | --- |
+| `global` | `{}` | Parent-chart global values |
+| `openreplay.domain` | `openreplay.example.com` | Public OpenReplay hostname |
+| `openreplay.scheme` | `https` | Public URL scheme |
+| `credentials.existingSecret` | `""` | Existing shared credential Secret |
+| `externalSecrets.enabled` | `false` | Render ExternalSecret resources |
+| `scratch.enabled` | `true` | Provision shared pipeline scratch storage |
+| `scratch.accessModes` | `[ReadWriteOnce]` | Scratch PVC access modes; use RWX across nodes |
+| `scratch.size` | `20Gi` | Scratch capacity |
+| `database.postgresql.host` | `""` | External PostgreSQL host or bundled Service |
+| `database.redis.host` | `""` | External Redis host or bundled Service |
+| `database.clickhouse.host` | `""` | External ClickHouse host or bundled Service |
+| `objectStorage.endpoint` | `""` | External S3 endpoint or bundled RustFS Service |
+| `rustfs.enabled` | `true` | Deploy bundled RustFS |
+| `rustfs.containerPorts.s3` | `9000` | RustFS S3 process listener |
+| `rustfs.containerPorts.console` | `9001` | RustFS console process listener |
+| `rustfs.service.ports.s3` | `9000` | RustFS in-cluster S3 Service port |
+| `rustfs.service.ports.console` | `9001` | RustFS in-cluster console Service port |
+| `migration.enabled` | `true` | Run the revision-scoped schema migration |
+| `router.containerPorts.http` | `8080` | Caddy process listener |
+| `router.replicaCount` | `1` | Router replicas |
+| `service.type` | `ClusterIP` | Public router Service type |
+| `service.port` | `80` | Public router Service port |
+| `ingress.enabled` | `false` | Create an Ingress |
+| `gatewayAPI.enabled` | `false` | Create HTTPRoutes |
+| `pdb.enabled` | `false` | Protect multiple router replicas from voluntary disruption |
+| `networkPolicy.enabled` | `false` | Create application NetworkPolicy resources |
+| `monitoring.serviceMonitor.enabled` | `false` | Create component ServiceMonitors |
+
+Every entry under `components` defines one official image, replica count, application port, and metrics port. The
+complete authoritative contract, including credentials, scheduling, resources, subchart values, and migration clients,
+is in [`values.yaml`](values.yaml) and enforced by [`values.schema.json`](values.schema.json).
+
+## Examples
+
+Ready-to-adapt examples are available for [simple installation](examples/simple.yaml),
+[Ingress](examples/ingress.yaml), [Gateway API](examples/gateway-api.yaml),
+[external services](examples/external-services.yaml), and [External Secrets](examples/external-secrets.yaml).
 
 ## Exposure
 
@@ -128,6 +185,19 @@ One volume snapshot is not a complete OpenReplay backup. Protect PostgreSQL,
 ClickHouse, S3 buckets, the credentials Secret, and relevant scratch/Valkey
 state. Quiesce ingestion or coordinate store snapshots. Restore data services
 first, verify them, then let migrations and application pods start.
+
+## Troubleshooting
+
+- A router `502` means its target component is disabled, not Ready, or listening on a mismatched component port.
+- If the migration Job fails, inspect it before application crash loops; workloads wait for the PostgreSQL schema.
+- Pending scratch consumers normally indicate that the selected StorageClass cannot satisfy the requested access mode.
+- On ARM nodes, OpenReplay application pods remain pending by design unless the explicit unsupported-architecture
+  override is enabled and the operator supplies compatible images.
+- After changing a listener, render the chart and confirm the process bind value, container port, Service port, and named
+  `targetPort`; do not treat `service.port` as an application listener.
+
+See the [operations runbook](docs/operations.md) for health verification, backup, restore, capacity, upgrade, and incident
+procedures.
 
 ## Security scan
 

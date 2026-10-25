@@ -84,4 +84,25 @@ tests:
       - matchRegex:
           path: data.Caddyfile
           pattern: handle_path /ws-assist
+  - it: wires a custom router listener through Caddy, the container, and the Service
+    set:
+      router.containerPorts.http: 18080
+      service.port: 8088
+    asserts:
+      - template: templates/router-deployment.yaml
+        equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 18080
+      - template: templates/router-configmap.yaml
+        matchRegex:
+          path: data.Caddyfile
+          pattern: ":18080"
+      - template: templates/service.yaml
+        equal:
+          path: spec.ports[0].port
+          value: 8088
+      - template: templates/service.yaml
+        equal:
+          path: spec.ports[0].targetPort
+          value: http
 

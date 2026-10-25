@@ -21,6 +21,11 @@ spec:
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
+      annotations:
+        checksum/secret: {{ toJson .Values.credentials | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       serviceAccountName: {{ include "openreplay.serviceAccountName" . }}
       automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
@@ -52,18 +57,18 @@ spec:
                   name: {{ include "openreplay.credentialsSecretName" . }}
                   key: {{ .Values.credentials.s3SecretKeyKey }}
             - name: RUSTFS_ADDRESS
-              value: 0.0.0.0:9000
+              value: {{ printf "0.0.0.0:%v" .Values.rustfs.containerPorts.s3 | quote }}
             - name: RUSTFS_CONSOLE_ENABLE
               value: "true"
             - name: RUSTFS_CONSOLE_ADDRESS
-              value: 0.0.0.0:9001
+              value: {{ printf "0.0.0.0:%v" .Values.rustfs.containerPorts.console | quote }}
             - name: RUSTFS_VOLUMES
               value: /data
           ports:
             - name: s3
-              containerPort: 9000
+              containerPort: {{ .Values.rustfs.containerPorts.s3 }}
             - name: console
-              containerPort: 9001
+              containerPort: {{ .Values.rustfs.containerPorts.console }}
           startupProbe:
             httpGet:
               path: /health
@@ -102,10 +107,10 @@ metadata:
 spec:
   ports:
     - name: s3
-      port: 9000
+      port: {{ .Values.rustfs.service.ports.s3 }}
       targetPort: s3
     - name: console
-      port: 9001
+      port: {{ .Values.rustfs.service.ports.console }}
       targetPort: console
   selector:
     {{- include "openreplay.selectorLabels" . | nindent 4 }}

@@ -75,7 +75,7 @@ app.kubernetes.io/part-of: helmforge
 {{- if .Values.objectStorage.endpoint -}}
 {{- .Values.objectStorage.endpoint -}}
 {{- else -}}
-{{- printf "%s-rustfs:9000" (include "openreplay.fullname" .) -}}
+{{- printf "%s-rustfs:%v" (include "openreplay.fullname" .) .Values.rustfs.service.ports.s3 -}}
 {{- end -}}
 {{- end -}}
 

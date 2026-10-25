@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: OpenReplay lifecycle resources
+templates:
+  - templates/version-configmap.yaml
+  - templates/migration-script-configmap.yaml
+  - templates/migration-job.yaml
+tests:
+  - it: records the application version
+    template: templates/version-configmap.yaml
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: data.version
+          value: 1.28.0
+
+  - it: packages the pinned migration script
+    template: templates/migration-script-configmap.yaml
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - isNotEmpty:
+          path: data["dbops.sh"]
+
+  - it: creates a hardened revision-scoped migration Job
+    template: templates/migration-job.yaml
+    asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+
+  - it: omits migration resources in validation mode
+    set:
+      migration.validationMode: true
+    template: templates/migration-job.yaml
+    asserts:
+      - hasDocuments:
+          count: 0

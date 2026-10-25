@@ -1,7 +1,9 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Architecture
 
 OpenReplay 1.28 is a distributed session-replay pipeline. The chart deploys
-fifteen independently pinned application components, an internal router, an
+fifteen independently pinned application components, an internal router, a
 shared scratch volume, and optional data-service dependencies.
 
 The public Service targets Caddy. Caddy owns the path behavior that upstream
@@ -21,6 +23,16 @@ ARM-compatible.
 
 Kafka, Vault, connector, and enterprise-only jobs are deliberately absent. The
 chart describes the OSS topology and does not accept an enterprise license key.
+
+## Listener and Service contracts
+
+Application listeners and Kubernetes Service ports are intentionally separate. `router.containerPorts.http` changes the
+Caddy bind address and container port, while `service.port` changes the public Service only. RustFS uses
+`rustfs.containerPorts.s3` and `rustfs.containerPorts.console` for its real process listeners, with independent
+`rustfs.service.ports` values for in-cluster clients. All Services use named target ports.
+
+The component `port` fields are both the upstream process contract and the matching internal Service port. They should be
+changed only when a compatible upstream image is configured to listen on the same value.
 
 ## Availability
 

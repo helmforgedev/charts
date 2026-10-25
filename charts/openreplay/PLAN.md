@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # OpenReplay implementation plan
 
 1. Model all fifteen OSS application components with independent pinned images,
