@@ -545,13 +545,13 @@ With the default `ReadWriteOnce` PVC, keep `replicaCount: 1` and leave autoscali
 For high-traffic production, prefer an external managed MySQL/MariaDB service or a separately operated database chart
 with backup, monitoring, and failover validated for your environment.
 
-### 🟢 Security Scan: `wordpress`
+### Security Scan: `wordpress`
 
 | Framework | Score |
 |---|---|
-| MITRE + NSA + SOC2 | **81.31312%** |
+| MITRE + NSA + SOC2 | **84.84849%** |
 
-> ✅ Security posture acceptable.
+> Security posture acceptable.
 
 <!-- @AI-METADATA
 type: chart-readme
