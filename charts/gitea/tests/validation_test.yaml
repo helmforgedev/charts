@@ -1,0 +1,80 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: validation
+templates:
+  - templates/deployment.yaml
+  - templates/externalsecret.yaml
+  - templates/httproute.yaml
+tests:
+  - it: should reject ambiguous database selection
+    template: templates/deployment.yaml
+    set:
+      postgresql.enabled: true
+      mysql.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "gitea database selection is ambiguous: configure only one of database.external.host, postgresql.enabled, or mysql.enabled"
+
+  - it: should reject external mode without an external database source
+    template: templates/deployment.yaml
+    set:
+      database.mode: external
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.mode=external requires database.external.host or database.external.existingSecret"
+
+  - it: should reject PostgreSQL mode when its subchart is disabled
+    template: templates/deployment.yaml
+    set:
+      database.mode: postgresql
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.mode=postgresql requires postgresql.enabled=true"
+
+  - it: should reject Gateway API without a parent reference
+    template: templates/httproute.yaml
+    set:
+      gateway.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "gateway.parentRefs is required when gateway.enabled=true"
+
+  - it: should reject a Gateway API parent reference without a name
+    template: templates/httproute.yaml
+    set:
+      gateway.enabled: true
+      gateway.parentRefs:
+        - namespace: gateway-system
+    asserts:
+      - failedTemplate:
+          errorMessage: "Each gateway.parentRefs entry must define a 'name' field"
+
+  - it: should reject External Secrets without an externally owned admin Secret
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "externalSecrets.enabled requires admin.existingSecret to be set to prevent credential drift between the chart-managed Secret and the ExternalSecret."
+
+  - it: should reject External Secrets without data mappings
+    template: templates/externalsecret.yaml
+    set:
+      admin.existingSecret: gitea-admin
+      externalSecrets.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "externalSecrets.data must not be empty when externalSecrets.enabled=true"
+
+  - it: should reject External Secrets without a store name
+    template: templates/externalsecret.yaml
+    set:
+      admin.existingSecret: gitea-admin
+      externalSecrets.enabled: true
+      externalSecrets.data:
+        - secretKey: admin-password
+          remoteRef:
+            key: gitea/admin
+            property: password
+    asserts:
+      - failedTemplate:
+          errorMessage: "externalSecrets.secretStoreRef.name is required when externalSecrets.enabled=true"

@@ -4,6 +4,7 @@
   "description": "Values schema for the HelmForge Gitea chart.",
   "type": "object",
   "additionalProperties": true,
+  "required": ["global"],
   "properties": {
     "global": {
       "type": "object",
@@ -260,11 +261,37 @@
     },
     "podSecurityContext": {
       "type": "object",
-      "description": "Pod security context."
+      "description": "Pod security context.",
+      "properties": {
+        "runAsNonRoot": { "type": "boolean" },
+        "runAsUser": { "type": "integer", "minimum": 0 },
+        "runAsGroup": { "type": "integer", "minimum": 0 },
+        "fsGroup": { "type": "integer", "minimum": 0 },
+        "fsGroupChangePolicy": { "type": "string", "enum": ["Always", "OnRootMismatch"] },
+        "seccompProfile": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string", "enum": ["RuntimeDefault", "Localhost", "Unconfined"] }
+          }
+        }
+      }
     },
     "securityContext": {
       "type": "object",
-      "description": "Container security context."
+      "description": "Container security context.",
+      "properties": {
+        "allowPrivilegeEscalation": { "type": "boolean" },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "drop": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "readOnlyRootFilesystem": { "type": "boolean" },
+        "runAsNonRoot": { "type": "boolean" },
+        "runAsUser": { "type": "integer", "minimum": 0 },
+        "runAsGroup": { "type": "integer", "minimum": 0 }
+      }
     },
     "volumePermissions": {
       "type": "object",
@@ -279,20 +306,65 @@
             "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
           }
         },
-        "securityContext": { "type": "object" }
+        "securityContext": {
+          "type": "object",
+          "properties": {
+            "allowPrivilegeEscalation": { "type": "boolean" },
+            "capabilities": {
+              "type": "object",
+              "properties": {
+                "add": { "type": "array", "items": { "type": "string" } },
+                "drop": { "type": "array", "items": { "type": "string" } }
+              }
+            },
+            "runAsNonRoot": { "type": "boolean" },
+            "runAsUser": { "type": "integer", "minimum": 0 }
+          }
+        }
       }
     },
     "startupProbe": {
       "type": "object",
-      "description": "Startup probe configuration."
+      "description": "Startup probe configuration.",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "path": { "type": "string", "minLength": 1 },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
     },
     "livenessProbe": {
       "type": "object",
-      "description": "Liveness probe configuration."
+      "description": "Liveness probe configuration.",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "path": { "type": "string", "minLength": 1 },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
     },
     "readinessProbe": {
       "type": "object",
-      "description": "Readiness probe configuration."
+      "description": "Readiness probe configuration.",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "path": { "type": "string", "minLength": 1 },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "containerPorts": {
+      "type": "object",
+      "description": "Application listener ports.",
+      "properties": {
+        "http": { "type": "integer", "minimum": 1, "maximum": 65535 }
+      }
     },
     "service": {
       "type": "object",
@@ -339,7 +411,20 @@
       "properties": {
         "create": { "type": "boolean" },
         "name": { "type": "string" },
-        "annotations": { "type": "object" }
+        "annotations": { "type": "object" },
+        "automountServiceAccountToken": { "type": "boolean" }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "description": "Ingress NetworkPolicy configuration.",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "ingressFrom": {
+          "type": "array",
+          "items": {},
+          "description": "Allowed ingress peers. Empty permits pods in the same namespace."
+        }
       }
     },
     "backup": {
@@ -354,7 +439,15 @@
         "failedJobsHistoryLimit": { "type": "integer" },
         "backoffLimit": { "type": "integer" },
         "archivePrefix": { "type": "string" },
-        "images": { "type": "object" },
+        "images": {
+          "type": "object",
+          "properties": {
+            "sqlite": { "type": "string" },
+            "postgresql": { "type": "string" },
+            "mysql": { "type": "string" },
+            "uploader": { "type": "string" }
+          }
+        },
         "resources": { "type": "object" },
         "s3": {
           "type": "object",
@@ -370,7 +463,20 @@
             "secretKey": { "type": "string" }
           }
         },
-        "database": { "type": "object" }
+        "database": {
+          "type": "object",
+          "properties": {
+            "host": { "type": "string" },
+            "port": { "type": ["string", "integer"] },
+            "name": { "type": "string" },
+            "username": { "type": "string" },
+            "password": { "type": "string" },
+            "existingSecret": { "type": "string" },
+            "existingSecretPasswordKey": { "type": "string" },
+            "postgresDumpArgs": { "type": "string" },
+            "mysqlDumpArgs": { "type": "string" }
+          }
+        }
       }
     },
     "nodeSelector": { "type": "object" },

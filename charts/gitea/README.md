@@ -7,7 +7,7 @@ Helm chart for deploying [Gitea](https://gitea.io/) self-hosted Git service on K
 - **Current application version** `28.2.0`
 - **Default image** `docker.io/gitea/gitea:28.2.0-rootless`
 - **Chart lock policy** source chart does not commit `Chart.lock`; dependencies are resolved during packaging/validation
-- **Rootless storage** PVC paths are prepared for UID/GID 1000 by a small initContainer
+- **Rootless storage** optional initContainer can prepare PVC paths for UID/GID 1000 when required
 
 ## Features
 
@@ -17,6 +17,8 @@ Helm chart for deploying [Gitea](https://gitea.io/) self-hosted Git service on K
 - **External database** connect to an existing PostgreSQL or MySQL instance
 - **Persistent storage** repositories, LFS objects, config, and SQLite in `/var/lib/gitea`
 - **HTTP + SSH services** separate services for web UI and Git SSH access
+- **Configurable HTTP listener** application and Service ports remain independent
+- **Optional NetworkPolicy** namespace-local ingress by default when enabled
 - **SSH NodePort** optional NodePort for SSH access from outside the cluster
 - **Admin user creation** optional post-install Job to bootstrap an admin account
 - **S3-compatible backup** database-aware CronJob (SQLite tar, pg_dump, mysqldump)
@@ -29,6 +31,15 @@ Helm chart for deploying [Gitea](https://gitea.io/) self-hosted Git service on K
 - [Architecture](docs/architecture.md)
 - [Database modes and secrets](docs/database-modes.md)
 - [Operations and backup](docs/operations-and-backup.md)
+
+## Security
+
+The main rootless process runs as UID/GID 1000, drops all Linux capabilities,
+disables privilege escalation, uses RuntimeDefault seccomp, and does not mount a
+Kubernetes API token by default. The upstream entrypoint requires a writable root
+filesystem during initialization, while durable data and configuration stay on
+the PVC. Enable `networkPolicy.enabled` only after confirming the allowed peers
+include the namespace of your ingress controller or Gateway.
 
 ### Security Scan: `gitea`
 
@@ -132,6 +143,20 @@ gitea:
   rootUrl: https://git.example.com/
 ```
 
+### Custom HTTP Listener and Service Port
+
+```yaml
+containerPorts:
+  http: 3100
+service:
+  http:
+    port: 8080
+```
+
+The chart sets `GITEA__server__HTTP_PORT=3100`, exposes that container port as
+`http`, and maps Service port `8080` to the named target. Changing only
+`service.http.port` never changes the process listener.
+
 ## Values
 
 | Key | Default | Description |
@@ -164,6 +189,7 @@ gitea:
 | `persistence.enabled` | `true` | Enable persistent storage |
 | `persistence.size` | `10Gi` | Volume size |
 | `volumePermissions.enabled` | `false` | Opt in to a root initContainer that prepares PVC ownership for UID/GID 1000 |
+| `containerPorts.http` | `3000` | HTTP port listened on by the Gitea process |
 | `service.http.type` | `ClusterIP` | HTTP service type |
 | `service.http.port` | `3000` | HTTP service port |
 | `service.ssh.enabled` | `true` | Enable SSH service |
@@ -172,6 +198,9 @@ gitea:
 | `service.ssh.nodePort` | `""` | SSH NodePort (when type is NodePort) |
 | `ingress.enabled` | `false` | Enable ingress |
 | `ingress.ingressClassName` | `""` | Ingress class |
+| `serviceAccount.automountServiceAccountToken` | `false` | Mount a Kubernetes API token into chart pods |
+| `networkPolicy.enabled` | `false` | Restrict HTTP and SSH ingress to configured peers |
+| `networkPolicy.ingressFrom` | `[]` | Allowed ingress peers; empty means same namespace |
 | `backup.enabled` | `false` | Enable S3 backup CronJob |
 | `backup.schedule` | `"0 3 * * *"` | Backup cron schedule |
 | `backup.s3.endpoint` | `""` | S3-compatible endpoint URL |
@@ -242,6 +271,30 @@ compatibility and mounts it from the `config` subPath on the data PVC.
 Set `volumePermissions.enabled=true` only when your storage class requires an explicit root `chown` step. That opt-in
 mode renders a root initContainer with `CHOWN`/`FOWNER`; keep it disabled in restricted namespaces unless your policy
 explicitly allows that init container.
+
+## Architecture
+
+The Deployment serves both HTTP and SSH while Kubernetes exposes each protocol
+through a separate Service. HTTP traffic from Ingress or Gateway API reaches the
+named `http` target port; SSH can remain cluster-local or use a dedicated
+NodePort. A single PVC stores repositories, LFS objects, attachments, SQLite,
+and the rootless configuration. PostgreSQL and MySQL may be bundled or external.
+See [DESIGN.md](DESIGN.md) and [docs/architecture.md](docs/architecture.md) for
+the complete boundaries and data flow.
+
+## Troubleshooting
+
+If the pod does not become ready, inspect the startup probe and all containers:
+
+```bash
+kubectl describe pod -l app.kubernetes.io/name=gitea -n <namespace>
+kubectl logs -l app.kubernetes.io/name=gitea -n <namespace> --all-containers --tail=100
+```
+
+For an overridden HTTP listener, confirm `GITEA__server__HTTP_PORT`, the named
+container port, and Service endpoints agree. For SQL modes, inspect the
+`wait-for-db` init container and verify its Secret key. See
+[operations and backup](docs/operations-and-backup.md) for the full runbook.
 
 ## More Information
 
