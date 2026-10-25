@@ -40,11 +40,21 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "guacamole.image" -}}
-{{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
+{{- $image := printf "%s:%s" .Values.image.repository .Values.image.tag -}}
+{{- if .Values.image.digest -}}
+{{- printf "%s@%s" $image .Values.image.digest -}}
+{{- else -}}
+{{- $image -}}
+{{- end -}}
 {{- end -}}
 
 {{- define "guacamole.guacdImage" -}}
-{{- printf "%s:%s" .Values.guacd.image.repository .Values.guacd.image.tag -}}
+{{- $image := printf "%s:%s" .Values.guacd.image.repository .Values.guacd.image.tag -}}
+{{- if .Values.guacd.image.digest -}}
+{{- printf "%s@%s" $image .Values.guacd.image.digest -}}
+{{- else -}}
+{{- $image -}}
+{{- end -}}
 {{- end -}}
 
 {{/* ========== Database helpers ========== */}}

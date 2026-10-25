@@ -1,55 +1,96 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
---------------------------------------------------------------------
-Apache Guacamole has been successfully deployed!
---------------------------------------------------------------------
+Apache Guacamole has been installed.
 
-1. Installation Summary
-   - Release Name: {{ .Release.Name }}
-   - Namespace:    {{ .Release.Namespace }}
-   - Database:     {{ if .Values.postgresql.enabled }}Embedded PostgreSQL{{ else if .Values.mysql.enabled }}Embedded MySQL{{ else }}External Database ({{ .Values.database.external.host }}){{ end }}
+1. Release summary
+==================
 
-2. Service Access
+- Release: {{ .Release.Name }}
+- Namespace: {{ .Release.Namespace }}
+- Application: {{ .Chart.AppVersion }}
+- HTTP listener: {{ .Values.containerPorts.http }}
+- guacd listener: {{ .Values.guacd.port }}
+- Service port: {{ .Values.service.port }}
+- Database: {{ if .Values.postgresql.enabled }}bundled PostgreSQL{{ else if .Values.mysql.enabled }}bundled MySQL{{ else }}external {{ .Values.database.type }}{{ end }}
+
+2. Access
+=========
+
 {{- if .Values.ingress.enabled }}
-   Ingress is enabled. Access Apache Guacamole at:
   {{- range .Values.ingress.hosts }}
-   - http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}{{ (index .paths 0).path }}
+- Web: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}{{ (index .paths 0).path }}
   {{- end }}
 {{- else }}
-   Port-forward the Apache Guacamole service to localhost:
-   $ kubectl port-forward svc/{{ include "guacamole.fullname" . }} 8080:{{ .Values.service.port }} -n {{ .Release.Namespace }}
-   Then browse to: http://127.0.0.1:8080/guacamole/
+Run:
+
+  kubectl -n {{ .Release.Namespace }} port-forward service/{{ include "guacamole.fullname" . }} 8080:{{ .Values.service.port }}
+
+Then open http://127.0.0.1:8080/{{ if ne .Values.guacamole.contextPath "ROOT" }}{{ .Values.guacamole.contextPath }}/{{ end }}.
 {{- end }}
 
-3. Credentials and Security
-   Default administrator credentials: guacadmin / guacadmin
-   IMPORTANT: Change the administrator credentials immediately upon first login.
+3. Readiness
+============
 
-4. Authentication
+  kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "guacamole.fullname" . }} --timeout=300s
+  kubectl -n {{ .Release.Namespace }} get pods,service -l app.kubernetes.io/instance={{ .Release.Name }}
+
+The probes validate the actual Tomcat and guacd listeners configured by
+containerPorts.http and guacd.port.
+
+4. Initial configuration
+========================
+
+Default administrator credentials: guacadmin / guacadmin
+Change this password immediately, then create named administrators and remote
+desktop connections. Configure ingress TLS before public exposure.
+
 {{- if .Values.oidc.enabled }}
-   - OIDC authentication is enabled (client: {{ .Values.oidc.clientId }}).
+OIDC authentication is enabled for client {{ .Values.oidc.clientId }}.
 {{- else if .Values.saml.enabled }}
-   - SAML authentication is enabled (Entity ID: {{ include "guacamole.samlEntityId" . }}).
+SAML authentication is enabled for entity {{ include "guacamole.samlEntityId" . }}.
 {{- else }}
-   - Standard database authentication is active.
+Database authentication is active.
 {{- end }}
 
-5. Maintenance and Backups
+5. Secrets and security
+=======================
+
+Use existing Secrets or External Secrets for production database and backup
+credentials. Preserve the default non-root, read-only filesystem, seccomp,
+capability, service-account-token, and NetworkPolicy controls.
+
+After rotating an externally managed Secret, restart the Deployment:
+
+  kubectl -n {{ .Release.Namespace }} rollout restart deployment/{{ include "guacamole.fullname" . }}
+
+6. Backup and upgrade
+=====================
+
 {{- if .Values.backup.enabled }}
-   - Scheduled database backups are active (cron: {{ .Values.backup.schedule }}).
+Database backups are scheduled with {{ .Values.backup.schedule }}.
 {{- else }}
-   - Automated backups are disabled.
+Chart-managed database backups are disabled.
 {{- end }}
 
-6. Health Verification
-   Check pod status and rollout:
-   $ kubectl get pods -l {{ include "guacamole.selectorLabels" . | replace ": " "=" }} -n {{ .Release.Namespace }}
+Test database restore separately, preserve credentials, and verify login plus a
+representative remote session after upgrades. Backup archives do not include
+the remote desktop target systems.
 
-7. Logs and Diagnostics
-   Stream logs from the Guacamole deployment:
-   $ kubectl logs -f deployment/{{ include "guacamole.fullname" . }} -n {{ .Release.Namespace }}
+7. Troubleshooting
+==================
 
-8. Documentation and Support
-   - Apache Guacamole Docs: https://guacamole.apache.org/doc/gug/
-   - HelmForge Documentation: https://helmforge.dev/docs/charts/guacamole
+  kubectl -n {{ .Release.Namespace }} describe deployment/{{ include "guacamole.fullname" . }}
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "guacamole.fullname" . }} -c guacamole --tail=200
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "guacamole.fullname" . }} -c guacd --tail=200
+  kubectl -n {{ .Release.Namespace }} get events --sort-by=.lastTimestamp
+
+Check database schema initialization, Secret keys, listener ports, NetworkPolicy
+peers, target DNS and firewall reachability, and reverse-proxy headers.
+
+8. Documentation
+================
+
+- Chart: https://helmforge.dev/docs/charts/guacamole
+- Upstream: https://guacamole.apache.org/doc/gug/
+- Source: https://github.com/apache/guacamole-client
 
 Happy Helmforging :)

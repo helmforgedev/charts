@@ -19,6 +19,7 @@ spec:
         {{- end }}
       annotations:
         checksum/secrets: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/tomcat-port: {{ include (print $.Template.BasePath "/tomcat-port-configmap.yaml") . | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -27,6 +28,8 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      serviceAccountName: {{ include "guacamole.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . }}
       {{- end }}
@@ -63,9 +66,11 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
-              containerPort: 8080
+              containerPort: {{ .Values.containerPorts.http }}
               protocol: TCP
           env:
+            - name: GUACAMOLE_HTTP_PORT
+              value: {{ .Values.containerPorts.http | quote }}
             - name: GUACD_HOSTNAME
               value: "localhost"
             - name: GUACD_PORT
@@ -81,7 +86,7 @@ spec:
               value: {{ include "guacamole.dbPort" . | quote }}
             - name: POSTGRESQL_DATABASE
               value: {{ include "guacamole.dbName" . | quote }}
-            - name: POSTGRESQL_USER
+            - name: POSTGRESQL_USERNAME
               value: {{ include "guacamole.dbUsername" . | quote }}
             - name: POSTGRESQL_PASSWORD
               valueFrom:
@@ -95,7 +100,7 @@ spec:
               value: {{ include "guacamole.dbPort" . | quote }}
             - name: MYSQL_DATABASE
               value: {{ include "guacamole.dbName" . | quote }}
-            - name: MYSQL_USER
+            - name: MYSQL_USERNAME
               value: {{ include "guacamole.dbUsername" . | quote }}
             - name: MYSQL_PASSWORD
               valueFrom:
@@ -107,12 +112,12 @@ spec:
             - name: REMOTE_IP_VALVE_ENABLED
               value: "true"
             {{- if .Values.proxy.allowedIpsRegex }}
-            - name: PROXY_ALLOWED_IPS_REGEX
+            - name: REMOTE_IP_VALVE_INTERNAL_PROXIES
               value: {{ .Values.proxy.allowedIpsRegex | quote }}
             {{- end }}
-            - name: PROXY_IP_HEADER
+            - name: REMOTE_IP_VALVE_REMOTE_IP_HEADER
               value: {{ .Values.proxy.ipHeader | quote }}
-            - name: PROXY_PROTOCOL_HEADER
+            - name: REMOTE_IP_VALVE_PROTOCOL_HEADER
               value: {{ .Values.proxy.protocolHeader | quote }}
             {{- end }}
             {{- if .Values.oidc.enabled }}
@@ -210,6 +215,15 @@ spec:
           volumeMounts:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- if not .Values.extraVolumeMounts }}
+          volumeMounts:
+          {{- end }}
+            - name: guacamole-tmp
+              mountPath: /tmp
+            - name: tomcat-port-config
+              mountPath: /opt/guacamole/entrypoint.d/800-configure-http-port.sh
+              subPath: 800-configure-http-port.sh
+              readOnly: true
         - name: guacd
           image: {{ include "guacamole.guacdImage" . | quote }}
           imagePullPolicy: {{ .Values.guacd.image.pullPolicy }}
@@ -217,8 +231,13 @@ spec:
             - name: guacd
               containerPort: {{ .Values.guacd.port }}
               protocol: TCP
+          args:
+            - -l
+            - {{ .Values.guacd.port | quote }}
+            - -p
+            - /tmp/guacd.pid
           env:
-            - name: GUACD_LOG_LEVEL
+            - name: LOG_LEVEL
               value: {{ .Values.guacd.logLevel | quote }}
           livenessProbe:
             tcpSocket:
@@ -234,10 +253,23 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-      {{- with .Values.extraVolumes }}
+          securityContext:
+            {{- toYaml .Values.guacd.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: guacd-tmp
+              mountPath: /tmp
       volumes:
+        - name: guacamole-tmp
+          emptyDir: {}
+        - name: guacd-tmp
+          emptyDir: {}
+        - name: tomcat-port-config
+          configMap:
+            name: {{ include "guacamole.fullname" . }}-tomcat-port
+            defaultMode: 0444
+        {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

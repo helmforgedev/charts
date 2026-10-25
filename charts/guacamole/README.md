@@ -15,6 +15,10 @@ Deploy [Apache Guacamole](https://guacamole.apache.org) on Kubernetes — a clie
 - **Reverse Proxy** — Tomcat RemoteIpValve for proper client IP detection
 - **Ingress** — TLS with cert-manager
 - **S3 Backup** — scheduled CronJob with pg_dump or mysqldump
+- **Real Port Overrides** — Tomcat and guacd process listeners follow chart values
+- **Immutable Images** — official images pinned by multi-architecture digest
+- **Secure Defaults** — non-root, read-only filesystems, seccomp, dropped capabilities, and no API token
+- **Ingress Isolation** — NetworkPolicy enabled by default
 
 ## Documentation
 
@@ -62,6 +66,34 @@ After deploying, access the web interface and log in with `guacadmin` / `guacadm
 kubectl port-forward svc/<release>-guacamole 8080:80
 ```
 
+## Examples
+
+- [Simple bundled PostgreSQL](examples/simple/values.yaml)
+- [Production ingress, OIDC, and backups](examples/production/values.yaml)
+- [External PostgreSQL](examples/external-postgresql/values.yaml)
+- [OIDC with Keycloak](examples/oidc-keycloak/values.yaml)
+
+## Application and Service Ports
+
+`containerPorts.http` changes the real Tomcat connector through the official
+image's `entrypoint.d` extension point. `guacd.port` is passed to the guacd
+daemon with `-l` and is also supplied to the web application. `service.port`
+is an independent client-facing port that targets the named `http` listener.
+
+```yaml
+containerPorts:
+  http: 18080
+
+guacd:
+  port: 14822
+
+service:
+  port: 8080
+```
+
+The `custom-ports-values.yaml` k3d scenario requires both overridden listeners
+to become Ready, proving that these settings change the processes themselves.
+
 ## OIDC with Keycloak
 
 ```yaml
@@ -96,8 +128,10 @@ See [OIDC with Keycloak guide](docs/oidc-keycloak.md) for detailed setup instruc
 |-----|---------|-------------|
 | `image.repository` | `guacamole/guacamole` | Web app image |
 | `image.tag` | `""` (appVersion) | Web app tag |
+| `image.digest` | pinned 1.6.0 digest | Immutable web image manifest |
 | `guacd.image.repository` | `guacamole/guacd` | guacd daemon image |
 | `guacd.image.tag` | `""` (appVersion) | guacd daemon tag |
+| `guacd.image.digest` | pinned 1.6.0 digest | Immutable guacd image manifest |
 | `guacd.port` | `4822` | guacd port |
 | `guacd.logLevel` | `info` | guacd log level |
 
@@ -106,6 +140,7 @@ See [OIDC with Keycloak guide](docs/oidc-keycloak.md) for detailed setup instruc
 | Key | Default | Description |
 |-----|---------|-------------|
 | `guacamole.contextPath` | `ROOT` | Web context path (`ROOT` = `/`) |
+| `containerPorts.http` | `8080` | Actual Tomcat HTTP listener |
 
 ### Database
 
@@ -152,6 +187,8 @@ See [OIDC with Keycloak guide](docs/oidc-keycloak.md) for detailed setup instruc
 | `service.port` | `80` | Service port |
 | `ingress.enabled` | `false` | Enable ingress |
 | `ingress.ingressClassName` | `traefik` | Ingress class |
+| `networkPolicy.enabled` | `true` | Isolate inbound application traffic |
+| `serviceAccount.automountServiceAccountToken` | `false` | Mount the Kubernetes API token |
 
 ### Backup
 
@@ -179,6 +216,34 @@ Guacamole runs as a single Deployment with two containers:
 - **guacd** — protocol daemon on port 4822 (sidecar, communicates via localhost)
 
 A post-install Job initializes the database schema. The init job is idempotent and skips schema creation if tables already exist.
+
+## Security
+
+The default application pod uses the non-root users defined by the official
+images, `RuntimeDefault` seccomp, a read-only root filesystem, no privilege
+escalation, and no Linux capabilities. Writable `/tmp` paths are explicit
+`emptyDir` volumes. Kubernetes API token mounting is disabled for the
+Deployment, initialization Job, and backup CronJob.
+
+NetworkPolicy isolates ingress while intentionally leaving egress open for
+remote desktop targets and identity providers. Add ingress-controller peers to
+`networkPolicy.ingressFrom` when they are outside the release. Use existing
+Secrets or External Secrets for production database and S3 credentials, and
+change the default `guacadmin` password immediately.
+
+## Operations and Troubleshooting
+
+```bash
+kubectl -n <namespace> rollout status deployment/<release>-guacamole
+kubectl -n <namespace> logs deployment/<release>-guacamole -c guacamole
+kubectl -n <namespace> logs deployment/<release>-guacamole -c guacd
+kubectl -n <namespace> get events --sort-by=.lastTimestamp
+```
+
+If the web container is not Ready, verify database initialization, the active
+Tomcat listener, Secret keys, and reverse-proxy headers. If remote sessions
+fail while the UI works, verify the guacd logs, target DNS/firewall reachability,
+and that `guacd.port` is not overridden by `guacamole.extraEnv`.
 
 <!-- @AI-METADATA
 type: chart-readme

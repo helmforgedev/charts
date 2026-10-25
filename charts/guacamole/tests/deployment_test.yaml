@@ -3,6 +3,7 @@ suite: Deployment
 templates:
   - templates/deployment.yaml
   - templates/secret.yaml
+  - templates/tomcat-port-configmap.yaml
 release:
   name: test
   namespace: default
@@ -22,6 +23,20 @@ tests:
     template: templates/deployment.yaml
     set:
       postgresql.auth.password: test
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "docker.io/guacamole/guacamole:1.6.0@sha256:f344085e618bb05e22b964b0208dbd06d3468275bac70206f93805245e067b40"
+      - equal:
+          path: spec.template.spec.containers[1].image
+          value: "docker.io/guacamole/guacd:1.6.0@sha256:8974eaa9ba32f713daf311e7cc8cd7e4cdfba1edea39eed75524e78ef4b08f4f"
+
+  - it: should allow digest overrides to be disabled
+    template: templates/deployment.yaml
+    set:
+      postgresql.auth.password: test
+      image.digest: ""
+      guacd.image.digest: ""
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
@@ -266,5 +281,69 @@ tests:
       - contains:
           path: spec.template.spec.containers[1].env
           content:
-            name: GUACD_LOG_LEVEL
+            name: LOG_LEVEL
             value: "debug"
+
+  - it: should wire custom ports to both real listeners
+    template: templates/deployment.yaml
+    set:
+      postgresql.auth.password: test
+      containerPorts.http: 18080
+      guacd.port: 14822
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 18080
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GUACAMOLE_HTTP_PORT
+            value: "18080"
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[1].mountPath
+          value: /opt/guacamole/entrypoint.d/800-configure-http-port.sh
+      - equal:
+          path: spec.template.spec.containers[1].ports[0].containerPort
+          value: 14822
+      - equal:
+          path: spec.template.spec.containers[1].args
+          value:
+            - -l
+            - "14822"
+            - -p
+            - /tmp/guacd.pid
+
+  - it: should apply the default pod and container security baseline
+    template: templates/deployment.yaml
+    set:
+      postgresql.auth.password: test
+    asserts:
+      - equal: {path: "spec.template.spec.automountServiceAccountToken", value: false}
+      - equal: {path: "spec.template.spec.securityContext.seccompProfile.type", value: RuntimeDefault}
+      - equal: {path: "spec.template.spec.containers[0].securityContext.runAsUser", value: 1001}
+      - equal: {path: "spec.template.spec.containers[0].securityContext.runAsNonRoot", value: true}
+      - equal: {path: "spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem", value: true}
+      - equal: {path: "spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation", value: false}
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+      - equal: {path: "spec.template.spec.containers[1].securityContext.runAsUser", value: 1000}
+      - equal: {path: "spec.template.spec.containers[1].securityContext.readOnlyRootFilesystem", value: true}
+
+  - it: should keep required writable paths on emptyDir volumes
+    template: templates/deployment.yaml
+    set:
+      postgresql.auth.password: test
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].mountPath
+          value: /tmp
+      - equal:
+          path: spec.template.spec.containers[1].volumeMounts[0].mountPath
+          value: /tmp
+      - equal:
+          path: spec.template.spec.volumes[0].name
+          value: guacamole-tmp
+      - equal:
+          path: spec.template.spec.volumes[1].name
+          value: guacd-tmp
