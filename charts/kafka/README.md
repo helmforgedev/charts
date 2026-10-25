@@ -168,14 +168,28 @@ metrics:
 | `metrics.agent.sha256` | SHA-256 checksum for the JMX exporter javaagent | `7d61f737...` |
 | `metrics.serviceMonitor.enabled` | Create ServiceMonitor resources | `false` |
 | `pdb.enabled` | Create PodDisruptionBudgets in cluster mode | `false` |
+| `podSecurityContext` | Pod security context | `fsGroup: 1000`, `RuntimeDefault` seccomp |
+| `securityContext` | Container security context | uid 1000, `runAsNonRoot`, no escalation, drop `ALL` |
+| `automountServiceAccountToken` | Mount the ServiceAccount token | `false` |
+
+Topics created without an explicit replication factor use
+`default.replication.factor`: `1` in single-broker mode and the internal
+replication factor (up to `3`) in cluster mode.
+
+## Security
+
+- Pods run as uid 1000 without privilege escalation, with every capability
+  dropped, `RuntimeDefault` seccomp, and no ServiceAccount token.
+- All listeners use `PLAINTEXT`. Keep Kafka inside a trusted network boundary
+  and restrict access with NetworkPolicies; TLS and SASL are not modeled yet.
 
 ### Security Scan: `kafka`
 
 | Framework | Score |
 |---|---|
-| MITRE + NSA + SOC2 | **80%** |
+| MITRE + NSA + SOC2 | **86.36364%** |
 
-Security posture: acceptable.
+> Security posture acceptable.
 
 ## CI scenarios
 

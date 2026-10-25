@@ -100,3 +100,30 @@ tests:
     asserts:
       - hasDocuments:
           count: 2
+
+  - it: sets the default replication factor to 3 in cluster mode
+    set:
+      architecture: cluster
+    template: templates/configmap-scripts.yaml
+    asserts:
+      - matchRegex:
+          path: data["configure.sh"]
+          pattern: "default.replication.factor=3\n"
+
+  - it: hardens broker and controller pods
+    set:
+      architecture: cluster
+    template: templates/statefulset-cluster.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          value: [ALL]
+        documentIndex: 1

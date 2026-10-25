@@ -11,6 +11,9 @@ runtime: jvm
 # -- Architecture: single-broker | cluster
 architecture: single-broker
 
+# -- Global values shared with templates
+global: {}
+
 # -- Override release name
 nameOverride: ""
 fullnameOverride: ""
@@ -222,15 +225,26 @@ metrics:
 # Security and Scheduling
 # =============================================================================
 
+# -- Pod security context for Kafka pods
 podSecurityContext:
   fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
 
+# -- Container security context for Kafka and init containers
 securityContext:
   runAsUser: 1000
   runAsGroup: 1000
   runAsNonRoot: true
   allowPrivilegeEscalation: false
   readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+# -- Mount the ServiceAccount token in Kafka pods (Kafka does not call the Kubernetes API)
+automountServiceAccountToken: false
 
 podLabels: {}
 podAnnotations: {}

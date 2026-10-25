@@ -75,6 +75,31 @@ Combined mode is supported for constrained clusters, but it couples controller
 and broker capacity. Dedicated controllers and brokers remain the preferred
 topology for higher-throughput production workloads.
 
+Topics created without an explicit replication factor use
+`default.replication.factor`, which follows the internal topic replication
+factor: 1 in single-broker mode and up to 3 in cluster mode.
+
+## Security Boundary
+
+- Pods run as uid and gid 1000 with `runAsNonRoot`, no privilege escalation,
+  every capability dropped, `RuntimeDefault` seccomp, and no ServiceAccount
+  token. The root filesystem stays writable because the startup scripts render
+  `server.properties` inside the container.
+- Every listener is `PLAINTEXT`. Client, controller, and inter-broker traffic is
+  unauthenticated and unencrypted, so the chart is only safe inside a trusted
+  network boundary; restrict access with NetworkPolicies or a service mesh.
+- The KRaft cluster ID is stored in a chart Secret or `kraft.existingSecret`.
+
+## Observability Boundary
+
+- Startup and liveness probes open the client listener; the JVM readiness probe
+  runs a broker API check. None of them verify partition health or
+  under-replicated partitions.
+- With `metrics.enabled=true`, the JMX exporter javaagent exposes broker and
+  controller metrics on `metrics.port`, and `metrics.serviceMonitor.enabled`
+  creates ServiceMonitors. Alerting rules and dashboards are not shipped.
+- Broker and controller logs go to the container stdout.
+
 ## Current Gaps and Improvement Candidates
 
 - Add first-class NetworkPolicy support for client, controller, broker, and
