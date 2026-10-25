@@ -23,50 +23,24 @@ Goals:
 
 ### Default topology
 
-```text
-┌──────────────┐       ┌──────────────────────┐
-│ kubectl port │       │ Service ClusterIP    │
-│ forward      ├──────►│ <release>-umami:80   │
-└──────────────┘       └──────────┬───────────┘
-                                  │
-                         ┌────────▼─────────┐
-                         │ Umami Deployment │
-                         │ 1 replica        │
-                         └────────┬─────────┘
-                                  │ DATABASE_URL
-                         ┌────────▼─────────┐
-                         │ PostgreSQL       │
-                         │ HelmForge chart  │
-                         └──────────────────┘
+```mermaid
+flowchart LR
+  user[kubectl port-forward] --> svc[Service ClusterIP<br/>release-umami:80]
+  svc --> deploy[Umami Deployment<br/>1 replica]
+  deploy -->|DATABASE_URL| pg[(PostgreSQL<br/>HelmForge chart)]
 ```
 
 Default installs generate the application and database secrets and do not expose Umami publicly.
 
 ### Production topology
 
-```text
-┌───────────────┐
-│ Internet      │
-└───────┬───────┘
-        │ HTTPS
-┌───────▼────────┐       ┌───────────────────────┐
-│ Gateway        │       │ HTTPRoute             │
-│ or Ingress     ├──────►│ analytics.example.com │
-└────────────────┘       └───────────┬───────────┘
-                                      │
-                             ┌────────▼─────────┐
-                             │ Service          │
-                             │ ClusterIP/dual   │
-                             └────────┬─────────┘
-                                      │
-                       ┌──────────────▼──────────────┐
-                       │ Umami Deployment             │
-                       │ 2+ replicas, PDB, resources  │
-                       └──────────────┬──────────────┘
-                                      │
-                    ┌─────────────────▼─────────────────┐
-                    │ Managed PostgreSQL / DB operator   │
-                    └───────────────────────────────────┘
+```mermaid
+flowchart LR
+  internet[Internet] -->|HTTPS| edge[Gateway or Ingress]
+  edge --> route[HTTPRoute<br/>analytics.example.com]
+  route --> svc[Service<br/>ClusterIP or dual-stack]
+  svc --> deploy[Umami Deployment<br/>2+ replicas, PDB, resources]
+  deploy --> db[(Managed PostgreSQL<br/>or database operator)]
 ```
 
 Recommended production values use a stable APP_SECRET, external PostgreSQL, explicit resource requests, Gateway API or Ingress TLS, a PDB, and egress-aware NetworkPolicy.
@@ -77,60 +51,34 @@ Umami's first migration creates `pgcrypto`. Some PostgreSQL services allow the a
 while others require an administrative user. The chart supports an optional `prepare-external-db` init container for the
 second case.
 
-```text
-┌──────────────────────┐
-│ Admin Secret          │
-│ postgres-password     │
-└──────────┬───────────┘
-           │ valueFrom
-┌──────────▼───────────┐
-│ wait-for-db          │
-└──────────┬───────────┘
-           │ ready
-┌──────────▼───────────┐       CREATE EXTENSION       ┌──────────────────┐
-│ prepare-external-db  ├─────────────────────────────►│ External Postgres │
-│ postgres client      │                              │ umami database    │
-└──────────┬───────────┘                              └──────────────────┘
-           │ success
-┌──────────▼───────────┐
-│ Umami container      │
-└──────────────────────┘
+```mermaid
+flowchart TB
+  admin[Admin Secret<br/>postgres-password] -->|valueFrom| wait[wait-for-db]
+  wait -->|ready| prepare[prepare-external-db<br/>postgres client]
+  prepare -->|CREATE EXTENSION| ext[(External PostgreSQL<br/>umami database)]
+  prepare -->|success| app[Umami container]
 ```
 
 This is opt-in and only active when `postgresql.enabled=false`. It lets operators keep the runtime Umami user least-privileged while still preparing required extensions during installation.
 
 ### External Secrets
 
-```text
-┌────────────────────┐      sync       ┌──────────────────────┐
-│ Secret backend     ├────────────────►│ ExternalSecret       │
-│ Vault / AWS / GCP  │                 │ external-secrets.io  │
-└────────────────────┘                 └──────────┬───────────┘
-                                                   │ creates
-                                      ┌────────────▼────────────┐
-                                      │ Kubernetes Secret        │
-                                      │ app, db, backup creds    │
-                                      └────────────┬────────────┘
-                                                   │ envFrom/valueFrom
-                                      ┌────────────▼────────────┐
-                                      │ Umami / backup CronJob   │
-                                      └─────────────────────────┘
+```mermaid
+flowchart LR
+  backend[Secret backend<br/>Vault, AWS, GCP] -->|sync| es[ExternalSecret<br/>external-secrets.io]
+  es -->|creates| secret[Kubernetes Secret<br/>app, db, backup credentials]
+  secret -->|envFrom and valueFrom| app[Umami Deployment]
+  secret -->|envFrom and valueFrom| backup[Backup CronJob]
 ```
 
 The chart renders `external-secrets.io/v1` resources only when enabled. It never requires External Secrets Operator for default installs.
 
 ### Backups
 
-```text
-┌────────────────────┐       pg_dump       ┌──────────────────┐
-│ Backup CronJob     ├────────────────────►│ PostgreSQL       │
-│ postgres tools     │                     │ bundled/external │
-└──────────┬─────────┘                     └──────────────────┘
-           │ upload
-┌──────────▼─────────┐
-│ S3-compatible      │
-│ object storage     │
-└────────────────────┘
+```mermaid
+flowchart LR
+  cron[Backup CronJob<br/>postgres tools] -->|pg_dump| pg[(PostgreSQL<br/>bundled or external)]
+  cron -->|upload| s3[(S3-compatible<br/>object storage)]
 ```
 
 The backup job is optional and designed for smaller self-hosted installations.
