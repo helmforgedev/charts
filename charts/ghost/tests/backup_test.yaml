@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Backup workload
+templates:
+  - templates/backup-cronjob.yaml
+  - templates/backup-configmap.yaml
+tests:
+  - it: should keep backup resources disabled by default
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: should bound backup scratch storage and disable the API token
+    template: templates/backup-cronjob.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.example.com
+      backup.s3.bucket: ghost
+      backup.s3.accessKey: test
+      backup.s3.secretKey: test
+    asserts:
+      - isKind:
+          of: CronJob
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.volumes[1].emptyDir.sizeLimit
+          value: 2Gi

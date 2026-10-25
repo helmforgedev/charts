@@ -22,6 +22,8 @@ spec:
             app.kubernetes.io/component: backup
         spec:
           restartPolicy: OnFailure
+          serviceAccountName: {{ include "ghost.serviceAccountName" . }}
+          automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
           initContainers:
             - name: content-backup
               image: {{ .Values.backup.images.backup }}
@@ -74,7 +76,8 @@ spec:
               persistentVolumeClaim:
                 claimName: {{ include "ghost.contentClaimName" . }}
             - name: backup-scratch
-              emptyDir: {}
+              emptyDir:
+                sizeLimit: {{ .Values.backup.scratchSizeLimit }}
             - name: scripts
               configMap:
                 name: {{ include "ghost.fullname" . }}-backup-scripts

@@ -35,6 +35,22 @@ tests:
             containerPort: 2368
             protocol: TCP
 
+  - it: should configure the Ghost listener when the container port changes
+    set:
+      containerPorts.http: 2468
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http
+            containerPort: 2468
+            protocol: TCP
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: server__port
+            value: "2468"
+
   - it: should have wait-for-db init container
     asserts:
       - equal:
@@ -56,8 +72,14 @@ tests:
           path: spec.template.spec.containers[0].resources.limits.memory
           value: 768Mi
 
-  - it: should set practical default hardening without changing the image user
+  - it: should harden the Ghost and database-wait containers
     asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1000
       - equal:
           path: spec.template.spec.securityContext.seccompProfile.type
           value: RuntimeDefault
@@ -67,6 +89,24 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].securityContext.privileged
           value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.volumes[1].emptyDir.sizeLimit
+          value: 256Mi
+      - matchRegex:
+          path: 'spec.template.metadata.annotations["checksum/secret"]'
+          pattern: '^[a-f0-9]{64}$'
 
   - it: should set database env vars for MySQL subchart
     asserts:
@@ -126,6 +166,14 @@ tests:
             name: content
             persistentVolumeClaim:
               claimName: test-ghost-content
+
+  - it: should bound ephemeral content when persistence is disabled
+    set:
+      persistence.enabled: false
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].emptyDir.sizeLimit
+          value: 1Gi
 
   - it: should use external DB host when subchart disabled
     set:
