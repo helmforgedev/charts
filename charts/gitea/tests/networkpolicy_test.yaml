@@ -35,3 +35,21 @@ tests:
           content:
             protocol: TCP
             port: ssh
+
+  - it: should allow the admin bootstrap Job when ingress peers are restricted
+    set:
+      admin.username: gitea-admin
+      networkPolicy.enabled: true
+      networkPolicy.ingressFrom:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-system
+    asserts:
+      - equal:
+          path: spec.ingress[1].from[0].podSelector.matchLabels["app.kubernetes.io/component"]
+          value: admin-create
+      - contains:
+          path: spec.ingress[1].ports
+          content:
+            protocol: TCP
+            port: http

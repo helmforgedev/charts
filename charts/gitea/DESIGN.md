@@ -87,7 +87,9 @@ target the HTTP service. SSH exposure is configured separately through
 
 An optional ingress-only NetworkPolicy limits HTTP and SSH sources. It is off by
 default because ingress controllers commonly run in a different namespace;
-operators must declare the appropriate peers before enabling it.
+operators must declare the appropriate peers before enabling it. The chart adds
+a dedicated HTTP allowance for the admin-bootstrap Job when that Job exists, so
+restricting external ingress cannot deadlock a Helm post-install hook.
 
 ### Secrets
 

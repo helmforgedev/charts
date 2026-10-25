@@ -39,7 +39,9 @@ disables privilege escalation, uses RuntimeDefault seccomp, and does not mount a
 Kubernetes API token by default. The upstream entrypoint requires a writable root
 filesystem during initialization, while durable data and configuration stay on
 the PVC. Enable `networkPolicy.enabled` only after confirming the allowed peers
-include the namespace of your ingress controller or Gateway.
+include the namespace of your ingress controller or Gateway. When admin bootstrap
+is configured, its Job is allowed to reach the HTTP port independently of those
+peer rules.
 
 ### Security Scan: `gitea`
 
@@ -200,7 +202,7 @@ The chart sets `GITEA__server__HTTP_PORT=3100`, exposes that container port as
 | `ingress.ingressClassName` | `""` | Ingress class |
 | `serviceAccount.automountServiceAccountToken` | `false` | Mount a Kubernetes API token into chart pods |
 | `networkPolicy.enabled` | `false` | Restrict HTTP and SSH ingress to configured peers |
-| `networkPolicy.ingressFrom` | `[]` | Allowed ingress peers; empty means same namespace |
+| `networkPolicy.ingressFrom` | `[]` | Allowed ingress peers; empty means same namespace; admin bootstrap remains allowed |
 | `backup.enabled` | `false` | Enable S3 backup CronJob |
 | `backup.schedule` | `"0 3 * * *"` | Backup cron schedule |
 | `backup.s3.endpoint` | `""` | S3-compatible endpoint URL |
