@@ -219,6 +219,9 @@ Gateway API is preferred for clusters that already standardize on Gateway resour
 ## Security Boundary
 
 - ServiceAccount token automount is disabled by default.
+- The pod uses the `RuntimeDefault` seccomp profile and the WordPress container
+  blocks privilege escalation. The official image starts Apache as root and
+  switches workers to `www-data`, so capabilities are not dropped by default.
 - NetworkPolicy is optional and starts with ingress isolation when enabled.
 - Egress can be explicitly allowed for DNS, database, HTTPS, SMTP, and custom destinations.
 - WordPress file editing can be disabled with `wordpress.disallowFileEdit`.
