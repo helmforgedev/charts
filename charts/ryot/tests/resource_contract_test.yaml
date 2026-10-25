@@ -97,3 +97,47 @@ tests:
           path: spec.template.spec.containers[0].readinessProbe
       - notExists:
           path: spec.template.spec.containers[0].livenessProbe
+  - it: preserves enabled probes when startup is disabled
+    template: templates/deployment.yaml
+    set:
+      probes.startup.enabled: false
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].startupProbe
+      - exists:
+          path: spec.template.spec.containers[0].readinessProbe
+      - exists:
+          path: spec.template.spec.containers[0].livenessProbe
+  - it: preserves enabled probes when readiness is disabled
+    template: templates/deployment.yaml
+    set:
+      probes.readiness.enabled: false
+    asserts:
+      - exists:
+          path: spec.template.spec.containers[0].startupProbe
+      - notExists:
+          path: spec.template.spec.containers[0].readinessProbe
+      - exists:
+          path: spec.template.spec.containers[0].livenessProbe
+  - it: preserves enabled probes when liveness is disabled
+    template: templates/deployment.yaml
+    set:
+      probes.liveness.enabled: false
+    asserts:
+      - exists:
+          path: spec.template.spec.containers[0].startupProbe
+      - exists:
+          path: spec.template.spec.containers[0].readinessProbe
+      - notExists:
+          path: spec.template.spec.containers[0].livenessProbe
+  - it: tolerates a removed optional probe object
+    template: templates/deployment.yaml
+    set:
+      probes.startup: null
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].startupProbe
+      - exists:
+          path: spec.template.spec.containers[0].readinessProbe
+      - exists:
+          path: spec.template.spec.containers[0].livenessProbe

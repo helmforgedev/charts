@@ -40,8 +40,9 @@ endpoint also probes the native backend. Resource limits must accommodate both t
 
 ## Configuration
 
-Inspect the complete, versioned contract with `helm show values helmforge/ryot`. The schema rejects unknown chart-owned
-keys and validates the security-sensitive options below before Kubernetes receives a manifest.
+Inspect the current chart contract with `helm show values helmforge/ryot`. For an installed release, use
+`helm show values helmforge/ryot --version <chart-version>` with its deployed chart version. The schema rejects unknown
+chart-owned keys and validates the security-sensitive options below before Kubernetes receives a manifest.
 
 | Parameter | Purpose | Default |
 | --- | --- | --- |
@@ -147,10 +148,11 @@ target cluster. The examples are starting contracts, not portable credentials or
 
 ## Troubleshooting
 
-- If `database-admission` does not complete, inspect that init container first. Confirm credentials, required
-  extensions, TLS trust and NetworkPolicy egress before changing application settings.
-- If bootstrap fails after a partial first start, keep the same Secrets. The helper verifies an existing matching user
-  and never treats a password rotation as an account reset.
+- If `database-admission` does not complete, inspect that init container first. Confirm credentials, TLS trust,
+  NetworkPolicy egress and the database's existing user state before changing application settings.
+- If migration or bootstrap fails, verify that `uuid-ossp` and `pg_trgm` exist with the required schema privileges. Keep
+  the same Secrets after a partial first start: the helper verifies a matching user and never treats password rotation
+  as an account reset.
 - If the Service is healthy but remote access fails, compare `server.publicUrl`, route hostnames, controller status and
   `networkPolicy.ingressFrom`. Do not disable isolation as a diagnostic shortcut.
 - If the container cannot start with a custom security context, restore the default non-root identity, read-only root
