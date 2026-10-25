@@ -165,6 +165,53 @@ tests:
           path: spec.template.spec.volumes[2].emptyDir.sizeLimit
           value: 256Mi
 
+  - it: should preserve user mounts that replace chart runtime paths
+    set:
+      extraVolumeMounts:
+        - name: persistent-plugins
+          mountPath: /plugins
+      extraVolumes:
+        - name: persistent-plugins
+          persistentVolumeClaim:
+            claimName: metabase-plugins
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: runtime-plugins
+            mountPath: /plugins
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: persistent-plugins
+            mountPath: /plugins
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: runtime-plugins
+            emptyDir:
+              sizeLimit: 512Mi
+
+  - it: should preserve user volumes that reuse chart runtime names
+    set:
+      extraVolumes:
+        - name: runtime-plugins
+          persistentVolumeClaim:
+            claimName: metabase-plugins
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: runtime-plugins
+            persistentVolumeClaim:
+              claimName: metabase-plugins
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: runtime-plugins
+            emptyDir:
+              sizeLimit: 512Mi
+
   - it: should allow overriding the wait-for-db init container image
     set:
       waitForDatabase.image.repository: registry.example.com/mirror/busybox

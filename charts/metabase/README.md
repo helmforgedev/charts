@@ -110,6 +110,10 @@ Use `extraInitContainers` with `extraVolumes` and `extraVolumeMounts` when you
 need to prepare files before Metabase starts, for example JDBC drivers mounted
 into a shared plugin directory.
 
+User-provided mounts at `/plugins`, `/tmp`, or `/target` replace the corresponding chart-managed `emptyDir`. The
+matching `runtimeStorage.*SizeLimit` no longer applies to that path. User-provided volumes named `runtime-plugins`,
+`runtime-tmp`, or `runtime-target` also replace the chart-managed volume with that name.
+
 ## Dual-Stack Service
 
 ```yaml

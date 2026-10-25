@@ -1,4 +1,16 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- $userMountPaths := dict -}}
+{{- range .Values.extraVolumeMounts -}}
+  {{- if hasKey . "mountPath" -}}
+    {{- $_ := set $userMountPaths (toString .mountPath) true -}}
+  {{- end -}}
+{{- end -}}
+{{- $userVolumeNames := dict -}}
+{{- range .Values.extraVolumes -}}
+  {{- if hasKey . "name" -}}
+    {{- $_ := set $userVolumeNames (toString .name) true -}}
+  {{- end -}}
+{{- end -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -144,25 +156,37 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           volumeMounts:
+            {{- if not (hasKey $userMountPaths "/plugins") }}
             - name: runtime-plugins
               mountPath: /plugins
+            {{- end }}
+            {{- if not (hasKey $userMountPaths "/tmp") }}
             - name: runtime-tmp
               mountPath: /tmp
+            {{- end }}
+            {{- if not (hasKey $userMountPaths "/target") }}
             - name: runtime-target
               mountPath: /target
+            {{- end }}
           {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
       volumes:
+        {{- if and (not (hasKey $userMountPaths "/plugins")) (not (hasKey $userVolumeNames "runtime-plugins")) }}
         - name: runtime-plugins
           emptyDir:
             sizeLimit: {{ .Values.runtimeStorage.pluginsSizeLimit }}
+        {{- end }}
+        {{- if and (not (hasKey $userMountPaths "/tmp")) (not (hasKey $userVolumeNames "runtime-tmp")) }}
         - name: runtime-tmp
           emptyDir:
             sizeLimit: {{ .Values.runtimeStorage.tmpSizeLimit }}
+        {{- end }}
+        {{- if and (not (hasKey $userMountPaths "/target")) (not (hasKey $userVolumeNames "runtime-target")) }}
         - name: runtime-target
           emptyDir:
             sizeLimit: {{ .Values.runtimeStorage.targetSizeLimit }}
+        {{- end }}
       {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
