@@ -224,7 +224,7 @@ listeners. DHCP remains on protocol-defined UDP port 67.
 | `resources` | requests `100m/128Mi`, limits `500m/512Mi` | CPU and memory resources for the Pi-hole container |
 | `podSecurityContext.seccompProfile.type` | `RuntimeDefault` | Enables the Kubernetes default seccomp profile |
 | `securityContext.allowPrivilegeEscalation` | `false` | Prevents privilege escalation while preserving required Pi-hole capabilities |
-| `securityContext.capabilities.add` | image runtime set | Capabilities required by the official entrypoint for permission setup, privilege drop, FTL file capabilities, DNS binding, and process shutdown |
+| `securityContext.capabilities.add` | image runtime set | Capabilities required for image setup, privilege drop, FTL file capabilities, DNS binding, and shutdown |
 | `serviceAccount.automountServiceAccountToken` | `false` | Keeps Kubernetes API tokens out of the pod unless explicitly needed |
 | `networkPolicy.enabled` | `true` | Restrict ingress to declared Pi-hole pod ports |
 | `networkPolicy.ingressFrom` | `[]` | Optional source peers; empty allows LAN and cluster clients |
