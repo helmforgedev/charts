@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Metabase Database and Backup Guide
 
 ## Bundled PostgreSQL

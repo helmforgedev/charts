@@ -24,13 +24,12 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "metabase.serviceAccountName" . }}
-      {{- end }}
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . }}
       {{- end }}
@@ -65,6 +64,10 @@ spec:
               containerPort: {{ .Values.metabase.port }}
               protocol: TCP
           env:
+            - name: HOME
+              value: /tmp
+            - name: MB_PLUGINS_DIR
+              value: /plugins
             - name: MB_DB_TYPE
               value: postgres
             - name: MB_DB_HOST
@@ -140,12 +143,27 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.extraVolumeMounts }}
           volumeMounts:
+            - name: runtime-plugins
+              mountPath: /plugins
+            - name: runtime-tmp
+              mountPath: /tmp
+            - name: runtime-target
+              mountPath: /target
+          {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
-      {{- with .Values.extraVolumes }}
       volumes:
+        - name: runtime-plugins
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeStorage.pluginsSizeLimit }}
+        - name: runtime-tmp
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeStorage.tmpSizeLimit }}
+        - name: runtime-target
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeStorage.targetSizeLimit }}
+      {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- with .Values.nodeSelector }}

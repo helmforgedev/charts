@@ -4,6 +4,8 @@
 # =============================================================================
 # Focus: open-source BI platform with PostgreSQL metadata store
 
+global: {}
+
 nameOverride: ""
 fullnameOverride: ""
 commonLabels: {}
@@ -77,6 +79,8 @@ database:
     existingSecret: ""
     # -- Key in the existing secret containing the password
     existingSecretPasswordKey: password
+    # -- NetworkPolicy peers for the external metadata database when egress isolation is enabled
+    networkPolicyPeers: []
 
 # =============================================================================
 # Service Account
@@ -89,6 +93,8 @@ serviceAccount:
   name: ""
   # -- Annotations for the ServiceAccount
   annotations: {}
+  # -- Mount the Kubernetes API token in application pods
+  automountServiceAccountToken: false
 
 # =============================================================================
 # Service
@@ -189,9 +195,52 @@ resources:
     cpu: 1000m
     memory: 2Gi
 
-podSecurityContext: {}
+# -- Pod-level non-root identity and syscall filtering. The official image supports direct UID 2000 execution.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 2000
+  runAsGroup: 2000
+  fsGroup: 2000
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
 
-securityContext: {}
+# -- Container-level privilege and filesystem restrictions
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# -- Bounded writable directories required by the official image with a read-only root filesystem
+runtimeStorage:
+  pluginsSizeLimit: 512Mi
+  tmpSizeLimit: 512Mi
+  targetSizeLimit: 256Mi
+
+# -- Optional PodDisruptionBudget. Enable it only when voluntary disruptions must be serialized.
+pdb:
+  enabled: false
+  minAvailable: ""
+  maxUnavailable: 1
+  unhealthyPodEvictionPolicy: ""
+
+# -- Optional traffic isolation. Enabling egress requires peers for every analytical database and external integration.
+networkPolicy:
+  enabled: false
+  ingress:
+    # -- Allow application traffic from pods in the release namespace
+    allowSameNamespace: true
+    # -- Additional NetworkPolicy ingress peers
+    extraFrom: []
+  egress:
+    # -- Enforce egress isolation
+    enabled: false
+    # -- Allow DNS queries when egress isolation is enabled
+    allowDNS: true
+    # -- Additional complete NetworkPolicy egress rules for analytical databases, SMTP, webhooks, and APIs
+    extraEgress: []
 
 # =============================================================================
 # S3 Backup
@@ -221,6 +270,16 @@ backup:
     uploader: docker.io/helmforge/mc:1.0.0
   # -- Resources for backup containers
   resources: {}
+  # -- Pod-level security context for backup jobs
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  # -- Container-level security context for backup jobs
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
   s3:
     # -- S3-compatible endpoint URL
     endpoint: ""

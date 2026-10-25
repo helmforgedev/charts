@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Metabase Helm Chart
 
 Deploy [Metabase](https://www.metabase.com) on Kubernetes using the official
@@ -17,6 +19,19 @@ Open-source BI platform with visual data exploration, SQL editor, and shareable 
 - **Gateway API** — HTTPRoute for clusters running Envoy Gateway or similar
 - **Dual-stack networking** — IPv4/IPv6 service support
 - **External Secrets Operator** — ExternalSecret for Vault, AWS Secrets Manager, and more
+- **Secure runtime defaults** — non-root UID 2000, read-only root filesystem, dropped capabilities, RuntimeDefault seccomp, and no API token mount
+- **Optional disruption and traffic controls** — PodDisruptionBudget and NetworkPolicy templates
+
+## Architecture
+
+The release runs one Metabase Deployment behind a named-port Service. Metabase stores application metadata in either
+the bundled HelmForge PostgreSQL StatefulSet or an external PostgreSQL service; analytical source databases remain
+outside the chart boundary. The application Secret supplies the stable encryption key, while an optional backup
+CronJob exports only the PostgreSQL metadata database to S3-compatible storage.
+
+The application container runs directly as UID/GID `2000`, with a read-only root filesystem. Bounded `emptyDir`
+volumes provide the only writable paths: `/plugins`, `/tmp`, and `/target`. See [DESIGN.md](DESIGN.md) for trust
+boundaries, failure modes, and non-goals.
 
 ## Installation
 
@@ -83,7 +98,7 @@ Metabase image, so proxy-based environments can mirror both images:
 ```yaml
 image:
   repository: registry.example.com/proxy/metabase/metabase
-  tag: v0.64.1
+  tag: v0.64.2
 
 waitForDatabase:
   image:
@@ -161,10 +176,30 @@ externalSecrets:
 | `metabase.javaTimezone` | `UTC` | Java timezone |
 | `metabase.javaOpts` | `""` | JVM memory options |
 | `probes.startup.initialDelaySeconds` | `90` | Startup probe delay for first-run migrations and PostgreSQL bootstrap |
-| `postgresql.enabled` | `true` | Deploy HelmForge PostgreSQL subchart (`2.0.4`) |
+| `postgresql.enabled` | `true` | Deploy HelmForge PostgreSQL subchart (`2.1.1`) |
 | `postgresql.standalone.persistence.size` | `8Gi` | PostgreSQL standalone PVC size |
 | `resources.requests.memory` | `512Mi` | Metabase memory request |
 | `resources.limits.memory` | `2Gi` | Metabase memory limit |
+| `podSecurityContext.runAsNonRoot` | `true` | Require a non-root runtime identity |
+| `podSecurityContext.runAsUser` | `2000` | Run the official image without root privileges |
+| `podSecurityContext.runAsGroup` | `2000` | Primary runtime group |
+| `podSecurityContext.fsGroup` | `2000` | Writable volume group ownership |
+| `podSecurityContext.fsGroupChangePolicy` | `OnRootMismatch` | Avoid unnecessary recursive ownership changes |
+| `podSecurityContext.seccompProfile.type` | `RuntimeDefault` | Apply the runtime default seccomp profile |
+| `securityContext.allowPrivilegeEscalation` | `false` | Block privilege escalation |
+| `securityContext.readOnlyRootFilesystem` | `true` | Make the application root filesystem immutable |
+| `securityContext.capabilities.drop` | `[ALL]` | Drop all Linux capabilities |
+| `runtimeStorage.pluginsSizeLimit` | `512Mi` | Limit the writable `/plugins` emptyDir |
+| `runtimeStorage.tmpSizeLimit` | `512Mi` | Limit the writable `/tmp` emptyDir |
+| `runtimeStorage.targetSizeLimit` | `256Mi` | Limit the writable `/target` log emptyDir |
+| `serviceAccount.automountServiceAccountToken` | `false` | Keep the Kubernetes API token out of the pod |
+| `pdb.enabled` | `false` | Render a PodDisruptionBudget |
+| `networkPolicy.enabled` | `false` | Restrict inbound traffic to declared peers |
+| `networkPolicy.egress.enabled` | `false` | Restrict outbound traffic to declared rules |
+| `networkPolicy.ingress.allowSameNamespace` | `true` | Permit traffic from the release namespace |
+| `networkPolicy.ingress.extraFrom` | `[]` | Add ingress peers such as a cross-namespace controller |
+| `networkPolicy.egress.allowDNS` | `true` | Permit DNS while egress isolation is enabled |
+| `networkPolicy.egress.extraEgress` | `[]` | Add complete rules for analytical databases and integrations |
 | `ingress.enabled` | `false` | Enable ingress |
 | `service.port` | `80` | Service port |
 | `service.ipFamilyPolicy` | `~` | IP family policy (`SingleStack`, `PreferDualStack`, `RequireDualStack`) |
@@ -226,6 +261,42 @@ of at least 16 characters. Setting or changing it logs out existing sessions;
 coordinate activation with users. See the
 [session secret documentation](https://www.metabase.com/docs/latest/configuring-metabase/environment-variables#mb_session_secret_key).
 
+## Troubleshooting
+
+### Pod never becomes ready
+
+Metabase may spend several minutes applying metadata migrations on the first start. Inspect the startup probe and both
+application and database logs before changing probe thresholds:
+
+```bash
+kubectl describe pod -l app.kubernetes.io/name=metabase
+kubectl logs -l app.kubernetes.io/name=metabase -c metabase --tail=300
+```
+
+### Plugin or temporary storage is full
+
+The secure defaults bound `/plugins`, `/tmp`, and `/target`. Increase the corresponding `runtimeStorage.*SizeLimit`
+value after checking actual usage. Extra init containers can mount the reserved `runtime-plugins` volume to install
+JDBC drivers before Metabase starts.
+
+### NetworkPolicy blocks a connection
+
+When `networkPolicy.enabled=true`, ingress defaults to the release namespace. Add the ingress controller to
+`networkPolicy.ingress.extraFrom`. When egress isolation is also enabled, add rules for every analytical database,
+SMTP server, webhook, and external API through `networkPolicy.egress.extraEgress`; an external metadata database also
+requires `database.external.networkPolicyPeers`.
+
+## Security
+
+The application defaults enforce non-root execution, a read-only root filesystem, RuntimeDefault seccomp, dropped
+capabilities, bounded writable runtime volumes, and disabled ServiceAccount token mounting. Secrets can be supplied by
+existing Kubernetes Secrets or External Secrets. NetworkPolicy remains opt-in because the chart cannot infer the
+analytical databases and external integrations each installation must reach.
+
+## Security Scan
+
+Security Scan: Kubescape local scan against `MITRE,NSA,SOC2` reports a 92.42% resource summary score.
+
 ## Examples
 
 - [Production](examples/production.yaml)
@@ -239,15 +310,6 @@ coordinate activation with users. See the
 - [Production operations](docs/production.md)
 - [Metabase documentation](https://www.metabase.com/docs/latest/)
 - [Source code](https://github.com/helmforgedev/charts/tree/main/charts/metabase)
-
-### Security Scan: `metabase`
-
-| Framework | Score |
-|---|---|
-| MITRE + NSA + SOC2 | **86.36364%** |
-
-Rendered-manifest scan: 86.36% across MITRE, NSA and SOC2. Findings include writable filesystems, service account token mounting and network isolation;
-review production security settings for the application and PostgreSQL subchart.
 
 <!-- @AI-METADATA
 type: chart-readme

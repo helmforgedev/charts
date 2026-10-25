@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Metabase Production Guide
 
 ## Recommended Values
@@ -29,6 +31,34 @@ resources:
   limits:
     cpu: "2"
     memory: 3Gi
+```
+
+The default pod already runs as UID/GID `2000`, uses a read-only root filesystem, drops all capabilities, applies
+RuntimeDefault seccomp, and disables ServiceAccount token mounting. Do not relax those settings to install JDBC
+drivers. Use an extra init container that mounts the chart-owned `runtime-plugins` volume instead.
+
+## Network Isolation
+
+NetworkPolicy is opt-in because Metabase must reach operator-defined analytical databases and integrations. Start with
+ingress isolation, then explicitly enumerate all egress destinations before enabling egress enforcement:
+
+```yaml
+networkPolicy:
+  enabled: true
+  ingress:
+    extraFrom:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: ingress-nginx
+  egress:
+    enabled: true
+    extraEgress:
+      - to:
+          - ipBlock:
+              cidr: 10.40.0.0/16
+        ports:
+          - protocol: TCP
+            port: 5432
 ```
 
 ## Health Checks

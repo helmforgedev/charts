@@ -101,6 +101,70 @@ tests:
           path: spec.template.spec.initContainers[0].imagePullPolicy
           value: IfNotPresent
 
+  - it: should use secure pod and container defaults
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: default
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 2000
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+
+  - it: should mount bounded writable runtime directories
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HOME
+            value: /tmp
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MB_PLUGINS_DIR
+            value: /plugins
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: runtime-plugins
+            mountPath: /plugins
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: runtime-tmp
+            mountPath: /tmp
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: runtime-target
+            mountPath: /target
+      - equal:
+          path: spec.template.spec.volumes[0].emptyDir.sizeLimit
+          value: 512Mi
+      - equal:
+          path: spec.template.spec.volumes[1].emptyDir.sizeLimit
+          value: 512Mi
+      - equal:
+          path: spec.template.spec.volumes[2].emptyDir.sizeLimit
+          value: 256Mi
+
   - it: should allow overriding the wait-for-db init container image
     set:
       waitForDatabase.image.repository: registry.example.com/mirror/busybox
