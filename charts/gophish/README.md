@@ -44,6 +44,21 @@ kubectl logs deploy/gophish-gophish -n gophish | grep "Please login with the use
 
 Do not store this password in values files, examples, tickets, or PR bodies.
 
+## Configuration
+
+The full value contract is in `values.yaml` and validated by `values.schema.json`.
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `database.mode` | `auto` | `auto`, `sqlite`, `mysql` (HelmForge MySQL subchart), or `external` |
+| `adminService.port` | `3333` | Admin Service port |
+| `phishService.port` | `80` | Phishing Service port |
+| `adminIngress.enabled` / `phishIngress.enabled` | `false` | Separate Ingresses for the admin UI and the phishing listener |
+| `gateway.enabled` | `false` | Separate HTTPRoutes for the admin UI and the phishing listener |
+| `persistence.enabled` | `true` | PVC for the SQLite database and chart-managed runtime files |
+| `networkPolicy.enabled` | `false` | Render NetworkPolicy resources |
+| `backup.enabled` | `false` | SQLite backups to S3-compatible storage |
+
 ## Database Modes
 
 | Mode | Values | Notes |
@@ -157,10 +172,11 @@ For MySQL modes, use the MySQL dependency backup flow or external database backu
 
 ## Documentation
 
-- `docs/architecture.md`
-- `docs/database.md`
-- `docs/security.md`
-- `docs/backup.md`
+- [Chart design](DESIGN.md)
+- [Architecture](docs/architecture.md): image behavior, database modes, network surfaces, and TLS
+- [Database](docs/database.md): SQLite, embedded MySQL, and external MySQL
+- [Security](docs/security.md): admin exposure, NetworkPolicy, and secrets
+- [Backup](docs/backup.md): SQLite backups to S3-compatible storage
 
 ## Quality Gates
 
