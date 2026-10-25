@@ -87,3 +87,6 @@ DHCP broadcasts normally require `dhcp.hostNetwork: true` and node placement on
 the intended network segment. Confirm `dhcp.start`, `dhcp.end`, and
 `dhcp.router`, verify UDP 67 reachability, and avoid running two DHCP servers on
 the same broadcast domain. The chart adds `NET_ADMIN` only when DHCP is enabled.
+Because NetworkPolicy enforcement for host-networked pods depends on the
+network plugin, verify enforcement and use node-level controls when access to
+the Pi-hole listeners must be restricted.

@@ -34,7 +34,8 @@ assert.equal(environment.FTLCONF_webserver_port, String(httpPort));
 const check = [
   'set -eu',
   `curl -fsSL --max-time 10 http://127.0.0.1:${httpPort}/admin/ >/dev/null`,
-  `dig +time=5 +tries=1 @127.0.0.1 -p ${dnsPort} pi.hole A | grep -Eq 'status: (NOERROR|NXDOMAIN)'`,
+  `dig +notcp +time=5 +tries=1 @127.0.0.1 -p ${dnsPort} pi.hole A | grep -Eq 'status: (NOERROR|NXDOMAIN)'`,
+  `dig +tcp +time=5 +tries=1 @127.0.0.1 -p ${dnsPort} pi.hole A | grep -Eq 'status: (NOERROR|NXDOMAIN)'`,
 ].join('; ');
 kubectl(['exec', pod.metadata.name, '-c', 'pihole', '--', 'sh', '-ec', check]);
 

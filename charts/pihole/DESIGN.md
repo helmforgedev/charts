@@ -81,6 +81,12 @@ DHCP clients commonly live outside Kubernetes; operators can restrict
 `networkPolicy.ingressFrom`. Egress remains open for upstream DNS, gravity
 lists, recursive DNS, and optional S3 backups.
 
+NetworkPolicy enforcement for host-networked pods is implementation-dependent.
+Before enabling DHCP with `dhcp.hostNetwork: true`, operators must confirm how
+their network plugin handles host-network traffic and apply node-level firewall
+or equivalent controls instead of relying on `networkPolicy.ingressFrom` to
+protect the web and DNS listeners.
+
 When DHCP is enabled, the chart configures the Pi-hole FTL DHCP range and
 router, requires host networking, exposes fixed UDP port 67, and adds
 `NET_ADMIN` only for that configuration. The default DNS-only deployment does

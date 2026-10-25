@@ -921,7 +921,31 @@
       "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean", "default": true },
-        "ingressFrom": { "type": "array", "items": { "type": "object" } }
+        "ingressFrom": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "podSelector": { "type": "object" },
+              "namespaceSelector": { "type": "object" },
+              "ipBlock": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["cidr"],
+                "properties": {
+                  "cidr": { "type": "string", "minLength": 1 },
+                  "except": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+                }
+              }
+            },
+            "anyOf": [
+              { "required": ["podSelector"] },
+              { "required": ["namespaceSelector"] },
+              { "required": ["ipBlock"] }
+            ]
+          }
+        }
       }
     },
     "dhcp": {
@@ -956,7 +980,22 @@
           "description": "DHCP lease time",
           "pattern": "^([0-9]+[smhdw]?|infinite)$"
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "enabled": { "const": true } },
+            "required": ["enabled"]
+          },
+          "then": {
+            "properties": {
+              "start": { "format": "ipv4" },
+              "end": { "format": "ipv4" },
+              "router": { "format": "ipv4" }
+            }
+          }
+        }
+      ]
     },
     "nodeSelector": {
       "type": "object",

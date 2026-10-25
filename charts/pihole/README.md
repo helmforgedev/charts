@@ -46,8 +46,8 @@ helm install pihole oci://ghcr.io/helmforgedev/helm/pihole \
 
 Every PR runs Kubescape against the rendered default manifests using the MITRE,
 NSA, and SOC2 frameworks. The authoritative score is posted on the PR. The
-chart drops all capabilities before adding only Pi-hole's required network
-capabilities, disables privilege escalation and API token mounting, uses
+chart drops all capabilities before adding only the official image's required
+runtime set, disables privilege escalation and API token mounting, uses
 runtime-default seccomp, pins images by digest, and creates an ingress
 NetworkPolicy. Root bootstrap and writable Pi-hole configuration remain
 documented upstream constraints.
@@ -228,6 +228,10 @@ listeners. DHCP remains on protocol-defined UDP port 67.
 | `serviceAccount.automountServiceAccountToken` | `false` | Keeps Kubernetes API tokens out of the pod unless explicitly needed |
 | `networkPolicy.enabled` | `true` | Restrict ingress to declared Pi-hole pod ports |
 | `networkPolicy.ingressFrom` | `[]` | Optional source peers; empty allows LAN and cluster clients |
+
+NetworkPolicy enforcement for `dhcp.hostNetwork: true` depends on the cluster
+network plugin. Verify host-network policy behavior and use node-level controls
+when the Pi-hole listeners must be restricted.
 
 ### Ingress
 
