@@ -152,10 +152,7 @@ Security Scan: Kubescape on rendered default manifests.
 
 | Framework | Score |
 | --- | --- |
-| MITRE | 100.00% |
-| NSA | 60.00% |
-| SOC2 | 80.00% |
-| Aggregate | 80.00% |
+| MITRE + NSA + SOC2 | 87.878784% |
 
 Resource requests and limits remain unset because sizing depends on archive and
 search load. The chart otherwise enables non-root execution, seccomp, dropped
