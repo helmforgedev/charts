@@ -63,8 +63,9 @@ Use ReadWriteMany storage for shared files, or operate plugins/themes/media thro
 
 ```mermaid
 flowchart LR
-  store[External secret store] -->|External Secrets Operator| es[ExternalSecret]
-  es --> secret[Kubernetes Secret<br/>admin, database, S3]
+  es[ExternalSecret<br/>secretStoreRef and target] -->|reconciled by| eso[External Secrets Operator]
+  eso -->|reads| store[(External secret store)]
+  eso -->|writes| secret[Kubernetes Secret<br/>admin, database, S3]
   secret --> wp[WordPress Deployment]
   secret --> backup[Backup CronJob]
 ```
