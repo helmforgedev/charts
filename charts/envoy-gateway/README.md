@@ -237,15 +237,13 @@ highAvailability:
 
 ### Certgen
 
+The certgen Job always runs as a pre-install and pre-upgrade hook to create the controller TLS certificates.
+
 | Key | Default | Description |
 |-----|---------|-------------|
-| `certgen.enabled` | `true` | Run certgen pre-install/pre-upgrade job for controller TLS certs |
 | `certgen.image.repository` | `docker.io/envoyproxy/gateway` | Certgen image (same as controller) |
 | `certgen.image.tag` | `v1.9.2` | Certgen image tag |
-| `certgen.resources.requests.cpu` | `10m` | CPU request |
-| `certgen.resources.requests.memory` | `64Mi` | Memory request |
-| `certgen.resources.limits.cpu` | `100m` | CPU limit |
-| `certgen.resources.limits.memory` | `128Mi` | Memory limit |
+| `certgen.image.pullPolicy` | `IfNotPresent` | Certgen image pull policy |
 
 ### Proxy (EnvoyProxy CRD)
 
@@ -263,19 +261,20 @@ highAvailability:
 | `proxy.shutdownManager.image.tag` | `v1.9.2` | Shutdown manager sidecar image tag |
 | `proxy.shutdownManager.image.pullPolicy` | `IfNotPresent` | Shutdown manager image pull policy |
 | `proxy.resources.requests.cpu` | `100m` | CPU request (overridden by profile) |
-| `proxy.resources.requests.memory` | `128Mi` | Memory request (overridden by profile) |
+| `proxy.resources.requests.memory` | `512Mi` | Memory request (overridden by profile) |
 | `proxy.resources.limits.cpu` | `1000m` | CPU limit (overridden by profile) |
-| `proxy.resources.limits.memory` | `1Gi` | Memory limit (overridden by profile) |
-| `proxy.service.type` | `LoadBalancer` | Service type for EG-provisioned proxy service |
-| `proxy.service.httpPort` | `80` | HTTP port |
-| `proxy.service.httpsPort` | `443` | HTTPS port |
+| `proxy.resources.limits.memory` | `2Gi` | Memory limit (overridden by profile) |
+| `proxy.service.type` | `LoadBalancer` | Service type for the EG-provisioned proxy Service |
 | `proxy.service.annotations` | `{}` | Service annotations |
-| `proxy.hpa.enabled` | `false` | Enable HPA for proxy (Deployment kind only) |
-| `proxy.hpa.minReplicas` | `2` | Minimum replicas for HPA |
-| `proxy.hpa.maxReplicas` | `10` | Maximum replicas for HPA |
-| `proxy.hpa.targetCPUUtilizationPercentage` | `80` | Target CPU utilization |
+| `proxy.autoscaling.enabled` | `false` | Enable HPA for proxy (Deployment kind only) |
+| `proxy.autoscaling.minReplicas` | `1` | Minimum replicas for HPA |
+| `proxy.autoscaling.maxReplicas` | `5` | Maximum replicas for HPA |
+| `proxy.autoscaling.targetCPUUtilizationPercentage` | `80` | Target CPU utilization |
 | `proxy.nodeSelector` | `{}` | Node selector for proxy pods |
 | `proxy.tolerations` | `[]` | Tolerations for proxy pods |
+| `proxy.affinity` | `{}` | Affinity rules for proxy pods |
+
+Proxy listener ports come from the Gateway listeners (`gateway.listeners.*.port`), not from `proxy.*`.
 
 ### Gateway
 
@@ -306,25 +305,36 @@ highAvailability:
 | `securityPolicy.oidc.clientSecret` | See values | Secret reference for OIDC client secret |
 | `securityPolicy.apiKey.enabled` | `false` | Enable API Key authentication |
 | `securityPolicy.cors.enabled` | `false` | Enable CORS policy |
-| `securityPolicy.cors.allowOrigins` | `[]` | Allowed CORS origins |
+| `securityPolicy.cors.allowOrigins` | `["*"]` | Allowed CORS origins; restrict to explicit origins in production |
+| `securityPolicy.cors.allowMethods` | `GET, POST, PUT, DELETE, OPTIONS` | Allowed CORS methods |
+| `securityPolicy.cors.allowHeaders` | `Authorization, Content-Type` | Allowed CORS headers |
+| `securityPolicy.cors.maxAge` | `86400` | CORS preflight cache in seconds |
 
 ### BackendTrafficPolicy
 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `backendTrafficPolicy.create` | `false` | Create a BackendTrafficPolicy resource |
-| `backendTrafficPolicy.retry.enabled` | `false` | Enable retry policy |
-| `backendTrafficPolicy.retry.numRetries` | `3` | Number of retries |
+| `backendTrafficPolicy.retries.enabled` | `false` | Enable retry policy |
+| `backendTrafficPolicy.retries.numRetries` | `3` | Number of retries |
+| `backendTrafficPolicy.retries.perTryTimeout` | `10s` | Timeout per retry attempt |
+| `backendTrafficPolicy.retries.retryOn` | `502, 503, 504`, `connect-failure`, `retriable-status-codes` | Retry status codes and triggers |
+| `backendTrafficPolicy.timeout.http.requestTimeout` | `60s` | Request timeout |
+| `backendTrafficPolicy.timeout.http.idleTimeout` | `60s` | Idle timeout |
 | `backendTrafficPolicy.circuitBreaker.enabled` | `false` | Enable circuit breaker |
-| `backendTrafficPolicy.timeout.request` | `""` | Request timeout (e.g., `30s`) |
+| `backendTrafficPolicy.healthCheck.active.enabled` | `false` | Enable active health checks |
 
 ### ClientTrafficPolicy
 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `clientTrafficPolicy.create` | `false` | Create a ClientTrafficPolicy resource |
-| `clientTrafficPolicy.connectionLimit.value` | `0` | Max concurrent connections (0 = unlimited) |
-| `clientTrafficPolicy.http2.enabled` | `false` | Enable HTTP/2 on listeners |
+| `clientTrafficPolicy.connection.connectionLimit.value` | `10000` | Max concurrent connections per listener |
+| `clientTrafficPolicy.tls.minVersion` / `maxVersion` | `TLSv1.2` / `TLSv1.3` | TLS version range |
+| `clientTrafficPolicy.http1.enableTrailers` | `true` | Allow HTTP/1.1 trailers |
+| `clientTrafficPolicy.http2.initialStreamWindowSize` | `64Ki` | HTTP/2 initial stream window |
+| `clientTrafficPolicy.http2.initialConnectionWindowSize` | `1Mi` | HTTP/2 initial connection window |
+| `clientTrafficPolicy.timeout.http.requestReceivedTimeout` | `10s` | Time to receive the full request |
 
 ### Gateway API Examples
 
@@ -597,6 +607,6 @@ This chart intentionally does not support:
 
 | Framework | Score |
 |---|---|
-| MITRE + NSA + SOC2 | **71.63059%** |
+| MITRE + NSA + SOC2 | **72.57576%** |
 
 > Security posture acceptable.
