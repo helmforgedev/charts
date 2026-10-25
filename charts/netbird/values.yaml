@@ -38,6 +38,15 @@ server:
   env: []
   # -- Additional envFrom sources such as Secret or ConfigMap references.
   envFrom: []
+  containerPorts:
+    # -- Internal HTTP/gRPC listener port. This changes the NetBird process listener; it is separate from server.service.httpPort.
+    http: 80
+    # -- Internal UDP STUN listener port. This changes server.stunPorts in the generated configuration.
+    stun: 3478
+    # -- Internal Prometheus metrics listener port.
+    metrics: 9090
+    # -- Internal health listener port used by optional server probes.
+    health: 9000
   probes:
     # -- Enable NetBird server health probes. Disabled by default because first boot can initialize geolocation data longer than default Helm wait timeouts.
     enabled: false
@@ -101,6 +110,9 @@ dashboard:
   env: []
   # -- Additional envFrom sources such as Secret or ConfigMap references.
   envFrom: []
+  containerPorts:
+    # -- Internal dashboard nginx listener port. Non-default values rewrite the official image's nginx listener before startup.
+    http: 80
   auth:
     # -- Dashboard OIDC client ID.
     clientId: netbird-dashboard
@@ -204,6 +216,8 @@ persistence:
   existingClaim: ""
   # -- Container data directory used by upstream NetBird.
   mountPath: /var/lib/netbird
+  # -- Size limit for the data emptyDir when persistence is disabled.
+  emptyDirSizeLimit: 1Gi
 
 serviceAccount:
   # -- Create a dedicated ServiceAccount.
@@ -266,8 +280,24 @@ probes:
     timeoutSeconds: 5
     failureThreshold: 6
 
-# -- Container resource requests and limits.
-resources: {}
+# -- Container resource requests and limits applied to both server and dashboard containers.
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+runtimeStorage:
+  # -- Size limit for the dashboard nginx state emptyDir.
+  nginxVarSizeLimit: 32Mi
+  # -- Size limit for dashboard nginx logs.
+  nginxLogsSizeLimit: 64Mi
+  # -- Size limit for dashboard nginx temporary files.
+  nginxTmpSizeLimit: 64Mi
+  # -- Size limit for dashboard runtime sockets and PID files.
+  nginxRunSizeLimit: 8Mi
 
 # -- Pod security context.
 podSecurityContext:
@@ -292,6 +322,8 @@ pdb:
   enabled: false
   # -- Minimum available pods during voluntary disruptions.
   minAvailable: 1
+  # -- Maximum unavailable pods during voluntary disruptions. Set null when minAvailable is used.
+  maxUnavailable: null
 
 networkPolicy:
   # -- Create a NetworkPolicy that restricts inbound traffic to NetBird.

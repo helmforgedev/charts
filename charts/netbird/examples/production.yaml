@@ -1,0 +1,58 @@
+# SPDX-License-Identifier: Apache-2.0
+server:
+  publicUrl: https://netbird.example.com
+  authSecret: replace-with-a-long-random-secret
+  auth:
+    issuer: https://netbird.example.com/oauth2
+  probes:
+    enabled: true
+
+database:
+  mode: postgresql
+
+postgresql:
+  enabled: true
+  auth:
+    database: netbird
+    username: netbird
+    password: replace-through-a-secret-management-workflow
+    postgresPassword: replace-through-a-secret-management-workflow
+
+persistence:
+  enabled: true
+  size: 20Gi
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  hosts:
+    - host: netbird.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: dashboard
+        - path: /api
+          pathType: Prefix
+          service: server
+        - path: /oauth2
+          pathType: Prefix
+          service: server
+        - path: /relay
+          pathType: Prefix
+          service: server
+  tls:
+    - secretName: netbird-tls
+      hosts:
+        - netbird.example.com
+
+networkPolicy:
+  enabled: true
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: traefik
+
+pdb:
+  enabled: true
+  minAvailable: 1
+  maxUnavailable: null
