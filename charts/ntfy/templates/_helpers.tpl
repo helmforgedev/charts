@@ -49,8 +49,8 @@
     {{- fail "ntfy: ntfy.extraEnv must not override NTFY_LISTEN_HTTP; use containerPorts.http" -}}
   {{- end -}}
 {{- end -}}
-{{- if regexMatch "(?m)^[[:space:]]*listen-http[[:space:]]*:" .Values.ntfy.extraConfig -}}
-  {{- fail "ntfy: ntfy.extraConfig must not override listen-http; use containerPorts.http" -}}
+{{- if regexMatch "(?m)^[[:space:]]*['\"]?listen[-_]http['\"]?[[:space:]]*:" .Values.ntfy.extraConfig -}}
+  {{- fail "ntfy: ntfy.extraConfig must not override listen-http/listen_http; use containerPorts.http" -}}
 {{- end -}}
 {{- range $key, $_ := .Values.podLabels -}}
   {{- if or (eq $key "app.kubernetes.io/name") (eq $key "app.kubernetes.io/instance") (eq $key "app.kubernetes.io/component") -}}

@@ -39,7 +39,8 @@ existing Secret.
 
 `networkPolicy.enabled` restricts ingress to the configured peers. Enabling
 `networkPolicy.egress.enabled` also isolates outbound traffic and permits DNS
-when requested. External PostgreSQL requires
+when requested through the configurable `networkPolicy.egress.dnsPeers` list.
+The default permits DNS in the `kube-system` namespace. External PostgreSQL requires
 `networkPolicy.egress.externalDatabaseCIDR`; all other integrations require
 explicit `networkPolicy.egress.extraEgress` rules.
 

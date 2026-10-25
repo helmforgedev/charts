@@ -38,11 +38,23 @@
 
 3. First notification
 ---------------------
+{{- if and .Values.gateway.enabled .Values.gateway.hostnames }}
   Publish:
-    curl -d "Hello from Kubernetes" http://localhost:2586/my-topic
+    curl -d "Hello from Kubernetes" https://{{ index .Values.gateway.hostnames 0 }}/my-topic
 
   Subscribe:
+    curl -s https://{{ index .Values.gateway.hostnames 0 }}/my-topic/json
+{{- else if and .Values.ingress.enabled .Values.ingress.hosts }}
+  Publish:
+    curl -d "Hello from Kubernetes" http{{ if .Values.ingress.tls }}s{{ end }}://{{ (index .Values.ingress.hosts 0).host }}/my-topic
+
+  Subscribe:
+    curl -s http{{ if .Values.ingress.tls }}s{{ end }}://{{ (index .Values.ingress.hosts 0).host }}/my-topic/json
+{{- else }}
+  Start the port-forward from section 2, then publish and subscribe locally:
+    curl -d "Hello from Kubernetes" http://localhost:2586/my-topic
     curl -s http://localhost:2586/my-topic/json
+{{- end }}
 
 4. Configuration summary
 ------------------------

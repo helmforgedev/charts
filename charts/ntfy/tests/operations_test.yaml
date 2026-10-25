@@ -45,6 +45,9 @@ tests:
           path: spec.egress[0].ports[0].port
           value: 53
       - equal:
+          path: 'spec.egress[0].to[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]'
+          value: kube-system
+      - equal:
           path: spec.egress[1].ports[0].port
           value: 5432
 
@@ -68,3 +71,23 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "ntfy: podDisruptionBudget.minAvailable and maxUnavailable are mutually exclusive"
+
+  - it: should allow custom cluster DNS peers
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+      networkPolicy.egress.dnsPeers:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: dns-system
+          podSelector:
+            matchLabels:
+              app: dns
+    asserts:
+      - equal:
+          path: 'spec.egress[0].to[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]'
+          value: dns-system
+      - equal:
+          path: spec.egress[0].to[0].podSelector.matchLabels.app
+          value: dns

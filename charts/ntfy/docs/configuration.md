@@ -188,6 +188,10 @@ networkPolicy:
           kubernetes.io/metadata.name: ingress-system
   egress:
     enabled: true
+    dnsPeers:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: kube-system
     externalDatabaseCIDR: 10.30.0.0/24
     extraEgress:
       - to:

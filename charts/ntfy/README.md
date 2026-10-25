@@ -319,7 +319,9 @@ enabled by default.
 NetworkPolicy is opt-in because allowed peers depend on the cluster. When
 egress isolation is enabled for an external PostgreSQL deployment,
 `networkPolicy.egress.externalDatabaseCIDR` is required. Add explicit egress
-rules for SMTP, web push, OIDC, S3, and any other external integration.
+rules for SMTP, web push, OIDC, S3, and any other external integration. The
+default DNS peer is the `kube-system` namespace; override
+`networkPolicy.egress.dnsPeers` when cluster DNS runs elsewhere.
 
 Keep credentials in existing Secrets or use External Secrets Operator. Inline
 secret values are convenient for development but remain visible in Helm release
