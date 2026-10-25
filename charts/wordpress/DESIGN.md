@@ -31,52 +31,29 @@ integration. It supports the bundled HelmForge MySQL dependency or an external M
 
 ## Default Architecture
 
-```text
-User
-  |
-  | port-forward or Service
-  v
-+-------------------+        +----------------------+
-| WordPress Service | -----> | WordPress Deployment |
-+-------------------+        | official apache img  |
-                             | /var/www/html PVC    |
-                             +----------+-----------+
-                                        |
-                                        | TCP 3306
-                                        v
-                             +----------------------+
-                             | HelmForge MySQL      |
-                             | StatefulSet + PVC    |
-                             +----------------------+
+```mermaid
+flowchart LR
+  user[User] -->|port-forward or Service| svc[WordPress Service]
+  svc --> deploy[WordPress Deployment<br/>official Apache image]
+  deploy --> pvc[(/var/www/html PVC)]
+  deploy -->|TCP 3306| mysql[HelmForge MySQL<br/>StatefulSet]
+  mysql --> mysqlpvc[(MySQL PVC)]
 ```
 
 This mode is useful for development, previews, and small internal installs. Credentials can be generated or supplied through values.
 
 ## Production Architecture With External Database
 
-```text
-Internet
-  |
-  v
-+-------------------+       +-------------------+
-| Gateway / Ingress | ----> | WordPress Service |
-+-------------------+       +---------+---------+
-                                      |
-                                      v
-                           +----------------------+
-                           | WordPress Deployment |
-                           | HPA optional         |
-                           | PDB optional         |
-                           | wp-cron CronJob      |
-                           +----------+-----------+
-                                      |
-               +----------------------+------------------+
-               |                                         |
-               v                                         v
-    +----------------------+                 +----------------------+
-    | RWX shared storage   |                 | External MySQL or    |
-    | or object media flow |                 | managed MariaDB      |
-    +----------------------+                 +----------------------+
+```mermaid
+flowchart LR
+  internet[Internet] --> edge[Gateway API or Ingress]
+  edge --> svc[WordPress Service]
+  svc --> deploy[WordPress Deployment]
+  hpa[HPA optional] -.-> deploy
+  pdb[PDB optional] -.-> deploy
+  cron[wp-cron CronJob] -->|HTTP wp-cron.php| svc
+  deploy --> content[(RWX shared storage<br/>or object media flow)]
+  deploy --> db[(External MySQL<br/>or managed MariaDB)]
 ```
 
 For more than one WordPress replica, the content strategy must be explicit.
@@ -84,20 +61,12 @@ Use ReadWriteMany storage for shared files, or operate plugins/themes/media thro
 
 ## Secrets Architecture
 
-```text
-External secret store
-  |
-  | External Secrets Operator
-  v
-+----------------+       +----------------------+
-| ExternalSecret | ----> | Kubernetes Secret    |
-+----------------+       | admin/database/S3    |
-                         +----------+-----------+
-                                    |
-                                    v
-                         +----------------------+
-                         | WordPress / Backup   |
-                         +----------------------+
+```mermaid
+flowchart LR
+  store[External secret store] -->|External Secrets Operator| es[ExternalSecret]
+  es --> secret[Kubernetes Secret<br/>admin, database, S3]
+  secret --> wp[WordPress Deployment]
+  secret --> backup[Backup CronJob]
 ```
 
 External Secrets is optional. Native Secrets remain available for development and simple clusters.
@@ -105,23 +74,11 @@ The chart prevents using an existing Secret and an ExternalSecret for the same c
 
 ## Plugin Installer Architecture
 
-```text
-Helm post-install/post-upgrade
-  |
-  v
-+----------------------+
-| Plugin Installer Job |
-| wordpress:cli        |
-+----------+-----------+
-           |
-           | official slug or verified ZIP
-           | mounts same PVC
-           v
-+----------------------+
-| WordPress files      |
-| wp-content/plugins   |
-| object-cache.php     |
-+----------------------+
+```mermaid
+flowchart LR
+  hook[Helm post-install or post-upgrade] --> job[Plugin Installer Job<br/>wordpress:cli]
+  source[WordPress.org slug or<br/>verified HTTPS ZIP] --> job
+  job -->|mounts the same PVC| files[(WordPress files<br/>wp-content/plugins<br/>object-cache.php)]
 ```
 
 The installer is idempotent. It checks whether each plugin exists before downloading or installing it and activates
@@ -151,23 +108,14 @@ HelmForge provides an example pipeline but does not publish application-specific
 
 ## Bootstrap Architecture
 
-```text
-Helm post-install/post-upgrade
-  |
-  v
-+----------------------+
-| Bootstrap Job        |
-| wordpress:cli        |
-+----------+-----------+
-           |
-           | waits for wp-config.php
-           | wp core is-installed
-           | wp core install / multisite-install
-           v
-+----------------------+
-| WordPress database   |
-| admin/site settings  |
-+----------------------+
+```mermaid
+flowchart LR
+  hook[Helm post-install or post-upgrade] --> job[Bootstrap Job<br/>wordpress:cli]
+  job -->|waits for wp-config.php| files[(WordPress files PVC)]
+  job --> check{wp core is-installed}
+  check -->|yes| done[Exit successfully]
+  check -->|no| install[wp core install or<br/>multisite-install]
+  install --> db[(WordPress database<br/>admin and site settings)]
 ```
 
 The official WordPress image prepares files and `wp-config.php`, but it does not create the initial site.
@@ -180,23 +128,11 @@ Service URL in WordPress options.
 
 ## Object Cache Architecture
 
-```text
-WordPress Deployment
-  |
-  | provider-specific constants
-  | object-cache.php drop-in or plugin wiring
-  v
-+----------------------------+
-| WordPress object cache     |
-| redis or memcached backend |
-+------------+---------------+
-             |
-             | TCP 6379 / 11211
-             v
-+----------------------------+
-| HelmForge Redis/Memcached |
-| or external cache service |
-+----------------------------+
+```mermaid
+flowchart LR
+  wp[WordPress Deployment] -->|provider constants and<br/>object-cache.php drop-in| cache[WordPress object cache<br/>redis or memcached backend]
+  cache -->|TCP 6379| redis[HelmForge Redis<br/>or external Redis]
+  cache -->|TCP 11211| memcached[HelmForge Memcached<br/>or external Memcached]
 ```
 
 Redis integration is considered functional only when the drop-in exists and Redis receives cache keys after WordPress requests. A running Redis pod alone is not enough.
@@ -206,12 +142,15 @@ requires a custom image or an explicit acknowledgement before rendering that pro
 
 ## Routing Architecture
 
-```text
-Gateway API path
-Client -> Gateway -> HTTPRoute -> Service -> WordPress Pod
-
-Ingress path
-Client -> Ingress Controller -> Ingress -> Service -> WordPress Pod
+```mermaid
+flowchart LR
+  client[Client] --> gateway[Gateway]
+  gateway --> route[HTTPRoute]
+  client --> controller[Ingress controller]
+  controller --> ingress[Ingress]
+  route --> svc[WordPress Service]
+  ingress --> svc
+  svc --> pod[WordPress Pod]
 ```
 
 Gateway API is preferred for clusters that already standardize on Gateway resources. Ingress remains supported for broad compatibility.
@@ -260,12 +199,12 @@ decisions but does not operate external databases, object stores, ingress contro
 
 ## Backup Model
 
-```text
-Backup CronJob
-  |
-  +-- mysqldump database -> sql.gz
-  +-- archive wp-content -> tar.gz
-  +-- upload both artifacts -> S3-compatible bucket
+```mermaid
+flowchart LR
+  cron[Backup CronJob] -->|mysqldump| sql[database sql.gz]
+  cron -->|tar wp-content| archive[wp-content tar.gz]
+  sql --> s3[(S3-compatible bucket)]
+  archive --> s3
 ```
 
 The backup CronJob is designed as a practical baseline, not a full disaster recovery program.
