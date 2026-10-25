@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Uptime Kuma Helm Chart
 
 Deploy [Uptime Kuma](https://uptime.kuma.pet) on Kubernetes using the official
@@ -16,7 +18,22 @@ Self-hosted monitoring with HTTP/TCP/DNS/Ping checks, 90+ notification services,
 - **Gateway API support** — optional HTTPRoute rendering for dashboard and status pages
 - **External Secrets support** — optional ExternalSecret resources for database, backup, or integration credentials
 - **Dual-stack Service support** — optional `ipFamilyPolicy` and `ipFamilies`
+- **Secure runtime defaults** — seccomp, dropped capabilities, read-only root filesystem, and no API token mount
+- **Availability controls** — optional PodDisruptionBudget and NetworkPolicy
 - **2FA** — built-in two-factor authentication
+
+## Architecture
+
+The chart runs one Uptime Kuma application pod behind a ClusterIP Service. The
+application stores state either on the `/app/data` PVC (SQLite) or in a bundled
+or external MariaDB-compatible database. Optional Ingress and HTTPRoute
+resources expose the Service. A separate CronJob can archive SQLite data or run
+`mysqldump`, then upload the result to S3-compatible storage.
+
+Uptime Kuma is intentionally single-replica: horizontal scaling duplicates
+monitor execution and WebSocket state. The optional PodDisruptionBudget protects
+that pod from voluntary disruption but does not make the application highly
+available.
 
 ## Installation
 
@@ -50,7 +67,7 @@ kubectl port-forward svc/<release>-uptime-kuma 3001:80
 
 ## MariaDB Mode
 
-The optional local database path uses the HelmForge MySQL subchart `2.0.3`
+The optional local database path uses the HelmForge MySQL subchart `2.1.1`
 as a MariaDB-compatible backend.
 
 ```yaml
@@ -129,7 +146,7 @@ externalSecrets:
 | `image.tag` | `2.5.6` | Uptime Kuma image tag |
 | `uptimeKuma.port` | `3001` | Application port |
 | `database.type` | `sqlite` | Database type (sqlite, mariadb) |
-| `mysql.enabled` | `false` | Deploy MySQL subchart (`helmforge/mysql` `2.1.0`) |
+| `mysql.enabled` | `false` | Deploy MySQL subchart (`helmforge/mysql` `2.1.1`) |
 | `persistence.enabled` | `true` | Enable persistence for /app/data |
 | `persistence.size` | `2Gi` | PVC size |
 | `ingress.enabled` | `false` | Enable ingress |
@@ -138,6 +155,82 @@ externalSecrets:
 | `service.ipFamilyPolicy` | omitted | Optional Service IP family policy for dual-stack clusters |
 | `gatewayAPI.enabled` | `false` | Enable Gateway API HTTPRoute rendering |
 | `externalSecrets.enabled` | `false` | Render ExternalSecret resources |
+| `serviceAccount.automountServiceAccountToken` | `false` | Mount the Kubernetes API token |
+| `runtimeStorage.tmpSizeLimit` | `256Mi` | Writable `/tmp` emptyDir limit |
+| `podDisruptionBudget.enabled` | `false` | Render a PodDisruptionBudget |
+| `networkPolicy.enabled` | `false` | Render an explicit NetworkPolicy |
+| `image.pullPolicy` | `IfNotPresent` | Container image pull policy |
+| `uptimeKuma.disableFrameSameOrigin` | `false` | Allow cross-origin iframe embedding |
+| `uptimeKuma.extraEnv` | `[]` | Additional application environment variables |
+| `database.external.host` | `""` | External MariaDB-compatible hostname |
+| `database.external.port` | `"3306"` | External database port |
+| `database.external.name` | `uptime_kuma` | External database name |
+| `database.external.username` | `uptime_kuma` | External database user |
+| `database.external.existingSecret` | `""` | Secret containing the external database password |
+| `persistence.storageClass` | `""` | PVC StorageClass; empty uses the cluster default |
+| `persistence.accessModes` | `[ReadWriteOnce]` | PVC access modes |
+| `persistence.existingClaim` | `""` | Existing PVC used for `/app/data` |
+| `serviceAccount.create` | `false` | Create a dedicated ServiceAccount |
+| `serviceAccount.name` | `""` | Existing or generated ServiceAccount name override |
+| `ingress.ingressClassName` | `traefik` | Ingress controller class |
+| `ingress.hosts` | `[]` | Ingress host and path rules |
+| `ingress.tls` | `[]` | Ingress TLS configuration |
+| `probes.startup.enabled` | `true` | Enable the startup probe |
+| `probes.liveness.enabled` | `true` | Enable the liveness probe |
+| `probes.readiness.enabled` | `true` | Enable the readiness probe |
+| `resources` | `{}` | Application CPU and memory requests/limits |
+| `podSecurityContext` | RuntimeDefault seccomp | Pod-level security context |
+| `securityContext` | Restricted defaults | Application container security context |
+| `terminationGracePeriodSeconds` | `30` | Graceful termination window |
+| `nodeSelector` | `{}` | Pod node selector |
+| `tolerations` | `[]` | Pod tolerations |
+| `affinity` | `{}` | Pod affinity and anti-affinity rules |
+| `topologySpreadConstraints` | `[]` | Pod topology spread constraints |
+| `backup.schedule` | `0 2 * * *` | Backup CronJob schedule |
+| `backup.concurrencyPolicy` | `Forbid` | Concurrent backup execution policy |
+| `backup.tmpSizeLimit` | `64Mi` | Backup temporary-storage limit |
+| `backup.s3.endpoint` | `""` | Required S3-compatible endpoint when backup is enabled |
+| `backup.s3.bucket` | `""` | Required backup bucket |
+| `backup.s3.existingSecret` | `""` | Secret containing S3 credentials |
+| `podDisruptionBudget.minAvailable` | `1` | Minimum available pod during voluntary disruptions |
+| `podDisruptionBudget.maxUnavailable` | `null` | Alternative maximum unavailable value |
+| `networkPolicy.ingress` | `[]` | Complete ingress rules; empty denies ingress |
+| `networkPolicy.egress` | `[]` | Complete egress rules; empty denies egress |
+| `gatewayAPI.httpRoutes` | `[]` | HTTPRoute definitions |
+| `externalSecrets.items` | `[]` | ExternalSecret resources with complete specs |
+| `extraVolumes` | `[]` | Additional application volumes |
+| `extraVolumeMounts` | `[]` | Additional application volume mounts |
+| `extraManifests` | `[]` | Additional Kubernetes manifests |
+
+## Security and Operations
+
+The application and backup containers deny privilege escalation, drop all Linux
+capabilities, use the runtime-default seccomp profile, and keep the image root
+filesystem read-only. Writable temporary files use bounded `emptyDir` volumes.
+Kubernetes API tokens are not mounted unless explicitly enabled. Database value
+changes update the pod checksum annotation so credential rotations trigger a
+rollout.
+
+The upstream standard image still starts as UID 0, so the chart does not claim a
+non-root runtime. Use admission policy, network isolation, resource limits, and
+tested backups as complementary controls. When enabling `networkPolicy`, define
+the ingress and egress rules required for your ingress controller, DNS, monitor
+targets, notification endpoints, database, and S3 service.
+
+## Troubleshooting
+
+- Pod startup failures: inspect all container logs and verify `/app/data` is
+  writable, the PVC is bound, and the selected database is reachable.
+- MariaDB failures: confirm `database.type=mariadb`, provide either the bundled
+  MySQL password or an external database Secret, and check the `wait-for-db`
+  init container.
+- Backup failures: inspect the backup Job, verify S3 endpoint/bucket credentials,
+  and confirm persistence remains enabled for SQLite backups.
+- NetworkPolicy failures: start from the required DNS, database, S3, notification,
+  monitor-target, and ingress-controller flows; empty rule lists deny that
+  direction.
+- Upgrade failures: restore the last tested backup in a non-production namespace
+  before retrying the upgrade.
 
 ## Upgrade Notes
 

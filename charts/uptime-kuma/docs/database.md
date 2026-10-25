@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Database Configuration
 
 Uptime Kuma supports two database backends: SQLite (default) and MariaDB (v2.0+).
@@ -18,7 +20,7 @@ persistence:
 
 ## MariaDB via MySQL Subchart
 
-Use the HelmForge MySQL subchart `2.0.3` as a MariaDB-compatible backend:
+Use the HelmForge MySQL subchart `2.1.1` as a MariaDB-compatible backend:
 
 ```yaml
 database:
@@ -96,6 +98,10 @@ Keep `database.external.existingSecret` pointed at the same target Secret to avo
 ## Migration
 
 Uptime Kuma does not provide built-in migration between SQLite and MariaDB. Choose your database backend before first deployment.
+
+The chart fails rendering when MariaDB mode has neither the bundled subchart nor
+an external host and credential source. It also rejects the MySQL subchart in
+SQLite mode so an unused stateful dependency is not installed accidentally.
 
 <!-- @AI-METADATA
 @description: Database configuration guide for the Uptime Kuma Helm chart

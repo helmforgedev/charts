@@ -13,6 +13,32 @@ tests:
       - equal:
           path: metadata.name
           value: test-uptime-kuma
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: default
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: runtime-tmp
+            mountPath: /tmp
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/secret"]
+          pattern: "^[a-f0-9]{64}$"
 
   - it: should use Recreate strategy
     asserts:
@@ -96,6 +122,15 @@ tests:
       - equal:
           path: spec.template.spec.initContainers[0].name
           value: wait-for-db
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - contains:
+          path: spec.template.spec.initContainers[0].securityContext.capabilities.drop
+          content: ALL
 
   - it: should set external database host when subchart is disabled
     set:
@@ -197,3 +232,41 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].resources.requests.cpu
           value: 100m
+
+  - it: should not declare the default tmp volume when a user volume replaces its name
+    set:
+      extraVolumes:
+        - name: runtime-tmp
+          emptyDir:
+            sizeLimit: 1Gi
+      extraVolumeMounts:
+        - name: runtime-tmp
+          mountPath: /tmp
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[1].emptyDir.sizeLimit
+          value: 1Gi
+      - lengthEqual:
+          path: spec.template.spec.volumes
+          count: 2
+
+  - it: should keep the bounded tmp volume when a different user volume mounts at tmp
+    set:
+      extraVolumes:
+        - name: custom-tmp
+          emptyDir: {}
+      extraVolumeMounts:
+        - name: custom-tmp
+          mountPath: /tmp
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: runtime-tmp
+            emptyDir:
+              sizeLimit: 256Mi
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: runtime-tmp
+            mountPath: /tmp

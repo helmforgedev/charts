@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Operational Policies
+templates:
+  - templates/networkpolicy.yaml
+  - templates/pdb.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render a NetworkPolicy by default
+    template: templates/networkpolicy.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render configured NetworkPolicy rules
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.ingress:
+        - from:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: ingress-system
+          ports:
+            - protocol: TCP
+              port: 3001
+      networkPolicy.egress:
+        - {}
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: spec.podSelector.matchLabels["app.kubernetes.io/name"]
+          value: uptime-kuma
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 3001
+      - equal:
+          path: spec.egress[0]
+          value: {}
+
+  - it: should not render a PodDisruptionBudget by default
+    template: templates/pdb.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render a PodDisruptionBudget when enabled
+    template: templates/pdb.yaml
+    set:
+      podDisruptionBudget.enabled: true
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: spec.minAvailable
+          value: 1
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/name"]
+          value: uptime-kuma
