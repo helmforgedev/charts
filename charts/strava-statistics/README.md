@@ -76,7 +76,10 @@ strava:
   refreshToken: replace-me
 ```
 
-The `mock-*` defaults exist only so the chart can be rendered and tested. Never use them in a production installation.
+When `dreeve.appSecret` is empty, the chart generates a 64-character value and reuses the value stored in the live
+Secret during upgrades. Set `dreeve.appSecret` or `dreeve.existingSecret` explicitly for reproducible GitOps and offline
+rendering. The `mock-*` Strava defaults exist only so the chart can be rendered and tested. Never use them in a
+production installation.
 
 ## Existing Secrets
 
@@ -160,7 +163,7 @@ For production:
 | `image.tag` | `v5.6.2` | Pinned Dreeve release |
 | `dreeve.appUrl` | `http://localhost:8080` | Public root URL |
 | `dreeve.importMode` | `stravaApi` | `stravaApi` or `files` |
-| `dreeve.appSecret` | `mock-app-secret` | Admin-session signing secret; replace in production |
+| `dreeve.appSecret` | `""` | Admin-session signing secret; generated and preserved when empty |
 | `dreeve.adminPasswordHash` | `""` | Bcrypt admin password hash |
 | `dreeve.existingSecret` | `""` | Existing Secret for Dreeve runtime secrets |
 | `strava.clientId` | `mock-client-id` | Validation-only Strava client ID default |

@@ -191,7 +191,4 @@ Validation helper
     {{- fail "strava-statistics: strava.existingSecret must be set or strava.clientId, strava.clientSecret, and strava.refreshToken must be provided" -}}
   {{- end -}}
 {{- end -}}
-{{- if and (not .Values.dreeve.existingSecret) (not .Values.dreeve.appSecret) -}}
-  {{- fail "strava-statistics: dreeve.existingSecret or dreeve.appSecret must be provided" -}}
-{{- end -}}
 {{- end -}}

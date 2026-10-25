@@ -50,13 +50,16 @@ Before upgrading, read the upstream release notes, verify the image manifest, an
 ```bash
 helm upgrade <release> oci://ghcr.io/helmforgedev/helm/strava-statistics \
   --namespace <namespace> \
-  --reuse-values \
+  --reset-then-reuse-values \
+  --values reviewed-values.yaml \
   --wait \
   --timeout 10m
 ```
 
-Afterward, confirm the image tag, both containers, migration logs, daemon logs, admin login, and an import. Do not roll
-back across a database migration until upstream compatibility is confirmed; prefer restoring the pre-upgrade snapshot.
+Review and reapply the installation's user overrides in `reviewed-values.yaml`; do not carry the previous chart's
+coalesced defaults forward. Afterward, confirm the image tag, both containers, migration logs, daemon logs, admin login,
+and an import. Do not roll back across a database migration until upstream compatibility is confirmed; prefer restoring
+the pre-upgrade snapshot.
 
 ## Capacity
 
