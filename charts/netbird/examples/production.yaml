@@ -6,6 +6,9 @@ server:
     issuer: https://netbird.example.com/oauth2
   probes:
     enabled: true
+  service:
+    annotations:
+      traefik.ingress.kubernetes.io/service.serversscheme: h2c
 
 database:
   mode: postgresql
@@ -40,6 +43,15 @@ ingress:
         - path: /relay
           pathType: Prefix
           service: server
+        - path: /signalexchange.SignalExchange/
+          pathType: Prefix
+          service: server
+        - path: /management.ManagementService/
+          pathType: Prefix
+          service: server
+        - path: /ws-proxy/
+          pathType: Prefix
+          service: server
   tls:
     - secretName: netbird-tls
       hosts:
@@ -51,6 +63,9 @@ networkPolicy:
     - namespaceSelector:
         matchLabels:
           kubernetes.io/metadata.name: traefik
+  stunIngressFrom:
+    - ipBlock:
+        cidr: 203.0.113.0/24
 
 pdb:
   enabled: true

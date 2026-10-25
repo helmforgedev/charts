@@ -48,11 +48,14 @@ image with representative peers, and upgrade with explicit values:
 ```bash
 helm upgrade netbird helmforge/netbird \
   --namespace netbird \
-  --reset-then-reuse-values
+  --reset-then-reuse-values \
+  --set server.image.tag=0.81.3
 ```
 
-`--reuse-values` alone retains a previously explicit image tag. A rollback must use state compatible with the older
-NetBird version; restore the pre-upgrade database and PVC snapshot if upstream migrations are not backward compatible.
+`--reset-then-reuse-values` also reapplies a previously explicit image tag, so set the intended tag as shown or remove
+the stale override and reapply required values from a reviewed file. `--reuse-values` alone has the same risk. A rollback
+must use state compatible with the older NetBird version; restore the pre-upgrade database and PVC snapshot if upstream
+migrations are not backward compatible.
 
 ## Disruption budgets and node drains
 
@@ -62,9 +65,10 @@ For a planned maintenance window, scale a database-backed server topology approp
 
 ## Non-default listeners
 
-Use `server.containerPorts` and `dashboard.containerPorts.http` to change actual process listeners. Service ports remain
-independent and continue targeting the named pod ports. After any override, validate inside the pod and through the
-Service; do not infer success from rendered Deployment metadata alone.
+Use `server.containerPorts` and `dashboard.containerPorts.http` to change actual process listeners. HTTP, metrics, health,
+and dashboard Service ports remain independent and continue targeting named pod ports. The STUN Service port must match
+`server.containerPorts.stun` because NetBird advertises the configured listener port to peers. After any override,
+validate inside the pod and through the Service; do not infer success from rendered Deployment metadata alone.
 
 ## Incident triage
 

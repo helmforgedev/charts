@@ -78,6 +78,7 @@ both contracts remain synchronized.
 | `resources.limits.memory` | `256Mi` | Default memory limit for both application containers. |
 | `serviceAccount.automountServiceAccountToken` | `false` | Keep Kubernetes API credentials out of pods. |
 | `networkPolicy.enabled` | `false` | Isolate inbound traffic; egress activates with extra rules. |
+| `networkPolicy.stunIngressFrom` | `[]` | Optional UDP STUN peers, separate from HTTP-facing ingress peers. |
 | `pdb.enabled` | `false` | Render disruption budgets for server and dashboard. |
 | `externalSecrets.enabled` | `false` | Render External Secrets Operator resources. |
 

@@ -313,6 +313,9 @@ Validate chart values.
 {{- if ne (len (uniq $serverPorts)) (len $serverPorts) -}}
 {{- fail "server.containerPorts.http, stun, metrics, and health must use distinct ports" -}}
 {{- end -}}
+{{- if ne (int .Values.server.containerPorts.stun) (int .Values.server.service.stunPort) -}}
+{{- fail "server.containerPorts.stun must equal server.service.stunPort because NetBird advertises the STUN listener port" -}}
+{{- end -}}
 {{- if and .Values.pdb.enabled (ne .Values.pdb.minAvailable nil) (ne .Values.pdb.maxUnavailable nil) -}}
 {{- fail "pdb.minAvailable and pdb.maxUnavailable are mutually exclusive" -}}
 {{- end -}}

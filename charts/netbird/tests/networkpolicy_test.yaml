@@ -17,6 +17,27 @@ tests:
       - notContains:
           path: spec.policyTypes
           content: Egress
+      - notContains:
+          path: spec.ingress[0].ports
+          content:
+            protocol: UDP
+            port: stun-udp
+      - equal:
+          path: spec.ingress[1].from[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: ingress-system
+  - it: isolates direct STUN peers from HTTP-facing ingress peers
+    values:
+      - networkpolicy-stun-values.yaml
+    asserts:
+      - equal:
+          path: spec.ingress[0].from[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: traefik
+      - equal:
+          path: spec.ingress[1].from[0].ipBlock.cidr
+          value: 203.0.113.0/24
+      - equal:
+          path: spec.ingress[1].ports[0].port
+          value: stun-udp
   - it: enables egress isolation when extraEgress is configured
     values:
       - networkpolicy-extra-egress-values.yaml
