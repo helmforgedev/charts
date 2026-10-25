@@ -1,91 +1,126 @@
-# Statistics for Strava Helm Chart
+<!-- SPDX-License-Identifier: Apache-2.0 -->
 
-Deploy [Statistics for Strava](https://github.com/robiningelbrecht/statistics-for-strava) on Kubernetes using the official
-[robiningelbrecht/strava-statistics](https://hub.docker.com/r/robiningelbrecht/strava-statistics) container image.
-Self-hosted fitness dashboard that visualizes your Strava activities with beautiful statistics, powered by SQLite.
+# Dreeve Helm Chart
+
+Deploy [Dreeve](https://github.com/dreeveapp/dreeve), formerly Statistics for Strava, on Kubernetes with the official
+`robiningelbrecht/dreeve` image. Dreeve is a self-hosted fitness dashboard backed by SQLite and supports activity-file
+imports or the Strava API.
 
 ## Features
 
-- **Strava OAuth** — connects to your Strava account via OAuth credentials
-- **SQLite embedded** — no external database needed
-- **Persistent storage** — SQLite database and files on PVC
-- **Timezone support** — configurable timezone for activity display
-- **Ingress support** — TLS with cert-manager
-- **Gateway API support** — optional HTTPRoute rendering for modern ingress controllers
-- **External Secrets support** — optional ExternalSecret resources for Strava credentials
-- **Dual-stack Service support** — optional `ipFamilyPolicy` and `ipFamilies`
+- Official Dreeve image pinned to a released version
+- Web application and mandatory daemon in one pod, sharing the SQLite database
+- Persistent database, build cache, uploaded files, gear assets, and watch directory
+- File-import and Strava API modes
+- Admin credentials and runtime secrets from chart-managed or existing Secrets
+- Optional External Secrets, Ingress, Gateway API, NetworkPolicy, and PodDisruptionBudget resources
+- Non-root execution, read-only root filesystems, RuntimeDefault seccomp, and disabled service account token mounting
+- Startup, readiness, and liveness probes based on the upstream runtime contracts
+
+## Architecture
+
+```mermaid
+flowchart LR
+  user[User] --> edge[Ingress or HTTPRoute]
+  edge --> service[Service]
+  service --> app[Dreeve web container]
+  daemon[Dreeve daemon container] --> sqlite[(SQLite database)]
+  app --> sqlite
+  app --> data[(Persistent data volume)]
+  daemon --> data
+  app --> secret[Dreeve and Strava Secrets]
+  daemon --> secret
+  eso[External Secrets Operator] -. optional .-> secret
+```
+
+The Deployment uses `Recreate` and one replica. The web and daemon containers remain in the same pod so an RWO volume
+can safely back SQLite without concurrent replicas.
 
 ## Installation
 
-**HTTPS repository:**
+### HTTPS Repository
 
 ```bash
 helm repo add helmforge https://repo.helmforge.dev
 helm repo update
-helm install strava-statistics helmforge/strava-statistics -f values.yaml
+helm install dreeve helmforge/strava-statistics -f values.yaml
 ```
 
-**OCI registry:**
+### OCI Registry
 
 ```bash
-helm install strava-statistics oci://ghcr.io/helmforgedev/helm/strava-statistics -f values.yaml
+helm install dreeve oci://ghcr.io/helmforgedev/helm/strava-statistics -f values.yaml
 ```
 
-## Basic Example
+## Configuration Examples
 
-```yaml
-# values.yaml
-strava:
-  clientId: "YOUR_STRAVA_CLIENT_ID"
-  clientSecret: "YOUR_STRAVA_CLIENT_SECRET"
-  refreshToken: "YOUR_STRAVA_REFRESH_TOKEN"
-```
-
-After deploying:
+Create an admin password hash with the same image version before production installation:
 
 ```bash
-kubectl port-forward svc/<release>-strava-statistics 8080:80
-# Open http://localhost:8080
+docker run --rm -it --entrypoint bin/console robiningelbrecht/dreeve:v5.6.2 security:hash-password
 ```
 
-## Using an Existing Secret
+Then provide unique application secrets and, when using `stravaApi`, Strava credentials:
 
 ```yaml
+dreeve:
+  appUrl: https://dreeve.example.com
+  appSecret: replace-with-a-long-random-value
+  adminUsername: admin
+  adminPasswordHash: '$2y$13$replace-with-the-generated-bcrypt-hash'
+  importMode: stravaApi
+
 strava:
-  existingSecret: my-strava-secret
+  clientId: "12345"
+  clientSecret: replace-me
+  refreshToken: replace-me
+```
+
+The `mock-*` defaults exist only so the chart can be rendered and tested. Never use them in a production installation.
+
+## Existing Secrets
+
+Keep Dreeve and Strava credentials in separate existing Secrets:
+
+```yaml
+dreeve:
+  existingSecret: dreeve-runtime
+  existingSecretAppSecretKey: app-secret
+  existingSecretAdminPasswordHashKey: admin-password-hash
+  existingSecretApiKeyKey: api-key
+
+strava:
+  existingSecret: strava-credentials
   existingSecretClientIdKey: client-id
   existingSecretClientSecretKey: client-secret
   existingSecretRefreshTokenKey: refresh-token
 ```
 
-## External Secrets
+The API key is optional. If its key is absent, Dreeve keeps the activity-upload API closed.
+
+## File Import Mode
+
+File mode does not require Strava credentials:
 
 ```yaml
-externalSecrets:
-  enabled: true
-  items:
-    - name: strava
-      storeRef:
-        name: platform-secrets
-        kind: ClusterSecretStore
-      targetName: strava-credentials
-      data:
-        - secretKey: client-id
-          remoteRef:
-            key: strava/oauth
-            property: client-id
-        - secretKey: client-secret
-          remoteRef:
-            key: strava/oauth
-            property: client-secret
-        - secretKey: refresh-token
-          remoteRef:
-            key: strava/oauth
-            property: refresh-token
+dreeve:
+  importMode: files
+  appUrl: https://dreeve.example.com
+  appSecret: replace-with-a-long-random-value
+  adminPasswordHash: '$2y$13$replace-with-the-generated-bcrypt-hash'
 
 strava:
-  existingSecret: strava-credentials
+  clientId: ""
+  clientSecret: ""
+  refreshToken: ""
 ```
+
+Both containers mount the shared watch directory at `/var/www/watch`.
+
+## External Secrets
+
+`externalSecrets.items` can create either or both existing Secrets. See
+[`examples/external-secrets.yaml`](examples/external-secrets.yaml) for a reusable mapping.
 
 ## Gateway API
 
@@ -98,84 +133,124 @@ gatewayAPI:
         - name: public
           namespace: gateway-system
       hostnames:
-        - strava.example.com
+        - dreeve.example.com
 ```
+
+## Security
+
+The default pod runs as numeric UID/GID `82`, uses `RuntimeDefault` seccomp, and mounts writable paths through bounded
+PVC or `emptyDir` volumes. Both application containers use read-only root filesystems and disable privilege escalation.
+The web container adds only `NET_BIND_SERVICE`, which is required by the upstream FrankenPHP binary capability and is
+the sole capability permitted by the Kubernetes Restricted Pod Security Standard.
+
+For production:
+
+- replace all mock secrets or use existing Secrets/External Secrets;
+- set `dreeve.appUrl` to the public root URL and terminate TLS at Ingress or Gateway;
+- restrict the admin route with `dreeve.adminAllowedIps` or an edge access policy;
+- enable and configure `networkPolicy` only after declaring required ingress, DNS, Strava, map, and integration egress;
+- snapshot the PVC before upgrades and test recovery;
+- keep the single-replica `Recreate` strategy because SQLite is single-writer.
 
 ## Key Values
 
 | Key | Default | Description |
-|-----|---------|-------------|
-| `image.tag` | `v5.0.0` | Dreeve image tag |
-| `strava.port` | `8080` | Application port |
-| `strava.clientId` | `""` | Strava OAuth Client ID |
-| `strava.clientSecret` | `""` | Strava OAuth Client Secret |
-| `strava.refreshToken` | `""` | Strava Refresh Token |
-| `strava.existingSecret` | `""` | Use existing secret for credentials |
-| `strava.timezone` | `UTC` | Timezone |
-| `strava.config` | See `values.yaml` | Application `config.yaml` content mounted at `/var/www/config/app/config.yaml` |
-| `persistence.enabled` | `true` | Enable persistence for Statistics for Strava storage data |
-| `persistence.size` | `2Gi` | PVC size |
-| `persistence.bootstrap.enabled` | `true` | Prepare `/var/www/storage` for v4.8.8+ on both PVC and emptyDir installs, and keep legacy root-level SQLite files readable after upgrades |
-| `ingress.enabled` | `false` | Enable ingress |
-| `service.port` | `80` | Service port |
-| `service.ipFamilyPolicy` | omitted | Optional Service IP family policy for dual-stack clusters |
-| `gatewayAPI.enabled` | `false` | Enable Gateway API HTTPRoute rendering |
-| `gatewayApi.enabled` | `false` | Deprecated compatibility alias for `gatewayAPI.enabled` |
-| `externalSecrets.enabled` | `false` | Enable ExternalSecret rendering for credential integrations |
-| `externalSecrets.apiVersion` | `external-secrets.io/v1` | ExternalSecret API version |
+| --- | --- | --- |
+| `image.repository` | `docker.io/robiningelbrecht/dreeve` | Official Dreeve image |
+| `image.tag` | `v5.6.2` | Pinned Dreeve release |
+| `dreeve.appUrl` | `http://localhost:8080` | Public root URL |
+| `dreeve.importMode` | `stravaApi` | `stravaApi` or `files` |
+| `dreeve.appSecret` | `mock-app-secret` | Admin-session signing secret; replace in production |
+| `dreeve.adminPasswordHash` | `""` | Bcrypt admin password hash |
+| `dreeve.existingSecret` | `""` | Existing Secret for Dreeve runtime secrets |
+| `strava.clientId` | `mock-client-id` | Validation-only Strava client ID default |
+| `strava.clientSecret` | `mock-client-secret` | Validation-only Strava client secret default |
+| `strava.refreshToken` | `mock-refresh-token` | Validation-only Strava refresh token default |
+| `persistence.enabled` | `true` | Persist SQLite and shared runtime data |
+| `persistence.size` | `2Gi` | Shared PVC request |
+| `daemon.enabled` | `true` | Run the mandatory Dreeve daemon sidecar |
+| `resources.limits.cpu` | `2` | Web CPU limit |
+| `daemon.resources.limits.cpu` | `2` | Daemon CPU limit |
+| `service.port` | `80` | Kubernetes Service port |
+| `networkPolicy.enabled` | `false` | Render an explicit NetworkPolicy |
+| `podDisruptionBudget.enabled` | `false` | Protect the single pod from voluntary disruption |
+
+The complete value contract and migration guidance are in
+[`docs/configuration.md`](docs/configuration.md).
 
 ## Upgrade Notes
 
-Statistics for Strava was renamed to Dreeve in `v5.0.0`. This major release
-adds local activity uploads and an admin panel, and migrates YAML settings into
-the database. Back up both `storage/database` and the `config` directory, then
-follow the [upstream v4 migration guide](https://docs.dreeve.app/#/getting-started/migrating-from-v4).
-The chart continues to prepare the storage layout introduced in v4.8.8 and
-moves database migrations into the container
-entrypoint and refreshes the onboarding flow. Upstream now reads SQLite data
-from `/var/www/storage/database`, so this chart mounts the PVC on the upstream
-path and bootstraps compatibility symlinks for legacy root-level `strava.db`
-or `dreeve.db` files. The bootstrap also runs for `persistence.enabled=false`
-so ephemeral installs still get the upstream storage directories. No values
-change is required, but production upgrades
-should still keep a current PVC backup before rollout.
+`v5.6.2` includes the upstream fix for the October 2026 critical PHP remote-code-execution vulnerability. Earlier
+Dreeve releases must be upgraded. The former `robiningelbrecht/strava-statistics:v5.0.0` tag now serves only an upstream
+rename notice, so this chart uses the current official `robiningelbrecht/dreeve` repository.
+
+When migrating from a v4 chart release, keep `strava.config` mounted for the first successful v5 startup so Dreeve can
+copy supported YAML settings into SQLite. Verify the settings in the admin panel, then remove obsolete YAML customizations.
+Back up the PVC before the upgrade. See the
+[official v4-to-v5 migration guide](https://docs.dreeve.app/getting-started/migrating-from-v4/) and
+[v5.6.2 release notes](https://github.com/dreeveapp/dreeve/releases/tag/v5.6.2).
+
+## Troubleshooting
+
+### Pod waits for the database schema
+
+The daemon waits until the web container finishes migrations. Inspect both containers:
+
+```bash
+kubectl logs deploy/<release>-strava-statistics -c strava-statistics
+kubectl logs deploy/<release>-strava-statistics -c daemon
+```
+
+### Admin login fails
+
+Confirm `ADMIN_PASSWORD_HASH` contains the bcrypt hash exactly as generated. Helm values do not require Docker Compose's
+double-dollar escaping. Also verify that `dreeve.appUrl` matches the browser URL.
+
+### Imports are killed
+
+Dreeve imports can be memory intensive. Increase both the web/daemon memory limit and the PHP `memory_limit` contract
+if the container reports `OOMKilled`; the chart defaults the PHP limit to `4G` and container limits to `5Gi`.
+
+### PVC permission errors
+
+The bootstrap init container creates the shared storage layout with the pod's filesystem group. Confirm the storage
+class honors `fsGroup` and that an existing claim is writable by UID/GID `82`.
 
 ## Limitations
 
-- **Single instance only** — SQLite is single-writer, horizontal scaling is not supported
-- **ReadWriteOnce** — PVC must be ReadWriteOnce due to SQLite limitations
-- **Strava API imports** — require valid Strava OAuth credentials; Dreeve 5 also supports local FIT, TCX, and GPX uploads
-- **OAuth callback** — `strava.config.general.appUrl` must match the public URL configured in the Strava app
+- SQLite requires one pod and `Recreate`; horizontal scaling is unsupported.
+- The daemon is mandatory for v5 background processing.
+- The chart does not install Ingress, Gateway API, or External Secrets controllers.
+- NetworkPolicy egress destinations depend on enabled integrations and must be supplied by the operator.
 
 ## More Information
 
 - [Dreeve documentation](https://docs.dreeve.app)
 - [Dreeve source](https://github.com/dreeveapp/dreeve)
-- [Source code](https://github.com/helmforgedev/charts/tree/main/charts/strava-statistics)
+- [Chart design](DESIGN.md)
+- [Operations runbook](docs/operations.md)
+- [HelmForge chart source](https://github.com/helmforgedev/charts/tree/main/charts/strava-statistics)
 
 ### Security Scan: `strava-statistics`
 
 | Framework | Score |
-|---|---|
+| --- | --- |
 | MITRE + NSA + SOC2 | **72.72727%** |
 
 > Security posture acceptable.
 
 <!-- @AI-METADATA
 type: chart-readme
-title: Statistics for Strava Helm Chart
-description: README for the Statistics for Strava fitness dashboard Helm chart
-
-keywords: strava, fitness, statistics, dashboard, cycling, running, sqlite
-
-purpose: Chart installation, configuration, and usage documentation
+title: Dreeve Helm Chart
+description: README for the Dreeve fitness dashboard Helm chart
+keywords: dreeve, strava, fitness, statistics, dashboard, sqlite
+purpose: Chart installation, configuration, security, upgrade, and troubleshooting guidance
 scope: Chart
-
 relations:
   - charts/strava-statistics/values.yaml
   - charts/strava-statistics/DESIGN.md
   - charts/strava-statistics/docs/configuration.md
 path: charts/strava-statistics/README.md
-version: 1.1
-date: 2026-06-02
+version: 1.2
+date: 2026-10-25
 -->

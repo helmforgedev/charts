@@ -22,35 +22,43 @@ spec:
         {{- end }}
       annotations:
         checksum/config: {{ include "strava-statistics.configData" . | sha256sum }}
+        checksum/runtime-secrets: {{ printf "%s|%s|%s|%s" .Values.dreeve.appSecret .Values.dreeve.adminPasswordHash .Values.dreeve.apiKey .Values.dreeve.existingSecret | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
+      serviceAccountName: {{ include "strava-statistics.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.serviceAccount.create }}
-      serviceAccountName: {{ include "strava-statistics.serviceAccountName" . }}
-      {{- end }}
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . }}
       {{- end }}
-      {{- with .Values.podSecurityContext }}
       securityContext:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       {{- if .Values.persistence.bootstrap.enabled }}
       initContainers:
         - name: storage-bootstrap
           image: "{{ .Values.persistence.bootstrap.image.repository }}:{{ .Values.persistence.bootstrap.image.tag }}"
           imagePullPolicy: {{ .Values.persistence.bootstrap.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 82
+            runAsGroup: 82
           command:
             - sh
             - -ec
             - |
-              mkdir -p /work/database /work/files /work/gear-maintenance /work/watch
+              mkdir -p /work/build /work/database /work/files /work/gear-maintenance /work/watch
+              touch /app-php/timezone.ini /daemon-php/timezone.ini
               if [ -f /work/dreeve.db ] && [ ! -e /work/database/dreeve.db ]; then
                 ln -sf ../dreeve.db /work/database/dreeve.db
               fi
@@ -60,40 +68,30 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /work
+            - name: app-php-runtime
+              mountPath: /app-php
+            - name: daemon-php-runtime
+              mountPath: /daemon-php
       {{- end }}
       containers:
         - name: strava-statistics
           image: {{ include "strava-statistics.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
           ports:
             - name: http
               containerPort: {{ .Values.strava.port }}
               protocol: TCP
           env:
-            - name: STRAVA_CLIENT_ID
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "strava-statistics.secretName" . }}
-                  key: {{ include "strava-statistics.clientIdKey" . }}
-            - name: STRAVA_CLIENT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "strava-statistics.secretName" . }}
-                  key: {{ include "strava-statistics.clientSecretKey" . }}
-            - name: STRAVA_REFRESH_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "strava-statistics.secretName" . }}
-                  key: {{ include "strava-statistics.refreshTokenKey" . }}
-            - name: TZ
-              value: {{ .Values.strava.timezone | quote }}
-            {{- with .Values.strava.extraEnv }}
-            {{- toYaml . | nindent 12 }}
-            {{- end }}
+            {{- include "strava-statistics.env" . | nindent 12 }}
           {{- if .Values.probes.startup.enabled }}
           startupProbe:
-            tcpSocket:
-              port: http
+            exec:
+              command:
+                - curl
+                - -f
+                - http://localhost:2019/metrics
             initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.startup.periodSeconds }}
             timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
@@ -101,8 +99,11 @@ spec:
           {{- end }}
           {{- if .Values.probes.liveness.enabled }}
           livenessProbe:
-            tcpSocket:
-              port: http
+            exec:
+              command:
+                - curl
+                - -f
+                - http://localhost:2019/metrics
             initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
             timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
@@ -110,33 +111,130 @@ spec:
           {{- end }}
           {{- if .Values.probes.readiness.enabled }}
           readinessProbe:
-            tcpSocket:
-              port: http
+            exec:
+              command:
+                - curl
+                - -f
+                - http://localhost:2019/metrics
             initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
             timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
             failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
           {{- end }}
-          {{- with .Values.resources }}
           resources:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
-          {{- with .Values.securityContext }}
-          securityContext:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
+            {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
             - name: config
               mountPath: /var/www/config/app/config.yaml
               subPath: config.yaml
               readOnly: true
+            - name: config
+              mountPath: /usr/local/etc/php/conf.d/memory-limit.ini
+              subPath: memory-limit.ini
+              readOnly: true
+            - name: app-php-runtime
+              mountPath: /usr/local/etc/php/conf.d/timezone.ini
+              subPath: timezone.ini
             - name: data
               mountPath: /data
             - name: data
               mountPath: /var/www/storage
+            - name: data
+              mountPath: /var/www/build
+              subPath: build
+            - name: data
+              mountPath: /var/www/watch
+              subPath: watch
+            - name: app-runtime-var
+              mountPath: /var/www/var
+            - name: app-caddy-config
+              mountPath: /config/caddy
+            - name: app-caddy-data
+              mountPath: /data/caddy
+            - name: app-tmp
+              mountPath: /tmp
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+        {{- if .Values.daemon.enabled }}
+        - name: daemon
+          image: {{ include "strava-statistics.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - bin/console
+            - app:daemon:run
+          securityContext:
+            {{- toYaml .Values.daemon.securityContext | nindent 12 }}
+          env:
+            {{- include "strava-statistics.env" . | nindent 12 }}
+          {{- if .Values.daemon.probes.startup.enabled }}
+          startupProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - test -f /var/www/storage/database/dreeve.db
+            initialDelaySeconds: {{ .Values.daemon.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.daemon.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.daemon.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.daemon.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if .Values.daemon.probes.liveness.enabled }}
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - test -f /var/www/storage/database/dreeve.db
+            initialDelaySeconds: {{ .Values.daemon.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.daemon.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.daemon.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.daemon.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.daemon.probes.readiness.enabled }}
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - test -f /var/www/storage/database/dreeve.db
+            initialDelaySeconds: {{ .Values.daemon.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.daemon.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.daemon.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.daemon.probes.readiness.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.daemon.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /var/www/config/app/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - name: config
+              mountPath: /usr/local/etc/php/conf.d/memory-limit.ini
+              subPath: memory-limit.ini
+              readOnly: true
+            - name: daemon-php-runtime
+              mountPath: /usr/local/etc/php/conf.d/timezone.ini
+              subPath: timezone.ini
+            - name: data
+              mountPath: /data
+            - name: data
+              mountPath: /var/www/storage
+            - name: data
+              mountPath: /var/www/build
+              subPath: build
+            - name: data
+              mountPath: /var/www/watch
+              subPath: watch
+            - name: daemon-runtime-var
+              mountPath: /var/www/var
+            - name: daemon-tmp
+              mountPath: /tmp
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- end }}
       volumes:
         - name: config
           configMap:
@@ -148,6 +246,30 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
+        - name: app-runtime-var
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeVolumes.varSizeLimit }}
+        - name: daemon-runtime-var
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeVolumes.varSizeLimit }}
+        - name: app-caddy-config
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeVolumes.caddyConfigSizeLimit }}
+        - name: app-caddy-data
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeVolumes.caddyDataSizeLimit }}
+        - name: app-tmp
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeVolumes.tmpSizeLimit }}
+        - name: daemon-tmp
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeVolumes.tmpSizeLimit }}
+        - name: app-php-runtime
+          emptyDir:
+            sizeLimit: 1Mi
+        - name: daemon-php-runtime
+          emptyDir:
+            sizeLimit: 1Mi
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
