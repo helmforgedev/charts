@@ -10,15 +10,16 @@ export async function verifyMetrics({k,forward,values,namespace}){
   assert.ok(families.includes('http_server_request_duration_seconds'),'Native HTTP request histogram must exist');
   console.log('PASS native Prometheus exposition; families: '+families.slice(0,18).join(', '));
  },values.metrics.port);
- if(!values.metrics.serviceMonitor.enabled)return;
+ if(!values.metrics.serviceMonitor.enabled&&!values.metrics.prometheusRule.enabled)return;
  const services=JSON.parse(k(['get','service','-o','json'])).items;
  const metricsService=services.find(service=>service.spec.ports.some(port=>port.name==='metrics'));
  assert.ok(metricsService,'A Service with the named metrics port must exist');
+ if(values.metrics.prometheusRule.enabled){const rule=JSON.parse(k(['get','prometheusrule','pocket-id-metrics','-o','json']));const alert=rule.spec.groups.flatMap(group=>group.rules).find(item=>item.alert==='PocketIDMetricsUnavailable');assert.ok(alert);assert.equal(alert.expr,'up{namespace="'+namespace+'",service="'+metricsService.metadata.name+'"} == 0');}
+ if(!values.metrics.serviceMonitor.enabled)return;
  const serviceMonitor=JSON.parse(k(['get','servicemonitor','pocket-id-metrics','-o','json']));
  for(const [label,value] of Object.entries(serviceMonitor.spec.selector.matchLabels)){assert.equal(metricsService.metadata.labels[label],value,'ServiceMonitor selector must match the metrics Service');}
  assert.equal(serviceMonitor.spec.endpoints[0].port,'metrics');
  assert.equal(serviceMonitor.spec.endpoints[0].path,'/metrics');
- if(values.metrics.prometheusRule.enabled){const rule=JSON.parse(k(['get','prometheusrule','pocket-id-metrics','-o','json']));const alert=rule.spec.groups.flatMap(group=>group.rules).find(item=>item.alert==='PocketIDMetricsUnavailable');assert.ok(alert);assert.equal(alert.expr,'up{namespace="'+namespace+'",service="'+metricsService.metadata.name+'"} == 0');}
  k(['rollout','status','statefulset/prometheus-pocket-id-monitor','--timeout=90s']);
  await forward(async base=>{
   const deadline=Date.now()+45000;let result=[];
