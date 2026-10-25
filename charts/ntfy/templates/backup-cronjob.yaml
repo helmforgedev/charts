@@ -23,6 +23,10 @@ spec:
             app.kubernetes.io/component: backup
         spec:
           restartPolicy: Never
+          serviceAccountName: {{ include "ntfy.serviceAccountName" . }}
+          automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
           {{- with .Values.imagePullSecrets }}
           imagePullSecrets:
             {{- toYaml . | nindent 12 }}
@@ -46,10 +50,14 @@ spec:
                   readOnly: true
                 - name: backup-staging
                   mountPath: /backup
+                - name: backup-tmp
+                  mountPath: /tmp
               {{- with .Values.backup.resources }}
               resources:
                 {{- toYaml . | nindent 16 }}
               {{- end }}
+              securityContext:
+                {{- toYaml .Values.securityContext | nindent 16 }}
           containers:
             - name: upload
               image: {{ .Values.backup.images.uploader | quote }}
@@ -71,6 +79,8 @@ spec:
                   value: {{ .Values.backup.s3.endpoint | quote }}
                 - name: S3_BUCKET
                   value: {{ .Values.backup.s3.bucket | quote }}
+                - name: MC_CONFIG_DIR
+                  value: /tmp/.mc
                 - name: S3_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
@@ -85,14 +95,22 @@ spec:
                 - name: backup-staging
                   mountPath: /backup
                   readOnly: true
+                - name: backup-tmp
+                  mountPath: /tmp
               {{- with .Values.backup.resources }}
               resources:
                 {{- toYaml . | nindent 16 }}
               {{- end }}
+              securityContext:
+                {{- toYaml .Values.securityContext | nindent 16 }}
           volumes:
             - name: data
               persistentVolumeClaim:
                 claimName: {{ include "ntfy.dataClaimName" . }}
             - name: backup-staging
-              emptyDir: {}
+              emptyDir:
+                sizeLimit: {{ .Values.backup.scratchSizeLimit }}
+            - name: backup-tmp
+              emptyDir:
+                sizeLimit: {{ .Values.backup.tmpSizeLimit }}
 {{- end }}

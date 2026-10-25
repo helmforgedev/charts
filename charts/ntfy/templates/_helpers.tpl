@@ -14,6 +14,12 @@
   {{- if not .Values.smtp.senderAddr -}}
     {{- fail "ntfy: smtp.senderAddr is required when smtp.enabled is true" -}}
   {{- end -}}
+  {{- if not .Values.smtp.senderFrom -}}
+    {{- fail "ntfy: smtp.senderFrom is required when smtp.enabled is true" -}}
+  {{- end -}}
+  {{- if not .Values.ntfy.baseUrl -}}
+    {{- fail "ntfy: ntfy.baseUrl is required when smtp.enabled is true" -}}
+  {{- end -}}
 {{- end -}}
 {{- if include "ntfy.databaseEnabled" . -}}
   {{- if and (not .Values.postgresql.enabled) (not .Values.ntfy.database.existingSecret) (not .Values.ntfy.database.external.host) -}}
@@ -37,6 +43,28 @@
 {{- if or (lt $port 1) (gt $port 65535) -}}
 {{- fail (printf "ntfy.metricsListenHttp must end with a valid port number (1-65535), got: %s" .Values.ntfy.metricsListenHttp) -}}
 {{- end -}}
+{{- end -}}
+{{- range .Values.ntfy.extraEnv -}}
+  {{- if eq (upper (default "" .name)) "NTFY_LISTEN_HTTP" -}}
+    {{- fail "ntfy: ntfy.extraEnv must not override NTFY_LISTEN_HTTP; use containerPorts.http" -}}
+  {{- end -}}
+{{- end -}}
+{{- if regexMatch "(?m)^[[:space:]]*listen-http[[:space:]]*:" .Values.ntfy.extraConfig -}}
+  {{- fail "ntfy: ntfy.extraConfig must not override listen-http; use containerPorts.http" -}}
+{{- end -}}
+{{- range $key, $_ := .Values.podLabels -}}
+  {{- if or (eq $key "app.kubernetes.io/name") (eq $key "app.kubernetes.io/instance") (eq $key "app.kubernetes.io/component") -}}
+    {{- fail (printf "ntfy: podLabels must not override reserved selector label %s" $key) -}}
+  {{- end -}}
+{{- end -}}
+{{- if and .Values.podDisruptionBudget.enabled (ne .Values.podDisruptionBudget.minAvailable nil) (ne .Values.podDisruptionBudget.maxUnavailable nil) -}}
+  {{- fail "ntfy: podDisruptionBudget.minAvailable and maxUnavailable are mutually exclusive" -}}
+{{- end -}}
+{{- if and .Values.networkPolicy.enabled .Values.networkPolicy.egress.enabled (include "ntfy.databaseEnabled" .) (not .Values.postgresql.enabled) (empty .Values.networkPolicy.egress.externalDatabaseCIDR) -}}
+  {{- fail "ntfy: networkPolicy.egress.externalDatabaseCIDR is required for isolated external PostgreSQL mode" -}}
+{{- end -}}
+{{- if and .Values.backup.enabled (not .Values.persistence.enabled) -}}
+  {{- fail "ntfy: backup.enabled requires persistence.enabled=true because the backup Job mounts the ntfy data PVC" -}}
 {{- end -}}
 {{- end -}}
 
@@ -66,6 +94,11 @@ app.kubernetes.io/part-of: helmforge
 {{- define "ntfy.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "ntfy.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end -}}
+
+{{- define "ntfy.appSelectorLabels" -}}
+{{ include "ntfy.selectorLabels" . }}
+app.kubernetes.io/component: server
 {{- end -}}
 
 {{- define "ntfy.serviceAccountName" -}}

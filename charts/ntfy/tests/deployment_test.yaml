@@ -16,6 +16,11 @@ tests:
       - equal:
           path: metadata.name
           value: test-ntfy
+      - notExists:
+          path: 'spec.selector.matchLabels["app.kubernetes.io/component"]'
+      - equal:
+          path: 'spec.template.metadata.labels["app.kubernetes.io/component"]'
+          value: server
 
   - it: should use Recreate strategy
     template: templates/deployment.yaml
@@ -38,15 +43,24 @@ tests:
           path: spec.template.spec.containers[0].args[0]
           value: serve
 
-  - it: should expose port 80
+  - it: should expose the default unprivileged listener
     template: templates/deployment.yaml
     asserts:
       - contains:
           path: spec.template.spec.containers[0].ports
           content:
             name: http
-            containerPort: 80
+            containerPort: 2586
             protocol: TCP
+
+  - it: should configure the process when the container port changes
+    template: templates/deployment.yaml
+    set:
+      containerPorts.http: 8080
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8080
 
   - it: should mount config and data volumes
     template: templates/deployment.yaml
@@ -82,7 +96,27 @@ tests:
           path: spec.template.spec.volumes
           content:
             name: data
-            emptyDir: {}
+            emptyDir:
+              sizeLimit: 1Gi
+
+  - it: should apply the hardened runtime defaults
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.volumes[2].emptyDir.sizeLimit
+          value: 128Mi
 
   - it: should use HTTP health probes
     template: templates/deployment.yaml
@@ -191,3 +225,30 @@ tests:
       - equal:
           path: spec.template.spec.initContainers[0].image
           value: docker.io/library/busybox:1.37
+
+  - it: should reject a parallel listener environment override
+    template: templates/validate.yaml
+    set:
+      ntfy.extraEnv:
+        - name: NTFY_LISTEN_HTTP
+          value: ":9000"
+    asserts:
+      - failedTemplate:
+          errorMessage: "ntfy: ntfy.extraEnv must not override NTFY_LISTEN_HTTP; use containerPorts.http"
+
+  - it: should reject a parallel listener config override
+    template: templates/validate.yaml
+    set:
+      ntfy.extraConfig: "listen-http: ':9000'"
+    asserts:
+      - failedTemplate:
+          errorMessage: "ntfy: ntfy.extraConfig must not override listen-http; use containerPorts.http"
+
+  - it: should reject reserved pod selector labels
+    template: templates/validate.yaml
+    set:
+      podLabels:
+        app.kubernetes.io/component: custom
+    asserts:
+      - failedTemplate:
+          errorMessage: "ntfy: podLabels must not override reserved selector label app.kubernetes.io/component"

@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: Apache-2.0
+ntfy:
+  baseUrl: https://ntfy.example.com
+  authDefaultAccess: deny-all
+  admin:
+    enabled: true
+    existingSecret: ntfy-admin
+
+persistence:
+  enabled: true
+  size: 10Gi
+  storageClass: fast-retain
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  hosts:
+    - host: ntfy.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: ntfy-tls
+      hosts:
+        - ntfy.example.com
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+networkPolicy:
+  enabled: true
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+
+backup:
+  enabled: true
+  schedule: "0 3 * * *"
+  s3:
+    endpoint: https://s3.example.com
+    bucket: ntfy-backups
+    existingSecret: ntfy-backup-s3

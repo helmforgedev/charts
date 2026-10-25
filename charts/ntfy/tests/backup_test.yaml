@@ -3,6 +3,7 @@ suite: Backup
 templates:
   - templates/backup-cronjob.yaml
   - templates/backup-secret.yaml
+  - templates/validate.yaml
 release:
   name: test
   namespace: default
@@ -36,6 +37,15 @@ tests:
       - equal:
           path: spec.jobTemplate.spec.template.spec.containers[0].image
           value: "docker.io/helmforge/mc:1.0.0"
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.volumes[1].emptyDir.sizeLimit
+          value: 2Gi
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.volumes[2].emptyDir.sizeLimit
+          value: 64Mi
 
   - it: should render Secret when backup is enabled with inline credentials
     template: templates/backup-secret.yaml
@@ -62,3 +72,12 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
+
+  - it: should reject backup without persistent storage
+    template: templates/validate.yaml
+    set:
+      backup.enabled: true
+      persistence.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "ntfy: backup.enabled requires persistence.enabled=true because the backup Job mounts the ntfy data PVC"

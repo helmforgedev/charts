@@ -4,6 +4,8 @@
 # =============================================================================
 # Focus: self-hosted push notification service with HTTP-based pub-sub
 
+global: {}
+
 nameOverride: ""
 fullnameOverride: ""
 commonLabels: {}
@@ -20,6 +22,10 @@ image:
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
+
+containerPorts:
+  # -- Port on which the ntfy process listens inside the container.
+  http: 2586
 
 # =============================================================================
 # ntfy Configuration
@@ -148,6 +154,8 @@ persistence:
     - ReadWriteOnce
   # -- Use an existing PVC
   existingClaim: ""
+  # -- Maximum data storage when persistence is disabled.
+  emptyDirSizeLimit: 1Gi
 
 # =============================================================================
 # Service Account
@@ -160,6 +168,8 @@ serviceAccount:
   name: ""
   # -- Annotations for the ServiceAccount
   annotations: {}
+  # -- Mount the Kubernetes API token into ntfy and backup pods.
+  automountServiceAccountToken: false
 
 # =============================================================================
 # Service
@@ -264,11 +274,33 @@ metrics:
 # Resources and Security
 # =============================================================================
 
-resources: {}
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
 
-podSecurityContext: {}
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
 
-securityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
+  privileged: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+
+runtimeStorage:
+  # -- Maximum writable temporary storage for ntfy and its init containers.
+  tmpSizeLimit: 128Mi
 
 # =============================================================================
 # Scheduling
@@ -283,6 +315,29 @@ terminationGracePeriodSeconds: 30
 
 podLabels: {}
 podAnnotations: {}
+
+podDisruptionBudget:
+  # -- Protect the singleton ntfy pod from voluntary disruption.
+  enabled: false
+  # -- Minimum available ntfy pods during voluntary disruption.
+  minAvailable: 1
+  # -- Alternative maximum unavailable value; set minAvailable to null when used.
+  maxUnavailable: null
+
+networkPolicy:
+  # -- Restrict traffic to the ntfy pod.
+  enabled: false
+  # -- Sources allowed to reach the ntfy HTTP and optional metrics ports. Empty allows all sources.
+  ingressFrom: []
+  egress:
+    # -- Apply egress isolation in addition to ingress isolation.
+    enabled: false
+    # -- Allow DNS queries when egress isolation is enabled.
+    allowDNS: true
+    # -- CIDR of an external PostgreSQL service; required for isolated external database mode.
+    externalDatabaseCIDR: ""
+    # -- Additional complete egress rules for SMTP, web push, upstream APIs, and object storage.
+    extraEgress: []
 
 # =============================================================================
 # Extra
@@ -323,6 +378,11 @@ backup:
 
   # -- Resource requests and limits for backup jobs
   resources: {}
+
+  # -- Maximum ephemeral archive size used by each backup Job.
+  scratchSizeLimit: 2Gi
+  # -- Maximum writable temporary storage used by backup containers.
+  tmpSizeLimit: 64Mi
 
   s3:
     # -- S3-compatible endpoint URL

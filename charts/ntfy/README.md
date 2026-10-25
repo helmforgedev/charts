@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # ntfy Helm Chart
 
 Deploy [ntfy](https://ntfy.sh) on Kubernetes using the official
@@ -19,6 +21,18 @@ to phones and desktops via scripts — no signup, no fees.
 - **Ingress support** — TLS with cert-manager
 - **Dual-stack** — `ipFamilyPolicy`/`ipFamilies` on the Service for IPv4/IPv6 clusters
 - **Gateway API** — opt-in `HTTPRoute` (alternative to Ingress; requires Gateway API CRDs)
+
+## Architecture
+
+The chart runs one ntfy Deployment behind a ClusterIP Service. The process
+listens on `containerPorts.http` (2586 by default), while `service.port` remains
+the client-facing Service port. `/etc/ntfy` is read-only, `/tmp` is a bounded
+`emptyDir`, and `/var/cache/ntfy` is either a PVC or a bounded `emptyDir`.
+
+SQLite is the default data store. PostgreSQL can be provided by the optional
+HelmForge subchart or an external service. Ingress and Gateway API are optional
+edge routes; NetworkPolicy and PodDisruptionBudget resources are opt-in.
+See [DESIGN.md](DESIGN.md) for the complete trust and persistence boundaries.
 
 ## Installation
 
@@ -70,8 +84,10 @@ curl -s http://localhost:8080/test/json
 | `ntfy.database.enabled` | `false` | Use PostgreSQL instead of SQLite stores |
 | `ntfy.database.existingSecret` | `""` | Secret containing the PostgreSQL URL |
 | `ntfy.database.existingSecretKey` | `database-url` | Secret key containing the PostgreSQL URL |
+| `containerPorts.http` | `2586` | ntfy process listener port |
 | `persistence.enabled` | `true` | Enable persistence for cache and auth |
 | `persistence.size` | `2Gi` | PVC size |
+| `persistence.emptyDirSizeLimit` | `1Gi` | Data limit when persistence is disabled |
 | `service.type` | `ClusterIP` | Service type |
 | `service.port` | `80` | Service port |
 | `service.ipFamilyPolicy` | `~` | Dual-stack policy (`SingleStack`, `PreferDualStack`, `RequireDualStack`) |
@@ -80,6 +96,11 @@ curl -s http://localhost:8080/test/json
 | `gateway.enabled` | `false` | Render an `HTTPRoute` (requires Gateway API CRDs) |
 | `gateway.parentRefs` | `[]` | Gateway parent refs — **required** when `gateway.enabled=true`; each entry must have `name` |
 | `gateway.hostnames` | `[]` | Hostnames the `HTTPRoute` matches |
+| `serviceAccount.automountServiceAccountToken` | `false` | Mount a Kubernetes API token into application and backup pods |
+| `podDisruptionBudget.enabled` | `false` | Protect the singleton pod from voluntary disruption |
+| `networkPolicy.enabled` | `false` | Restrict ingress and optional egress |
+| `runtimeStorage.tmpSizeLimit` | `128Mi` | Maximum writable `/tmp` storage |
+| `postgresql.enabled` | `false` | Deploy HelmForge PostgreSQL `2.1.1` |
 
 ## Authentication
 
@@ -287,10 +308,48 @@ rollout and review the [2.31.1 release](https://github.com/binwiederhier/ntfy/re
 - **Single replica** — the Deployment currently uses one replica regardless of database backend
 - **Local attachments** — filesystem attachment storage is not shared across pods
 
+## Security
+
+The default pod and containers run as UID/GID 1000 with a read-only root
+filesystem, `RuntimeDefault` seccomp, no privilege escalation, and all Linux
+capabilities dropped. Kubernetes API token mounting is disabled. Resource
+requests and limits, bounded ephemeral storage, and HTTP health probes are
+enabled by default.
+
+NetworkPolicy is opt-in because allowed peers depend on the cluster. When
+egress isolation is enabled for an external PostgreSQL deployment,
+`networkPolicy.egress.externalDatabaseCIDR` is required. Add explicit egress
+rules for SMTP, web push, OIDC, S3, and any other external integration.
+
+Keep credentials in existing Secrets or use External Secrets Operator. Inline
+secret values are convenient for development but remain visible in Helm release
+state. See the [security guide](docs/security.md) for the complete control and
+trust-boundary model.
+
+## Troubleshooting
+
+Start with the rendered release state, pod events, and ntfy logs:
+
+```bash
+helm get values <release> -n <namespace>
+kubectl get pods,pvc -n <namespace> -l app.kubernetes.io/instance=<release>
+kubectl get events -n <namespace> --sort-by=.lastTimestamp
+kubectl logs -n <namespace> deploy/<release>-ntfy --tail=200
+```
+
+If the pod is not ready, verify that the configured listener matches
+`containerPorts.http`, the data volume is writable by UID 1000, and any
+database or identity-provider Secret contains the configured key. See the
+[operations guide](docs/operations.md) for backup, restore, rollout, and
+diagnostic procedures.
+
 ## More Information
 
 - [Chart design](DESIGN.md)
 - [Configuration guide](docs/configuration.md)
+- [Operations guide](docs/operations.md)
+- [Security guide](docs/security.md)
+- [Production example](examples/production.yaml)
 - [ntfy documentation](https://docs.ntfy.sh)
 - [Source code](https://github.com/helmforgedev/charts/tree/main/charts/ntfy)
 
@@ -304,45 +363,49 @@ rollout and review the [2.31.1 release](https://github.com/binwiederhier/ntfy/re
 
 ## Backup and Restore
 
-ntfy supports automated scheduled backups to any S3-compatible object storage (e.g. MinIO, AWS S3, Cloudflare R2).
+The optional CronJob archives `/var/cache/ntfy` and uploads the archive to an
+S3-compatible endpoint. Persistence must remain enabled so the Job can mount
+the same PVC as ntfy.
 
-### Backup Architecture
+```yaml
+backup:
+  enabled: true
+  schedule: "0 3 * * *"
+  s3:
+    endpoint: https://s3.example.com
+    bucket: ntfy-backups
+    existingSecret: ntfy-backup-s3
+```
 
-The backup CronJob () runs on a customizable schedule (default: ). It performs the following:
-1. **Archive ()**: creates a compressed tarball containing SQLite databases (, ) and user attachment files from .
-2. **Upload ()**: uploads the archive using the official HelmForge MinIO client () to the designated S3 bucket and prefix.
-
-### Enabling S3 Backup
-
-
-
-### Restore Procedure
-
-1. Scale down the ntfy deployment:
-   
-2. Download the backup archive from S3 using :
-   
-3. Extract the archive into the ntfy persistent volume or cache directory ():
-   
-4. Scale the deployment back up:
-   
+The Secret must contain `access-key` and `secret-key` unless the key names are
+overridden. Test restore into a separate release before relying on the backup.
+The [operations guide](docs/operations.md) documents the full restore sequence.
 
 ## SSO (OpenID Connect) and SMTP
 
-ntfy supports native integration with OpenID Connect (OIDC) identity providers and outbound SMTP email alerting.
+ntfy supports native OpenID Connect authentication and outbound SMTP email.
+Store both client and SMTP secrets in Kubernetes Secrets:
 
-### Single Sign-On (OIDC)
+```yaml
+ntfy:
+  baseUrl: https://ntfy.example.com
 
-To configure SSO with an OIDC provider (e.g. Authentik, Keycloak, Authelia):
+oidc:
+  enabled: true
+  issuerUrl: https://auth.example.com
+  clientId: ntfy
+  existingSecret: ntfy-oidc
+  existingSecretKey: client-secret
+  redirectUrl: https://ntfy.example.com/login
 
+smtp:
+  enabled: true
+  senderAddr: smtp.example.com:587
+  senderFrom: ntfy@example.com
+  senderUser: ntfy
+  existingSecret: ntfy-smtp
+  existingSecretPasswordKey: smtp-password
+```
 
-
-Sensitive client secrets are injected exclusively via Kubernetes Secrets and environment variables (), ensuring zero secrets in ConfigMaps.
-
-### Outbound SMTP Email
-
-To allow email notifications ( header):
-
-
-
-Sensitive passwords are bound via  ().
+The chart injects secret values through `NTFY_OIDC_CLIENT_SECRET` and
+`NTFY_SMTP_SENDER_PASS`; they are not written into the ConfigMap.

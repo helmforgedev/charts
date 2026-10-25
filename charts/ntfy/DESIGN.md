@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # ntfy Chart Design
 
 ## Scope
@@ -51,8 +53,48 @@ Recommended production controls:
 - use a provider-managed Secret for PostgreSQL credentials
 - back up the PVC before upgrades
 - expose the service only through trusted ingress or Gateway policy
-- set explicit resources for shared clusters
+- tune the default resource requests and limits from observed production usage
 - rotate the ban-feed with copy-truncate semantics when it is enabled
+
+## Security Boundary
+
+- The application and backup containers run as UID/GID 1000, use
+  `RuntimeDefault` seccomp, drop all capabilities, deny privilege escalation,
+  and use read-only root filesystems by default.
+- `/etc/ntfy` is a read-only ConfigMap mount. `/var/cache/ntfy` and `/tmp` are
+  the only chart-managed writable paths, and ephemeral variants are bounded.
+- Kubernetes API token automounting is disabled by default for application and
+  backup pods.
+- Database, OIDC, SMTP, and S3 credentials are sourced from Secrets. Inline
+  credentials remain in Helm release state and are intended only for
+  development.
+- NetworkPolicy is opt-in because allowed edge controllers and external
+  services are cluster-specific. Operators own explicit egress for SMTP, OIDC,
+  web push, S3, and external PostgreSQL.
+
+## Observability Boundary
+
+- Startup, readiness, and liveness probes use ntfy's `/v1/health` endpoint on
+  the named HTTP port.
+- Application logs are emitted to the container stream and are not retained by
+  the chart.
+- The optional metrics endpoint and ServiceMonitor require ntfy metrics and
+  Prometheus Operator CRDs respectively.
+- The chart does not install dashboards, alerts, log collectors, or a tracing
+  backend.
+
+## Known Gaps and Limitations
+
+- The Deployment is intentionally single-replica. PostgreSQL does not provide
+  shared attachment storage or make ntfy horizontally scalable.
+- The PodDisruptionBudget can protect the singleton from voluntary eviction,
+  but cannot preserve availability during node loss or application rollout.
+- The backup CronJob covers `/var/cache/ntfy`; it does not perform a native
+  PostgreSQL dump for an external or bundled PostgreSQL database.
+- NetworkPolicy cannot infer the addresses of external integrations; egress
+  isolation requires operator-provided rules.
+- Secret rotation requires a Deployment rollout because credentials are
+  injected as environment variables.
 
 ## Non-Goals
 
