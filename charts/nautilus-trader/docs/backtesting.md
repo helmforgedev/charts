@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Backtesting
 
 Enable `backtest.enabled` for a one-shot Job and set `backtest.factory` to a callable accepting `backtest.config`.

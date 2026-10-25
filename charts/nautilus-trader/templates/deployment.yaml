@@ -21,7 +21,8 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        checksum/runtime: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/credentials: {{ printf "%s|%s|%s|%s|%s" .Values.secrets.existingSecret .Values.database.external.existingSecret .Values.messageBus.external.existingSecret (toJson .Values.externalSecrets.items) .Values.externalSecrets.refreshInterval | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -176,7 +177,8 @@ spec:
             name: {{ include "nautilus-trader.fullname" . }}-runtime
             defaultMode: 0555
         - name: tmp
-          emptyDir: {}
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeStorage.tmpSizeLimit }}
         {{- range $kind, $config := .Values.persistence }}
         {{- if $config.enabled }}
         - name: {{ $kind | kebabcase }}

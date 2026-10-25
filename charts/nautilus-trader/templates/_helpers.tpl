@@ -74,5 +74,6 @@ app.kubernetes.io/part-of: helmforge
 {{- if and .Values.externalSecrets.enabled (empty .Values.externalSecrets.items) -}}{{- fail "externalSecrets.items must contain at least one item when externalSecrets.enabled=true" -}}{{- end -}}
 {{- range $key, $_ := .Values.podLabels -}}{{- if has $key (list "app.kubernetes.io/name" "app.kubernetes.io/instance") -}}{{- fail "podLabels must not override chart selector labels" -}}{{- end -}}{{- end -}}
 {{- if and .Values.monitoring.prometheusRule.enabled (not .Values.monitoring.serviceMonitor.enabled) -}}{{- fail "monitoring.serviceMonitor.enabled must be true when prometheusRule is enabled" -}}{{- end -}}
+{{- if and .Values.podDisruptionBudget.enabled (ne .Values.podDisruptionBudget.minAvailable nil) (ne .Values.podDisruptionBudget.maxUnavailable nil) -}}{{- fail "set only one of podDisruptionBudget.minAvailable or podDisruptionBudget.maxUnavailable" -}}{{- end -}}
 {{- end -}}
 

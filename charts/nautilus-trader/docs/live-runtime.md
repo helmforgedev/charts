@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Live runtime
 
 Create a Python callable that accepts the decoded `live.nodeConfig` dictionary and returns an object with `run()`.
