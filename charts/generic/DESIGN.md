@@ -79,8 +79,9 @@ Production users should set explicit values for:
 
 - No automatic probe or security defaults per image; users must supply them.
 - Optional CRD-backed resources (KEDA, VPA, ExternalSecret, SealedSecret,
-  monitoring) are validated by schema and render tests only when their CRDs
-  are installed in the validation cluster.
+  monitoring) are covered by render tests and by kubeconform against the
+  configured CRD schemas, without installed cluster CRDs. Runtime validation
+  on k3d requires the corresponding CRDs and operators.
 
 ## Non-Goals
 
