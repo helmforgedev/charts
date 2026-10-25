@@ -1,69 +1,62 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- $ns := .Release.Namespace -}}
+{{- $selector := printf "app.kubernetes.io/instance=%s" .Release.Name -}}
 ====================================================================
-  {{ .Chart.Name | title }} has been successfully deployed!
-====================================================================
-
-Chart:      {{ .Chart.Name }}
-Version:    {{ .Chart.Version }}
-AppVersion: {{ .Chart.AppVersion }}
-Release:    {{ .Release.Name }}
-Namespace:  {{ .Release.Namespace }}
-
-====================================================================
-  ACCESS INFORMATION
+  {{ .Chart.Name | title }} has been deployed
 ====================================================================
 
+1. Installation Summary
+
+  Chart:      {{ .Chart.Name }}-{{ .Chart.Version }}
+  Release:    {{ .Release.Name }}
+  Namespace:  {{ $ns }}
+
+2. Service Access and Endpoints
 {{- if .Values.ingress.enabled }}
 {{- range $host := .Values.ingress.hosts }}
-URL:   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+  URL:   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
 {{- end }}
 {{- else if and (include "chart.hasWorkload" .) (ne .Values.service.enabled false) }}
-Port-forward to access the workload:
-
-  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "chart.serviceName" . }} 8080:{{ .Values.service.port | default 80 }}
-
+  kubectl port-forward -n {{ $ns }} svc/{{ include "chart.serviceName" . }} 8080:{{ .Values.service.port | default 80 }}
   URL:  http://localhost:8080/
 {{- else if or .Values.jobs .Values.cronjobs }}
-This release does not expose a long-running workload.
-
-Inspect batch resources with:
-
-  kubectl get jobs,cronjobs -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+  This release does not expose a long-running workload.
+{{- else }}
+  No Service is rendered for this release.
 {{- end }}
 
-====================================================================
-  CONFIGURATION
-====================================================================
+3. Credentials and Security
 
-Workload Enabled: {{ .Values.workload.enabled }}
-Workload Type:    {{ .Values.workload.type | default "Deployment" }}
-Service Enabled:  {{ ne .Values.service.enabled false }}
+  Security preset: {{ .Values.securityPreset | default "none (contexts as configured)" }}
+  ServiceAccount token mounted: {{ .Values.serviceAccount.automountServiceAccountToken | default false }}
+  Secrets are only created from secrets[], externalSecrets, or sealed secrets you configure.
 
-====================================================================
-  GETTING STARTED
-====================================================================
+4. Application Configuration
 
-1. Check resource status:
-   kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+  Workload enabled: {{ .Values.workload.enabled }}
+  Workload type:    {{ .Values.workload.type | default "Deployment" }}
+  Service enabled:  {{ ne .Values.service.enabled false }}
 
-2. View logs:
-   kubectl logs -l app.kubernetes.io/instance={{ .Release.Name }} \
-     -n {{ .Release.Namespace }} --all-containers --tail=50 -f
+5. Persistence and Storage
 
-====================================================================
-  TROUBLESHOOTING
-====================================================================
+  kubectl get pvc -l {{ $selector }} -n {{ $ns }}
 
-  kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-  kubectl describe pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-  kubectl logs -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }} --all-containers --tail=100
+6. Observability and Health Verification
 
-====================================================================
-  ADDITIONAL RESOURCES
-====================================================================
+  kubectl get all -l {{ $selector }} -n {{ $ns }}
+{{- if or .Values.jobs .Values.cronjobs }}
+  kubectl get jobs,cronjobs -l {{ $selector }} -n {{ $ns }}
+{{- end }}
 
-Documentation:     https://helmforge.dev/docs/charts/generic
-Chart Repository:  https://github.com/helmforgedev/charts/tree/main/charts/generic
-Report Issues:     https://github.com/helmforgedev/charts/issues
+7. Logs and Diagnostics
+
+  kubectl logs -l {{ $selector }} -n {{ $ns }} --all-containers --tail=100
+  kubectl describe pod -l {{ $selector }} -n {{ $ns }}
+
+8. Documentation and Useful Links
+
+  Documentation:     https://helmforge.dev/docs/charts/generic
+  Chart Repository:  https://github.com/helmforgedev/charts/tree/main/charts/generic
+  Report Issues:     https://github.com/helmforgedev/charts/issues
 
 Happy Helmforging :)

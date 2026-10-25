@@ -298,7 +298,7 @@ templated (e.g. `{{ .Release.Namespace }}`) to derive per-environment paths from
 
 ### Breaking-change migration notes
 
-- The default image is now pinned to `docker.io/library/nginx:1.27.5` with `IfNotPresent` instead of relying on `latest`.
+- The default image is pinned (currently `docker.io/library/nginx:1.31.7`) with `IfNotPresent` instead of relying on `latest`.
 - Pod templates are deterministic; use `rollout.restartAt` or checksum-enabled ConfigMaps/Secrets for intentional rollouts.
 - HPA now fails validation when used with `DaemonSet` or when `hpa.maxReplicas` is missing.
 - `pdb.enabled` requires exactly one of `pdb.minAvailable` or `pdb.maxUnavailable`.

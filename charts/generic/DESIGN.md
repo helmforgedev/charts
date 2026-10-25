@@ -54,6 +54,35 @@ Production users should set explicit values for:
 - Secret source through `secrets[]`, `externalSecrets.items[]`, or existing Kubernetes Secrets
 - observability resources only when the corresponding CRDs are installed
 
+## Security Boundary
+
+- Security contexts are empty by default because the chart cannot know the
+  user, filesystem, and port needs of an arbitrary image. `securityPreset:
+  baseline` sets non-root, `RuntimeDefault` seccomp, and drops capabilities;
+  `restricted` also sets a read-only root filesystem and default IDs.
+- The ServiceAccount token is not mounted unless
+  `serviceAccount.automountServiceAccountToken` is enabled, and RBAC objects
+  are rendered only when requested.
+- Secrets come from `secrets[]`, ExternalSecret, SealedSecret, or existing
+  Kubernetes Secrets; the chart never generates credentials.
+- NetworkPolicy is opt-in and must be written for the workload.
+
+## Observability Boundary
+
+- Probes are empty by default; set `livenessProbe`, `readinessProbe`, and
+  `startupProbe` (or per-container probes) for the real application.
+- ServiceMonitor, PodMonitor, and PrometheusRule resources are rendered only
+  when enabled and require the Prometheus Operator CRDs.
+- Logs and metrics semantics belong to the deployed image.
+
+## Current Gaps and Improvement Candidates
+
+- No automatic probe or security defaults per image; users must supply them.
+- Optional CRD-backed resources (KEDA, VPA, ExternalSecret, SealedSecret,
+  monitoring) are covered by render tests and by kubeconform against the
+  configured CRD schemas, without installed cluster CRDs. Runtime validation
+  on k3d requires the corresponding CRDs and operators.
+
 ## Non-Goals
 
 - Modeling application-specific domain concepts
