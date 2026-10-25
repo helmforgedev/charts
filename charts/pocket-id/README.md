@@ -151,6 +151,14 @@ kubectl -n identity logs deployment/identity-pocket-id -c pocket-id
 kubectl -n identity get events --sort-by=.lastTimestamp
 ```
 
+For PostgreSQL deployments, inspect the database init containers before the
+bootstrap container because either can stop initialization:
+
+```bash
+kubectl -n identity logs deployment/identity-pocket-id -c database-url
+kubectl -n identity logs deployment/identity-pocket-id -c database-admission
+```
+
 For setup failures, verify the final HTTPS `server.publicUrl`, encryption
 Secret key, writable retained storage, and PostgreSQL extensions and schema
 permissions. For login failures after an origin change, follow the documented
