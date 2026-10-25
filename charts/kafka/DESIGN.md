@@ -92,9 +92,12 @@ factor: 1 in single-broker mode and up to 3 in cluster mode.
 
 ## Observability Boundary
 
-- Startup and liveness probes open the client listener; the JVM readiness probe
-  runs a broker API check. None of them verify partition health or
-  under-replicated partitions.
+- Brokers (single-broker pods and cluster brokers or combined nodes) use TCP
+  startup and liveness probes on the client listener; with the JVM runtime,
+  their readiness probe runs `kafka-broker-api-versions.sh`. Dedicated cluster
+  controllers use TCP probes on the controller listener for startup,
+  liveness, and readiness, with either runtime. None of the probes verify
+  partition health or under-replicated partitions.
 - With `metrics.enabled=true`, the JMX exporter javaagent exposes broker and
   controller metrics on `metrics.port`, and `metrics.serviceMonitor.enabled`
   creates ServiceMonitors. Alerting rules and dashboards are not shipped.
