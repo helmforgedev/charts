@@ -146,6 +146,11 @@ chromium:
 | `gatewayAPI.enabled` | `false` | Enable Gateway API HTTPRoute |
 | `externalSecrets.enabled` | `false` | Render ExternalSecret for app credentials |
 
+Image tags and digests form a pair. When overriding `image.tag`,
+`meilisearch.image.tag`, or `chromium.image.tag`, also set the matching digest
+to the digest published for that exact image tag; Kubernetes resolves the
+digest as the deployed image identity.
+
 ## Security Scan
 
 Security Scan: Kubescape on rendered default manifests.
@@ -164,8 +169,11 @@ default.
 Karakeep `0.34.1` updates Node.js to fix one Brotli memory-safety vulnerability
 and three TLS hostname-validation bypasses. This chart also completes the 0.34.0
 migration from Browserless to the official `karakeep-chrome` image. Back up the
-`/data` PVC before upgrading. Existing 0.33.x installations must also complete
-the upstream 0.34.0 authentication migration before production rollout.
+`/data` PVC before upgrading. Before upgrading an existing 0.33.x installation,
+resolve any accounts whose email addresses differ only by letter case; the
+automatic migration lowercases addresses and conflicting accounts can lock
+users out. All web users must sign in again after the migration. Mobile sessions
+and API keys are unaffected.
 
 ## Quality Gates
 
