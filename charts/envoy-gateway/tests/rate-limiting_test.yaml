@@ -42,7 +42,7 @@ tests:
           content:
             name: ratelimit
             port: 18001
-            targetPort: 18001
+            targetPort: ratelimit
             protocol: TCP
         template: service-controller.yaml
         documentIndex: 1
@@ -213,3 +213,17 @@ tests:
           value: envoy-system
         template: ratelimit-policies.yaml
         documentIndex: 2
+
+  - it: should follow the Redis subchart naming when the release name contains redis
+    release:
+      name: edge-redis
+    set:
+      rateLimiting:
+        enabled: true
+      redis:
+        enabled: true
+    template: templates/configmap.yaml
+    asserts:
+      - matchRegex:
+          path: data["envoy-gateway.yaml"]
+          pattern: 'url: edge-redis-client\.'

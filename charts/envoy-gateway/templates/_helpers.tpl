@@ -219,15 +219,33 @@ SecurityPolicy target name - returns targetName or gateway name
 {{- end }}
 
 {{/*
+Full name of the Redis subchart, mirroring its own fullname logic: a release
+name that already contains "redis" is used as is.
+*/}}
+{{- define "envoy-gateway.redisFullname" -}}
+{{- $override := dig "fullnameOverride" "" .Values.redis -}}
+{{- if $override -}}
+{{- $override | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $name := dig "nameOverride" "" .Values.redis | default "redis" -}}
+{{- if contains $name .Release.Name -}}
+{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Rate limit Redis URL - returns subchart or external Redis URL.
-Subchart (redis.enabled=true): redis service is named "<release>-redis-client" by the helmforge/redis chart.
+Subchart (redis.enabled=true): redis service is named "<redis fullname>-client" by the helmforge/redis chart.
 External (rateLimiting.externalRedis.host set): use the provided host/port.
 */}}
 {{- define "envoy-gateway.ratelimit.redisUrl" -}}
 {{- if .Values.rateLimiting.externalRedis.host }}
 {{- printf "%s:%d" .Values.rateLimiting.externalRedis.host (.Values.rateLimiting.externalRedis.port | int) }}
 {{- else if .Values.redis.enabled }}
-{{- printf "%s-redis-client.%s.svc.cluster.local:6379" .Release.Name .Release.Namespace }}
+{{- printf "%s-client.%s.svc.%s:6379" (include "envoy-gateway.redisFullname" .) .Release.Namespace (.Values.kubernetesClusterDomain | default "cluster.local") }}
 {{- end }}
 {{- end }}
 
