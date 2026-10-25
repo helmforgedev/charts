@@ -1,94 +1,102 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- $fullname := include "castopod.fullname" . -}}
+{{- $ns := .Release.Namespace -}}
+{{- $baseURL := include "castopod.baseURL" . -}}
 ============================================================
-  Castopod has been successfully deployed!
-============================================================
-
-Chart:      {{ .Chart.Name }}
-Version:    {{ .Chart.Version }}
-AppVersion: {{ .Chart.AppVersion }}
-Release:    {{ .Release.Name }}
-Namespace:  {{ .Release.Namespace }}
-
-============================================================
-  ACCESS INFORMATION
+  Castopod has been deployed
 ============================================================
 
+1. Installation Summary
+
+  Release:     {{ .Release.Name }}
+  Namespace:   {{ $ns }}
+  Chart:       {{ .Chart.Name }}-{{ .Chart.Version }}
+  Castopod:    {{ .Chart.AppVersion }} ({{ include "castopod.image" . }})
+  Base URL:    {{ $baseURL }}{{ if hasPrefix "http://" $baseURL }} (HTTPS redirection disabled){{ end }}
+
+2. Service Access and Endpoints
+
+  Service:     {{ $fullname }} port {{ .Values.service.port }} -> container port {{ .Values.castopod.port }} (http)
 {{- if .Values.ingress.enabled }}
 {{- range $host := .Values.ingress.hosts }}
-WEB UI:   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
-ADMIN:    http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/cp-admin/
+  Ingress:     http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
 {{- end }}
+{{- end }}
+{{- if .Values.gatewayAPI.enabled }}
+{{- range .Values.gatewayAPI.httpRoutes }}
+  HTTPRoute:   {{ include "castopod.httpRouteName" (dict "root" $ "route" .) }}{{ with .hostnames }} ({{ join ", " . }}){{ end }}
+{{- end }}
+{{- end }}
+  Admin area:  {{ $baseURL }}/{{ .Values.castopod.adminGateway }}/
+
+  Local access:
+    kubectl port-forward -n {{ $ns }} svc/{{ $fullname }} 8080:{{ .Values.service.port }}
+    Open http://localhost:8080/{{ .Values.castopod.authGateway }}/login
+{{- if not (hasPrefix "http://localhost:8080" $baseURL) }}
+    Castopod builds links from {{ $baseURL }}, so local access is for checks only.
+{{- end }}
+
+3. Credentials and Security
+
+{{- if .Values.castopod.admin.create }}
+  Superadmin:  {{ .Values.castopod.admin.username }} (log in with {{ .Values.castopod.admin.email }})
+  Password:
+    kubectl get secret {{ include "castopod.adminSecretName" . }} -n {{ $ns }} \
+      -o jsonpath='{.data.{{ include "castopod.adminSecretKey" . }}}' | base64 -d; echo
+
+  The superadmin is created once, when none exists. Change the password later
+  in the Castopod admin area.
 {{- else }}
-Port-forward to access Castopod locally:
+  castopod.admin.create=false: open {{ $baseURL }}/cp-install and create the
+  superadmin before exposing the instance. The first visitor of the wizard
+  becomes the instance owner.
+{{- end }}
+  Analytics salt: {{ include "castopod.analyticsSecretName" . }} (key {{ include "castopod.analyticsSecretKey" . }}); keep it stable.
 
-  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "castopod.fullname" . }} 8000:{{ .Values.service.port }}
+4. Application Configuration
 
-  WEB UI:   http://localhost:8000/
-  ADMIN:    http://localhost:8000/cp-admin/
+  Database:    {{ if .Values.mariadb.enabled }}bundled MariaDB {{ include "castopod.dbHost" . }}{{ else }}external MariaDB {{ include "castopod.dbHost" . }}:{{ include "castopod.dbPort" . }}{{ end }} (database {{ include "castopod.dbName" . }})
+  Cache:       {{ if .Values.redis.enabled }}Redis {{ include "castopod.redisHost" . }}:6379{{ else }}file cache on the data volume{{ end }}
+  Scheduler:   {{ if .Values.scheduler.enabled }}sidecar running spark tasks:run every minute{{ else }}disabled; scheduled publishing and federation tasks do not run{{ end }}
+  Setup:       migrations run in the setup init container on every pod start
 
+5. Persistence and Storage
+
+{{- if .Values.persistence.enabled }}
+  Data volume: {{ include "castopod.pvcName" . }} ({{ .Values.persistence.size }})
+    /var/www/html/writable       volume root
+    /var/www/html/public/media   volume subPath public-media (uploaded audio and images)
+{{- else }}
+  Data volume: emptyDir. Uploaded media is lost when the pod is deleted.
+{{- end }}
+  Backups:     {{ if .Values.backup.enabled }}CronJob {{ $fullname }}-backup, schedule "{{ .Values.backup.schedule }}" (data volume only; back up MariaDB separately){{ else }}disabled (set backup.enabled=true){{ end }}
+
+6. Observability and Health Verification
+
+  kubectl rollout status deploy/{{ $fullname }} -n {{ $ns }} --timeout=300s
+  kubectl exec -n {{ $ns }} deploy/{{ $fullname }} -c castopod -- curl -fsS http://127.0.0.1:{{ .Values.castopod.port }}{{ .Values.probes.path }}
+{{- if .Values.backup.enabled }}
+  kubectl create job -n {{ $ns }} --from=cronjob/{{ $fullname }}-backup {{ $fullname }}-backup-manual
 {{- end }}
 
-============================================================
-  GETTING STARTED
-============================================================
+7. Logs and Diagnostics
 
-1. Wait for Castopod to be ready:
-   kubectl wait --for=condition=ready pod \
-     -l app.kubernetes.io/name=castopod \
-     -n {{ .Release.Namespace }} --timeout=300s
-
-2. Check pod status:
-   kubectl get pods -l app.kubernetes.io/name=castopod -n {{ .Release.Namespace }}
-
-3. View startup logs:
-   kubectl logs -l app.kubernetes.io/name=castopod \
-     -n {{ .Release.Namespace }} --all-containers --tail=50 -f
-
-4. Access /cp-admin/ and run the setup wizard to create your first podcast
-
-============================================================
-  TROUBLESHOOTING
-============================================================
-
-Check pod status:
-  kubectl get pods -l app.kubernetes.io/name=castopod -n {{ .Release.Namespace }}
-
-Describe pod (events and errors):
-  kubectl describe pod -l app.kubernetes.io/name=castopod -n {{ .Release.Namespace }}
-
-View application logs:
-  kubectl logs -l app.kubernetes.io/name=castopod \
-    -n {{ .Release.Namespace }} --all-containers --tail=100
-
-View all chart resources:
-  kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-
+  kubectl logs -n {{ $ns }} deploy/{{ $fullname }} -c setup
+  kubectl logs -n {{ $ns }} deploy/{{ $fullname }} -c castopod --tail=100
+{{- if .Values.scheduler.enabled }}
+  kubectl logs -n {{ $ns }} deploy/{{ $fullname }} -c scheduler --tail=20
+{{- end }}
+  kubectl describe pod -n {{ $ns }} -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name={{ include "castopod.name" . }}
 {{- if .Values.mariadb.enabled }}
-View MariaDB logs:
-  kubectl logs -l app.kubernetes.io/name=mariadb \
-    -n {{ .Release.Namespace }} --all-containers --tail=50
+  kubectl logs -n {{ $ns }} {{ include "castopod.mariadbFullname" . }}-0 --tail=50
 {{- end }}
 
-============================================================
-  WARNINGS
-============================================================
+  A pod stuck in Init:0/1 usually means MariaDB is unreachable: check the setup logs.
 
-{{- if not .Values.ingress.enabled }}
+8. Documentation and Useful Links
 
-NOTE: Ingress is not enabled. Access via port-forward (see above).
-Castopod requires a public domain for podcast federation (ActivityPub).
-{{- end }}
-
-============================================================
-  ADDITIONAL RESOURCES
-============================================================
-
-Documentation:     https://helmforge.dev/docs/charts/castopod
-Chart Repository:  https://github.com/helmforgedev/charts/tree/main/charts/castopod
-Report Issues:     https://github.com/helmforgedev/charts/issues
-
-Castopod:          https://castopod.org
-Castopod Docs:     https://docs.castopod.org
-Castopod GitHub:   https://code.castopod.org/adaures/castopod
+  Chart docs:  https://helmforge.dev/docs/charts/castopod
+  Castopod:    https://docs.castopod.org
+  Source:      https://code.castopod.org/adaures/castopod
 
 Happy Helmforging :)

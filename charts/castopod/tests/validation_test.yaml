@@ -32,7 +32,7 @@ tests:
       - failedTemplate:
           errorMessage: "ingress.enabled requires ingress.hosts to contain at least one host"
 
-  - it: should fail when an ingress host entry has no hostname
+  - it: should reject an ingress host entry without hostname through the schema
     set:
       ingress.enabled: true
       ingress.hosts:
@@ -41,7 +41,7 @@ tests:
               pathType: Prefix
     asserts:
       - failedTemplate:
-          errorMessage: "ingress.hosts[0].host is required when ingress.enabled is true"
+          errorPattern: "missing property 'host'"
 
   - it: should fail when backup endpoint is missing
     set:
@@ -90,3 +90,75 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: 'podLabels must not override selector label "app.kubernetes.io/name"'
+
+  - it: should fail on a floating image tag
+    set:
+      image.tag: latest
+    asserts:
+      - failedTemplate:
+          errorMessage: "image.tag must be a pinned Castopod release; floating tags are not supported"
+
+  - it: should fail when Redis authentication is disabled
+    set:
+      redis.enabled: true
+      redis.auth.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "redis.auth.enabled must be true: Castopod refuses to use Redis without a password"
+
+  - it: should fail when the superadmin email is empty
+    set:
+      castopod.admin.email: ""
+    asserts:
+      - failedTemplate:
+          errorPattern: "castopod.admin.email"
+
+  - it: should reject a short superadmin password through the schema
+    set:
+      castopod.admin.password: short
+    asserts:
+      - failedTemplate:
+          errorPattern: "admin/password"
+
+  - it: should reject a base URL with a trailing slash
+    set:
+      castopod.baseURL: "https://podcast.example.com/"
+    asserts:
+      - failedTemplate:
+          errorPattern: "baseURL"
+
+  - it: should reject a privileged listener port through the schema
+    set:
+      castopod.port: 80
+    asserts:
+      - failedTemplate:
+          errorPattern: "castopod/port"
+
+  - it: should fail when gatewayAPI is enabled without routes
+    set:
+      gatewayAPI.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "gatewayAPI.httpRoutes must contain at least one route when gatewayAPI.enabled=true"
+
+  - it: should fail when an HTTPRoute has no parentRefs
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - name: public
+          hostnames: [podcast.example.com]
+    asserts:
+      - failedTemplate:
+          errorMessage: "every gatewayAPI.httpRoutes[] entry requires parentRefs"
+
+  - it: should reject HTTPRoutes that render the same name
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - parentRefs:
+            - name: gw-a
+        - parentRefs:
+            - name: gw-b
+    asserts:
+      - failedTemplate:
+          errorPattern: "renders the HTTPRoute name"

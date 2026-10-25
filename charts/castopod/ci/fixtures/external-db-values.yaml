@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: Apache-2.0
+# Runtime fixture: standalone MariaDB on a non-default port for the external-db scenario.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: castopod-ci-db
+  labels:
+    helmforge.dev/runtime-fixture: "true"
+type: Opaque
+stringData:
+  password: fixture-only-castopod-password
+  root-password: fixture-only-root-password
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: castopod-ci-mariadb
+  labels:
+    helmforge.dev/runtime-fixture: "true"
+spec:
+  selector:
+    app.kubernetes.io/name: castopod-ci-mariadb
+  ports:
+    - name: mariadb
+      port: 3307
+      targetPort: mariadb
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: castopod-ci-mariadb
+  labels:
+    helmforge.dev/runtime-fixture: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: castopod-ci-mariadb
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: castopod-ci-mariadb
+    spec:
+      containers:
+        - name: mariadb
+          image: docker.io/library/mariadb:11.8
+          args: ["--port=3307"]
+          ports:
+            - name: mariadb
+              containerPort: 3307
+          env:
+            - name: MARIADB_DATABASE
+              value: castopod_ext
+            - name: MARIADB_USER
+              value: castopod_ext
+            - name: MARIADB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: castopod-ci-db
+                  key: password
+            - name: MARIADB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: castopod-ci-db
+                  key: root-password
+          readinessProbe:
+            exec:
+              command: ["healthcheck.sh", "--connect", "--innodb_initialized"]
+            periodSeconds: 5
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+      volumes:
+        - name: data
+          emptyDir: {}

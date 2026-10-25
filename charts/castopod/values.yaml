@@ -4,8 +4,14 @@
 # =============================================================================
 # Focus: open-source podcast hosting platform with MariaDB and optional Redis
 
+# -- Global values shared with subcharts
+global: {}
+
+# -- Override the chart name used in resource names
 nameOverride: ""
+# -- Override the full release name used in resource names
 fullnameOverride: ""
+# -- Labels added to every resource created by this chart
 commonLabels: {}
 
 # =============================================================================
@@ -15,10 +21,12 @@ commonLabels: {}
 image:
   # -- Castopod container image
   repository: docker.io/castopod/castopod
-  # -- Image tag
+  # -- Castopod image tag (pinned; floating tags are rejected)
   tag: "1.15.5"
+  # -- Image pull policy
   pullPolicy: IfNotPresent
 
+# -- Image pull secrets for private registries
 imagePullSecrets: []
 
 # =============================================================================
@@ -26,22 +34,62 @@ imagePullSecrets: []
 # =============================================================================
 
 castopod:
-  # -- Application base URL (required, e.g. https://podcast.example.com)
+  # -- Public base URL with scheme and no trailing slash. When empty, the chart
+  # uses the first Ingress host, then the first HTTPRoute hostname, then
+  # http://localhost:8080. HTTPS redirection is disabled for http:// URLs.
   baseURL: ""
-  # -- Application port (FrankenPHP)
+  # -- Base URL for media files; defaults to the base URL when empty
+  mediaBaseURL: ""
+  # -- FrankenPHP listener inside the container (CADDY_HTTP_PORT, 1024-65535)
   port: 8080
-  # -- Extra environment variables for the container
-  # -- @default -- `[]`
+  # -- Admin area path segment
+  adminGateway: cp-admin
+  # -- Authentication area path segment
+  authGateway: cp-auth
+  # -- Extra environment variables for every Castopod container. CP_* variables
+  # (SMTP, S3 media, 2FA) are rendered into .env by the setup init container.
+  # @default -- `[]`
   extraEnv: []
-    # - name: CP_MEDIA_BASE_URL
-    #   value: "https://cdn.example.com"
+    # - name: CP_EMAIL_SMTP_HOST
+    #   value: smtp.example.com
+
+  admin:
+    # -- Create the instance superadmin during setup when none exists. Disable
+    # to use the /cp-install web wizard instead.
+    create: true
+    # -- Superadmin username
+    username: admin
+    # -- Superadmin email (used to log in)
+    email: admin@example.com
+    # -- Superadmin password (at least 8 characters); generated once when empty
+    password: ""
+    # -- Existing Secret with the superadmin password
+    existingSecret: ""
+    # -- Key in castopod.admin.existingSecret
+    existingSecretPasswordKey: admin-password
+
+# =============================================================================
+# Setup and Scheduler
+# =============================================================================
+
+setup:
+  # -- Seconds the setup init container waits for MariaDB
+  databaseWaitTimeoutSeconds: 300
+  # -- Resources for the setup init container
+  resources: {}
+
+scheduler:
+  # -- Run the Castopod task scheduler (spark tasks:run every minute) as a sidecar
+  enabled: true
+  # -- Resources for the scheduler container
+  resources: {}
 
 # =============================================================================
 # Analytics
 # =============================================================================
 
 analytics:
-  # -- Analytics salt for hashing (auto-generated 64 chars if empty)
+  # -- Analytics salt for hashing (generated once when empty and kept on upgrade)
   salt: ""
   # -- Existing secret containing the analytics salt
   existingSecret: ""
@@ -53,12 +101,17 @@ analytics:
 # =============================================================================
 
 database:
-  # -- External MariaDB configuration (used when mariadb subchart is disabled)
+  # -- External MariaDB configuration (used when mariadb.enabled is false)
   external:
+    # -- External MariaDB host
     host: ""
+    # -- External MariaDB port
     port: "3306"
+    # -- External database name
     name: castopod
+    # -- External database user
     username: castopod
+    # -- Inline database password (stored in a chart Secret)
     password: ""
     # -- Existing secret containing the database password
     existingSecret: ""
@@ -70,7 +123,7 @@ database:
 # =============================================================================
 
 persistence:
-  # -- Enable persistent storage for /var/www/html/writable (uploads, cache, logs, sessions)
+  # -- Persist /var/www/html/writable and the uploaded media in /var/www/html/public/media
   enabled: true
   # -- Use an existing PVC instead of creating one
   existingClaim: ""
@@ -95,6 +148,9 @@ serviceAccount:
   # -- Annotations for the ServiceAccount
   annotations: {}
 
+# -- Mount the ServiceAccount token in the pod (Castopod does not call the Kubernetes API)
+automountServiceAccountToken: false
+
 # =============================================================================
 # Service
 # =============================================================================
@@ -116,6 +172,7 @@ ingress:
   enabled: false
   # -- Ingress class name (for example: traefik, nginx)
   ingressClassName: traefik
+  # -- Ingress annotations
   annotations: {}
     # cert-manager.io/cluster-issuer: letsencrypt
   # -- Ingress hosts
@@ -131,45 +188,98 @@ ingress:
     #   secretName: castopod-tls
 
 # =============================================================================
+# Gateway API
+# =============================================================================
+
+gatewayAPI:
+  # -- Render Gateway API HTTPRoute resources
+  enabled: false
+  # -- HTTPRoute definitions routed to the Castopod Service by default
+  # @default -- `[]`
+  httpRoutes: []
+    # - name: public
+    #   parentRefs:
+    #     - name: shared-gateway
+    #       namespace: gateway-system
+    #       sectionName: https
+    #   hostnames:
+    #     - podcast.example.com
+
+# =============================================================================
 # Probes
 # =============================================================================
 
 probes:
+  # -- HTTP path answered by the FrankenPHP server
+  path: /healthcheck
   startup:
+    # -- Enable the startup probe
     enabled: true
-    initialDelaySeconds: 10
+    # -- Startup probe initial delay
+    initialDelaySeconds: 5
+    # -- Startup probe period
     periodSeconds: 5
+    # -- Startup probe timeout
     timeoutSeconds: 3
+    # -- Startup probe failure threshold
     failureThreshold: 30
   liveness:
+    # -- Enable the liveness probe
     enabled: true
+    # -- Liveness probe initial delay
     initialDelaySeconds: 0
+    # -- Liveness probe period
     periodSeconds: 15
+    # -- Liveness probe timeout
     timeoutSeconds: 5
+    # -- Liveness probe failure threshold
     failureThreshold: 3
   readiness:
+    # -- Enable the readiness probe
     enabled: true
+    # -- Readiness probe initial delay
     initialDelaySeconds: 0
+    # -- Readiness probe period
     periodSeconds: 10
+    # -- Readiness probe timeout
     timeoutSeconds: 5
+    # -- Readiness probe failure threshold
     failureThreshold: 3
 
 # =============================================================================
 # Resources and Security
 # =============================================================================
 
+# -- Resources for the Castopod container
 resources: {}
 
-podSecurityContext: {}
+# -- Pod security context (the image runs as www-data, uid 33)
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 33
+  runAsGroup: 33
+  fsGroup: 33
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
 
-securityContext: {}
+# -- Container security context for every Castopod container. The FrankenPHP
+# binary carries the NET_BIND_SERVICE file capability, so the capability must
+# stay in the bounding set for the binary to start.
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+    add:
+      - NET_BIND_SERVICE
 
 # =============================================================================
 # S3 Backup
 # =============================================================================
 
 backup:
-  # -- Enable scheduled writable directory backups to S3-compatible storage
+  # -- Enable scheduled backups of the data volume (writable files and media) to S3-compatible storage
   enabled: false
 
   # -- Cron schedule for backups (default: daily at 03:00 UTC)
@@ -234,21 +344,31 @@ backup:
 # Scheduling
 # =============================================================================
 
+# -- Node selector for the pod
 nodeSelector: {}
+# -- Tolerations for the pod
 tolerations: []
+# -- Affinity rules for the pod
 affinity: {}
+# -- Topology spread constraints for the pod
 topologySpreadConstraints: []
+# -- Priority class name for the pod
 priorityClassName: ""
+# -- Termination grace period in seconds
 terminationGracePeriodSeconds: 30
 
+# -- Extra labels for the pod
 podLabels: {}
+# -- Extra annotations for the pod
 podAnnotations: {}
 
 # =============================================================================
 # Extra
 # =============================================================================
 
+# -- Extra volumes for the pod
 extraVolumes: []
+# -- Extra volume mounts for the Castopod container
 extraVolumeMounts: []
 
 # -- Extra manifests to deploy alongside the chart
@@ -261,16 +381,23 @@ extraManifests: []
 mariadb:
   # -- Deploy MariaDB as a subchart
   enabled: true
+  # -- MariaDB subchart architecture
   architecture: standalone
   auth:
+    # -- Database created by the subchart
     database: castopod
+    # -- Database user created by the subchart
     username: castopod
     # -- MariaDB password (auto-generated if empty)
     password: ""
 
 redis:
-  # -- Deploy Redis as a subchart (optional cache)
+  # -- Deploy Redis as a subchart for the Castopod cache (authentication is required by Castopod)
   enabled: false
+  # -- Redis subchart architecture
   architecture: standalone
   auth:
-    enabled: false
+    # -- Redis authentication; Castopod refuses to start with Redis but no password
+    enabled: true
+    # -- Redis password (auto-generated by the subchart if empty)
+    password: ""
