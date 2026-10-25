@@ -65,8 +65,9 @@ This is opt-in and only active when `postgresql.enabled=false`. It lets operator
 
 ```mermaid
 flowchart LR
-  backend[Secret backend<br/>Vault, AWS, GCP] -->|sync| es[ExternalSecret<br/>external-secrets.io]
-  es -->|creates| secret[Kubernetes Secret<br/>app, db, backup credentials]
+  es[ExternalSecret<br/>external-secrets.io] -->|reconciled by| eso[External Secrets Operator]
+  eso -->|reads| backend[(Secret backend<br/>Vault, AWS, GCP)]
+  eso -->|writes| secret[Kubernetes Secret<br/>app, db, backup credentials]
   secret -->|envFrom and valueFrom| app[Umami Deployment]
   secret -->|envFrom and valueFrom| backup[Backup CronJob]
 ```
