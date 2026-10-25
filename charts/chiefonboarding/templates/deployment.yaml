@@ -21,16 +21,20 @@ spec:
         {{- end }}
       {{- with .Values.podAnnotations }}
       annotations:
+        checksum/config: {{ printf "%s|%s" (toJson $.Values.chiefonboarding) (toJson $.Values.database.external) | sha256sum }}
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if not .Values.podAnnotations }}
+      annotations:
+        checksum/config: {{ printf "%s|%s" (toJson .Values.chiefonboarding) (toJson .Values.database.external) | sha256sum }}
       {{- end }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "chiefonboarding.serviceAccountName" . }}
-      {{- end }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . }}
       {{- end }}
@@ -56,11 +60,23 @@ spec:
         - name: chiefonboarding
           image: {{ include "chiefonboarding.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [/bin/bash, -ec]
+          args:
+            - |
+              cd /app
+              uv run python manage.py migrate --noinput
+              cp /etc/supervisor/conf.d/supervisord.conf /tmp/chiefonboarding-supervisord.conf
+              sed -i "s/0\.0\.0\.0:8000/0.0.0:${CHIEFONBOARDING_PORT}/g" /tmp/chiefonboarding-supervisord.conf
+              exec /usr/bin/supervisord -c /tmp/chiefonboarding-supervisord.conf
           ports:
             - name: http
               containerPort: {{ .Values.chiefonboarding.port }}
               protocol: TCP
           env:
+            - name: CHIEFONBOARDING_PORT
+              value: {{ .Values.chiefonboarding.port | quote }}
+            - name: ALLOWED_HOSTS
+              value: {{ join "," .Values.chiefonboarding.allowedHosts | quote }}
             - name: DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -82,8 +98,12 @@ spec:
             {{- end }}
           {{- if .Values.probes.startup.enabled }}
           startupProbe:
-            tcpSocket:
+            httpGet:
+              path: /
               port: http
+              httpHeaders:
+                - name: Host
+                  value: {{ include "chiefonboarding.probeHost" . | quote }}
             initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.startup.periodSeconds }}
             timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
@@ -91,8 +111,12 @@ spec:
           {{- end }}
           {{- if .Values.probes.liveness.enabled }}
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /
               port: http
+              httpHeaders:
+                - name: Host
+                  value: {{ include "chiefonboarding.probeHost" . | quote }}
             initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
             timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
@@ -100,8 +124,12 @@ spec:
           {{- end }}
           {{- if .Values.probes.readiness.enabled }}
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /
               port: http
+              httpHeaders:
+                - name: Host
+                  value: {{ include "chiefonboarding.probeHost" . | quote }}
             initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
             timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}

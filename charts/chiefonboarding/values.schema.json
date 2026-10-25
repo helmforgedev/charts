@@ -3,7 +3,7 @@
   "title": "ChiefOnboarding Helm Chart Values",
   "description": "Values for the ChiefOnboarding Helm chart — employee onboarding automation platform with PostgreSQL backend",
   "type": "object",
-  "additionalProperties": true,
+  "additionalProperties": false,
   "properties": {
     "global": {
       "type": "object",
@@ -39,6 +39,11 @@
           "description": "Image tag (defaults to v{appVersion})",
           "default": ""
         },
+        "digest": {
+          "type": "string",
+          "description": "Immutable image manifest digest",
+          "pattern": "^(sha256:[a-f0-9]{64})?$"
+        },
         "pullPolicy": {
           "type": "string",
           "description": "Image pull policy",
@@ -61,13 +66,21 @@
       "properties": {
         "port": {
           "type": "integer",
-          "description": "Application port (Django)",
+          "description": "Actual Gunicorn listener port",
+          "minimum": 1024,
+          "maximum": 65535,
           "default": 8000
         },
         "baseUrl": {
           "type": "string",
           "description": "Public base URL of the instance",
           "default": ""
+        },
+        "allowedHosts": {
+          "type": "array",
+          "description": "Host headers accepted by Django",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
         },
         "secretKey": {
           "type": "string",
@@ -159,6 +172,11 @@
         "annotations": {
           "type": "object",
           "description": "Annotations for the ServiceAccount"
+        },
+        "automountServiceAccountToken": {
+          "type": "boolean",
+          "description": "Mount the Kubernetes API token into the application pod",
+          "default": false
         }
       }
     },
@@ -176,6 +194,8 @@
         "port": {
           "type": "integer",
           "description": "HTTP service port",
+          "minimum": 1,
+          "maximum": 65535,
           "default": 80
         },
         "annotations": {
@@ -282,11 +302,50 @@
     },
     "podSecurityContext": {
       "type": "object",
-      "description": "Pod-level security context"
+      "description": "Pod-level security context",
+      "properties": {
+        "seccompProfile": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["RuntimeDefault", "Localhost", "Unconfined"]
+            }
+          }
+        }
+      }
     },
     "securityContext": {
       "type": "object",
-      "description": "Container-level security context"
+      "description": "Container-level security context",
+      "properties": {
+        "allowPrivilegeEscalation": {"type": "boolean"},
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "drop": {"type": "array", "items": {"type": "string"}}
+          }
+        },
+        "runAsNonRoot": {"type": "boolean"},
+        "readOnlyRootFilesystem": {"type": "boolean"}
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "description": "Ingress NetworkPolicy configuration",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Isolate application ingress",
+          "default": true
+        },
+        "ingressFrom": {
+          "type": "array",
+          "description": "Additional NetworkPolicy peers allowed to reach the application",
+          "items": {"type": "object"}
+        }
+      }
     },
     "nodeSelector": {
       "type": "object",
@@ -363,6 +422,16 @@
               "type": "string",
               "description": "PostgreSQL password (auto-generated if empty)",
               "default": ""
+            },
+            "existingSecret": {
+              "type": "string",
+              "description": "Existing PostgreSQL Secret managed outside this chart",
+              "default": ""
+            },
+            "existingSecretUserPasswordKey": {
+              "type": "string",
+              "description": "Application password key in the existing Secret",
+              "default": "user-password"
             }
           }
         }

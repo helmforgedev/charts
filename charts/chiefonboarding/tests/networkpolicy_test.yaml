@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: NetworkPolicy
+templates:
+  - templates/networkpolicy.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should isolate application ingress by default
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: "spec.policyTypes[0]"
+          value: Ingress
+      - equal:
+          path: "spec.ingress[0].ports[0].port"
+          value: http
+      - equal:
+          path: spec.ingress[0].from[0].podSelector.matchLabels["app.kubernetes.io/instance"]
+          value: test
+
+  - it: should not render when disabled
+    set:
+      networkPolicy.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should append an ingress controller namespace peer
+    set:
+      networkPolicy.ingressFrom:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+    asserts:
+      - equal:
+          path: spec.ingress[0].from[1].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: ingress-nginx
