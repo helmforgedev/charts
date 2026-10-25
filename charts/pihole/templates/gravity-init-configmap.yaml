@@ -120,6 +120,11 @@ data:
     pihole-FTL sqlite3 "$DB" "INSERT OR IGNORE INTO domainlist (type, domain, enabled, comment) VALUES (3, '{{ . | replace "'" "''" }}', 1, 'Added by Helm chart');"
     {{- end }}
 
+    # The official image runs gravity operations as the pihole user. The
+    # Helm-managed bootstrap runs as root, so hand the persistent state back
+    # before the follow-up gravity update creates or migrates database files.
+    chown -R pihole:pihole /etc/pihole
+
     echo "Gravity database populated successfully."
 
     {{- if .Values.gravity.updateOnInit }}

@@ -1,9 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema#",
+  "$comment": "SPDX-License-Identifier: Apache-2.0",
   "title": "Pi-hole DNS Sinkhole Helm Chart Values",
   "description": "Values for the Pi-hole Helm chart - network-wide ad blocking via DNS filtering",
   "type": "object",
   "additionalProperties": true,
+  "required": ["global"],
   "properties": {
     "global": {
       "type": "object",
@@ -37,7 +39,11 @@
         "tag": {
           "type": "string",
           "description": "Container image tag",
-          "default": "2026.09.0"
+          "default": "2026.10.0"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
         },
         "pullPolicy": {
           "type": "string",
@@ -52,6 +58,14 @@
       "description": "Image pull secrets for private registries",
       "items": {
         "type": "object"
+      }
+    },
+    "containerPorts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dns": { "type": "integer", "minimum": 1, "maximum": 65535, "default": 53 },
+        "http": { "type": "integer", "minimum": 1, "maximum": 65535, "default": 80 }
       }
     },
     "pihole": {
@@ -351,11 +365,19 @@
         },
         "resources": {
           "type": "object",
-          "description": "Resources for the init container"
+          "description": "Resources for the init container",
+          "properties": {
+            "requests": { "type": "object", "properties": { "cpu": { "type": ["string", "number"] }, "memory": { "type": ["string", "number"] } } },
+            "limits": { "type": "object", "properties": { "cpu": { "type": ["string", "number"] }, "memory": { "type": ["string", "number"] } } }
+          }
         },
         "updateResources": {
           "type": "object",
-          "description": "Resources for the gravity update init container"
+          "description": "Resources for the gravity update init container",
+          "properties": {
+            "requests": { "type": "object", "properties": { "cpu": { "type": ["string", "number"] }, "memory": { "type": ["string", "number"] } } },
+            "limits": { "type": "object", "properties": { "cpu": { "type": ["string", "number"] }, "memory": { "type": ["string", "number"] } } }
+          }
         }
       }
     },
@@ -412,15 +434,31 @@
           "type": "object",
           "properties": {
             "utility": {
-              "type": "object"
+              "type": "object",
+              "properties": {
+                "repository": { "type": "string" },
+                "tag": { "type": "string" },
+                "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+                "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+              }
             },
             "uploader": {
-              "type": "object"
+              "type": "object",
+              "properties": {
+                "repository": { "type": "string" },
+                "tag": { "type": "string" },
+                "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+                "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+              }
             }
           }
         },
         "resources": {
-          "type": "object"
+          "type": "object",
+          "properties": {
+            "requests": { "type": "object", "properties": { "cpu": { "type": ["string", "number"] }, "memory": { "type": ["string", "number"] } } },
+            "limits": { "type": "object", "properties": { "cpu": { "type": ["string", "number"] }, "memory": { "type": ["string", "number"] } } }
+          }
         },
         "s3": {
           "type": "object",
@@ -450,7 +488,11 @@
     },
     "resources": {
       "type": "object",
-      "description": "CPU and memory requests/limits for the Pi-hole container"
+      "description": "CPU and memory requests/limits for the Pi-hole container",
+      "properties": {
+        "requests": { "type": "object", "properties": { "cpu": { "type": ["string", "number"] }, "memory": { "type": ["string", "number"] } } },
+        "limits": { "type": "object", "properties": { "cpu": { "type": ["string", "number"] }, "memory": { "type": ["string", "number"] } } }
+      }
     },
     "hostNetwork": {
       "type": "boolean",
@@ -465,11 +507,29 @@
     },
     "podSecurityContext": {
       "type": "object",
-      "description": "Pod-level security context"
+      "description": "Pod-level security context",
+      "properties": {
+        "seccompProfile": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string", "enum": ["RuntimeDefault", "Localhost", "Unconfined"] }
+          }
+        }
+      }
     },
     "securityContext": {
       "type": "object",
-      "description": "Container-level security context"
+      "description": "Container-level security context",
+      "properties": {
+        "allowPrivilegeEscalation": { "type": "boolean" },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "add": { "type": "array", "items": { "type": "string" } },
+            "drop": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
     },
     "startupProbe": {
       "type": "object",
@@ -729,6 +789,7 @@
               "description": "pihole-exporter image tag",
               "default": "v1.2.0"
             },
+            "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
             "pullPolicy": {
               "type": "string",
               "description": "pihole-exporter pull policy",
@@ -744,7 +805,23 @@
         },
         "resources": {
           "type": "object",
-          "description": "Resources for the pihole-exporter sidecar"
+          "description": "Resources for the pihole-exporter sidecar",
+          "properties": {
+            "requests": { "type": "object", "properties": { "cpu": { "type": ["string", "number"] }, "memory": { "type": ["string", "number"] } } },
+            "limits": { "type": "object", "properties": { "cpu": { "type": ["string", "number"] }, "memory": { "type": ["string", "number"] } } }
+          }
+        },
+        "securityContext": {
+          "type": "object",
+          "properties": {
+            "allowPrivilegeEscalation": { "type": "boolean" },
+            "capabilities": {
+              "type": "object",
+              "properties": {
+                "drop": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
         },
         "serviceMonitor": {
           "type": "object",
@@ -792,6 +869,7 @@
               "description": "Unbound image tag",
               "default": "1.22.0"
             },
+            "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
             "pullPolicy": {
               "type": "string",
               "description": "Unbound pull policy",
@@ -817,8 +895,33 @@
         },
         "resources": {
           "type": "object",
-          "description": "Resources for the Unbound sidecar"
+          "description": "Resources for the Unbound sidecar",
+          "properties": {
+            "requests": { "type": "object", "properties": { "cpu": { "type": ["string", "number"] }, "memory": { "type": ["string", "number"] } } },
+            "limits": { "type": "object", "properties": { "cpu": { "type": ["string", "number"] }, "memory": { "type": ["string", "number"] } } }
+          }
+        },
+        "securityContext": {
+          "type": "object",
+          "properties": {
+            "allowPrivilegeEscalation": { "type": "boolean" },
+            "capabilities": {
+              "type": "object",
+              "properties": {
+                "add": { "type": "array", "items": { "type": "string" } },
+                "drop": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
         }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "ingressFrom": { "type": "array", "items": { "type": "object" } }
       }
     },
     "dhcp": {
@@ -835,6 +938,23 @@
           "type": "boolean",
           "description": "Use host network for DHCP broadcasts",
           "default": false
+        },
+        "start": {
+          "type": "string",
+          "description": "First IPv4 address in the DHCP lease range"
+        },
+        "end": {
+          "type": "string",
+          "description": "Last IPv4 address in the DHCP lease range"
+        },
+        "router": {
+          "type": "string",
+          "description": "Router IPv4 address advertised to DHCP clients"
+        },
+        "leaseTime": {
+          "type": "string",
+          "description": "DHCP lease time",
+          "pattern": "^([0-9]+[smhdw]?|infinite)$"
         }
       }
     },

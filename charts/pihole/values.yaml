@@ -7,6 +7,8 @@
 # https://docs.pi-hole.net/
 # =============================================================================
 
+global: {}
+
 # -- Override the chart name used in resource names
 nameOverride: ""
 
@@ -25,11 +27,19 @@ image:
   repository: docker.io/pihole/pihole
   # -- Container image tag
   tag: "2026.10.0"
+  # -- Immutable multi-architecture image digest
+  digest: "sha256:d34134716fc32038b052a8674c7c6879e0ff21f0e6d8af345166fffa2c27c113"
   # -- Image pull policy
   pullPolicy: IfNotPresent
 
 # -- Image pull secrets for private registries
 imagePullSecrets: []
+
+containerPorts:
+  # -- Pi-hole FTL DNS listener port (TCP and UDP)
+  dns: 53
+  # -- Pi-hole FTL web listener port
+  http: 80
 
 # =============================================================================
 # Pi-hole Configuration
@@ -260,11 +270,13 @@ backup:
     utility:
       repository: docker.io/library/alpine
       tag: "3.23"
+      digest: "sha256:ff7f0c727dd796aa36787bfcd9a64bf35a6ce72a73451b3359fde849b6703d63"
       pullPolicy: IfNotPresent
     # -- S3 uploader image (MinIO client)
     uploader:
       repository: docker.io/helmforge/mc
       tag: "1.0.0"
+      digest: "sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727"
       pullPolicy: IfNotPresent
 
   # -- Resources for backup containers
@@ -332,11 +344,19 @@ securityContext:
   allowPrivilegeEscalation: false
   # -- Linux capabilities required by Pi-hole
   capabilities:
+    drop:
+      - ALL
     add:
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
       - NET_BIND_SERVICE
       - NET_RAW
       - SYS_NICE
       - CHOWN
+      - SETFCAP
+      - KILL
 
 # =============================================================================
 # Probes
@@ -448,7 +468,7 @@ ingress:
 
 serviceAccount:
   # -- Create a dedicated ServiceAccount
-  create: false
+  create: true
 
   # -- Name override (auto-generated if empty)
   name: ""
@@ -472,6 +492,8 @@ metrics:
     repository: docker.io/ekofr/pihole-exporter
     # -- pihole-exporter image tag
     tag: v1.2.0
+    # -- Immutable multi-architecture image digest
+    digest: "sha256:242c53ef3c24b88fcbe8184390b456d05604bd50de5732ca3fd3eb24395585b3"
     # -- pihole-exporter pull policy
     pullPolicy: IfNotPresent
 
@@ -486,6 +508,12 @@ metrics:
     limits:
       cpu: 100m
       memory: 128Mi
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
 
   # -- ServiceMonitor for Prometheus Operator
   serviceMonitor:
@@ -513,6 +541,8 @@ unbound:
     repository: docker.io/mvance/unbound
     # -- Unbound image tag
     tag: 1.22.0
+    # -- Immutable image digest
+    digest: "sha256:76906da36d1806f3387338f15dcf8b357c51ce6897fb6450d6ce010460927e90"
     # -- Unbound pull policy
     pullPolicy: IfNotPresent
 
@@ -547,6 +577,32 @@ unbound:
       cpu: 200m
       memory: 128Mi
 
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+      # Required by the official mvance/unbound entrypoint to prepare its
+      # chroot, create device nodes, generate the DNSSEC trust anchor, and
+      # drop privileges to the _unbound user.
+      add:
+        - CHOWN
+        - DAC_OVERRIDE
+        - MKNOD
+        - SETGID
+        - SETUID
+        - SYS_CHROOT
+
+# =============================================================================
+# Network Policy
+# =============================================================================
+
+networkPolicy:
+  # -- Create an ingress NetworkPolicy for Pi-hole's exposed pod ports
+  enabled: true
+  # -- Optional ingress peers. Empty allows all sources to the declared ports.
+  ingressFrom: []
+
 # =============================================================================
 # DHCP (Advanced)
 # =============================================================================
@@ -560,6 +616,18 @@ dhcp:
 
   # -- Use host network for DHCP broadcasts
   hostNetwork: false
+
+  # -- First IPv4 address in the DHCP lease range
+  start: ""
+
+  # -- Last IPv4 address in the DHCP lease range
+  end: ""
+
+  # -- Router IPv4 address advertised to DHCP clients
+  router: ""
+
+  # -- DHCP lease time (for example 24h, 7d, or infinite)
+  leaseTime: "24h"
 
 # =============================================================================
 # Scheduling

@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Unbound Recursive DNS
 
 When Unbound is enabled, Pi-hole uses a local Unbound sidecar for recursive DNS
@@ -58,14 +60,21 @@ unbound:
 
 The chart uses [mvance/unbound](https://hub.docker.com/r/mvance/unbound) with a pinned version tag. The default port is `5335` to avoid conflicts with Pi-hole's DNS on port `53`.
 
+The chart drops all Linux capabilities from the Unbound sidecar and adds only
+the capabilities required by the official image entrypoint: `CHOWN`,
+`DAC_OVERRIDE`, `MKNOD`, `SETGID`, `SETUID`, and `SYS_CHROOT`. These are
+necessary to prepare the image's chroot, generate the DNSSEC trust anchor, and
+switch to the `_unbound` user.
+
 The image ships with `interface: 0.0.0.0@53` hardcoded in
 `/opt/unbound/etc/unbound/unbound.conf`, which would collide with `pihole-FTL`
 in the shared pod network namespace. The chart mounts a generated `unbound.conf`
 over that file at runtime; the rendered config binds Unbound to `127.0.0.1` at
 `unbound.port`, validates DNSSEC against the trust anchor the image entrypoint
-generates at `/opt/unbound/etc/unbound/var/root.key`, and blocks DNS rebinding
-of RFC1918 ranges. The default config omits `root-hints:` so Unbound falls back
-to its built-in root server list (the image does not ship a `root.hints` file).
+generates at `/opt/unbound/etc/unbound/var/root.key` (referenced as
+`var/root.key` from inside the image chroot), and blocks DNS rebinding of RFC1918
+ranges. The default config omits `root-hints:` so Unbound falls back to its
+built-in root server list (the image does not ship a `root.hints` file).
 
 ## Customizing the Unbound Config
 

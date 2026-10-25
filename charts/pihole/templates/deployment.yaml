@@ -78,6 +78,7 @@ spec:
               echo "Running Pi-hole gravity update after Helm-managed lists were reconciled..."
               pihole-FTL --config >/dev/null
               pihole -g
+              chown -R pihole:pihole /etc/pihole
           env:
             - name: TZ
               value: {{ .Values.pihole.timezone | quote }}
@@ -85,6 +86,10 @@ spec:
               value: {{ include "pihole.upstreamDns" . | quote }}
             - name: FTLCONF_dns_listeningMode
               value: {{ .Values.pihole.listeningMode | quote }}
+            - name: FTLCONF_dns_port
+              value: {{ .Values.containerPorts.dns | quote }}
+            - name: FTLCONF_webserver_port
+              value: {{ .Values.containerPorts.http | quote }}
             {{- if .Values.pihole.dnssec }}
             - name: FTLCONF_dns_dnssec
               value: "true"
@@ -140,7 +145,14 @@ spec:
         - name: pihole
           image: {{ include "pihole.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          {{- with .Values.securityContext }}
+          {{- $securityContext := deepCopy .Values.securityContext }}
+          {{- if .Values.dhcp.enabled }}
+          {{- $capabilityAdd := $securityContext.capabilities.add | default (list) }}
+          {{- if not (has "NET_ADMIN" $capabilityAdd) }}
+          {{- $_ := set $securityContext.capabilities "add" (append $capabilityAdd "NET_ADMIN") }}
+          {{- end }}
+          {{- end }}
+          {{- with $securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
@@ -151,6 +163,22 @@ spec:
               value: {{ include "pihole.upstreamDns" . | quote }}
             - name: FTLCONF_dns_listeningMode
               value: {{ .Values.pihole.listeningMode | quote }}
+            {{- if .Values.dhcp.enabled }}
+            - name: FTLCONF_dhcp_active
+              value: "true"
+            - name: FTLCONF_dhcp_start
+              value: {{ .Values.dhcp.start | quote }}
+            - name: FTLCONF_dhcp_end
+              value: {{ .Values.dhcp.end | quote }}
+            - name: FTLCONF_dhcp_router
+              value: {{ .Values.dhcp.router | quote }}
+            - name: FTLCONF_dhcp_leaseTime
+              value: {{ .Values.dhcp.leaseTime | quote }}
+            {{- end }}
+            - name: FTLCONF_dns_port
+              value: {{ .Values.containerPorts.dns | quote }}
+            - name: FTLCONF_webserver_port
+              value: {{ .Values.containerPorts.http | quote }}
             {{- if .Values.pihole.dnssec }}
             - name: FTLCONF_dns_dnssec
               value: "true"
@@ -195,16 +223,17 @@ spec:
             {{- end }}
           ports:
             - name: dns-tcp
-              containerPort: 53
+              containerPort: {{ .Values.containerPorts.dns }}
               protocol: TCP
             - name: dns-udp
-              containerPort: 53
+              containerPort: {{ .Values.containerPorts.dns }}
               protocol: UDP
             - name: http
-              containerPort: 80
+              containerPort: {{ .Values.containerPorts.http }}
               protocol: TCP
             {{- if .Values.dhcp.enabled }}
             - name: dhcp
+              # helmforge: fixed-protocol-port
               containerPort: 67
               protocol: UDP
             {{- end }}
@@ -276,13 +305,13 @@ spec:
             {{- end }}
         {{- if .Values.metrics.enabled }}
         - name: exporter
-          image: "{{ .Values.metrics.image.repository }}:{{ .Values.metrics.image.tag }}"
+          image: {{ include "pihole.metricsImage" . | quote }}
           imagePullPolicy: {{ .Values.metrics.image.pullPolicy }}
           env:
             - name: PIHOLE_HOSTNAME
               value: "127.0.0.1"
             - name: PIHOLE_PORT
-              value: "80"
+              value: {{ .Values.containerPorts.http | quote }}
             - name: PIHOLE_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -298,10 +327,12 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          securityContext:
+            {{- toYaml .Values.metrics.securityContext | nindent 12 }}
         {{- end }}
         {{- if .Values.unbound.enabled }}
         - name: unbound
-          image: "{{ .Values.unbound.image.repository }}:{{ .Values.unbound.image.tag }}"
+          image: {{ include "pihole.unboundImage" . | quote }}
           imagePullPolicy: {{ .Values.unbound.image.pullPolicy }}
           ports:
             - name: unbound-tcp
@@ -314,6 +345,8 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          securityContext:
+            {{- toYaml .Values.unbound.securityContext | nindent 12 }}
           volumeMounts:
             - name: unbound-config
               mountPath: /opt/unbound/etc/unbound/unbound.conf

@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: NetworkPolicy
+templates:
+  - templates/networkpolicy.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should expose only DNS and web ports by default
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - lengthEqual:
+          path: spec.ingress[0].ports
+          count: 3
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: dns-tcp
+      - equal:
+          path: spec.ingress[0].ports[2].port
+          value: http
+
+  - it: should include optional DHCP and metrics ports
+    set:
+      dhcp.enabled: true
+      metrics.enabled: true
+    asserts:
+      - lengthEqual:
+          path: spec.ingress[0].ports
+          count: 5
+
+  - it: should restrict sources when ingress peers are configured
+    set:
+      networkPolicy.ingressFrom:
+        - ipBlock:
+            cidr: 192.168.0.0/16
+    asserts:
+      - equal:
+          path: spec.ingress[0].from[0].ipBlock.cidr
+          value: 192.168.0.0/16
+
+  - it: should not render when disabled
+    set:
+      networkPolicy.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
