@@ -14,9 +14,9 @@ make validate-chart CHART=karakeep
 Verify that every image tag is pinned:
 
 ```bash
-make image-verify IMAGE=ghcr.io/karakeep-app/karakeep:0.33.2
+make image-verify IMAGE=ghcr.io/karakeep-app/karakeep:0.34.1
 make image-verify IMAGE=docker.io/getmeili/meilisearch:v1.53.0
-make image-verify IMAGE=ghcr.io/browserless/chromium:v2.55.4
+make image-verify IMAGE=ghcr.io/karakeep-app/karakeep-chrome:154.0.8037.57-r1
 ```
 
 ## Installation
@@ -43,7 +43,8 @@ kubectl port-forward svc/karakeep-karakeep 3000:80
 - Use `karakeep.existingSecret` or External Secrets Operator for managed
   credentials.
 - Define a PVC backup and restore procedure.
-- Add namespace NetworkPolicies or equivalent platform policy.
+- Restrict `networkPolicy.ingressFrom` to the namespaces or pods that need
+  access when the default cross-namespace rule is too broad.
 
 ## Health Checks
 
@@ -119,12 +120,20 @@ kubectl logs deploy/karakeep-karakeep -c meilisearch --tail=100
 
 ### Screenshots are not created
 
-Confirm Chromium is enabled and the configured port matches the sidecar:
+Confirm Chromium is enabled and listening on its upstream-fixed port 9222:
 
 ```bash
 kubectl get deploy karakeep-karakeep -o jsonpath='{.spec.template.spec.containers[*].name}'
 kubectl logs deploy/karakeep-karakeep -c chromium --tail=100
 ```
+
+### Custom port rollout fails
+
+`containerPorts.http` changes Karakeep's `PORT`; `meilisearch.port` changes both
+`MEILI_HTTP_ADDR` and Karakeep's `MEILI_ADDR`. Inspect the rendered environment
+and probe the named ports rather than changing `service.port`, which only
+changes the Service-facing port. Chromium port 9222 cannot be overridden because
+the official image reserves it in the entrypoint.
 
 ### ExternalSecret renders but pod cannot start
 

@@ -40,7 +40,30 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "karakeep.image" -}}
-{{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
+{{- $image := printf "%s:%s" .Values.image.repository .Values.image.tag -}}
+{{- if .Values.image.digest -}}
+{{- printf "%s@%s" $image .Values.image.digest -}}
+{{- else -}}
+{{- $image -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "karakeep.meilisearchImage" -}}
+{{- $image := printf "%s:%s" .Values.meilisearch.image.repository .Values.meilisearch.image.tag -}}
+{{- if .Values.meilisearch.image.digest -}}
+{{- printf "%s@%s" $image .Values.meilisearch.image.digest -}}
+{{- else -}}
+{{- $image -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "karakeep.chromiumImage" -}}
+{{- $image := printf "%s:%s" .Values.chromium.image.repository .Values.chromium.image.tag -}}
+{{- if .Values.chromium.image.digest -}}
+{{- printf "%s@%s" $image .Values.chromium.image.digest -}}
+{{- else -}}
+{{- $image -}}
+{{- end -}}
 {{- end -}}
 
 {{/* Data PVC claim name */}}

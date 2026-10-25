@@ -31,12 +31,14 @@ Ingress, HTTPRoute, or port-forward
 Service port 80
    |
    v
-karakeep container port 3000
+karakeep container port containerPorts.http (default 3000)
 ```
 
-If Meilisearch is enabled, Karakeep uses `http://localhost:7700` inside the pod.
-If Chromium is enabled, Karakeep uses `http://localhost:<chromium.port>` inside
-the pod and can defer browser connection until a crawl needs it.
+If Meilisearch is enabled, Karakeep uses
+`http://localhost:<meilisearch.port>` inside the pod and the same value changes
+Meilisearch's actual listener. If Chromium is enabled, Karakeep uses
+`http://localhost:9222`; this port is fixed by the official Karakeep Chrome
+entrypoint. Browser connection can still be deferred until a crawl needs it.
 
 ## Data Layout
 

@@ -4,6 +4,7 @@
   "description": "Values for the Karakeep Helm chart — AI-powered bookmark manager with full-text search and web archiving",
   "type": "object",
   "additionalProperties": true,
+  "required": ["global"],
   "properties": {
     "global": {
       "type": "object",
@@ -18,10 +19,18 @@
       "properties": {
         "repository": { "type": "string", "default": "ghcr.io/karakeep-app/karakeep" },
         "tag": { "type": "string", "default": "" },
+        "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
         "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"], "default": "IfNotPresent" }
       }
     },
     "imagePullSecrets": { "type": "array", "items": { "type": "object" } },
+    "containerPorts": {
+      "type": "object",
+      "description": "Application listener ports",
+      "properties": {
+        "http": { "type": "integer", "minimum": 1, "maximum": 65535, "default": 3000 }
+      }
+    },
     "karakeep": {
       "type": "object",
       "description": "Karakeep application configuration",
@@ -44,7 +53,23 @@
           "properties": {
             "repository": { "type": "string", "default": "docker.io/getmeili/meilisearch" },
             "tag": { "type": "string", "default": "v1.53.0" },
+            "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
             "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"], "default": "IfNotPresent" }
+          }
+        },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535, "default": 7700 },
+        "securityContext": {
+          "type": "object",
+          "properties": {
+            "allowPrivilegeEscalation": { "type": "boolean" },
+            "capabilities": {
+              "type": "object",
+              "properties": {
+                "drop": { "type": "array", "items": { "type": "string" } }
+              }
+            },
+            "runAsNonRoot": { "type": "boolean" },
+            "runAsUser": { "type": "integer", "minimum": 0 }
           }
         },
         "resources": { "type": "object" }
@@ -55,13 +80,30 @@
       "description": "Chromium sidecar for web page screenshots",
       "properties": {
         "enabled": { "type": "boolean", "default": true },
-        "port": { "type": "integer", "default": 9222, "minimum": 1, "maximum": 65535 },
         "image": {
           "type": "object",
           "properties": {
-            "repository": { "type": "string", "default": "ghcr.io/browserless/chromium" },
-            "tag": { "type": "string", "default": "v2.55.4" },
+            "repository": { "type": "string", "default": "ghcr.io/karakeep-app/karakeep-chrome" },
+            "tag": { "type": "string", "default": "154.0.8037.57-r1" },
+            "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
             "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"], "default": "IfNotPresent" }
+          }
+        },
+        "args": { "type": "array", "items": { "type": "string" } },
+        "securityContext": {
+          "type": "object",
+          "properties": {
+            "allowPrivilegeEscalation": { "type": "boolean" },
+            "capabilities": {
+              "type": "object",
+              "properties": {
+                "drop": { "type": "array", "items": { "type": "string" } }
+              }
+            },
+            "readOnlyRootFilesystem": { "type": "boolean" },
+            "runAsNonRoot": { "type": "boolean" },
+            "runAsUser": { "type": "integer", "minimum": 0 },
+            "runAsGroup": { "type": "integer", "minimum": 0 }
           }
         },
         "resources": { "type": "object" }
@@ -83,7 +125,8 @@
       "properties": {
         "create": { "type": "boolean", "default": false },
         "name": { "type": "string", "default": "" },
-        "annotations": { "type": "object" }
+        "annotations": { "type": "object" },
+        "automountServiceAccountToken": { "type": "boolean", "default": false }
       }
     },
     "service": {
@@ -134,10 +177,77 @@
         "annotations": { "type": "object" }
       }
     },
-    "probes": { "type": "object" },
+    "probes": {
+      "type": "object",
+      "properties": {
+        "startup": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+            "periodSeconds": { "type": "integer", "minimum": 1 },
+            "timeoutSeconds": { "type": "integer", "minimum": 1 },
+            "failureThreshold": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "liveness": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+            "periodSeconds": { "type": "integer", "minimum": 1 },
+            "timeoutSeconds": { "type": "integer", "minimum": 1 },
+            "failureThreshold": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "readiness": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+            "periodSeconds": { "type": "integer", "minimum": 1 },
+            "timeoutSeconds": { "type": "integer", "minimum": 1 },
+            "failureThreshold": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    },
     "resources": { "type": "object" },
-    "podSecurityContext": { "type": "object" },
-    "securityContext": { "type": "object" },
+    "podSecurityContext": {
+      "type": "object",
+      "properties": {
+        "fsGroup": { "type": "integer", "minimum": 0 },
+        "fsGroupChangePolicy": { "type": "string", "enum": ["Always", "OnRootMismatch"] },
+        "seccompProfile": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string", "enum": ["RuntimeDefault", "Localhost", "Unconfined"] }
+          }
+        }
+      }
+    },
+    "securityContext": {
+      "type": "object",
+      "properties": {
+        "allowPrivilegeEscalation": { "type": "boolean" },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "drop": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "readOnlyRootFilesystem": { "type": "boolean" },
+        "runAsNonRoot": { "type": "boolean" },
+        "runAsUser": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "ingressFrom": { "type": "array", "items": { "type": "object" } }
+      }
+    },
     "nodeSelector": { "type": "object" },
     "tolerations": { "type": "array", "items": { "type": "object" } },
     "affinity": { "type": "object" },
@@ -170,6 +280,18 @@
         },
         "data": { "type": "array", "items": { "type": "object" } },
         "annotations": { "type": "object" }
+      }
+    }
+  },
+  "definitions": {
+    "probe": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
       }
     }
   }

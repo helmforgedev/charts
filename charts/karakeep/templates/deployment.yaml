@@ -30,9 +30,8 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "karakeep.serviceAccountName" . }}
-      {{- end }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . }}
       {{- end }}
@@ -47,11 +46,13 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
-              containerPort: 3000
+              containerPort: {{ .Values.containerPorts.http }}
               protocol: TCP
           env:
             - name: DATA_DIR
               value: "/data"
+            - name: PORT
+              value: {{ .Values.containerPorts.http | quote }}
             - name: NEXTAUTH_SECRET
               valueFrom:
                 secretKeyRef:
@@ -63,7 +64,7 @@ spec:
             {{- end }}
             {{- if .Values.meilisearch.enabled }}
             - name: MEILI_ADDR
-              value: "http://localhost:7700"
+              value: "http://localhost:{{ .Values.meilisearch.port }}"
             - name: MEILI_MASTER_KEY
               valueFrom:
                 secretKeyRef:
@@ -72,7 +73,7 @@ spec:
             {{- end }}
             {{- if .Values.chromium.enabled }}
             - name: BROWSER_WEB_URL
-              value: "http://localhost:{{ .Values.chromium.port }}"
+              value: "http://localhost:9222"
             - name: BROWSER_CONNECT_ONDEMAND
               value: {{ .Values.karakeep.browserConnectOnDemand | quote }}
             {{- end }}
@@ -81,7 +82,8 @@ spec:
             {{- end }}
           {{- if .Values.probes.startup.enabled }}
           startupProbe:
-            tcpSocket:
+            httpGet:
+              path: /api/health
               port: http
             initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.startup.periodSeconds }}
@@ -90,7 +92,8 @@ spec:
           {{- end }}
           {{- if .Values.probes.liveness.enabled }}
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /api/health
               port: http
             initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
@@ -99,7 +102,8 @@ spec:
           {{- end }}
           {{- if .Values.probes.readiness.enabled }}
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /api/health
               port: http
             initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
@@ -122,11 +126,11 @@ spec:
             {{- end }}
         {{- if .Values.meilisearch.enabled }}
         - name: meilisearch
-          image: "{{ .Values.meilisearch.image.repository }}:{{ .Values.meilisearch.image.tag }}"
+          image: {{ include "karakeep.meilisearchImage" . | quote }}
           imagePullPolicy: {{ .Values.meilisearch.image.pullPolicy }}
           ports:
             - name: meili
-              containerPort: 7700
+              containerPort: {{ .Values.meilisearch.port }}
               protocol: TCP
           env:
             - name: MEILI_MASTER_KEY
@@ -136,10 +140,35 @@ spec:
                   key: {{ .Values.karakeep.existingSecretMeiliMasterKey }}
             - name: MEILI_NO_ANALYTICS
               value: "true"
+            - name: MEILI_HTTP_ADDR
+              value: "0.0.0.0:{{ .Values.meilisearch.port }}"
+          startupProbe:
+            httpGet:
+              path: /health
+              port: meili
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: meili
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: meili
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
           {{- with .Values.meilisearch.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          securityContext:
+            {{- toYaml .Values.meilisearch.securityContext | nindent 12 }}
           volumeMounts:
             - name: data
               mountPath: /meili_data
@@ -147,19 +176,44 @@ spec:
         {{- end }}
         {{- if .Values.chromium.enabled }}
         - name: chromium
-          image: "{{ .Values.chromium.image.repository }}:{{ .Values.chromium.image.tag }}"
+          image: {{ include "karakeep.chromiumImage" . | quote }}
           imagePullPolicy: {{ .Values.chromium.image.pullPolicy }}
           ports:
             - name: chrome
-              containerPort: {{ .Values.chromium.port }}
+              # helmforge: fixed-protocol-port
+              containerPort: 9222
               protocol: TCP
-          env:
-            - name: PORT
-              value: {{ .Values.chromium.port | quote }}
+          {{- with .Values.chromium.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          startupProbe:
+            tcpSocket:
+              port: chrome
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 30
+          livenessProbe:
+            tcpSocket:
+              port: chrome
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket:
+              port: chrome
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
           {{- with .Values.chromium.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          securityContext:
+            {{- toYaml .Values.chromium.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: chromium-tmp
+              mountPath: /tmp
         {{- end }}
       volumes:
         - name: data
@@ -169,6 +223,10 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
+        {{- if .Values.chromium.enabled }}
+        - name: chromium-tmp
+          emptyDir: {}
+        {{- end }}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

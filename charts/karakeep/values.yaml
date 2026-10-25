@@ -4,6 +4,7 @@
 # =============================================================================
 # Focus: AI-powered bookmark manager with optional Meilisearch and Chromium sidecars
 
+global: {}
 nameOverride: ""
 fullnameOverride: ""
 commonLabels: {}
@@ -16,10 +17,16 @@ image:
   # -- Karakeep container image
   repository: ghcr.io/karakeep-app/karakeep
   # -- Image tag
-  tag: "0.34.0"
+  tag: "0.34.1"
+  # -- Immutable multi-architecture image digest
+  digest: "sha256:69ae5315c618b7c14c1af3e34c6e211acdb231793af424ecd1cab0b70691d987"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
+
+containerPorts:
+  # -- Karakeep application listener port
+  http: 3000
 
 # =============================================================================
 # Karakeep Configuration
@@ -52,7 +59,19 @@ meilisearch:
     repository: docker.io/getmeili/meilisearch
     # -- Meilisearch image tag
     tag: "v1.53.0"
+    # -- Immutable multi-architecture image digest
+    digest: "sha256:a59e984fd90b9dee0c872cdb9183d330d71c038d7a3b35def5ca3ae7fb186fb2"
     pullPolicy: IfNotPresent
+  # -- Meilisearch listener port
+  port: 7700
+  # -- Container security context
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    runAsNonRoot: true
+    runAsUser: 1000
   # -- Resources for the Meilisearch container
   resources: {}
 
@@ -63,14 +82,31 @@ meilisearch:
 chromium:
   # -- Enable Chromium sidecar for web page screenshots
   enabled: true
-  # -- Internal Chromium sidecar HTTP port
-  port: 9222
   image:
-    # -- Chromium container image
-    repository: ghcr.io/browserless/chromium
-    # -- Chromium image tag
-    tag: "v2.55.4"
+    # -- Official Karakeep Chrome container image
+    repository: ghcr.io/karakeep-app/karakeep-chrome
+    # -- Immutable Chromium build tag
+    tag: "154.0.8037.57-r1"
+    # -- Immutable multi-architecture image digest
+    digest: "sha256:c51a8c8e6c3c1040a50fa0ecfd0b2fc298401b4229262636552458151f6f18fa"
     pullPolicy: IfNotPresent
+  # -- Chromium command-line arguments
+  args:
+    - --disable-gpu
+    - --disable-dev-shm-usage
+    - --hide-scrollbars
+    - --disable-blink-features=AutomationControlled
+    - --window-size=1440,900
+  # -- Container security context
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
   # -- Resources for the Chromium container
   resources: {}
 
@@ -97,11 +133,13 @@ persistence:
 
 serviceAccount:
   # -- Create a ServiceAccount
-  create: false
+  create: true
   # -- ServiceAccount name
   name: ""
   # -- Annotations for the ServiceAccount
   annotations: {}
+  # -- Mount the Kubernetes API token into the pod
+  automountServiceAccountToken: false
 
 # =============================================================================
 # Service
@@ -194,9 +232,30 @@ probes:
 
 resources: {}
 
-podSecurityContext: {}
+podSecurityContext:
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
 
-securityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# =============================================================================
+# Network Policy
+# =============================================================================
+
+networkPolicy:
+  # -- Create an ingress NetworkPolicy for the Karakeep HTTP port
+  enabled: true
+  # -- Custom ingress peers. Empty allows traffic from any namespace.
+  ingressFrom: []
 
 # =============================================================================
 # Scheduling
