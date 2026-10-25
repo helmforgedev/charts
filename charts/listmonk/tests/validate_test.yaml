@@ -34,3 +34,52 @@ tests:
     asserts:
       - failedTemplate:
           errorMessagePattern: "externalSecrets\.enabled is true, but externalSecrets\.items is empty\."
+
+  - it: fails on a floating image tag
+    set:
+      image.tag: latest
+    asserts:
+      - failedTemplate:
+          errorPattern: "image.tag must be a pinned Listmonk release"
+
+  - it: rejects a short superadmin password through the schema
+    set:
+      listmonk.admin.password: short
+    asserts:
+      - failedTemplate:
+          errorPattern: "admin/password"
+
+  - it: rejects a privileged listener port through the schema
+    set:
+      listmonk.port: 80
+    asserts:
+      - failedTemplate:
+          errorPattern: "listmonk/port"
+
+  - it: fails when gatewayAPI is enabled without routes
+    set:
+      gatewayAPI.enabled: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "gatewayAPI.httpRoutes must contain at least one route"
+
+  - it: fails when an HTTPRoute has no parentRefs
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - name: public
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires parentRefs"
+
+  - it: should reject HTTPRoutes that render the same name
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - parentRefs:
+            - name: gw-a
+        - parentRefs:
+            - name: gw-b
+    asserts:
+      - failedTemplate:
+          errorPattern: "renders the HTTPRoute name"

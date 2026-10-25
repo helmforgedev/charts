@@ -6,6 +6,9 @@
 # Requires PostgreSQL. SMTP is configured through the admin UI after install.
 # =============================================================================
 
+# -- Global values shared with subcharts
+global: {}
+
 # -- Override the chart name used in resource names
 nameOverride: ""
 
@@ -15,13 +18,14 @@ fullnameOverride: ""
 # -- Labels added to every resource created by this chart
 commonLabels: {}
 
-# -- Number of Listmonk application replicas
+# -- Number of Listmonk application replicas. Keep 1: several active instances
+# process the same campaigns, and the uploads volume is ReadWriteOnce.
 replicaCount: 1
 
 image:
   # -- Listmonk container image repository
   repository: docker.io/listmonk/listmonk
-  # -- Listmonk image tag. Defaults to appVersion when empty.
+  # -- Listmonk image tag (pinned; floating tags are rejected)
   tag: "v6.2.0"
   # -- Image pull policy
   pullPolicy: IfNotPresent
@@ -30,8 +34,27 @@ image:
 imagePullSecrets: []
 
 listmonk:
-  # -- Additional environment variables for the Listmonk container
+  # -- HTTP listener inside the container (LISTMONK_app__address)
+  port: 9000
+  # -- Additional environment variables for the Listmonk and db-init containers
   extraEnv: []
+  admin:
+    # -- Superadmin username created by the first --install (at least 3 characters)
+    username: admin
+    # -- Superadmin password (at least 8 characters); generated once when empty
+    password: ""
+    # -- Existing Secret with the superadmin password
+    existingSecret: ""
+    # -- Key in listmonk.admin.existingSecret
+    existingSecretPasswordKey: admin-password
+
+setup:
+  # -- PostgreSQL client image used to wait for the database
+  waitImage: docker.io/library/postgres:18.6-alpine
+  # -- Seconds the wait-for-postgresql init container waits for the database
+  databaseWaitTimeoutSeconds: 300
+  # -- Resources for the init containers
+  resources: {}
 
 database:
   # -- Database mode: auto | external | postgresql
@@ -113,8 +136,8 @@ backup:
   # -- Prefix used in generated backup archive names
   archivePrefix: listmonk
   images:
-    # -- PostgreSQL client image used for pg_dump
-    postgresql: docker.io/library/postgres:17-alpine
+    # -- PostgreSQL client image used for pg_dump (must not be older than the server)
+    postgresql: docker.io/library/postgres:18.6-alpine
     # -- MinIO client image used for S3 upload
     uploader: docker.io/helmforge/mc:1.0.0
   # -- Resources applied to the backup dump and upload containers
@@ -171,44 +194,85 @@ ingress:
     #   hosts:
     #     - listmonk.example.com
 
+gatewayAPI:
+  # -- Render Gateway API HTTPRoute resources
+  enabled: false
+  # -- HTTPRoute definitions routed to the Listmonk Service by default
+  # @default -- `[]`
+  httpRoutes: []
+    # - name: public
+    #   parentRefs:
+    #     - name: shared-gateway
+    #       namespace: gateway-system
+    #       sectionName: https
+    #   hostnames:
+    #     - listmonk.example.com
+
 startupProbe:
   # -- Enable startup probe
   enabled: true
   # -- HTTP path used by the startup probe
-  path: /
-  initialDelaySeconds: 10
+  path: /health
+  # -- Startup probe initial delay
+  initialDelaySeconds: 5
+  # -- Startup probe period
   periodSeconds: 5
+  # -- Startup probe timeout
   timeoutSeconds: 3
+  # -- Startup probe failure threshold
   failureThreshold: 30
 
 livenessProbe:
   # -- Enable liveness probe
   enabled: true
   # -- HTTP path used by the liveness probe
-  path: /
+  path: /health
+  # -- Liveness probe initial delay
   initialDelaySeconds: 0
+  # -- Liveness probe period
   periodSeconds: 30
+  # -- Liveness probe timeout
   timeoutSeconds: 5
+  # -- Liveness probe failure threshold
   failureThreshold: 3
 
 readinessProbe:
   # -- Enable readiness probe
   enabled: true
   # -- HTTP path used by the readiness probe
-  path: /
+  path: /health
+  # -- Readiness probe initial delay
   initialDelaySeconds: 0
+  # -- Readiness probe period
   periodSeconds: 10
+  # -- Readiness probe timeout
   timeoutSeconds: 3
+  # -- Readiness probe failure threshold
   failureThreshold: 3
 
 # -- CPU and memory requests/limits for the Listmonk container
 resources: {}
 
-# -- Pod-level security context
-podSecurityContext: {}
+# -- Pod-level security context (Listmonk is a static binary and runs as any uid)
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  runAsGroup: 65534
+  fsGroup: 65534
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
 
-# -- Container-level security context
-securityContext: {}
+# -- Container-level security context for the Listmonk and init containers
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# -- Mount the ServiceAccount token (Listmonk does not call the Kubernetes API)
+automountServiceAccountToken: false
 
 serviceAccount:
   # -- Create a dedicated ServiceAccount

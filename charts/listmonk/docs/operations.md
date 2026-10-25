@@ -14,8 +14,8 @@ make validate-chart CHART=listmonk
 Verify the pinned images:
 
 ```bash
-make image-verify IMAGE=docker.io/listmonk/listmonk:v6.1.0
-make image-verify IMAGE=docker.io/library/postgres:17-alpine
+make image-verify IMAGE=docker.io/listmonk/listmonk:v6.2.0
+make image-verify IMAGE=docker.io/library/postgres:18.6-alpine
 make image-verify IMAGE=docker.io/helmforge/mc:1.0.0
 ```
 
@@ -25,11 +25,13 @@ Bundled PostgreSQL:
 
 ```bash
 helm install listmonk helmforge/listmonk
+kubectl get secret listmonk-admin -o jsonpath='{.data.admin-password}' | base64 -d; echo
 kubectl port-forward svc/listmonk 9000:80
 ```
 
-Open `http://localhost:9000`, create the first Super Admin account, then
-configure SMTP in Settings > SMTP.
+Open `http://localhost:9000/admin`, log in as `listmonk.admin.username`
+(`admin` by default) with the password above, then configure SMTP in
+Settings > SMTP.
 
 ## Production Checklist
 
@@ -73,7 +75,7 @@ backup:
 Restore testing should verify:
 
 - PostgreSQL database dump imports successfully;
-- the Super Admin account can log in;
+- the superadmin from `<name>-admin` can log in;
 - lists, subscribers, and campaigns are present;
 - uploaded media still exists after restoring the uploads PVC.
 

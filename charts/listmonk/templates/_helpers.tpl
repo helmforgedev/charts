@@ -179,6 +179,33 @@ Compile all validation warnings and errors into a single message.
 {{- if and (not .Values.postgresql.enabled) (not .Values.database.external.existingSecret) (not .Values.database.external.password) -}}
   {{- $messages = append $messages "When postgresql subchart is disabled, either database.external.existingSecret or database.external.password must be provided." -}}
 {{- end -}}
+{{- $tag := toString .Values.image.tag -}}
+{{- if or (not $tag) (has (lower $tag) (list "latest" "stable" "main" "develop" "edge" "nightly")) -}}
+  {{- $messages = append $messages "image.tag must be a pinned Listmonk release; floating tags are not supported." -}}
+{{- end -}}
+{{- if lt (len (toString .Values.listmonk.admin.username)) 3 -}}
+  {{- $messages = append $messages "listmonk.admin.username must contain at least 3 characters." -}}
+{{- end -}}
+{{- if and .Values.gatewayAPI.enabled (not .Values.gatewayAPI.httpRoutes) -}}
+  {{- $messages = append $messages "gatewayAPI.httpRoutes must contain at least one route when gatewayAPI.enabled=true." -}}
+{{- end -}}
+{{- if .Values.gatewayAPI.enabled -}}
+{{- range .Values.gatewayAPI.httpRoutes -}}
+{{- if not .parentRefs -}}
+  {{- $messages = append $messages "every gatewayAPI.httpRoutes[] entry requires parentRefs." -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.gatewayAPI.enabled -}}
+{{- $routeNames := dict -}}
+{{- range .Values.gatewayAPI.httpRoutes -}}
+{{- $routeName := include "listmonk.httpRouteName" (dict "root" $ "route" .) -}}
+{{- if hasKey $routeNames $routeName -}}
+  {{- $messages = append $messages (printf "gatewayAPI.httpRoutes renders the HTTPRoute name %q twice; give every route a unique name." $routeName) -}}
+{{- end -}}
+{{- $_ := set $routeNames $routeName true -}}
+{{- end -}}
+{{- end -}}
 {{- if and .Values.externalSecrets (and .Values.externalSecrets.enabled (not .Values.externalSecrets.items)) -}}
   {{- $messages = append $messages "externalSecrets.enabled is true, but externalSecrets.items is empty." -}}
 {{- end -}}
@@ -187,5 +214,47 @@ Compile all validation warnings and errors into a single message.
   {{- $trailer := "\n================================================================================\n" -}}
   {{- $errorList := join "\n - " $messages -}}
   {{- printf "%s - %s%s" $leader $errorList $trailer | fail -}}
+{{- end -}}
+{{- end -}}
+
+{{/* ========== Superadmin and route helpers ========== */}}
+
+{{- define "listmonk.adminSecretName" -}}
+{{- if .Values.listmonk.admin.existingSecret -}}
+{{- .Values.listmonk.admin.existingSecret -}}
+{{- else -}}
+{{- printf "%s-admin" (include "listmonk.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "listmonk.adminSecretKey" -}}
+{{- if .Values.listmonk.admin.existingSecret -}}
+{{- .Values.listmonk.admin.existingSecretPasswordKey | default "admin-password" -}}
+{{- else -}}
+admin-password
+{{- end -}}
+{{- end -}}
+
+{{/* Value from an explicit setting, else the existing Secret, else a new random string */}}
+{{- define "listmonk.persistedSecretValue" -}}
+{{- $existing := lookup "v1" "Secret" .root.Release.Namespace .name -}}
+{{- if .value -}}
+{{- .value -}}
+{{- else if and $existing (index ($existing.data | default dict) .key) -}}
+{{- index $existing.data .key | b64dec -}}
+{{- else -}}
+{{- randAlphaNum 32 -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "listmonk.httpRouteName" -}}
+{{- $root := index . "root" -}}
+{{- $route := index . "route" -}}
+{{- $fullname := include "listmonk.fullname" $root -}}
+{{- $routeName := $route.name | default "" | trunc 32 | trimSuffix "-" -}}
+{{- if $routeName -}}
+{{- printf "%s-%s" ($fullname | trunc (int (sub 62 (len $routeName))) | trimSuffix "-") $routeName | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $fullname -}}
 {{- end -}}
 {{- end -}}
