@@ -9,11 +9,25 @@ provisions Envoy proxies for ingress/egress traffic.
 
 ## Architecture
 
+```mermaid
+flowchart LR
+  crds[envoy-gateway-crds release<br/>or bridge crds subchart] -.->|Gateway API and<br/>gateway.envoyproxy.io APIs| controller
+  certgen[certgen Job<br/>pre-install and pre-upgrade] -->|TLS Secrets| controller[Envoy Gateway controller<br/>Deployment]
+  api[GatewayClass, Gateway,<br/>HTTPRoute, policies] -->|watched| controller
+  envoyproxy[EnvoyProxy CR<br/>proxy values] --> controller
+  controller -->|provisions and xDS| proxies[Envoy proxy fleet<br/>managed by the operator]
+  clients[Client traffic] --> proxies
+  proxies --> backends[Application backends<br/>or demo backend]
+  controller -.->|rate limit enabled| ratelimit[Global rate limit service]
+  ratelimit --> redis[(Redis subchart<br/>redis.enabled)]
+  prometheus[ServiceMonitor and<br/>PrometheusRule optional] -.-> controller
+```
+
 - **controller Deployment** — the Envoy Gateway operator (`envoyproxy/gateway`).
   It watches Gateway API resources and the `gateway.envoyproxy.io` policy CRDs and
   reconciles managed Envoy proxy fleets.
-- **certgen Job** (pre-install hook) — generates the TLS certs the controller and
-  webhook use, before the controller starts.
+- **certgen Job** (pre-install and pre-upgrade hook) — generates the TLS certs
+  the controller and webhook use, before the controller starts.
 - **GatewayClass** + an **EnvoyProxy** custom resource — the EnvoyProxy CR
   (`proxy.*`) tells the operator how to provision proxy pods (replicas, resources,
   service type). The proxy pods themselves are managed by the operator, not by
