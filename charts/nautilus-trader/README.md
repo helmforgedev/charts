@@ -92,7 +92,7 @@ the workload and keep credentials in an existing Secret or ExternalSecret.
 Render an example before applying it:
 
 ```console
-helm template nautilus-trader oci://ghcr.io/helmforgedev/charts/nautilus-trader \
+helm template nautilus-trader oci://ghcr.io/helmforgedev/helm/nautilus-trader \
   --namespace nautilus-trader \
   --values examples/safe-validation.yaml
 ```
@@ -101,7 +101,7 @@ For a live node with explicit network isolation, combine the strategy and
 restricted-egress examples after replacing the placeholder factory and CIDRs:
 
 ```console
-helm upgrade --install nautilus-trader oci://ghcr.io/helmforgedev/charts/nautilus-trader \
+helm upgrade --install nautilus-trader oci://ghcr.io/helmforgedev/helm/nautilus-trader \
   --namespace nautilus-trader --create-namespace \
   --values examples/live-strategy.yaml \
   --values examples/restricted-egress.yaml

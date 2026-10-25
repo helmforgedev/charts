@@ -15,6 +15,10 @@
 app.kubernetes.io/name: {{ include "nautilus-trader.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
+{{- define "nautilus-trader.liveSelectorLabels" -}}
+{{ include "nautilus-trader.selectorLabels" . }}
+app.kubernetes.io/component: live
+{{- end -}}
 {{- define "nautilus-trader.labels" -}}
 helm.sh/chart: {{ include "nautilus-trader.chart" . }}
 {{ include "nautilus-trader.selectorLabels" . }}
@@ -72,7 +76,7 @@ app.kubernetes.io/part-of: helmforge
 {{- if and (eq .Values.messageBus.mode "external") (not (and .Values.messageBus.external.host .Values.messageBus.external.existingSecret)) -}}{{- fail "external Redis requires messageBus.external.host and messageBus.external.existingSecret" -}}{{- end -}}
 {{- if eq (int .Values.messageBus.cacheDatabase) (int .Values.messageBus.busDatabase) -}}{{- fail "messageBus.cacheDatabase and messageBus.busDatabase must be different" -}}{{- end -}}
 {{- if and .Values.externalSecrets.enabled (empty .Values.externalSecrets.items) -}}{{- fail "externalSecrets.items must contain at least one item when externalSecrets.enabled=true" -}}{{- end -}}
-{{- range $key, $_ := .Values.podLabels -}}{{- if has $key (list "app.kubernetes.io/name" "app.kubernetes.io/instance") -}}{{- fail "podLabels must not override chart selector labels" -}}{{- end -}}{{- end -}}
+{{- range $key, $_ := .Values.podLabels -}}{{- if has $key (list "app.kubernetes.io/name" "app.kubernetes.io/instance" "app.kubernetes.io/component") -}}{{- fail "podLabels must not override chart selector labels" -}}{{- end -}}{{- end -}}
 {{- if and .Values.monitoring.prometheusRule.enabled (not .Values.monitoring.serviceMonitor.enabled) -}}{{- fail "monitoring.serviceMonitor.enabled must be true when prometheusRule is enabled" -}}{{- end -}}
 {{- if and .Values.podDisruptionBudget.enabled (ne .Values.podDisruptionBudget.minAvailable nil) (ne .Values.podDisruptionBudget.maxUnavailable nil) -}}{{- fail "set only one of podDisruptionBudget.minAvailable or podDisruptionBudget.maxUnavailable" -}}{{- end -}}
 {{- end -}}
