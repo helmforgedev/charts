@@ -1,0 +1,99 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Ryot rendered resource contracts
+templates:
+  - templates/auth-secret.yaml
+  - templates/bootstrap-secret.yaml
+  - templates/deployment.yaml
+  - templates/ingress.yaml
+  - templates/networkpolicy.yaml
+  - templates/runtime-configmap.yaml
+  - templates/serviceaccount.yaml
+tests:
+  - it: renders a retained generated administrator override Secret
+    template: templates/auth-secret.yaml
+    asserts:
+      - isKind:
+          of: Secret
+      - exists:
+          path: data.admin-access-token
+  - it: renders a private initial-password Secret while bootstrap is enabled
+    template: templates/bootstrap-secret.yaml
+    asserts:
+      - isKind:
+          of: Secret
+      - exists:
+          path: data.password
+  - it: embeds every admission and bootstrap helper in the runtime ConfigMap
+    template: templates/runtime-configmap.yaml
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - exists:
+          path: data["database.mjs"]
+      - exists:
+          path: data["database-guard.sh"]
+      - exists:
+          path: data["bootstrap.mjs"]
+  - it: disables API token automount on the dedicated ServiceAccount
+    template: templates/serviceaccount.yaml
+    asserts:
+      - equal:
+          path: automountServiceAccountToken
+          value: false
+  - it: isolates ingress and egress on the application workload
+    template: templates/networkpolicy.yaml
+    asserts:
+      - contains:
+          path: spec.policyTypes
+          content: Ingress
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: http
+  - it: routes Ingress traffic to the configured Service port
+    template: templates/ingress.yaml
+    set:
+      service.port: 8080
+      ingress.enabled: true
+      ingress.ingressClassName: traefik
+      ingress.hosts:
+        - host: track.example.test
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: traefik
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.port.number
+          value: 8080
+  - it: renders explicit startup readiness and liveness probes with a stable config checksum
+    template: templates/deployment.yaml
+    asserts:
+      - exists:
+          path: spec.template.metadata.annotations["checksum/config"]
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.port
+          value: http
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.port
+          value: http
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.port
+          value: http
+  - it: omits every disabled probe independently
+    template: templates/deployment.yaml
+    set:
+      probes.startup.enabled: false
+      probes.readiness.enabled: false
+      probes.liveness.enabled: false
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].startupProbe
+      - notExists:
+          path: spec.template.spec.containers[0].readinessProbe
+      - notExists:
+          path: spec.template.spec.containers[0].livenessProbe

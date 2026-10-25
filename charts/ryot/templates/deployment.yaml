@@ -15,7 +15,7 @@ spec:
         {{- include "ryot.selectorLabels" . | nindent 8 }}
         {{- with .Values.podLabels }}{{ toYaml . | nindent 8 }}{{- end }}
       annotations:
-        checksum/runtime: {{ printf "%s%s%s" (.Files.Get "files/database.mjs") (.Files.Get "files/database-guard.sh") (.Files.Get "files/bootstrap.mjs") | sha256sum }}
+        checksum/config: {{ printf "%s%s%s" (.Files.Get "files/database.mjs") (.Files.Get "files/database-guard.sh") (.Files.Get "files/bootstrap.mjs") | sha256sum }}
         {{- with .Values.podAnnotations }}{{ toYaml . | nindent 8 }}{{- end }}
     spec:
       serviceAccountName: {{ include "ryot.serviceAccountName" . }}
@@ -92,12 +92,21 @@ spec:
             {{- include "ryot.nativeEnvironment" . | nindent 12 }}
           ports: [{name: http, containerPort: {{ .Values.server.port }}}]
           resources: {{ toYaml .Values.resources | nindent 12 }}
-          {{- range $name, $probe := .Values.probes }}
-          {{- if $probe.enabled }}
-          {{ $name }}Probe:
-            httpGet: {path: {{ $probe.path | quote }}, port: http}
-            {{- omit $probe "enabled" "path" | toYaml | nindent 12 }}
-          {{- end }}{{- end }}
+          {{- if .Values.probes.startup.enabled }}
+          startupProbe:
+            httpGet: {path: {{ .Values.probes.startup.path | quote }}, port: http}
+            {{- omit .Values.probes.startup "enabled" "path" | toYaml | nindent 12 }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet: {path: {{ .Values.probes.readiness.path | quote }}, port: http}
+            {{- omit .Values.probes.readiness "enabled" "path" | toYaml | nindent 12 }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet: {path: {{ .Values.probes.liveness.path | quote }}, port: http}
+            {{- omit .Values.probes.liveness "enabled" "path" | toYaml | nindent 12 }}
+          {{- end }}
           volumeMounts:
             {{- include "ryot.mounts" . | nindent 12 }}
             - {name: runtime-bin, mountPath: /usr/local/bin/caddy, subPath: caddy, readOnly: true}
