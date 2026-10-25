@@ -38,9 +38,12 @@ Change the default admin password immediately after first login.
 
 ## Secrets and backup
 
-- `externalSecrets.enabled=true` sources the `APP_SECRET`, external database, and
-  backup credentials from your secret store through the `externalSecrets.*`
-  values; see [examples/external-secrets.yaml](../examples/external-secrets.yaml).
+- `externalSecrets.enabled=true` turns on External Secrets support, but each
+  Secret also needs its own flag: `externalSecrets.app.enabled` (`APP_SECRET`),
+  `externalSecrets.database.enabled` (external database password, with
+  `postgresql.enabled=false`), and `externalSecrets.backup.enabled` (S3
+  credentials). All three default to `false`; see
+  [examples/external-secrets.yaml](../examples/external-secrets.yaml).
 - `backup.enabled=true` schedules `pg_dump` of the analytics DB — the only
   durable state — to S3-compatible storage.
 

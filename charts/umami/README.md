@@ -267,7 +267,7 @@ For production, test restore procedures outside Helm. Backups without restore va
 | `backup.enabled` | `false` | Enable S3-compatible backup CronJob. |
 | `serviceAccount.automountServiceAccountToken` | `false` | Control service account token mounting. |
 | `podSecurityContext` | uid 1001, `runAsNonRoot`, `RuntimeDefault` seccomp | Pod security context. |
-| `securityContext` | no escalation, drop `ALL` | Security context for Umami and its init containers. |
+| `securityContext` | no escalation, drop `ALL` | Security context for Umami and the chart init containers; `extraInitContainers` are rendered as provided. |
 | `initContainers.waitForDatabase.enabled` | `true` | Wait for the database socket before starting Umami. |
 | `initContainers.waitForDatabase.image` | `docker.io/library/busybox:1.37` | Image used by the database readiness check. |
 | `initContainers.waitForDatabase.pullPolicy` | `IfNotPresent` | Pull policy for the database readiness image. |

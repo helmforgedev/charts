@@ -4,7 +4,10 @@ This chart packages Umami as a single web Deployment backed by PostgreSQL. The c
 
 ## Scope
 
-The chart runs Umami web analytics as one Deployment backed by the HelmForge PostgreSQL subchart or an external PostgreSQL server, with optional Ingress or Gateway API exposure, External Secrets, NetworkPolicy, PodDisruptionBudget, and S3 backups of the database.
+The chart runs Umami web analytics as one Deployment backed by the
+HelmForge PostgreSQL subchart or an external PostgreSQL server, with
+optional Ingress or Gateway API exposure, External Secrets, NetworkPolicy,
+PodDisruptionBudget, and S3 backups of the database.
 
 Goals:
 
@@ -155,8 +158,11 @@ organization-owned assets.
 
 - Pods run as the image user `nextjs` (uid 1001) with `runAsNonRoot`, no
   privilege escalation, every capability dropped, `RuntimeDefault` seccomp,
-  and no ServiceAccount token. The root filesystem stays writable because the
-  upstream startup scripts write inside the image tree.
+  and no ServiceAccount token. The container security context also applies to
+  the chart init containers (`wait-for-db`, `prepare-external-db`), but not to
+  `extraInitContainers`, which are rendered as provided. The root filesystem
+  stays writable because the upstream startup scripts write inside the image
+  tree.
 - Umami's first migration creates the `admin` user with the upstream default
   password `umami`. The chart cannot set it; change it immediately after the
   first login and keep the instance private until then.
