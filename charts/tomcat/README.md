@@ -1,40 +1,90 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Apache Tomcat
 
-Apache Tomcat chart for Kubernetes using the official `docker.io/library/tomcat` image.
+Production-oriented Apache Tomcat chart for Kubernetes using the official
+`docker.io/library/tomcat` image.
 
-## Highlights
+## Features
 
-- Official Tomcat image, pinned by default to `11.0.27-jdk17-temurin-noble`.
-- Stable default install with an optional ROOT health webapp for deterministic probes and Helm tests.
-- Preserves WARs or exploded applications baked into immutable Tomcat images before mounting the writable webapps volume.
-- Non-root runtime with writable `webapps`, `logs`, `temp`, and `work` volumes.
+- Official Tomcat image pinned to `11.0.27-jdk17-temurin-noble` by default.
+- Deterministic default ROOT application for probes and Helm tests.
+- Preservation of WARs and exploded applications baked into immutable images.
+- Non-root execution with a read-only root filesystem and explicit writable
+  runtime volumes.
 - Ingress and Gateway API `HTTPRoute` exposure.
-- Optional JMX remote port for platform monitoring integrations.
-- Dual-stack Service fields, NetworkPolicy, HPA, PDB, persistent webapps/logs, and extra init/sidecar hooks.
+- Optional JMX registry and RMI endpoints.
+- Dual-stack Services, NetworkPolicy, HPA, PDB, persistent webapps and logs,
+  scheduling controls, and extension hooks.
+
+## Architecture
+
+The chart runs one Tomcat Deployment behind a named-port Service. The official
+image listens on HTTP port `8080`; `service.ports.http` is the independent
+client-facing Service port. Ingress and HTTPRoute resources route to that
+Service. Optional JMX registry and RMI ports are exposed only when JMX is
+enabled.
+
+Tomcat needs writable `webapps`, `logs`, `temp`, `work`, and
+`conf/Catalina/localhost` paths. The chart mounts those paths explicitly while
+keeping the image root filesystem read-only. Webapps and logs can use generated
+or existing PVCs; the remaining runtime paths use `emptyDir`.
+
+See [DESIGN.md](DESIGN.md) for the complete topology, trust boundaries, and
+design decisions.
+
+## Security
+
+The default pod runs as UID/GID `1001`, drops all Linux capabilities, disables
+privilege escalation, uses RuntimeDefault seccomp, and does not mount a
+Kubernetes API token. The root filesystem is read-only except for explicit
+runtime volumes.
+
+NetworkPolicy is opt-in because application egress and ingress-controller
+selectors are environment-specific. Enable it only after declaring every
+required application, DNS, ingress, and JMX path. JMX is also opt-in; restrict
+it to trusted peers and configure authentication and TLS before production use.
 
 ### Security Scan: `tomcat`
 
 | Framework | Score |
-|---|---|
+| --- | ---: |
 | MITRE + NSA + SOC2 | **95%** |
 
-Security posture: strong. Remaining findings are documented product exceptions
-for opt-in NetworkPolicy ingress and egress boundaries.
+The remaining findings are documented product exceptions for opt-in
+NetworkPolicy boundaries.
 
-## Install
+## Installation
 
 ```bash
-helm install tomcat oci://repo.helmforge.dev/charts/tomcat
+helm install tomcat oci://repo.helmforge.dev/charts/tomcat \
+  --namespace tomcat \
+  --create-namespace
 ```
 
-## Deploying Applications
+Verify the release:
 
-The official Tomcat image starts without a production application. This chart enables a small default ROOT app so `/health.jsp` works immediately.
-For real workloads, mount WAR files or exploded applications through `extraInitContainers`, `extraVolumes`, and `extraVolumeMounts`, or enable `webapps.persistence`.
-If you build an immutable Tomcat image with applications under `/usr/local/tomcat/webapps`, keep `webapps.copyImageContent.enabled=true`.
-The chart copies those image contents into the writable webapps volume when it is empty.
+```bash
+helm test tomcat -n tomcat
+kubectl get pods -n tomcat -l app.kubernetes.io/instance=tomcat
+```
 
-For production applications that do not expose `/health.jsp`, switch probes to TCP or set probe paths to an application endpoint:
+## Configuration
+
+### Deploying applications
+
+The official image starts without a production application. This chart seeds a
+small ROOT application so `/health.jsp` works immediately. For production,
+deploy a versioned WAR or exploded application with an immutable image or an
+init container.
+
+When an immutable image contains applications under
+`/usr/local/tomcat/webapps`, keep `webapps.copyImageContent.enabled=true`. The
+chart copies image content only when the mounted webapps volume is empty. Set
+`webapps.defaultRoot.enabled=false` when your image owns the ROOT application.
+
+Applications without `/health.jsp` must use an application-specific probe path
+or TCP probes:
 
 ```yaml
 webapps:
@@ -49,7 +99,22 @@ readinessProbe:
   mode: tcp
 ```
 
-## Gateway API
+### HTTP listener and Service ports
+
+The official image's primary HTTP Connector remains on port `8080`.
+`containerPorts.http` is retained as a compatibility value and is constrained
+to `8080`; it is not a client-facing port. Change `service.ports.http` to
+expose the application on a different Service port.
+
+Custom `tomcat.serverXml` or `tomcat.existingServerXmlConfigMap` values may
+set proxy attributes such as `proxyName`, `proxyPort`, and `scheme`, but the
+primary HTTP Connector must continue to listen on `8080` so it matches the
+named Service target and probes.
+
+### Exposure
+
+Ingress and Gateway API are both optional. Gateway API requires the CRDs and a
+parent Gateway managed by the platform team.
 
 ```yaml
 gatewayAPI:
@@ -61,9 +126,12 @@ gatewayAPI:
     - tomcat.example.com
 ```
 
-## JMX
+### JMX
 
-JMX is opt-in because remote JMX should normally be restricted to trusted networks.
+JMX is disabled by default because an unsecured remote management interface is
+unsafe. `jmx.port` configures the JVM registry port, and `jmx.rmiPort`
+configures the RMI endpoint. The chart advertises the Pod IP unless
+`jmx.hostname` is set.
 
 ```yaml
 jmx:
@@ -71,65 +139,85 @@ jmx:
   hostname: tomcat.example.local
 ```
 
-For authenticated or TLS-secured JMX, mount the required files with `extraVolumes`/`extraVolumeMounts` and append JVM flags through `jmx.extraOpts`.
-When `jmx.rmiPort` differs from `jmx.port`, the chart exposes the RMI endpoint
-through `service.ports.jmxRmi` so the registry and RMI Service ports stay unique.
+For authentication or TLS, mount the required files with `extraVolumes` and
+`extraVolumeMounts`, then add the corresponding JVM flags through
+`jmx.extraOpts`.
 
-## Upgrading to 11.0.27
+## Examples
 
-Tomcat 11.0.27 contains bug fixes, dependency updates and stability improvements. No breaking configuration or values changes are introduced.
+- [Production baseline](examples/production.yaml)
+- [Persistent webapps](examples/persistent-webapps.yaml)
+- [JMX](examples/jmx.yaml)
+- [Production operations guide](docs/production.md)
 
-Upstream release notes: [11.0.27](https://tomcat.apache.org/tomcat-11.0-doc/changelog.html#Tomcat_11.0.27).
+## Upgrading
 
-Tomcat 11.0.26 improves RewriteValve, TLS/OCSP/ALPN, WebSocket timeout, async
-dispatch and DIGEST authentication behavior. Tomcat 11.0.25 required an authority on every HTTP/2 request, reset EL parser
-state before reuse, and limits buffering in the bundled WebSocket chat example.
-HTTP/2 stream prioritization and the OpenSSL FFM symbol-lookup fix were delivered
-in Tomcat 11.0.0-M18. Custom clustering that uses `EncryptInterceptor` must
-account for its new `AES/GCM/NoPadding` default before a rolling upgrade.
+Tomcat `11.0.27` contains bug fixes, dependency updates, and stability
+improvements without a chart values migration. Review the
+[official Tomcat 11 changelog](https://tomcat.apache.org/tomcat-11.0-doc/changelog.html)
+and application compatibility before rollout.
 
-## Production Notes
+For mutable webapps, back up the PVC before an upgrade. For immutable images,
+test the new image with the same probes and route configuration in a staging
+namespace. Custom clustering or `server.xml` configurations remain the
+operator's responsibility.
 
-- Keep `serviceAccount.automountServiceAccountToken=false` unless your app needs Kubernetes API access.
-- Enable `networkPolicy.enabled` and explicitly allow ingress from your gateway or ingress controller namespace.
-- Use `networkPolicy.egress.extraTo` to append peers to the built-in egress rules; use `networkPolicy.egress.extraEgress` only for standalone custom egress rules.
-- Use persistent `webapps` storage only when applications are installed or mutated at runtime.
-- Prefer immutable app images or init containers that fetch versioned WAR artifacts.
-- Configure `tomcat.serverXml` or `tomcat.existingServerXmlConfigMap` when you need proxy connector attributes such as `proxyName`, `proxyPort`, or `scheme`.
-
-## Values
+## Key values
 
 | Key | Default | Description |
 | --- | --- | --- |
-| `replicaCount` | `1` | Number of Tomcat pods when HPA is disabled. |
-| `image.repository` | `docker.io/library/tomcat` | Tomcat image repository. |
-| `image.tag` | `11.0.27-jdk17-temurin-noble` | Tomcat image tag. |
-| `service.type` | `ClusterIP` | Kubernetes Service type. |
-| `service.ipFamilyPolicy` | `null` | Optional Service dual-stack policy. |
-| `service.ipFamilies` | `[]` | Optional Service IP family ordering. |
-| `webapps.defaultRoot.enabled` | `true` | Render a minimal ROOT app for health checks. |
-| `webapps.copyImageContent.enabled` | `true` | Copy image-baked webapps into the mounted webapps volume when empty. |
-| `webapps.persistence.enabled` | `false` | Persist `/usr/local/tomcat/webapps`. |
-| `logs.persistence.enabled` | `false` | Persist `/usr/local/tomcat/logs`. |
-| `tomcat.serverXml` | `""` | Inline `server.xml` override. |
-| `tomcat.existingServerXmlConfigMap` | `""` | Existing ConfigMap containing `server.xml`. |
-| `jmx.enabled` | `false` | Expose JMX remote options and service port. |
-| `ingress.enabled` | `false` | Render Ingress. |
-| `gatewayAPI.enabled` | `false` | Render Gateway API HTTPRoute. |
-| `networkPolicy.enabled` | `false` | Render NetworkPolicy. |
-| `networkPolicy.egress.extraTo` | `[]` | Additional peers appended to the built-in egress rules. |
-| `networkPolicy.egress.extraEgress` | `[]` | Additional complete NetworkPolicy egress rules. |
-| `autoscaling.enabled` | `false` | Render HPA. |
-| `pdb.enabled` | `false` | Render PodDisruptionBudget. |
+| `replicaCount` | `1` | Pod count when HPA is disabled |
+| `image.repository` | `docker.io/library/tomcat` | Official image repository |
+| `image.tag` | `11.0.27-jdk17-temurin-noble` | Pinned image tag |
+| `containerPorts.http` | `8080` | Fixed official HTTP Connector port |
+| `service.ports.http` | `80` | Client-facing Service port |
+| `webapps.defaultRoot.enabled` | `true` | Seed deterministic ROOT health app |
+| `webapps.copyImageContent.enabled` | `true` | Preserve image-baked webapps on an empty volume |
+| `webapps.persistence.enabled` | `false` | Persist the webapps directory |
+| `logs.persistence.enabled` | `false` | Persist Tomcat logs |
+| `tomcat.serverXml` | `""` | Inline `server.xml` override |
+| `tomcat.existingServerXmlConfigMap` | `""` | Existing ConfigMap with `server.xml` |
+| `startupProbe.mode` | `http` | Startup check mode: `http` or `tcp` |
+| `jmx.enabled` | `false` | Enable JMX registry and RMI ports |
+| `ingress.enabled` | `false` | Render an Ingress |
+| `gatewayAPI.enabled` | `false` | Render an HTTPRoute |
+| `networkPolicy.enabled` | `false` | Render a NetworkPolicy |
+| `serviceAccount.automountServiceAccountToken` | `false` | Mount Kubernetes API credentials |
+| `securityContext.readOnlyRootFilesystem` | `true` | Keep the image filesystem read-only |
+| `autoscaling.enabled` | `false` | Render an HPA |
+| `pdb.enabled` | `false` | Render a PodDisruptionBudget |
 
-## CI Scenarios
+Every supported value and its default is documented in
+[values.yaml](values.yaml) and validated by
+[values.schema.json](values.schema.json).
 
-- `ci/standalone.yaml`
-- `ci/ingress.yaml`
-- `ci/gateway-api.yaml`
-- `ci/ip-family-policy.yaml`
-- `ci/jmx.yaml`
-- `ci/hardening.yaml`
+## Validation
+
+CI renders standalone, Ingress, Gateway API, dual-stack, JMX, and hardening
+scenarios. Unit tests cover workload security, writable paths, image webapp
+copying, probes, routing, JMX, NetworkPolicy, HPA, PDB, Services, and Helm test
+behavior. The release gate also runs strict lint, kubeconform, Artifact Hub
+lint, and behavioral k3d validation.
+
+## Troubleshooting
+
+- If the Pod is not Ready, verify that the selected probe path exists in the
+  deployed application or switch the probes to `tcp`.
+- If an image-baked application is missing, confirm that
+  `webapps.copyImageContent.enabled=true` and that a reused PVC was empty on its
+  first deployment. The chart does not overwrite an initialized PVC.
+- If requests contain the wrong external scheme or hostname, configure proxy
+  attributes in `tomcat.serverXml` while keeping the HTTP Connector on `8080`.
+- If JMX connects to the registry but not RMI, verify `jmx.hostname`,
+  `jmx.rmiPort`, `service.ports.jmxRmi`, and NetworkPolicy peers together.
+- If NetworkPolicy blocks the application, declare the ingress controller and
+  all required egress destinations before enabling enforcement.
+
+## Links
+
+- [Apache Tomcat](https://tomcat.apache.org/)
+- [Official image](https://hub.docker.com/_/tomcat)
+- [Chart source](https://github.com/helmforgedev/charts/tree/main/charts/tomcat)
 
 ## Artifact Hub
 
