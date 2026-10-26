@@ -80,11 +80,11 @@ Secrets or External Secrets and inspect the full contract with `helm show values
 | `bootstrap.email` | `owner@example.test` | Initial administrator email. |
 | `bootstrap.workspaceName` | `HelmForge CRM` | Initial workspace display name. |
 | `bootstrap.existingSecret` | `""` | Secret containing the initial administrator password. |
-| `identity.existingSecret` | `""` | Existing retained `ENCRYPTION_KEY`, `SERVER_ID`, and ownership marker. |
+| `identity.existingSecret` | `""` | Existing retained Secret containing `ENCRYPTION_KEY` and `SERVER_ID`; the ownership marker remains on the application PVC. |
 | `service.port` | `3000` | Public proxy Service port; the native port stays private. |
 | `ingress.enabled` | `false` | Render an Ingress for the public proxy. |
 | `gatewayAPI.enabled` | `false` | Render canonical HTTPRoutes to an existing Gateway. |
-| `persistence.enabled` | `true` | Retain local files and installation ownership. |
+| `persistence.enabled` | `true` | Retain local files and the installation ownership marker on the application PVC. |
 | `persistence.size` | `10Gi` | Application PVC capacity. |
 | `persistence.retain` | `true` | Keep the application PVC after release deletion. |
 | `runtime.temporarySize` | `1Gi` | Bound SDK generation and native temporary files. |
@@ -96,7 +96,7 @@ Secrets or External Secrets and inspect the full contract with `helm show values
 | `cache.tls.enabled` | `true` | Require TLS for external Redis. |
 | `networkPolicy.enabled` | `true` | Enforce chart-owned ingress and egress policies. |
 | `networkPolicy.allowPublicHttps` | `false` | Permit public HTTPS egress only when explicitly needed. |
-| `files.driver` | `local` | Store files on the PVC or select private S3. |
+| `storage.driver` | `local` | Store files on the PVC or select private S3. |
 | `smtp.enabled` | `false` | Enable authenticated implicit-TLS mail delivery. |
 | `metrics.enabled` | `false` | Enable the private native Prometheus endpoint. |
 | `metrics.serviceMonitor.enabled` | `false` | Render a ServiceMonitor for an installed Prometheus Operator. |
