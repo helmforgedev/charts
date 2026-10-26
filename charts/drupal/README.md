@@ -72,10 +72,8 @@ observability boundary, and known limitations.
 
 ## Upstream Version Notes
 
-Drupal `11.4.10` retains the SA-CORE-2026-013 security fix from 11.4.7 and adds
-bug fixes for unlimited-cardinality entity queries, accidental field data loss,
-long-running request memory use, media previews, theme-dependent module removal
-and Twig 3.30 compatibility. Review the
+Drupal `11.4.10` fixes SA-CORE-2026-014, SA-CORE-2026-015, and
+SA-CORE-2026-016; no other fixes are included. Review the
 [official release notes](https://www.drupal.org/project/drupal/releases/11.4.10).
 
 Before upgrading production workloads, test the site in staging with the same
@@ -229,6 +227,10 @@ networkPolicy:
       - namespaceSelector:
           matchLabels:
             kubernetes.io/metadata.name: ingress-nginx
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: ingress-nginx
+            app.kubernetes.io/component: controller
   egress:
     enabled: true
     allowDNS: true
