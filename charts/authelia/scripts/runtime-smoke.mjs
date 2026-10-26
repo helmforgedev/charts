@@ -19,8 +19,12 @@ assert.ok(pod, 'Ready Authelia pod required');
 const exec = args => kubectl(['exec', pod.metadata.name, '-c', 'authelia', '--', 'authelia', ...args]);
 assert.match(exec(['--version']), /v4\.39\.28\b/);
 assert.match(exec(['storage', 'encryption', 'check', '--config', '/config/configuration.yml']), /SUCCESS/);
-const metrics = pod.spec.containers.find(c => c.name === 'authelia').ports.some(p => p.name === 'metrics');
-const ports = metrics ? [9091, 9959] : [9091];
+const container = pod.spec.containers.find(c => c.name === 'authelia');
+const httpPort = container.ports.find(p => p.name === 'http')?.containerPort;
+const metricsPort = container.ports.find(p => p.name === 'metrics')?.containerPort;
+assert.ok(Number.isInteger(httpPort), 'Named HTTP container port required');
+const metrics = Number.isInteger(metricsPort);
+const ports = metrics ? [httpPort, metricsPort] : [httpPort];
 const child = spawn('kubectl', [...target, 'port-forward', `pod/${pod.metadata.name}`,
   ...ports.map(p => `:${p}`), '--address=127.0.0.1'], {windowsHide: true, stdio: ['ignore', 'pipe', 'pipe']});
 let output = '', error;
@@ -35,11 +39,11 @@ try {
   }
   if (error) throw error;
   assert.equal(Object.keys(forwarded).length, ports.length);
-  const health = await fetch(`http://127.0.0.1:${forwarded[9091]}/api/health`, {signal: AbortSignal.timeout(10000)});
+  const health = await fetch(`http://127.0.0.1:${forwarded[httpPort]}/api/health`, {signal: AbortSignal.timeout(10000)});
   assert.equal(health.status, 200);
   await health.arrayBuffer();
   if (metrics) {
-    const response = await fetch(`http://127.0.0.1:${forwarded[9959]}/metrics`, {signal: AbortSignal.timeout(10000)});
+    const response = await fetch(`http://127.0.0.1:${forwarded[metricsPort]}/metrics`, {signal: AbortSignal.timeout(10000)});
     assert.equal(response.status, 200);
     const body = await response.text();
     assert.match(body, /^# HELP /m);

@@ -8,19 +8,26 @@ It works as a forward-auth middleware for reverse proxies like Traefik, nginx, C
 ## Deployment Model
 
 The chart deploys a single-replica Deployment with `Recreate` strategy.
-Authelia listens on port **9091** for HTTP and optionally **9959** for Prometheus metrics.
+`containerPorts.http` controls the real HTTP listener and
+`containerPorts.metrics` controls the optional Prometheus listener. The chart
+generates Authelia's address configuration from these values; the defaults are
+9091 and 9959 respectively.
 
 ## Configuration
 
 Authelia uses a YAML configuration file (`configuration.yml`) rendered as a Kubernetes Secret.
 Sensitive values are injected via file-based secrets mounted at `/secrets/`.
+The application uses a read-only root filesystem with explicit writable `/data`
+and bounded `/tmp` mounts. Its Pod does not receive a Kubernetes API token. The
+default ingress policy exposes only the HTTP and optional metrics listeners;
+operators can restrict those listeners to explicit namespace or Pod peers.
 
 ### Configuration Injection Pattern
 
 ```text
-configuration.yml  →  Secret (mounted at /config/configuration.yml)
-Credentials        →  Secret (mounted at /secrets/)
-Users database     →  Secret (mounted at /config/users_database.yml)
+configuration.yml  -> Secret (mounted at /config/configuration.yml)
+Credentials        -> Secret (mounted at /secrets/)
+Users database     -> Secret (mounted at /config/users_database.yml)
 ```
 
 Environment variables with `_FILE` suffix tell Authelia to read secrets from files:
@@ -62,8 +69,8 @@ The file backend uses a `users_database.yml` mounted from a Secret. Users can be
 
 ## Health Checks
 
-- **Startup/Liveness/Readiness**: `GET /api/health` on port 9091
-- **Metrics**: `GET /metrics` on port 9959 (when telemetry is enabled)
+- **Startup/Liveness/Readiness**: `GET /api/health` on `containerPorts.http`
+- **Metrics**: `GET /metrics` on `containerPorts.metrics` when telemetry is enabled
 
 ## Forward Auth Integration
 

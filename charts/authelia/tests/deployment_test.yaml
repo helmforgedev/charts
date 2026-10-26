@@ -66,6 +66,20 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].securityContext.capabilities.drop[0]
           value: ALL
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tmp
+            mountPath: /tmp
+      - equal:
+          path: spec.template.spec.volumes[4].emptyDir.sizeLimit
+          value: 128Mi
 
   - it: should set default container resources
     template: templates/deployment.yaml
@@ -83,7 +97,7 @@ tests:
           path: spec.template.spec.containers[0].resources.limits.memory
           value: 512Mi
 
-  - it: should expose port 9091
+  - it: should expose the default HTTP listener
     template: templates/deployment.yaml
     asserts:
       - contains:
@@ -91,6 +105,26 @@ tests:
           content:
             name: http
             containerPort: 9091
+            protocol: TCP
+
+  - it: should expose custom HTTP and metrics listeners
+    template: templates/deployment.yaml
+    set:
+      containerPorts.http: 9191
+      containerPorts.metrics: 9960
+      config.telemetry.metrics.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http
+            containerPort: 9191
+            protocol: TCP
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: metrics
+            containerPort: 9960
             protocol: TCP
 
   - it: should mount config, secrets, users, and data volumes
