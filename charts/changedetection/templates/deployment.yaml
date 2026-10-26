@@ -24,6 +24,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -108,7 +109,7 @@ spec:
             {{- end }}
             {{- if .Values.browser.enabled }}
             - name: PLAYWRIGHT_DRIVER_URL
-              value: "ws://127.0.0.1:3000"
+              value: {{ printf "ws://127.0.0.1:%v" .Values.browser.port | quote }}
             {{- end }}
             {{- with .Values.changedetection.extraEnv }}
             {{- toYaml . | nindent 12 }}
@@ -158,9 +159,14 @@ spec:
         - name: browser
           image: {{ include "changedetection.browserImage" . | quote }}
           imagePullPolicy: {{ .Values.browser.image.pullPolicy }}
+          command:
+            - /usr/local/bin/entrypoint.sh
+          args:
+            - --port
+            - {{ .Values.browser.port | quote }}
           ports:
             - name: browser
-              containerPort: 3000
+              containerPort: {{ .Values.browser.port }}
               protocol: TCP
           startupProbe:
             tcpSocket:

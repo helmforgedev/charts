@@ -87,6 +87,7 @@ Enable the browser sidecar only when watches need JavaScript rendering:
 ```yaml
 browser:
   enabled: true
+  port: 3000
   resources:
     requests:
       cpu: 250m
@@ -94,7 +95,10 @@ browser:
 ```
 
 Browser rendering materially increases CPU and memory usage. Tune pod resources
-from observed workload behavior.
+from observed workload behavior. `browser.port` configures the Sockpuppet
+process, its declared container port, and `PLAYWRIGHT_DRIVER_URL` together. It
+remains an internal loopback listener and should not be exposed through a
+Service.
 
 ## Extra Python Packages
 

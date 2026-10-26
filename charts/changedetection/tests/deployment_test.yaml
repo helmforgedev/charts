@@ -61,6 +61,9 @@ tests:
   - it: should drop Linux capabilities by default
     asserts:
       - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
           path: spec.template.spec.securityContext.fsGroup
           value: 1000
       - equal:
@@ -197,6 +200,29 @@ tests:
           content:
             name: PLAYWRIGHT_DRIVER_URL
             value: "ws://127.0.0.1:3000"
+
+  - it: should configure the real browser listener
+    set:
+      browser.enabled: true
+      browser.port: 3010
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].command
+          value:
+            - /usr/local/bin/entrypoint.sh
+      - equal:
+          path: spec.template.spec.containers[1].args
+          value:
+            - --port
+            - "3010"
+      - equal:
+          path: spec.template.spec.containers[1].ports[0].containerPort
+          value: 3010
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PLAYWRIGHT_DRIVER_URL
+            value: "ws://127.0.0.1:3010"
 
   - it: should render envFrom sources for externalized configuration
     set:
