@@ -26,7 +26,7 @@ async function forward(resource, remote, action) {
   }else child.kill();
  }
 }
-const request=url=>fetch(url,{signal:AbortSignal.timeout(10000)});
+const request=(url,options={})=>fetch(url,{...options,signal:AbortSignal.timeout(10000)});
 const pods=()=>JSON.parse(k(['get','pods','-l',`app.kubernetes.io/instance=${release},app.kubernetes.io/name=bentopdf`,'-o','json'])).items.filter(p=>!p.metadata.deletionTimestamp);
 async function check(base){
  const response=await request(base+'/');assert.equal(response.status,200);
@@ -35,6 +35,12 @@ async function check(base){
  assert.ok(response.headers.get('content-security-policy'));
  assert.deepEqual(await(await request(base+'/config.json')).json(),values.config);
  assert.equal((await request(base+'/stub_status')).status,404,'Status must not be exposed on the public port');
+ const englishRedirect=await request(base+'/en/',{redirect:'manual'});
+ assert.equal(englishRedirect.status,301);assert.equal(englishRedirect.headers.get('location'),'/');
+ const renamedTool=await request(base+'/pdf-to-docx',{redirect:'manual'});
+ assert.equal(renamedTool.status,301);assert.equal(renamedTool.headers.get('location'),'/pdf-to-word');
+ const serviceWorker=await request(base+'/sw.js');assert.equal(serviceWorker.status,200);
+ assert.match(serviceWorker.headers.get('cache-control')??'',/no-cache/,'Service worker must not be cached');
 }
 for(const pod of pods())await forward('pod/'+pod.metadata.name,values.server.port,check);
 const browser=await chromium.launch({headless:true});
