@@ -23,7 +23,7 @@ flowchart LR
   bootstrap --> redis[(Redis)]
   app --> postgres
   app --> redis
-  app --> pvc[(Retained application PVC)]
+  app --> pvc[(Application PVC)]
   bootstrap --> pvc
   scraper[Authorized Prometheus scraper] --> metrics[Private metrics Service]
   metrics --> app
@@ -106,10 +106,10 @@ into a liveness restart policy.
 
 ### Retained recovery material
 
-The application PVC and generated Secret use Helm keep annotations because they
-contain identity and recovery material that must survive uninstall and upgrade.
-Operators must explicitly inventory, back up and remove these retained resources
-when decommissioning a release.
+When `persistence.retain` is enabled and the chart creates the claim, Helm keeps
+the application PVC. When the chart generates the bootstrap Secret, Helm keeps
+that Secret. Existing claims and existing Secrets have their external lifecycle.
+Operators must inventory and back up these resources before decommissioning.
 
 ## Production boundary
 

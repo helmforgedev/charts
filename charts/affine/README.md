@@ -8,7 +8,8 @@ dependency contracts.
 ## Operational features
 
 - Native first-administrator API runs on verified loopback before public startup.
-- Retained bootstrap Secret and native SEC1 key; existing identities are preserved.
+- Retained generated bootstrap Secret and native SEC1 key; existing identities are
+  preserved.
 - Non-root application, read-only image filesystem, bounded writable paths and no
   Kubernetes API token.
 - HelmForge PostgreSQL and Redis dependencies, or independently configured external
@@ -28,10 +29,11 @@ dependency contracts.
 
 The chart runs one AFFiNE application Pod with a bootstrap init container and a
 Recreate update strategy. The Pod owns the native configuration, signing key and
-filesystem objects on one retained PVC. PostgreSQL stores relational and document
-metadata; Redis provides cache, sessions, collaboration and background queues. The
-default dependencies are HelmForge PostgreSQL 2.1.1 and Redis 3.1.0, both fetched
-from the HelmForge OCI registry.
+filesystem objects on one PVC, retained on uninstall when `persistence.retain=true`
+and the chart creates the claim. PostgreSQL stores relational and document metadata;
+Redis provides cache, sessions, collaboration and background queues. The default
+dependencies are HelmForge PostgreSQL 2.1.1 and Redis 3.1.0, both fetched from the
+HelmForge OCI registry.
 
 Ingress or Gateway API routes terminate at the public Service. Native metrics use
 a separate private Service and explicit NetworkPolicy peers. The chart deliberately
@@ -187,7 +189,9 @@ hostname, unresolved migration or absent original private key is a hard failure 
 design.
 
 ```bash
-kubectl -n knowledge logs deployment/affine -c bootstrap
+kubectl -n knowledge logs \
+  -l app.kubernetes.io/instance=affine,app.kubernetes.io/name=affine \
+  -c bootstrap --tail=-1
 kubectl -n knowledge describe pod -l app.kubernetes.io/name=affine
 kubectl -n knowledge get events --sort-by=.lastTimestamp
 ```
