@@ -39,8 +39,10 @@ evidence.
 
 Changing `containerPorts.frontend` or `containerPorts.backend` changes the real
 Node.js listener through `PORT`. Services and NetworkPolicies follow the named
-ports automatically. Treat a listener change as an application rollout and
-verify both browser and API paths before production traffic resumes.
+ports automatically. Use a value from 1024 through 65535; the non-root
+containers do not receive `NET_BIND_SERVICE`. Treat a listener change as an
+application rollout and verify both browser and API paths before production
+traffic resumes.
 
 ## Certificate rotation
 

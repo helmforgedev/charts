@@ -36,7 +36,9 @@ root-level Parse routes in addition to `/app`.
 
 The application listener ports are independent from `service.frontendPort` and
 `service.backendPort`. Services, probes, and NetworkPolicies target the named
-`http` ports, so listener overrides remain consistent end to end.
+`http` ports, so listener overrides remain consistent end to end. Listener
+values must be between 1024 and 65535 because the containers run non-root and
+do not receive `NET_BIND_SERVICE`.
 
 The frontend defaults to two replicas and supports HPA. The backend remains a
 single `Recreate` replica because upstream runs migrations during startup and

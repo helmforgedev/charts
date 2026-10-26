@@ -54,7 +54,8 @@ Node.js listeners through the upstream `PORT` environment variable. Services,
 probes, and NetworkPolicies target the named `http` ports.
 `service.frontendPort` and `service.backendPort` remain independent
 client-facing ports. Runtime validation discovers the configured listeners and
-proves both non-default ports.
+proves both non-default ports. The listener schema rejects ports below 1024
+because the workloads run non-root with all Linux capabilities dropped.
 
 The chart rejects `frontend.extraEnv` or `backend.extraEnv` entries that
 override managed variables. This prevents an extra environment entry from
