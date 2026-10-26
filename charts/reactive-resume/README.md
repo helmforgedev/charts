@@ -6,6 +6,16 @@ and encryption keys, and private initial enrollment before the public proxy star
 Optional integration scenarios have passed behavioral acceptance individually.
 The complete `make validate-chart` gate remains required before release.
 
+## Features
+
+- Private, serialized first-user enrollment with public signup kept closed.
+- Native v5 PDF generation without Browserless or privileged containers.
+- Bundled or external PostgreSQL with verified TLS and scoped role privileges.
+- Local persistent uploads or private S3-compatible storage.
+- Authenticated implicit TLS SMTP and linked-user custom OAuth2.
+- Ingress and Gateway API exposure, External Secrets, explicit NetworkPolicies
+  and coordinated identity/state recovery.
+
 ## Architecture and defaults
 
 The official image runs as UID/GID 1000 with a read-only root filesystem. One
@@ -35,6 +45,12 @@ helm upgrade --install resumes helmforge/reactive-resume \
 
 Prepare the referenced Secrets and public HTTPS endpoint before installation.
 See [the production example](examples/production.yaml); its hostnames are placeholders.
+
+## Example
+
+Start from [the production values example](examples/production.yaml), replace all
+placeholder endpoints and Secret names, then validate the selected database,
+storage, mail and identity recovery paths in a non-production namespace.
 
 ## Supported configuration
 
@@ -94,6 +110,35 @@ missing ownership markers and missing or banned initial users.
 See [dependency requirements](docs/dependencies.md) and
 [coordinated recovery](docs/retained-state.md). S3 backups also need a consistent
 bucket recovery point; the local restore profile does not prove S3 disaster recovery.
+
+## Security
+
+Keep `networkPolicy.enabled=true`, use an enforcing CNI and restrict namespace
+policy administration. Supply bootstrap, database, SMTP, OAuth and S3 credentials
+through existing Secrets or External Secrets instead of plain values. Preserve
+the retained identity Secret across upgrades; replacing its signing or encryption
+keys is a recovery event, not routine rotation.
+
+Public exposure should terminate TLS through an explicitly selected IngressClass
+or Gateway. Private integration CAs extend native trust without disabling
+certificate or hostname verification. Review `networkPolicy.extraEgress` for each
+external database or integration and replace broad public HTTPS font egress where
+your platform provides a controlled alternative.
+
+## Troubleshooting
+
+- If initialization stops at network admission, verify the CNI enforces
+  NetworkPolicy and check for additive policies that expose the native port.
+- If startup or readiness fails, inspect PostgreSQL access, schema privileges,
+  upload storage and the reported initialization stage before restarting Pods.
+- If an existing installation reports an identity mismatch, restore the original
+  `AUTH_SECRET`, `ENCRYPTION_SECRET`, database and `.helmforge-identity.json` as
+  one recovery set; do not delete the marker to bypass the check.
+- If PDF generation fails, confirm DNS and approved HTTPS egress to the upstream
+  font endpoint, then validate the generated document contents rather than only
+  its content type.
+- If email, S3 or OAuth TLS fails, verify the endpoint hostname and CA bundle;
+  the chart intentionally provides no certificate-verification bypass.
 
 ## Validation
 
