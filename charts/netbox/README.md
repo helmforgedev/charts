@@ -197,8 +197,9 @@ Local details:
 - If web startup is slow, inspect migration logs before restarting the pod.
 - If workers remain in init, verify the web migration completed and PostgreSQL
   is reachable.
-- If probes return HTTP 400, include the public hostname in
-  `netbox.allowedHosts`; probes always send `Host: localhost`.
+- If probes return HTTP 400, keep `localhost` in `netbox.allowedHosts`.
+  The startup, liveness, and readiness probes send `Host: localhost`.
+  Also add the public hostname for external clients.
 - If a custom listener fails, confirm the rendered Granian `--port` argument
   and the named `http` container port both match `containerPorts.http`.
 - If multiple replicas are rejected, use ReadWriteMany media or an external
