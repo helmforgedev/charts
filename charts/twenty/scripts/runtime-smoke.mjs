@@ -13,11 +13,49 @@ import { restoreSmoke } from "./restore-smoke.mjs";
 const [context, namespace, release] = process.argv.slice(2);
 assert.equal(context, "k3d-helmforge-tests-wsl");
 assert.equal(namespace, "hf-validate-twenty");
-const k = (args) =>
+const k = (args, timeout = 120000) =>
   execFileSync("kubectl", ["--context", context, "-n", namespace, ...args], {
     encoding: "utf8",
-    timeout: 120000,
+    timeout,
   });
+
+async function waitForDeploymentRollout(name) {
+  const deadline = Date.now() + 300000;
+  let lastStatus = "deployment status not observed";
+  while (Date.now() < deadline) {
+    try {
+      const deployment = JSON.parse(
+        k(["get", "deployment/" + name, "-o", "json"], 30000),
+      );
+      const desired = deployment.spec.replicas ?? 1;
+      const status = deployment.status ?? {};
+      const rollout = {
+        generation: deployment.metadata.generation,
+        observedGeneration: status.observedGeneration ?? 0,
+        desired,
+        replicas: status.replicas ?? 0,
+        updatedReplicas: status.updatedReplicas ?? 0,
+        readyReplicas: status.readyReplicas ?? 0,
+        availableReplicas: status.availableReplicas ?? 0,
+      };
+      lastStatus = JSON.stringify(rollout);
+      if (
+        rollout.observedGeneration >= rollout.generation &&
+        rollout.replicas === desired &&
+        rollout.updatedReplicas === desired &&
+        rollout.readyReplicas === desired &&
+        rollout.availableReplicas === desired
+      )
+        return;
+    } catch (error) {
+      lastStatus = String(error.message ?? error);
+    }
+    await sleep(2000);
+  }
+  throw new Error(
+    "Deployment rollout did not complete within 300s: " + lastStatus,
+  );
+}
 const values = JSON.parse(
   execFileSync(
     "helm",
@@ -368,12 +406,7 @@ try {
     assert.equal(upgraded.spec.containers.find(c => c.name === "twenty").image,
       values.image.repository + ":" + process.env.HF_TWENTY_UPGRADE_TAG);
   } else k(["rollout", "restart", "deployment/" + deployment.metadata.name]);
-  k([
-    "rollout",
-    "status",
-    "deployment/" + deployment.metadata.name,
-    "--timeout=120s",
-  ]);
+  await waitForDeploymentRollout(deployment.metadata.name);
   await forward(async (base) => {
     const response = await fetch(base + "/rest/companies/" + companyId, {
       headers: {
