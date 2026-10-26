@@ -214,7 +214,14 @@ jdbc:mariadb://{{ include "booklore.dbHost" . }}:{{ include "booklore.dbPort" . 
 {{- if and .Values.gatewayAPI.enabled (empty .Values.gatewayAPI.httpRoutes) -}}
 {{- fail "gatewayAPI.httpRoutes must contain at least one route when gatewayAPI.enabled=true" -}}
 {{- end -}}
-{{- if and .Values.autoscaling.enabled (gt (int .Values.autoscaling.maxReplicas) 1) .Values.persistence.data.enabled (ne .Values.persistence.data.accessMode "ReadWriteMany") -}}
-{{- fail "autoscaling.maxReplicas > 1 with persistence.data.accessMode=ReadWriteOnce will cause volume scheduling failures; set persistence.data.accessMode=ReadWriteMany or disable persistence" -}}
+{{- $scaled := or (gt (int .Values.replicaCount) 1) (and .Values.autoscaling.enabled (gt (int .Values.autoscaling.maxReplicas) 1)) -}}
+{{- if and $scaled .Values.persistence.data.enabled (not (has "ReadWriteMany" .Values.persistence.data.accessModes)) -}}
+{{- fail "multiple replicas require ReadWriteMany in persistence.data.accessModes or disabled data persistence" -}}
+{{- end -}}
+{{- if and $scaled .Values.persistence.books.enabled (not (has "ReadWriteMany" .Values.persistence.books.accessModes)) -}}
+{{- fail "multiple replicas require ReadWriteMany in persistence.books.accessModes or disabled books persistence" -}}
+{{- end -}}
+{{- if and $scaled .Values.persistence.bookdrop.enabled (not (has "ReadWriteMany" .Values.persistence.bookdrop.accessModes)) -}}
+{{- fail "multiple replicas require ReadWriteMany in persistence.bookdrop.accessModes or disabled BookDrop persistence" -}}
 {{- end -}}
 {{- end -}}

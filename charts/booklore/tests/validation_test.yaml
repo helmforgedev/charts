@@ -41,6 +41,45 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "podLabels must not override the selector label app.kubernetes.io/name"
+  - it: fails when multiple replicas use ReadWriteOnce data storage
+    set:
+      replicaCount: 2
+    asserts:
+      - failedTemplate:
+          errorMessage: "multiple replicas require ReadWriteMany in persistence.data.accessModes or disabled data persistence"
+  - it: fails when multiple replicas use ReadWriteOnce books storage
+    set:
+      replicaCount: 2
+      persistence.data.accessModes:
+        - ReadWriteMany
+    asserts:
+      - failedTemplate:
+          errorMessage: "multiple replicas require ReadWriteMany in persistence.books.accessModes or disabled books persistence"
+  - it: fails when autoscaling uses ReadWriteOnce BookDrop storage
+    set:
+      autoscaling.enabled: true
+      autoscaling.maxReplicas: 2
+      persistence.data.accessModes:
+        - ReadWriteMany
+      persistence.books.accessModes:
+        - ReadWriteMany
+      persistence.bookdrop.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "multiple replicas require ReadWriteMany in persistence.bookdrop.accessModes or disabled BookDrop persistence"
+  - it: accepts multiple replicas when every enabled volume supports ReadWriteMany
+    set:
+      replicaCount: 2
+      persistence.data.accessModes:
+        - ReadWriteMany
+      persistence.books.accessModes:
+        - ReadWriteMany
+      persistence.bookdrop.enabled: true
+      persistence.bookdrop.accessModes:
+        - ReadWriteMany
+    asserts:
+      - hasDocuments:
+          count: 0
   - it: passes with default values
     asserts:
       - hasDocuments:
