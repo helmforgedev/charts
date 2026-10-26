@@ -65,3 +65,55 @@ tests:
       - equal:
           path: spec.ingress
           value: []
+
+  - it: should render custom ingress and egress rules
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.ingress.extraFrom:
+        - ipBlock:
+            cidr: 10.1.0.0/16
+      networkPolicy.egress.enabled: true
+      networkPolicy.egress.extraTo:
+        - ipBlock:
+            cidr: 10.2.0.0/16
+      networkPolicy.egress.extraEgress:
+        - to:
+            - ipBlock:
+                cidr: 10.3.0.0/16
+          ports:
+            - protocol: TCP
+              port: 5432
+    asserts:
+      - contains:
+          path: spec.ingress[0].from
+          content:
+            ipBlock:
+              cidr: 10.1.0.0/16
+      - equal:
+          path: spec.egress[2]
+          value:
+            to:
+              - ipBlock:
+                  cidr: 10.2.0.0/16
+      - equal:
+          path: spec.egress[3]
+          value:
+            to:
+              - ipBlock:
+                  cidr: 10.3.0.0/16
+            ports:
+              - protocol: TCP
+                port: 5432
+
+  - it: should render an empty egress list when every source is disabled
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+      networkPolicy.egress.allowDNS: false
+      networkPolicy.egress.allowSameNamespaceDatabase: false
+      networkPolicy.egress.allowHTTPS: false
+      networkPolicy.egress.allowSMTP: false
+    asserts:
+      - equal:
+          path: spec.egress
+          value: []
