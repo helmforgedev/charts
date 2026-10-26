@@ -64,12 +64,40 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
+          args:
+            - /opt/netbox/docker-entrypoint.sh
+            - /opt/netbox/venv/bin/granian
+            - --host
+            - "::"
+            - --port
+            - {{ .Values.containerPorts.http | quote }}
+            - --interface
+            - wsgi
+            - --no-ws
+            - --workers
+            - {{ .Values.web.workers | quote }}
+            - --respawn-failed-workers
+            - --backpressure
+            - {{ .Values.web.workers | quote }}
+            - --loop
+            - uvloop
+            - --log
+            - --log-level
+            - info
+            - --access-log
+            - --working-dir
+            - /opt/netbox/netbox/
+            - --static-path-route
+            - /static
+            - --static-path-mount
+            - /opt/netbox/netbox/static/
+            - --static-path-dir-to-file
+            - index.html
+            - --pid-file
+            - /tmp/granian.pid
+            - netbox.granian:application
           env:
             {{- include "netbox.commonEnv" . | nindent 12 }}
-            - name: GRANIAN_WORKERS
-              value: {{ .Values.web.workers | quote }}
-            - name: GRANIAN_REQUEST_TIMEOUT
-              value: {{ .Values.web.requestTimeout | quote }}
             {{- if .Values.auth.superuser.enabled }}
             - name: SKIP_SUPERUSER
               value: "false"
@@ -99,7 +127,7 @@ spec:
           {{- end }}
           ports:
             - name: http
-              containerPort: 8080
+              containerPort: {{ .Values.containerPorts.http }}
               protocol: TCP
           {{- if .Values.startupProbe.enabled }}
           startupProbe:

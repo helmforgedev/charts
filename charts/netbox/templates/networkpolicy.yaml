@@ -11,6 +11,13 @@ spec:
   podSelector:
     matchLabels:
       {{- include "netbox.selectorLabels" . | nindent 6 }}
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values:
+          - web
+          - worker
+          - housekeeping
   policyTypes:
     - Ingress
     {{- if .Values.networkPolicy.egress.enabled }}
@@ -21,11 +28,14 @@ spec:
         {{- if .Values.networkPolicy.ingressFrom }}
         {{- toYaml .Values.networkPolicy.ingressFrom | nindent 8 }}
         {{- else }}
-        - podSelector: {}
+        - ipBlock:
+            cidr: 0.0.0.0/0
+        - ipBlock:
+            cidr: ::/0
         {{- end }}
       ports:
         - protocol: TCP
-          port: http
+          port: {{ .Values.containerPorts.http }}
   {{- if .Values.networkPolicy.egress.enabled }}
   egress:
     {{- if .Values.networkPolicy.egress.allowDNS }}

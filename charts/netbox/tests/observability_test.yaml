@@ -32,14 +32,33 @@ tests:
           path: spec.policyTypes
           content: Egress
       - equal:
-          path: spec.ingress[0].from[0].podSelector
-          value: {}
+          path: spec.ingress[0].from[0].ipBlock.cidr
+          value: 0.0.0.0/0
       - equal:
-          path: spec.egress[1].to[0].podSelector.matchLabels["app.kubernetes.io/name"]
-          value: postgresql
+          path: spec.ingress[0].from[1].ipBlock.cidr
+          value: ::/0
       - equal:
-          path: spec.egress[2].to[0].podSelector.matchLabels["app.kubernetes.io/name"]
-          value: redis
+          path: spec.podSelector.matchExpressions[0]
+          value:
+            key: app.kubernetes.io/component
+            operator: In
+            values:
+              - web
+              - worker
+              - housekeeping
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 8080
+
+  - it: keeps NetworkPolicy ingress aligned with a custom listener
+    template: networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      containerPorts.http: 8181
+    asserts:
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 8181
   - it: requires explicit peers for external data services
     template: networkpolicy.yaml
     set:

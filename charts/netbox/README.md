@@ -1,8 +1,21 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # NetBox
 
 Deploy [NetBox](https://github.com/netbox-community/netbox), the infrastructure
 resource modeling and source-of-truth platform for DCIM and IPAM, using its
 official container image.
+
+## Features
+
+- Official pinned NetBox/netbox-docker image for amd64 and arm64.
+- Separate Granian web, RQ worker and housekeeping workloads.
+- Maintained PostgreSQL and Redis dependencies plus external-service modes.
+- Persistent media with fail-fast multi-replica storage validation.
+- Generated, existing and External Secrets identity contracts.
+- Ingress, Gateway API, dual-stack Service and product-aware NetworkPolicy.
+- Native Prometheus metrics, ServiceMonitor and operational Helm tests.
+- Configurable real Granian listener independent from the Service port.
 
 ## Architecture
 
@@ -18,11 +31,14 @@ is kept on a separate PVC. The default installation deploys HelmForge
 PostgreSQL and Redis subcharts. Authentication is mandatory, matching the
 NetBox 4.6 security model.
 
-## Install
+## Installation
 
 ```bash
 helm repo add helmforge https://repo.helmforge.dev
-helm install netbox helmforge/netbox --namespace netbox --create-namespace
+helm install netbox helmforge/netbox \
+  --namespace netbox \
+  --create-namespace \
+  --wait
 ```
 
 Retrieve the generated initial password:
@@ -53,6 +69,39 @@ contain pending jobs and must not be exposed to untrusted writers.
 
 See [production operations](docs/production.md),
 [secrets](docs/secrets.md), and [networking and observability](docs/networking.md).
+
+## Configuration
+
+`containerPorts.http` configures the real Granian HTTP listener through the
+server's `--port` command-line option. `service.port` independently controls
+the Kubernetes Service-facing port and targets the named `http` container
+port. The defaults are `8080` and `80`, respectively.
+
+```yaml
+containerPorts:
+  http: 8181
+service:
+  port: 8080
+```
+
+This example makes NetBox listen on 8181 while clients connect to the Service
+on 8080. Probes follow the named container port. Listener values below 1024 are
+rejected because the application runs without root or added capabilities.
+
+| Value | Default | Purpose |
+| --- | ---: | --- |
+| `containerPorts.http` | `8080` | Granian process listener |
+| `service.port` | `80` | Kubernetes Service-facing port |
+| `web.replicaCount` | `1` | NetBox web replicas |
+| `worker.replicaCount` | `1` | RQ worker replicas |
+| `persistence.enabled` | `true` | Persist uploaded media |
+| `database.mode` | `auto` | Select bundled or external PostgreSQL |
+| `cache.mode` | `auto` | Select bundled or external Redis |
+| `networkPolicy.enabled` | `false` | Enable application traffic isolation |
+| `networkPolicy.ingressFrom` | `[]` | Explicit HTTP ingress peers; empty permits IPv4 and IPv6 clients to the listener |
+
+See [values.yaml](values.yaml) and [values.schema.json](values.schema.json) for
+the complete validated contract.
 
 ## External services
 
@@ -108,6 +157,19 @@ Set both `netbox.metricsEnabled=true` and
 Web and worker logs remain on standard output. Probes call `/login/`, which
 also verifies database-backed Django startup.
 
+## Security
+
+All NetBox containers run without root or added capabilities, block privilege
+escalation, use RuntimeDefault seccomp and receive no Kubernetes API token.
+Application identity and credentials belong in retained Kubernetes Secrets or
+External Secrets, never ConfigMaps. Restrict the bootstrap administrator,
+terminate public traffic with HTTPS and treat Redis database 0 as a trusted
+job-execution boundary.
+
+NetworkPolicy is opt-in. When egress enforcement is enabled, explicitly allow
+DNS, PostgreSQL, Redis and every private identity, email, webhook or plugin
+destination. Enabling ingress isolation alone leaves egress unrestricted.
+
 ## Security Scan
 
 ### Security Scan: `netbox`
@@ -129,6 +191,18 @@ Local details:
 - [Simple](examples/simple.yaml)
 - [External services](examples/external-services.yaml)
 - [Production](examples/production.yaml)
+
+## Troubleshooting
+
+- If web startup is slow, inspect migration logs before restarting the pod.
+- If workers remain in init, verify the web migration completed and PostgreSQL
+  is reachable.
+- If probes return HTTP 400, include the public hostname in
+  `netbox.allowedHosts`; probes always send `Host: localhost`.
+- If a custom listener fails, confirm the rendered Granian `--port` argument
+  and the named `http` container port both match `containerPorts.http`.
+- If multiple replicas are rejected, use ReadWriteMany media or an external
+  media backend instead of bypassing the storage guard.
 
 ## Scope boundaries
 

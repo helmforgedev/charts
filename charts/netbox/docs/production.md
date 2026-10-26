@@ -12,6 +12,14 @@ and required pod affinity to remain on the web pod's node. Declare
 `ReadWriteMany` before applying custom affinity or distributing either
 workload across nodes.
 
+## Network policy
+
+When `networkPolicy.enabled=true`, the default empty `ingressFrom` keeps the
+HTTP listener reachable from IPv4 and IPv6 ingress controllers while egress
+restrictions still apply. Set explicit Kubernetes NetworkPolicy peers in
+`networkPolicy.ingressFrom` when the platform has stable controller or client
+selectors.
+
 ## Backup and restore
 
 Capture PostgreSQL and the media volume in the same recovery window. Test
@@ -20,6 +28,11 @@ jobs in Redis database 0 may affect recovery sequencing. Pause writers during
 a strict point-in-time restore.
 
 ## Upgrade
+
+The former `web.requestTimeout` value was removed because netbox-docker 5.0.2
+never consumed `GRANIAN_REQUEST_TIMEOUT`, and Granian 2.7.9 has no equivalent
+whole-request timeout option. Remove this key from overlays; enforce external
+request deadlines at the ingress, Gateway, or load balancer.
 
 Read the NetBox and netbox-docker release notes. Back up state, update the
 combined image tag, deploy one environment, wait for migrations and probes,
