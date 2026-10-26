@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: OpenHuman contract validation
+templates: [templates/validate.yaml]
+tests:
+  - it: rejects ingress without an ingress class
+    set:
+      ingress.enabled: true
+      ingress.hosts: [{host: core.example.com, paths: [{path: /, pathType: Prefix}]}]
+      ingress.tls: [{secretName: core-tls, hosts: [core.example.com]}]
+    asserts:
+      - failedTemplate:
+          errorMessage: ingress.enabled requires ingress.ingressClassName
+  - it: rejects ingress without hosts
+    set:
+      ingress.enabled: true
+      ingress.ingressClassName: nginx
+      ingress.hosts: []
+      ingress.tls: [{secretName: core-tls, hosts: [core.example.com]}]
+    asserts:
+      - failedTemplate:
+          errorMessage: ingress.enabled requires at least one ingress.hosts entry
+  - it: rejects ingress without TLS
+    set:
+      ingress.enabled: true
+      ingress.ingressClassName: nginx
+      ingress.hosts: [{host: core.example.com, paths: [{path: /, pathType: Prefix}]}]
+      ingress.tls: []
+    asserts:
+      - failedTemplate:
+          errorMessage: ingress.enabled requires TLS configuration
+  - it: rejects Gateway API without routes
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes: []
+    asserts:
+      - failedTemplate:
+          errorMessage: gatewayAPI.enabled requires at least one gatewayAPI.httpRoutes entry
+  - it: rejects pod labels that replace an immutable selector
+    set:
+      podLabels:
+        app.kubernetes.io/name: replacement
+    asserts:
+      - failedTemplate:
+          errorMessage: podLabels must not override selector label "app.kubernetes.io/name"
+  - it: accepts the default contract
+    asserts:
+      - hasDocuments:
+          count: 0
