@@ -21,8 +21,8 @@ helm install docmost oci://ghcr.io/helmforgedev/helm/docmost
 ## Features
 
 - **Official Docmost image** based on `docmost/docmost`
-- **PostgreSQL subchart** bundled PostgreSQL `2.0.5` for default installs
-- **Redis subchart** bundled Redis `3.0.0` for default installs
+- **PostgreSQL subchart** bundled PostgreSQL `2.1.1` for default installs
+- **Redis subchart** bundled Redis `3.1.0` for default installs
 - **External services** support for managed PostgreSQL and Redis
 - **Local or S3 storage** for uploaded files
 - **Ingress support** configurable ingress with TLS
@@ -41,6 +41,19 @@ helm install docmost oci://ghcr.io/helmforgedev/helm/docmost
 - the default image tag is `0.96.0`, validated against the published `docmost/docmost:0.96.0` container image
 - upstream telemetry can be disabled with `docmost.disableTelemetry=true`
 - this chart intentionally does not keep `Chart.lock`; dependencies are resolved by the repository release workflow
+
+## Architecture
+
+Traffic reaches the named `http` container port through the Kubernetes Service.
+`containerPorts.http` changes the actual Docmost process listener by setting the
+upstream `PORT` environment variable; `service.port` changes only the
+Kubernetes-facing port. PostgreSQL and Redis may be bundled or external, while
+uploads use either a local PVC or S3-compatible storage. See
+[Chart design](DESIGN.md) for trust boundaries and production trade-offs.
+
+The pod does not mount a Kubernetes API token by default. Set
+`serviceAccount.automountServiceAccountToken=true` only when a concrete
+integration requires Kubernetes API credentials.
 
 ## Upgrade to 0.96
 
@@ -170,6 +183,7 @@ backup:
 | `strategy` | `{}` | Deployment update strategy. Defaults to `Recreate` while the local uploads PVC is in use, since that volume is `ReadWriteOnce`, and to `RollingUpdate` otherwise |
 | `image.repository` | `docker.io/docmost/docmost` | Docmost container image repository |
 | `image.tag` | `0.96.0` | Docmost image tag |
+| `containerPorts.http` | `3000` | Docmost process listener and declared container port |
 | `docmost.appUrl` | `""` | External Docmost URL |
 | `docmost.appSecret` | `""` | Application secret, auto-generated when empty |
 | `docmost.existingSecret` | `""` | Existing secret holding the app secret. Takes precedence over `appSecret` and stops the chart creating or rotating one |
@@ -193,6 +207,7 @@ backup:
 | `service.port` | `80` | Service port exposed by Kubernetes |
 | `service.ipFamilyPolicy` | `""` | Kubernetes service IP family policy |
 | `service.ipFamilies` | `[]` | Kubernetes service IP families |
+| `serviceAccount.automountServiceAccountToken` | `false` | Mount the Kubernetes API token into Docmost pods |
 | `ingress.enabled` | `false` | Enable ingress |
 | `ingress.ingressClassName` | `""` | Ingress class (`traefik`, `nginx`, etc.) |
 | `gateway.enabled` | `false` | Render a Gateway API HTTPRoute |
@@ -203,6 +218,21 @@ backup:
 The post-install notes include port-forward, application logs, PostgreSQL logs, Redis logs, and upgrade reminders.
 For production upgrades, take a database backup first and verify the secret references used by `database.external.*`,
 `redis.external.*`, `storage.s3.*`, and `backup.s3.*`.
+
+## Troubleshooting
+
+- If probes fail after changing the listener, confirm that
+  `containerPorts.http` appears both as the container port and as the `PORT`
+  environment variable. Do not use `service.port` to change the process.
+- If the application starts but cannot persist data, inspect the PostgreSQL and
+  Redis pod logs, then verify the rendered `DATABASE_URL` and `REDIS_URL`
+  Secret references.
+- If uploaded files disappear across replicas, use `storage.mode=s3`; local
+  storage is intentionally limited to one Docmost replica.
+- If encrypted values become unreadable after an upgrade or restore, restore
+  the same `APP_SECRET` through `docmost.existingSecret`.
+- For S3 failures, verify endpoint reachability, bucket policy, path-style mode,
+  and both keys in `storage.s3.existingSecret`.
 
 ## More Information
 

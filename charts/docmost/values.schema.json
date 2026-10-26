@@ -3,7 +3,7 @@
   "title": "Docmost Helm Chart Values",
   "description": "Configuration values for the Docmost Helm chart with PostgreSQL, Redis, local storage, and optional S3.",
   "type": "object",
-  "additionalProperties": true,
+  "additionalProperties": false,
   "properties": {
     "global": {
       "type": "object",
@@ -55,6 +55,20 @@
       "items": {
         "type": "object"
       }
+    },
+    "containerPorts": {
+      "type": "object",
+      "description": "Application listener ports.",
+      "additionalProperties": false,
+      "properties": {
+        "http": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "HTTP listener used by the Docmost process and container."
+        }
+      },
+      "required": ["http"]
     },
     "docmost": {
       "type": "object",
@@ -120,6 +134,7 @@
     "postgresql": {
       "type": "object",
       "description": "PostgreSQL subchart configuration",
+      "additionalProperties": true,
       "properties": {
         "enabled": { "type": "boolean", "description": "Deploy PostgreSQL as a subchart" },
         "architecture": { "type": "string", "description": "PostgreSQL architecture" },
@@ -130,6 +145,7 @@
     "redis": {
       "type": "object",
       "description": "Redis subchart or external Redis configuration",
+      "additionalProperties": true,
       "properties": {
         "enabled": { "type": "boolean", "description": "Deploy Redis as a subchart" },
         "architecture": { "type": "string", "description": "Redis architecture" },
@@ -253,18 +269,74 @@
         "tls": { "type": "array", "description": "Ingress TLS configuration", "items": { "type": "object" } }
       }
     },
-    "startupProbe": { "type": "object", "description": "Startup probe configuration" },
-    "livenessProbe": { "type": "object", "description": "Liveness probe configuration" },
-    "readinessProbe": { "type": "object", "description": "Readiness probe configuration" },
-    "resources": { "type": "object", "description": "CPU and memory requests/limits for the Docmost container" },
-    "podSecurityContext": { "type": "object", "description": "Pod-level security context" },
-    "securityContext": { "type": "object", "description": "Container-level security context" },
+    "startupProbe": {
+      "type": "object",
+      "description": "Startup probe configuration",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Enable the startup probe" },
+        "path": { "type": "string", "description": "HTTP path used by the startup probe" },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0, "description": "Initial startup probe delay" },
+        "periodSeconds": { "type": "integer", "minimum": 1, "description": "Startup probe interval" },
+        "timeoutSeconds": { "type": "integer", "minimum": 1, "description": "Startup probe timeout" },
+        "failureThreshold": { "type": "integer", "minimum": 1, "description": "Startup probe failure threshold" }
+      }
+    },
+    "livenessProbe": {
+      "type": "object",
+      "description": "Liveness probe configuration",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Enable the liveness probe" },
+        "path": { "type": "string", "description": "HTTP path used by the liveness probe" },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0, "description": "Initial liveness probe delay" },
+        "periodSeconds": { "type": "integer", "minimum": 1, "description": "Liveness probe interval" },
+        "timeoutSeconds": { "type": "integer", "minimum": 1, "description": "Liveness probe timeout" },
+        "failureThreshold": { "type": "integer", "minimum": 1, "description": "Liveness probe failure threshold" }
+      }
+    },
+    "readinessProbe": {
+      "type": "object",
+      "description": "Readiness probe configuration",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Enable the readiness probe" },
+        "path": { "type": "string", "description": "HTTP path used by the readiness probe" },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0, "description": "Initial readiness probe delay" },
+        "periodSeconds": { "type": "integer", "minimum": 1, "description": "Readiness probe interval" },
+        "timeoutSeconds": { "type": "integer", "minimum": 1, "description": "Readiness probe timeout" },
+        "failureThreshold": { "type": "integer", "minimum": 1, "description": "Readiness probe failure threshold" }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "description": "CPU and memory requests/limits for the Docmost container",
+      "additionalProperties": true
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "description": "Pod-level Kubernetes security context",
+      "additionalProperties": true
+    },
+    "securityContext": {
+      "type": "object",
+      "description": "Container-level Kubernetes security context",
+      "additionalProperties": true
+    },
     "waitForServices": {
       "type": "object",
       "description": "Init container resources and security context for dependency wait checks",
       "properties": {
-        "resources": { "type": "object" },
-        "securityContext": { "type": "object" }
+        "resources": {
+          "type": "object",
+          "description": "Kubernetes resource requirements for dependency wait containers",
+          "additionalProperties": true
+        },
+        "securityContext": {
+          "type": "object",
+          "description": "Kubernetes security context for dependency wait containers",
+          "additionalProperties": true
+        }
       }
     },
     "serviceAccount": {
@@ -273,7 +345,8 @@
       "properties": {
         "create": { "type": "boolean", "description": "Create a dedicated ServiceAccount" },
         "name": { "type": "string", "description": "ServiceAccount name override" },
-        "annotations": { "type": "object", "description": "Annotations for the ServiceAccount" }
+        "annotations": { "type": "object", "description": "Annotations for the ServiceAccount" },
+        "automountServiceAccountToken": { "type": "boolean", "description": "Mount the Kubernetes API token into Docmost pods" }
       }
     },
     "nodeSelector": { "type": "object", "description": "Node selector for pod scheduling" },
