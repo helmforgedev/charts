@@ -43,6 +43,8 @@ is empty. Disable `webapps.defaultRoot` when the image owns the ROOT context.
 An init container may instead download an artifact into the shared webapps
 volume. Pin the artifact version, verify its checksum or signature before
 installation, use a read-only credential mount, and set explicit resources.
+Set `webapps.copyImageContent.enabled=false` for this path unless the downloader
+explicitly removes image-provided applications before installation.
 Do not download an unversioned artifact from a mutable URL during every start.
 
 PVC-backed webapps support intentionally mutable deployments, but a reused PVC
@@ -77,9 +79,10 @@ artifact deployment but prove only that the Connector accepts connections.
 ## Network and JMX security
 
 Enable NetworkPolicy after identifying the ingress controller and every
-application egress dependency. The baseline can allow DNS, HTTP, and HTTPS;
-use `networkPolicy.egress.extraTo` for additional peers and
-`networkPolicy.egress.extraEgress` for complete custom rules.
+application egress dependency. Set `networkPolicy.egress.enabled=true` to
+enforce the baseline DNS, HTTP, HTTPS, and `extraTo` rules, or supply complete
+`networkPolicy.egress.extraEgress` rules. Without either egress setting, the
+policy isolates ingress while egress remains unrestricted.
 
 JMX must remain disabled unless an operations workflow requires it. When
 enabled, restrict registry and RMI ports to a trusted monitoring namespace,

@@ -41,9 +41,12 @@ Kubernetes API token. The root filesystem is read-only except for explicit
 runtime volumes.
 
 NetworkPolicy is opt-in because application egress and ingress-controller
-selectors are environment-specific. Enable it only after declaring every
-required application, DNS, ingress, and JMX path. JMX is also opt-in; restrict
-it to trusted peers and configure authentication and TLS before production use.
+selectors are environment-specific. Enabling it isolates ingress; egress stays
+unrestricted unless `networkPolicy.egress.enabled` is true or complete
+`networkPolicy.egress.extraEgress` rules are supplied. Before egress
+enforcement, declare every required DNS and application destination. JMX is
+also opt-in; restrict it to trusted peers and configure authentication and TLS
+before production use.
 
 ### Security Scan: `tomcat`
 
@@ -59,7 +62,8 @@ NetworkPolicy boundaries.
 ```bash
 helm install tomcat oci://repo.helmforge.dev/charts/tomcat \
   --namespace tomcat \
-  --create-namespace
+  --create-namespace \
+  --wait
 ```
 
 Verify the release:

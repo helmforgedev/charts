@@ -108,8 +108,11 @@ seccomp, and disables ServiceAccount token automounting. Only documented Tomcat
 runtime paths are writable.
 
 NetworkPolicy is opt-in because the chart cannot infer application egress or
-the labels of every ingress implementation. Once enabled, operators must allow
-the ingress controller, JMX clients, DNS, and every application dependency.
+the labels of every ingress implementation. Enabling it isolates ingress, but
+egress remains unrestricted unless `networkPolicy.egress.enabled` is true or
+complete `networkPolicy.egress.extraEgress` rules are supplied. Under egress
+enforcement, operators must allow DNS and every application dependency;
+ingress rules must allow the ingress controller and trusted JMX clients.
 JMX authentication and TLS are not generated because their files and trust
 model are environment-specific. Enabling unauthenticated JMX outside a tightly
 restricted network is outside the supported production boundary.
