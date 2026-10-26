@@ -58,6 +58,14 @@ app.kubernetes.io/component: worker
 {{- if not (has $taskRunnerMode (list "internal" "external")) -}}
 {{- fail (printf "taskRunners.mode must be one of: internal, external (got %s)" $taskRunnerMode) -}}
 {{- end -}}
+{{- if eq $taskRunnerMode "external" -}}
+{{- $httpPort := .Values.containerPorts.http -}}
+{{- $brokerPort := .Values.containerPorts.runnerBroker -}}
+{{- $healthPort := .Values.containerPorts.runnerHealth -}}
+{{- if or (eq $httpPort $brokerPort) (eq $httpPort $healthPort) (eq $brokerPort $healthPort) -}}
+{{- fail "containerPorts.http, containerPorts.runnerBroker, and containerPorts.runnerHealth must be distinct when taskRunners.mode=external" -}}
+{{- end -}}
+{{- end -}}
 {{- if and .Values.taskRunners.nativePython.enabled (ne $taskRunnerMode "external") -}}
 {{- fail "taskRunners.nativePython.enabled=true requires taskRunners.mode=external" -}}
 {{- end -}}

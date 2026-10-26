@@ -197,6 +197,10 @@ externalSecrets:
 | `externalSecrets.enabled` | `false` | Render ExternalSecret resource |
 | `externalSecrets.apiVersion` | `external-secrets.io/v1` | ExternalSecret API version |
 | `serviceAccount.automountServiceAccountToken` | `false` | Mount the Kubernetes API token into main and worker pods |
+| `externalSecrets.refreshInterval` | `"0"` | Refresh interval (`"0"` = one-time sync) |
+| `externalSecrets.secretStoreRef.name` | `""` | SecretStore name (required when enabled) |
+| `externalSecrets.secretStoreRef.kind` | `SecretStore` | SecretStore kind |
+| `externalSecrets.data` | `[]` | Remote key mappings (must include `encryption-key` entry) |
 
 ## Troubleshooting
 
@@ -211,10 +215,6 @@ externalSecrets:
   key, and the worker's `wait-for-main` init-container logs.
 - If credentials cannot be decrypted after restore, restore the original
   encryption key before starting n8n.
-| `externalSecrets.refreshInterval` | `"0"` | Refresh interval (`"0"` = one-time sync) |
-| `externalSecrets.secretStoreRef.name` | `""` | SecretStore name (required when enabled) |
-| `externalSecrets.secretStoreRef.kind` | `SecretStore` | SecretStore kind |
-| `externalSecrets.data` | `[]` | Remote key mappings (must include `encryption-key` entry) |
 
 ## Upgrade Notes
 

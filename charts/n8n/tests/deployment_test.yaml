@@ -324,6 +324,27 @@ tests:
       - failedTemplate:
           errorPattern: "taskRunners.nativePython.enabled=true requires taskRunners.mode=external"
 
+  - it: should reject duplicate external runner listener ports
+    template: templates/deployment.yaml
+    set:
+      containerPorts.http: 5678
+      containerPorts.runnerBroker: 5678
+      containerPorts.runnerHealth: 5680
+    asserts:
+      - failedTemplate:
+          errorPattern: "containerPorts.http, containerPorts.runnerBroker, and containerPorts.runnerHealth must be distinct when taskRunners.mode=external"
+
+  - it: should allow shared listener values in internal mode
+    template: templates/deployment.yaml
+    set:
+      taskRunners.mode: internal
+      containerPorts.http: 5678
+      containerPorts.runnerBroker: 5678
+      containerPorts.runnerHealth: 5678
+    asserts:
+      - isKind:
+          of: Deployment
+
   - it: should offload manual executions to workers in queue mode
     template: templates/deployment.yaml
     set:
