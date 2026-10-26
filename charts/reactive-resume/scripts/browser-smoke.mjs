@@ -82,10 +82,19 @@ export async function browserSmoke({
           cookie.httpOnly,
       ),
     );
-    await page.goto(origin + "/builder/" + resumeId, {
+    const builderResponse = await page.goto(origin + "/builder/" + resumeId, {
       waitUntil: "domcontentloaded",
     });
+    assert.ok(builderResponse, "Builder navigation did not return a response");
+    assert.ok(
+      builderResponse.ok(),
+      `Builder navigation returned HTTP ${builderResponse.status()}`,
+    );
     assert.equal(new URL(page.url()).pathname, "/builder/" + resumeId);
+    await page
+      .getByRole("button", { name: "Export", exact: true })
+      .first()
+      .waitFor({ state: "visible" });
     console.log(
       "PASS real HTTPS browser login, secure session cookie and private builder access",
     );

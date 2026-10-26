@@ -132,8 +132,9 @@ your platform provides a controlled alternative.
 - If startup or readiness fails, inspect PostgreSQL access, schema privileges,
   upload storage and the reported initialization stage before restarting Pods.
 - If an existing installation reports an identity mismatch, restore the original
-  `AUTH_SECRET`, `ENCRYPTION_SECRET`, database and `.helmforge-identity.json` as
-  one recovery set; do not delete the marker to bypass the check.
+  `AUTH_SECRET`, `ENCRYPTION_SECRET`, database, `.helmforge-identity.json`, and
+  the upload PVC or S3 recovery point as one recovery set; do not delete the
+  marker to bypass the check.
 - If PDF generation fails, confirm DNS and approved HTTPS egress to the upstream
   font endpoint, then validate the generated document contents rather than only
   its content type.

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import assert from "node:assert/strict";
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { verifyIsolation } from "./isolation-smoke.mjs";
@@ -142,11 +142,28 @@ async function forward(action) {
     await action("http://127.0.0.1:" + port);
   } finally {
     if (process.exitCode === null && process.signalCode === null) {
-      if (globalThis.process.platform === "win32")
-        execFileSync("taskkill", ["/PID", String(process.pid), "/T", "/F"], {
-          stdio: "ignore",
-        });
-      else process.kill();
+      if (globalThis.process.platform === "win32") {
+        const stopped = spawnSync(
+          "taskkill",
+          ["/PID", String(process.pid), "/T", "/F"],
+          {
+            stdio: "ignore",
+          },
+        );
+        if (
+          stopped.status !== 0 &&
+          process.exitCode === null &&
+          process.signalCode === null
+        ) {
+          try {
+            process.kill();
+          } catch {
+            // The port-forward exited between the state check and cleanup.
+          }
+        }
+      } else {
+        process.kill();
+      }
     }
   }
 }
