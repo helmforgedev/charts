@@ -18,9 +18,16 @@ All distributed members must receive the same credentials. Plan a maintenance
 window and follow upstream rotation guidance.
 
 If distributed pods do not start, check PVC binding and permissions, pod DNS
-resolution through the headless Service, network access to peer port 9000, and
+resolution through the headless Service, network access to
+`containerPorts.api`, and
 matching credentials. If the console is unavailable while API traffic works,
 inspect pod zero. No external ingress is needed for intra-cluster communication.
+
+NetworkPolicy permits same-namespace clients and peers by default. Declare
+explicit `apiIngressFrom` and `consoleIngressFrom` selectors for callers in other
+namespaces, including ingress controllers. Changing `containerPorts.api` changes
+both the S3 process listener and distributed peer endpoint; validate the whole
+cluster before an existing deployment adopts a new port.
 
 Run `./test.sh rustfs` for static validation. Runtime testing must target a clearly
 local `k3d-` context. A multi-node S3 round trip and data persistence across pod

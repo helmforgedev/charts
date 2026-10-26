@@ -59,7 +59,7 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 {{- define "rustfs.volumes" -}}
 {{- if has .Values.architecture (list "distributed" "cluster") -}}
-{{- printf "http://%s-{0...%d}.%s-headless.%s.svc.%s:9000/data" (include "rustfs.fullname" .) (sub (int .Values.replicaCount) 1) (include "rustfs.fullname" .) .Release.Namespace .Values.clusterDomain -}}
+{{- printf "http://%s-{0...%d}.%s-headless.%s.svc.%s:%d/data" (include "rustfs.fullname" .) (sub (int .Values.replicaCount) 1) (include "rustfs.fullname" .) .Release.Namespace .Values.clusterDomain (int .Values.containerPorts.api) -}}
 {{- else -}}/data{{- end -}}
 {{- end -}}
 {{/* Auxiliary pods retain common metadata without matching storage Service selectors. */}}
@@ -114,4 +114,7 @@ app.kubernetes.io/part-of: helmforge
 {{- if and $i.enabled (empty $i.hosts) -}}{{- fail "enabled ingress requires hosts" -}}{{- end -}}
 {{- end -}}
 {{- if and .Values.consoleIngress.enabled (not .Values.config.consoleEnabled) -}}{{- fail "consoleIngress requires config.consoleEnabled=true" -}}{{- end -}}
+{{- if and .Values.config.consoleEnabled (eq (int .Values.containerPorts.api) (int .Values.containerPorts.console)) -}}
+{{- fail "containerPorts.api and containerPorts.console must differ when the console is enabled" -}}
+{{- end -}}
 {{- end -}}

@@ -17,12 +17,16 @@
 
    S3 API: kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "rustfs.fullname" . }} 9000:{{ .Values.service.port }}
 
+{{- if .Values.config.consoleEnabled }}
    Console: kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "rustfs.fullname" . }}-console 9001:{{ .Values.consoleService.port }}
+{{- else }}
+   Console access is disabled by config.consoleEnabled=false.
+{{- end }}
 
 4. Configure Ingress and TLS
 
    Public exposure must use HTTPS because S3 credentials and payloads
-   are unsafe over plain HTTP. Configure ingress or gateway.
+   are unsafe over plain HTTP. Configure ingress.
    Configure TLS termination and matching DNS records.
 
 5. Verify Health and Probes
@@ -30,7 +34,13 @@
    kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "rustfs.fullname" . }} 9000:{{ .Values.service.port }}
    curl --fail http://127.0.0.1:9000/health
 
-   The health endpoint checks the HTTP process, not continuing database health.
+   The health endpoint checks the HTTP process, not an authenticated S3 write/read cycle.
+
+   Application listeners: API {{ .Values.containerPorts.api }}, console {{ .Values.containerPorts.console }}.
+   Client-facing Service ports can differ from those process listeners.
+
+   NetworkPolicy allows release-namespace clients by default. Configure explicit
+   API and console peers before admitting clients from other namespaces.
 
 6. Configure Observability and Monitoring
 
