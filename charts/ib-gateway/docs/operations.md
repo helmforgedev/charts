@@ -23,6 +23,11 @@ does when approval is not received.
 Another login can replace this session. Keep `replicaCount: 1`; do not use a
 rolling update, HPA, or a second release for the same credentials.
 
+`podDisruptionBudget.enabled: true` sets `minAvailable: 1` for the singleton.
+This blocks voluntary eviction and can stop a node drain indefinitely. Enable it
+only when operators can coordinate maintenance or deliberately disable the
+budget; it provides session protection, not high availability.
+
 ## Live trading change
 
 Before selecting `gateway.tradingMode: live`:

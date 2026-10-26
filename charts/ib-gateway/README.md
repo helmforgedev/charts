@@ -4,6 +4,15 @@ Deploy the community-maintained [IB Gateway Docker](https://github.com/gnzsnz/ib
 runtime with a pinned image, Secret-file credentials, persistent settings,
 External Secrets, restricted TCP Services, and product-aware health checks.
 
+## Features
+
+- Immutable multi-architecture image selection and a hardened non-root Pod.
+- Paper, live, or simultaneous sessions with conservative trading defaults.
+- Secret-file passwords, existing Secret mappings, and External Secrets support.
+- Retained TWS settings with product-aware startup, readiness, and liveness.
+- Private named-port Services, NetworkPolicy, dual stack, and optional VNC.
+- Optional singleton disruption protection with an explicit node-drain warning.
+
 ## Install
 
 Create a mode-`0600` password file outside the repository, then create a Secret
@@ -15,7 +24,7 @@ kubectl -n ib-gateway create secret generic ib-gateway-credentials \
   --from-file=password=/secure/path/ibkr-password
 
 helm install ib-gateway oci://ghcr.io/helmforgedev/helm/ib-gateway \
-  --version 1.0.0 \
+  --version 1.0.1 \
   --namespace ib-gateway \
   --create-namespace \
   --set auth.existingSecret=ib-gateway-credentials
@@ -27,13 +36,17 @@ exists.
 The default mode is paper trading with read-only API access. Confirm that mode
 and the target account before enabling live trading.
 
-## Runtime model
+## Architecture
 
 The container runs IB Gateway through IBC, Xvfb, and `socat`. The chart exposes
 friendly Service ports 4001 for live trading and 4002 for paper trading while
 targeting the upstream proxy listeners on 4003 and 4004. It enforces one replica
 and a `Recreate` strategy because concurrent IBKR sessions are not safe high
 availability and can evict one another.
+
+Ports 4003, 4004, and 5900 are fixed by the upstream `socat` and x11vnc
+processes. The chart deliberately keeps those container ports fixed; only the
+client-facing Service ports are configurable.
 
 The image is maintained by the `gnzsnz/ib-gateway-docker` project and includes
 proprietary Interactive Brokers software. It is not an official Interactive
@@ -93,17 +106,22 @@ is still periodically required. Back up settings only when their customization
 is valuable; account and trading state remain external to this chart. See
 [operations and 2FA](docs/operations.md).
 
+Set `podDisruptionBudget.enabled: true` only when blocking voluntary eviction of
+the singleton is preferable to completing an unattended node drain. The budget
+uses `minAvailable: 1`; it does not make the workload highly available.
+
 ## Key values
 
 | Value | Default | Purpose |
 | --- | --- | --- |
-| `image.tag` | `10.51` | Exact upstream release |
+| `image.tag` | `10.51` | Release channel paired with an immutable digest |
 | `replicaCount` | `1` | Enforced singleton session owner |
 | `gateway.tradingMode` | `paper` | `paper`, `live`, or `both` |
 | `gateway.readOnlyApi` | `true` | Disable order-changing API calls |
 | `auth.existingSecret` | `""` | Existing credential Secret |
 | `externalSecrets.enabled` | `false` | Materialize Secrets through ESO |
 | `persistence.enabled` | `true` | Persist TWS settings |
+| `podDisruptionBudget.enabled` | `false` | Block voluntary eviction of the singleton |
 | `service.type` | `ClusterIP` | Internal raw-TCP access |
 | `vnc.enabled` | `false` | Optional maintenance VNC listener |
 | `networkPolicy.enabled` | `true` | Restrict API and VNC clients |
@@ -111,6 +129,31 @@ is valuable; account and trading state remain external to this chart. See
 
 Every value is documented in [values.yaml](values.yaml) and validated by
 [values.schema.json](values.schema.json).
+
+## Examples
+
+- [Paper trading](examples/paper-trading.yaml) keeps the safe default mode.
+- [Live trading](examples/live-trading.yaml) shows the deliberate live-mode switch.
+- [Live and paper](examples/live-and-paper.yaml) configures both account sessions.
+- [External Secrets](examples/external-secrets.yaml) materializes credential keys.
+
+Review account identity, Secret references, NetworkPolicy peers, and Service
+exposure before applying any example.
+
+## Troubleshooting
+
+Inspect rollout state, login logs, and recent cluster events before weakening a
+probe or network policy:
+
+```bash
+kubectl -n ib-gateway rollout status deployment/ib-gateway
+kubectl -n ib-gateway logs deployment/ib-gateway --tail=200
+kubectl -n ib-gateway get events --sort-by=.lastTimestamp
+```
+
+If readiness remains false, look for two-factor timeouts, competing sessions,
+or a missing internal 4001/4002 listener. A listening 4003/4004 proxy alone does
+not prove that authentication completed.
 
 ## Security scan
 

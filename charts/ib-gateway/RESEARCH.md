@@ -4,6 +4,7 @@
 **Requester:** Aidas-dev
 **Upstream:** [gnzsnz/ib-gateway-docker](https://github.com/gnzsnz/ib-gateway-docker)
 **Research date:** 2026-10-12
+**Last verified:** 2026-10-26
 
 ## Product and runtime
 
@@ -20,11 +21,12 @@ provide safe high availability.
 
 ## Upstream version and supply chain
 
-- Stable release: `10.50.1f`, published 2026-10-06.
-- Image: `ghcr.io/gnzsnz/ib-gateway:10.50.1f`.
+- Selected channel: `10.51`.
+- Image: `ghcr.io/gnzsnz/ib-gateway:10.51`, always selected by the immutable
+  digest below rather than the mutable channel tag alone.
 - Manifest index: `sha256:1e2236804ac949b789197c225a048c0c891c9958f948c87166226e5b647ff581`.
 - Platforms: linux/amd64 and linux/arm64.
-- `make image-verify` passed for both platforms.
+- `make image-verify` and a direct manifest inspection passed for both platforms.
 - The repository is MIT licensed, but the image contains proprietary IB
   Gateway software. The chart references the external image and must document
   that it is community-maintained and subject to IBKR account agreements.
@@ -96,7 +98,7 @@ Kubernetes packaging to the community.
 ## Sources
 
 - [IB Gateway Docker repository](https://github.com/gnzsnz/ib-gateway-docker)
-- [IB Gateway Docker 10.50.1f release](https://github.com/gnzsnz/ib-gateway-docker/releases/tag/ibgateway-stable%4010.50.1f)
+- [IB Gateway Docker releases](https://github.com/gnzsnz/ib-gateway-docker/releases)
 - [Upstream Compose contract](https://github.com/gnzsnz/ib-gateway-docker/blob/master/docker-compose.yml)
 - [Upstream Kubernetes packaging discussion](https://github.com/gnzsnz/ib-gateway-docker/issues/34)
 - [IBC user guide](https://github.com/IbcAlpha/IBC/blob/master/userguide.md)

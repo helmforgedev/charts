@@ -27,4 +27,10 @@ assert.ok(service.spec.ports.some(port => ['live-api', 'paper-api'].includes(por
   'an active API Service port is required');
 const mode = container.env.find(item => item.name === 'TRADING_MODE')?.value;
 assert.ok(['paper', 'live', 'both'].includes(mode), 'a supported trading mode is required');
+const budgets = JSON.parse(run(['get', 'poddisruptionbudget', '-l', `app.kubernetes.io/instance=${release}`, '-o', 'json'])).items;
+assert.ok(budgets.length <= 1, 'at most one IB Gateway disruption budget is expected');
+if (budgets.length === 1) {
+  assert.equal(budgets[0].spec.minAvailable, 1, 'the singleton disruption budget must preserve one Pod');
+  assert.equal(budgets[0].spec.selector.matchLabels['app.kubernetes.io/instance'], release);
+}
 console.log(`IB Gateway singleton, immutable image, hardened runtime and ${mode} TCP Service verified`);
