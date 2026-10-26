@@ -25,18 +25,42 @@ const pod = pods.find(p => !p.metadata.deletionTimestamp
 assert.ok(pod, 'Ready n8n main pod required');
 assert.equal(kubectl(['exec', pod.metadata.name, '-c', 'n8n', '--', 'n8n', '--version']).trim(), version);
 const main = pod.spec.containers.find(c => c.name === 'n8n');
+const httpPort = main.ports?.find(port => port.name === 'http')?.containerPort;
+assert.ok(Number.isInteger(httpPort) && httpPort > 0, 'n8n HTTP listener port required');
+assert.equal(main.env.find(env => env.name === 'N8N_PORT')?.value, String(httpPort),
+  'N8N_PORT must match the declared HTTP listener');
 const python = main.env.some(e => e.name === 'N8N_PYTHON_ENABLED' && e.value === 'true');
 const queue = main.env.some(e => e.name === 'EXECUTIONS_MODE' && e.value === 'queue');
+const externalRunners = main.env.some(e => e.name === 'N8N_RUNNERS_MODE' && e.value === 'external');
+function assertRunnerContract(runnerPod) {
+  const processContainer = runnerPod.spec.containers.find(container => ['n8n', 'worker'].includes(container.name));
+  const runner = runnerPod.spec.containers.find(container => container.name === 'task-runners');
+  assert.ok(processContainer && runner, `External task runner contract missing in ${runnerPod.metadata.name}`);
+  const brokerPort = processContainer.env.find(env => env.name === 'N8N_RUNNERS_BROKER_PORT')?.value;
+  assert.match(brokerPort ?? '', /^\d+$/, 'Task broker port must be configured');
+  assert.equal(runner.env.find(env => env.name === 'N8N_RUNNERS_TASK_BROKER_URI')?.value,
+    `http://127.0.0.1:${brokerPort}`);
+  const healthPort = runner.ports?.find(port => port.name === 'runner-health')?.containerPort;
+  assert.ok(Number.isInteger(healthPort) && healthPort > 0, 'Task runner health port required');
+  assert.equal(runner.env.find(env => env.name === 'N8N_RUNNERS_LAUNCHER_HEALTH_CHECK_PORT')?.value,
+    String(healthPort));
+}
+if (externalRunners) {
+  assert.equal(main.ports?.find(port => port.name === 'runners')?.containerPort,
+    Number(main.env.find(env => env.name === 'N8N_RUNNERS_BROKER_PORT')?.value));
+  assertRunnerContract(pod);
+}
 if (queue) {
   const runnerPods = pods.filter(candidate => candidate.spec.containers.some(container => container.name === 'task-runners'));
   assert.ok(runnerPods.length >= 2, 'Queue profile requires task runners in main and worker pods');
   for (const runnerPod of runnerPods) {
     const runner = runnerPod.spec.containers.find(container => container.name === 'task-runners');
+    assertRunnerContract(runnerPod);
     assert.ok(runner.env.some(env => env.name === 'HELMFORGE_TASK_RUNNER_PROFILE' && env.value === 'queue'),
       `Queue task runner ${runnerPod.metadata.name} requires configured extraEnv`);
   }
 }
-const child = spawn('kubectl', [...target, 'port-forward', `pod/${pod.metadata.name}`, ':5678', '--address=127.0.0.1'], {
+const child = spawn('kubectl', [...target, 'port-forward', `pod/${pod.metadata.name}`, `:${httpPort}`, '--address=127.0.0.1'], {
   windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
 });
 let output = '', error;

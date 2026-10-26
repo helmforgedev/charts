@@ -27,6 +27,7 @@ spec:
       {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "n8n.serviceAccountName" . }}
       {{- end }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -136,6 +137,8 @@ spec:
             - name: N8N_RUNNERS_MODE
               value: {{ .Values.taskRunners.mode | quote }}
             {{- if eq (.Values.taskRunners.mode | default "external") "external" }}
+            - name: N8N_RUNNERS_BROKER_PORT
+              value: {{ .Values.containerPorts.runnerBroker | quote }}
             - name: N8N_RUNNERS_AUTH_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -177,11 +180,11 @@ spec:
           {{- end }}
           ports:
             - name: runner-health
-              containerPort: 5680
+              containerPort: {{ .Values.containerPorts.runnerHealth }}
               protocol: TCP
           env:
             - name: N8N_RUNNERS_TASK_BROKER_URI
-              value: "http://127.0.0.1:5679"
+              value: {{ printf "http://127.0.0.1:%v" .Values.containerPorts.runnerBroker | quote }}
             - name: N8N_RUNNERS_AUTH_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -192,7 +195,7 @@ spec:
             - name: N8N_RUNNERS_AUTO_SHUTDOWN_TIMEOUT
               value: {{ .Values.taskRunners.autoShutdownTimeout | quote }}
             - name: N8N_RUNNERS_LAUNCHER_HEALTH_CHECK_PORT
-              value: "5680"
+              value: {{ .Values.containerPorts.runnerHealth | quote }}
             {{- with .Values.taskRunners.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

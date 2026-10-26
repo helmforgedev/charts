@@ -16,6 +16,21 @@ Deploy [n8n](https://n8n.io/) on Kubernetes — a workflow automation platform f
 - **Gateway API** — HTTPRoute for clusters running Envoy Gateway or similar
 - **Dual-stack networking** — IPv4/IPv6 service support
 - **External Secrets Operator** — ExternalSecret for Vault, AWS Secrets Manager, and more
+- **Explicit listener contracts** — configurable HTTP, task broker, and runner health ports
+- **Least-privilege pod identity** — Kubernetes API token mounting is disabled by default
+
+## Architecture
+
+The main Deployment serves the editor and webhooks through
+`containerPorts.http`. In external task-runner mode, each n8n process hosts a
+broker on `containerPorts.runnerBroker` and its same-pod runner sidecar exposes
+health on `containerPorts.runnerHealth`. The chart wires the supported
+`N8N_PORT`, `N8N_RUNNERS_BROKER_PORT`, broker URI, and runner health variables
+to the same values so declarations and real listeners cannot drift.
+
+SQLite is a single-main-pod mode. PostgreSQL is required before enabling Redis
+queue mode and worker Deployments. See [Chart design](DESIGN.md) for the full
+trust, scaling, and observability boundaries.
 
 ## Installation
 
@@ -144,20 +159,23 @@ externalSecrets:
 |-----|---------|-------------|
 | `image.repository` | `docker.io/n8nio/n8n` | n8n container image repository |
 | `image.tag` | `2.44.4` | n8n container image tag |
+| `containerPorts.http` | `5678` | Main n8n process HTTP listener |
+| `containerPorts.runnerBroker` | `5679` | External task-runner broker listener |
+| `containerPorts.runnerHealth` | `5680` | External runner sidecar health listener |
 | `n8n.encryptionKey` | `""` | Encryption key for credentials (auto-generated) |
 | `n8n.webhookUrl` | `""` | Webhook URL (auto-detected from ingress) |
 | `n8n.logLevel` | `info` | Log level (info, warn, error, debug) |
 | `n8n.diagnosticsEnabled` | `false` | Share anonymous diagnostics with n8n |
 | `n8n.gracefulShutdownTimeout` | `60` | Graceful shutdown timeout in seconds for main and workers |
 | `database.mode` | `auto` | Database mode (auto, sqlite, external, postgresql) |
-| `postgresql.enabled` | `false` | Deploy PostgreSQL subchart (`helmforge/postgresql` `2.0.5`) |
+| `postgresql.enabled` | `false` | Deploy PostgreSQL subchart (`helmforge/postgresql` `2.1.1`) |
 | `postgresql.initdb.scripts` | n8n extension bootstrap | Creates PostgreSQL extensions required by n8n migrations |
 | `queue.enabled` | `false` | Enable queue mode (requires Redis and a non-SQLite database) |
 | `queue.workers` | `1` | Number of worker replicas |
 | `queue.concurrency` | `10` | Concurrent workflows per worker |
 | `queue.persistence.shareMainVolume` | `true` | Mount the main n8n data PVC into worker pods |
 | `terminationGracePeriodSeconds` | `75` | Kubernetes pod shutdown grace period |
-| `redis.enabled` | `false` | Deploy Redis subchart (`helmforge/redis` `3.0.0`) |
+| `redis.enabled` | `false` | Deploy Redis subchart (`helmforge/redis` `3.1.0`) |
 | `taskRunners.mode` | `external` | Task runner mode (`internal` or `external`) |
 | `taskRunners.image.repository` | `docker.io/n8nio/runners` | External task runner sidecar image repository |
 | `taskRunners.image.tag` | `""` | External task runner sidecar tag (defaults to `image.tag`) |
@@ -178,6 +196,21 @@ externalSecrets:
 | `gateway.hostnames` | `[]` | HTTPRoute hostnames |
 | `externalSecrets.enabled` | `false` | Render ExternalSecret resource |
 | `externalSecrets.apiVersion` | `external-secrets.io/v1` | ExternalSecret API version |
+| `serviceAccount.automountServiceAccountToken` | `false` | Mount the Kubernetes API token into main and worker pods |
+
+## Troubleshooting
+
+- If the editor or readiness probe fails after a port override, confirm that
+  `containerPorts.http` renders both as the container port and `N8N_PORT`.
+- If Code nodes cannot reach a runner, compare `containerPorts.runnerBroker`
+  with `N8N_RUNNERS_BROKER_PORT` and `N8N_RUNNERS_TASK_BROKER_URI` in the same
+  pod, then inspect both container logs.
+- If a runner is unhealthy, confirm that `containerPorts.runnerHealth` matches
+  `N8N_RUNNERS_LAUNCHER_HEALTH_CHECK_PORT`.
+- If queue workers do not start, verify PostgreSQL, Redis, the shared encryption
+  key, and the worker's `wait-for-main` init-container logs.
+- If credentials cannot be decrypted after restore, restore the original
+  encryption key before starting n8n.
 | `externalSecrets.refreshInterval` | `"0"` | Refresh interval (`"0"` = one-time sync) |
 | `externalSecrets.secretStoreRef.name` | `""` | SecretStore name (required when enabled) |
 | `externalSecrets.secretStoreRef.kind` | `SecretStore` | SecretStore kind |

@@ -3,7 +3,7 @@
   "title": "n8n Helm Chart Values",
   "description": "Configuration values for the n8n Helm chart. Deploys a workflow automation platform with SQLite or PostgreSQL support and optional Redis-backed queue mode.",
   "type": "object",
-  "additionalProperties": true,
+  "additionalProperties": false,
   "properties": {
     "global": {
       "type": "object",
@@ -48,6 +48,17 @@
       "items": {
         "type": "object"
       }
+    },
+    "containerPorts": {
+      "type": "object",
+      "description": "n8n and external task-runner listener ports.",
+      "additionalProperties": false,
+      "properties": {
+        "http": { "type": "integer", "minimum": 1, "maximum": 65535, "description": "HTTP listener used by the n8n main process" },
+        "runnerBroker": { "type": "integer", "minimum": 1, "maximum": 65535, "description": "Task broker listener used by external task runners" },
+        "runnerHealth": { "type": "integer", "minimum": 1, "maximum": 65535, "description": "Health-check listener exposed by external task runner sidecars" }
+      },
+      "required": ["http", "runnerBroker", "runnerHealth"]
     },
     "n8n": {
       "type": "object",
@@ -97,6 +108,26 @@
       "type": "object",
       "description": "n8n task runner configuration",
       "properties": {
+        "image": {
+          "type": "object",
+          "description": "External task runner image settings",
+          "additionalProperties": false,
+          "properties": {
+            "repository": { "type": "string", "description": "Task runner image repository" },
+            "tag": { "type": "string", "description": "Task runner image tag; empty uses image.tag" },
+            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"], "description": "Task runner image pull policy" }
+          }
+        },
+        "autoShutdownTimeout": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "External task runner launcher idle shutdown timeout"
+        },
+        "resources": {
+          "type": "object",
+          "description": "Kubernetes resources for external task runner sidecars",
+          "additionalProperties": true
+        },
         "nativePython": {
           "type": "object",
           "description": "Native Python task runner integration",
@@ -162,7 +193,8 @@
         },
         "resources": {
           "type": "object",
-          "description": "Resources for worker pods"
+          "description": "Resources for worker pods",
+          "additionalProperties": true
         },
         "external": {
           "type": "object",
@@ -268,6 +300,7 @@
     "postgresql": {
       "type": "object",
       "description": "PostgreSQL subchart configuration",
+      "additionalProperties": true,
       "properties": {
         "enabled": {
           "type": "boolean",
@@ -324,6 +357,7 @@
     "redis": {
       "type": "object",
       "description": "Redis subchart configuration (for queue mode)",
+      "additionalProperties": true,
       "properties": {
         "enabled": {
           "type": "boolean",
@@ -386,15 +420,18 @@
     },
     "resources": {
       "type": "object",
-      "description": "CPU and memory requests/limits for the n8n container"
+      "description": "CPU and memory requests/limits for the n8n container",
+      "additionalProperties": true
     },
     "podSecurityContext": {
       "type": "object",
-      "description": "Pod-level security context"
+      "description": "Pod-level Kubernetes security context",
+      "additionalProperties": true
     },
     "securityContext": {
       "type": "object",
-      "description": "Container-level security context"
+      "description": "Container-level Kubernetes security context",
+      "additionalProperties": true
     },
     "startupProbe": {
       "type": "object",
@@ -517,6 +554,10 @@
         "annotations": {
           "type": "object",
           "description": "Annotations for the ServiceAccount"
+        },
+        "automountServiceAccountToken": {
+          "type": "boolean",
+          "description": "Mount the Kubernetes API token into n8n main and worker pods"
         }
       }
     },
@@ -670,6 +711,20 @@
             }
           }
         },
+        "hostnames": { "type": "array", "items": { "type": "string" } },
+        "path": { "type": "string", "default": "/" },
+        "pathType": { "type": "string", "default": "PathPrefix" }
+      }
+    },
+    "gatewayAPI": {
+      "type": "object",
+      "description": "Deprecated Gateway API compatibility values for existing releases.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "gatewayName": { "type": "string" },
+        "gatewayNamespace": { "type": "string" },
+        "annotations": { "type": "object" },
         "hostnames": { "type": "array", "items": { "type": "string" } },
         "path": { "type": "string", "default": "/" },
         "pathType": { "type": "string", "default": "PathPrefix" }

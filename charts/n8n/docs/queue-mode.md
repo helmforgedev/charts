@@ -82,19 +82,33 @@ database:
 
 ## Architecture
 
-```text
-┌──────────┐     ┌───────┐     ┌──────────┐
-│  n8n UI  │────▶│ Redis │◀────│ Worker 1 │
-│ (main)   │     │       │     └──────────┘
-└──────────┘     │       │     ┌──────────┐
-                 │       │◀────│ Worker 2 │
-                 └───────┘     └──────────┘
+```mermaid
+flowchart LR
+  user[Users and webhooks] --> main[n8n main]
+  main --> redis[(Redis queue)]
+  worker1[Worker 1] --> redis
+  worker2[Worker 2] --> redis
+  main --> db[(PostgreSQL)]
+  worker1 --> db
+  worker2 --> db
 ```
 
 - **Main pod**: Handles the editor UI, webhook triggers, and pushes executions to the queue
 - **Worker pods**: Pull executions from Redis and run them
 - **Redis**: Message broker between main and workers
 - **Database**: Shared by main and all workers (PostgreSQL recommended for production)
+
+### Task runner listener contract
+
+External task runners use two independent listeners in every main or worker
+pod. `containerPorts.runnerBroker` configures the n8n process through
+`N8N_RUNNERS_BROKER_PORT` and is embedded in
+`N8N_RUNNERS_TASK_BROKER_URI`. `containerPorts.runnerHealth` configures the
+sidecar health server through `N8N_RUNNERS_LAUNCHER_HEALTH_CHECK_PORT`.
+
+The main HTTP listener remains `containerPorts.http`. Changing `service.port`
+does not change the n8n process. NetworkPolicy should restrict the runner broker
+Service port to trusted task-runner clients.
 
 ## Worker Configuration
 
