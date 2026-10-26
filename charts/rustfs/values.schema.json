@@ -430,9 +430,24 @@
       "type": "integer",
       "minimum": 0
     },
-    "livenessProbe": { "type": "object", "additionalProperties": false, "required": ["httpGet", "periodSeconds", "timeoutSeconds", "failureThreshold"], "properties": { "httpGet": { "type": "object", "additionalProperties": false, "required": ["path", "port"], "properties": { "path": { "type": "string", "pattern": "^/" }, "port": { "type": ["string", "integer"] } } }, "periodSeconds": { "type": "integer", "minimum": 1 }, "timeoutSeconds": { "type": "integer", "minimum": 1 }, "failureThreshold": { "type": "integer", "minimum": 1 } } },
-    "readinessProbe": { "type": "object", "additionalProperties": false, "required": ["httpGet", "periodSeconds", "timeoutSeconds"], "properties": { "httpGet": { "type": "object", "additionalProperties": false, "required": ["path", "port"], "properties": { "path": { "type": "string", "pattern": "^/" }, "port": { "type": ["string", "integer"] } } }, "periodSeconds": { "type": "integer", "minimum": 1 }, "timeoutSeconds": { "type": "integer", "minimum": 1 } } },
-    "startupProbe": { "type": "object", "additionalProperties": false, "required": ["httpGet", "periodSeconds", "failureThreshold"], "properties": { "httpGet": { "type": "object", "additionalProperties": false, "required": ["path", "port"], "properties": { "path": { "type": "string", "pattern": "^/" }, "port": { "type": ["string", "integer"] } } }, "periodSeconds": { "type": "integer", "minimum": 1 }, "failureThreshold": { "type": "integer", "minimum": 1 } } },
+    "livenessProbe": {
+      "allOf": [
+        { "$ref": "#/definitions/probe" },
+        { "required": ["periodSeconds", "timeoutSeconds", "failureThreshold"] }
+      ]
+    },
+    "readinessProbe": {
+      "allOf": [
+        { "$ref": "#/definitions/probe" },
+        { "required": ["periodSeconds", "timeoutSeconds"] }
+      ]
+    },
+    "startupProbe": {
+      "allOf": [
+        { "$ref": "#/definitions/probe" },
+        { "required": ["periodSeconds", "failureThreshold"] }
+      ]
+    },
     "pdb": {
       "type": "object",
       "additionalProperties": false,
@@ -638,6 +653,85 @@
             }
           }
         }
+      }
+    }
+  },
+  "definitions": {
+    "probePort": {
+      "oneOf": [
+        { "type": "integer", "minimum": 1, "maximum": 65535 },
+        { "type": "string", "minLength": 1 }
+      ]
+    },
+    "probe": {
+      "type": "object",
+      "additionalProperties": false,
+      "oneOf": [
+        { "required": ["exec"] },
+        { "required": ["grpc"] },
+        { "required": ["httpGet"] },
+        { "required": ["tcpSocket"] }
+      ],
+      "properties": {
+        "exec": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["command"],
+          "properties": {
+            "command": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string" }
+            }
+          }
+        },
+        "grpc": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["port"],
+          "properties": {
+            "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+            "service": { "type": "string" }
+          }
+        },
+        "httpGet": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["port"],
+          "properties": {
+            "host": { "type": "string" },
+            "httpHeaders": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name", "value"],
+                "properties": {
+                  "name": { "type": "string", "minLength": 1 },
+                  "value": { "type": "string" }
+                }
+              }
+            },
+            "path": { "type": "string", "pattern": "^/" },
+            "port": { "$ref": "#/definitions/probePort" },
+            "scheme": { "type": "string", "enum": ["HTTP", "HTTPS"] }
+          }
+        },
+        "tcpSocket": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["port"],
+          "properties": {
+            "host": { "type": "string" },
+            "port": { "$ref": "#/definitions/probePort" }
+          }
+        },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "successThreshold": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 },
+        "terminationGracePeriodSeconds": { "type": "integer", "minimum": 1 }
       }
     }
   },

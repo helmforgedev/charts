@@ -13,6 +13,9 @@ function kubectl(args, input) {
   });
 }
 const get = (...args) => JSON.parse(kubectl(['get', ...args, '-o', 'json']));
+const values = JSON.parse(execFileSync('helm', [
+  'get', 'values', release, '-n', namespace, '--kube-context', context, '-a', '-o', 'json',
+], { encoding: 'utf8', timeout: 30000 }));
 const sets = get('statefulsets', '-l', `app.kubernetes.io/instance=${release}`).items;
 assert.equal(sets.length, 1, 'one storage StatefulSet required');
 const set = sets[0];
@@ -27,8 +30,9 @@ const configMaps = get('configmaps', '-l', `app.kubernetes.io/instance=${release
 const runtimeConfig = configMaps.find(c => c.data?.RUSTFS_ADDRESS);
 assert.equal(runtimeConfig?.data.RUSTFS_ADDRESS, `0.0.0.0:${apiContainerPort}`,
   'RUSTFS_ADDRESS must match the named API container port');
-assert.equal(runtimeConfig?.data.RUSTFS_EXTERNAL_ADDRESS, `:${apiContainerPort}`,
-  'derived external address must follow the API listener');
+const expectedExternalAddress = values.config.externalAddress || `:${apiContainerPort}`;
+assert.equal(runtimeConfig?.data.RUSTFS_EXTERNAL_ADDRESS, expectedExternalAddress,
+  'external address must match the configured or derived value');
 let consoleEndpoint;
 if (Number.isInteger(consoleContainerPort)) {
   assert.equal(runtimeConfig?.data.RUSTFS_CONSOLE_ADDRESS, `0.0.0.0:${consoleContainerPort}`,
@@ -127,5 +131,12 @@ try {
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
 } finally {
-  if (created) kubectl(['delete', 'pod', podName, '--wait=false']);
+  if (created) {
+    try {
+      kubectl(['delete', 'pod', podName, '--wait=false']);
+    } catch (error) {
+      const detail = String(error.stderr || error.message).trim();
+      process.stderr.write(`Smoke pod cleanup deferred to namespace teardown: ${detail}\n`);
+    }
+  }
 }
