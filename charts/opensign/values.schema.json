@@ -39,22 +39,105 @@
             "maxUnavailable": { "type": ["integer", "string", "null"], "minimum": 0 }
           }
         },
-        "image": { "$ref": "#/$defs/image" },
-        "resources": { "type": "object" },
+        "image": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["repository", "digest", "pullPolicy"],
+          "properties": {
+            "repository": { "type": "string", "minLength": 1 },
+            "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["requests", "limits"],
+          "properties": {
+            "requests": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["cpu", "memory"],
+              "properties": {
+                "cpu": { "type": ["string", "number"] },
+                "memory": { "type": ["string", "number"] }
+              }
+            },
+            "limits": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["cpu", "memory"],
+              "properties": {
+                "cpu": { "type": ["string", "number"] },
+                "memory": { "type": ["string", "number"] }
+              }
+            }
+          }
+        },
         "extraEnv": { "type": "array", "items": { "type": "object" } }
       }
     },
     "backend": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["image", "resources", "extraEnv"],
+      "required": ["securityContext", "image", "resources", "extraEnv"],
       "properties": {
-        "image": { "$ref": "#/$defs/image" },
-        "resources": { "type": "object" },
+        "securityContext": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["readOnlyRootFilesystem"],
+          "properties": {
+            "readOnlyRootFilesystem": { "const": false }
+          }
+        },
+        "image": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["repository", "digest", "pullPolicy"],
+          "properties": {
+            "repository": { "type": "string", "minLength": 1 },
+            "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["requests", "limits"],
+          "properties": {
+            "requests": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["cpu", "memory"],
+              "properties": {
+                "cpu": { "type": ["string", "number"] },
+                "memory": { "type": ["string", "number"] }
+              }
+            },
+            "limits": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["cpu", "memory"],
+              "properties": {
+                "cpu": { "type": ["string", "number"] },
+                "memory": { "type": ["string", "number"] }
+              }
+            }
+          }
+        },
         "extraEnv": { "type": "array", "items": { "type": "object" } }
       }
     },
     "imagePullSecrets": { "type": "array", "items": { "type": "object" } },
+    "containerPorts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["frontend", "backend"],
+      "properties": {
+        "frontend": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "backend": { "type": "integer", "minimum": 1, "maximum": 65535 }
+      }
+    },
     "config": {
       "type": "object",
       "additionalProperties": false,
@@ -214,8 +297,26 @@
       "additionalProperties": false,
       "required": ["frontend", "backend"],
       "properties": {
-        "frontend": { "$ref": "#/$defs/componentProbes" },
-        "backend": { "$ref": "#/$defs/componentProbes" }
+        "frontend": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["startup", "readiness", "liveness"],
+          "properties": {
+            "startup": { "type": "object", "additionalProperties": false, "required": ["enabled", "periodSeconds", "timeoutSeconds", "failureThreshold"], "properties": { "enabled": { "type": "boolean" }, "initialDelaySeconds": { "type": "integer", "minimum": 0 }, "periodSeconds": { "type": "integer", "minimum": 1 }, "timeoutSeconds": { "type": "integer", "minimum": 1 }, "failureThreshold": { "type": "integer", "minimum": 1 } } },
+            "readiness": { "type": "object", "additionalProperties": false, "required": ["enabled", "periodSeconds", "timeoutSeconds", "failureThreshold"], "properties": { "enabled": { "type": "boolean" }, "initialDelaySeconds": { "type": "integer", "minimum": 0 }, "periodSeconds": { "type": "integer", "minimum": 1 }, "timeoutSeconds": { "type": "integer", "minimum": 1 }, "failureThreshold": { "type": "integer", "minimum": 1 } } },
+            "liveness": { "type": "object", "additionalProperties": false, "required": ["enabled", "periodSeconds", "timeoutSeconds", "failureThreshold"], "properties": { "enabled": { "type": "boolean" }, "initialDelaySeconds": { "type": "integer", "minimum": 0 }, "periodSeconds": { "type": "integer", "minimum": 1 }, "timeoutSeconds": { "type": "integer", "minimum": 1 }, "failureThreshold": { "type": "integer", "minimum": 1 } } }
+          }
+        },
+        "backend": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["startup", "readiness", "liveness"],
+          "properties": {
+            "startup": { "type": "object", "additionalProperties": false, "required": ["enabled", "periodSeconds", "timeoutSeconds", "failureThreshold"], "properties": { "enabled": { "type": "boolean" }, "initialDelaySeconds": { "type": "integer", "minimum": 0 }, "periodSeconds": { "type": "integer", "minimum": 1 }, "timeoutSeconds": { "type": "integer", "minimum": 1 }, "failureThreshold": { "type": "integer", "minimum": 1 } } },
+            "readiness": { "type": "object", "additionalProperties": false, "required": ["enabled", "periodSeconds", "timeoutSeconds", "failureThreshold"], "properties": { "enabled": { "type": "boolean" }, "initialDelaySeconds": { "type": "integer", "minimum": 0 }, "periodSeconds": { "type": "integer", "minimum": 1 }, "timeoutSeconds": { "type": "integer", "minimum": 1 }, "failureThreshold": { "type": "integer", "minimum": 1 } } },
+            "liveness": { "type": "object", "additionalProperties": false, "required": ["enabled", "periodSeconds", "timeoutSeconds", "failureThreshold"], "properties": { "enabled": { "type": "boolean" }, "initialDelaySeconds": { "type": "integer", "minimum": 0 }, "periodSeconds": { "type": "integer", "minimum": 1 }, "timeoutSeconds": { "type": "integer", "minimum": 1 }, "failureThreshold": { "type": "integer", "minimum": 1 } } }
+          }
+        }
       }
     },
     "networkPolicy": {
@@ -228,8 +329,43 @@
         "extraEgress": { "type": "array", "items": { "type": "object" } }
       }
     },
-    "podSecurityContext": { "type": "object" },
-    "securityContext": { "type": "object" },
+    "podSecurityContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runAsNonRoot", "runAsUser", "runAsGroup", "fsGroup", "fsGroupChangePolicy", "seccompProfile"],
+      "properties": {
+        "runAsNonRoot": { "type": "boolean" },
+        "runAsUser": { "type": "integer", "minimum": 1 },
+        "runAsGroup": { "type": "integer", "minimum": 1 },
+        "fsGroup": { "type": "integer", "minimum": 1 },
+        "fsGroupChangePolicy": { "type": "string", "enum": ["Always", "OnRootMismatch"] },
+        "seccompProfile": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {
+            "type": { "type": "string", "enum": ["RuntimeDefault", "Localhost", "Unconfined"] }
+          }
+        }
+      }
+    },
+    "securityContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowPrivilegeEscalation", "readOnlyRootFilesystem", "capabilities"],
+      "properties": {
+        "allowPrivilegeEscalation": { "type": "boolean" },
+        "readOnlyRootFilesystem": { "type": "boolean" },
+        "capabilities": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["drop"],
+          "properties": {
+            "drop": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+          }
+        }
+      }
+    },
     "runtimeStorage": {
       "type": "object",
       "additionalProperties": false,

@@ -150,6 +150,16 @@ app.kubernetes.io/component: {{ .component }}
   {{- fail (printf "externalSecrets.items must map the required key %q" .Values.secrets.masterKeyKey) -}}
   {{- end -}}
 {{- end -}}
+{{- range .Values.frontend.extraEnv -}}
+  {{- if has .name (list "PUBLIC_URL" "REACT_APP_SERVERURL" "REACT_APP_APPID" "PORT" "HOME") -}}
+  {{- fail (printf "frontend.extraEnv must not override chart-managed environment variable %s" .name) -}}
+  {{- end -}}
+{{- end -}}
+{{- range .Values.backend.extraEnv -}}
+  {{- if has .name (list "APP_ID" "appName" "MASTER_KEY" "MONGODB_ROOT_PASSWORD" "MONGODB_URI" "PARSE_MOUNT" "SERVER_URL" "PUBLIC_URL" "PORT" "USE_LOCAL" "SMTP_ENABLE" "SMTP_HOST" "SMTP_PORT" "SMTP_USERNAME" "SMTP_USER_EMAIL" "SMTP_PASS" "PFX_BASE64" "PASS_PHRASE" "DO_SPACE" "DO_ENDPOINT" "DO_BASEURL" "DO_REGION" "DO_ACCESS_KEY_ID" "DO_SECRET_ACCESS_KEY" "HOME") -}}
+  {{- fail (printf "backend.extraEnv must not override chart-managed environment variable %s" .name) -}}
+  {{- end -}}
+{{- end -}}
 {{- $reserved := list "app.kubernetes.io/name" "app.kubernetes.io/instance" "app.kubernetes.io/component" -}}
 {{- range $key, $_ := (.Values.podLabels | default dict) -}}
   {{- if has $key $reserved -}}

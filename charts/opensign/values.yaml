@@ -47,6 +47,9 @@ frontend:
   extraEnv: []
 
 backend:
+  securityContext:
+    # -- The official backend writes transient signing files in its working directory.
+    readOnlyRootFilesystem: false
   image:
     # -- Official OpenSign backend image repository.
     repository: docker.io/opensign/opensignserver
@@ -67,6 +70,13 @@ backend:
 
 # -- Image pull secrets for both OpenSign workloads.
 imagePullSecrets: []
+
+# -- Application listener ports. These configure the real OpenSign processes through PORT.
+containerPorts:
+  # -- Frontend HTTP listener.
+  frontend: 3000
+  # -- Backend Parse Server HTTP listener.
+  backend: 8080
 
 config:
   # -- Browser-visible frontend URL.
@@ -172,9 +182,9 @@ serviceAccount:
 service:
   # -- Service type for both workloads.
   type: ClusterIP
-  # -- Frontend Service port.
+  # -- Frontend Service port, independent from containerPorts.frontend.
   frontendPort: 80
-  # -- Backend API Service port.
+  # -- Backend API Service port, independent from containerPorts.backend.
   backendPort: 8080
   # -- Service annotations.
   annotations: {}
@@ -304,7 +314,7 @@ securityContext:
       - ALL
 
 runtimeStorage:
-  # -- Size limit for writable application and temporary filesystems.
+  # -- Size limit for writable document and temporary filesystems.
   sizeLimit: 2Gi
 
 # -- Pod labels added without replacing selector labels.

@@ -34,7 +34,8 @@ replacement.
 - Durable local documents or explicit S3-compatible object storage.
 - Stable master key and certificate recovery through existing Secrets or ESO.
 - TLS-terminated frontend and API endpoints with canonical browser URLs.
-- Non-root execution, read-only root filesystems, least capabilities, and
+- Non-root execution, a read-only frontend root filesystem, a documented
+  writable-root exception for backend PFX work files, least capabilities, and
   default-deny-aware NetworkPolicy.
 - Frontend redundancy while keeping the migration-running backend singleton.
 - Coordinated backup, restore, and upgrade procedures.

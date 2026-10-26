@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import { execFileSync } from 'node:child_process';
 
 const [context, namespace, release] = process.argv.slice(2);
@@ -21,9 +22,30 @@ const podFor = (component) =>
     'jsonpath={.items[0].metadata.name}',
   ]);
 
+const listenerFor = (component) => {
+  const deployments = JSON.parse(kubectl([
+    'get',
+    'deployment',
+    '-l',
+    `app.kubernetes.io/instance=${release},app.kubernetes.io/name=opensign,app.kubernetes.io/component=${component}`,
+    '-o',
+    'json',
+  ])).items;
+  if (deployments.length !== 1) throw new Error(`expected one ${component} Deployment`);
+  const container = deployments[0].spec.template.spec.containers.find((item) => item.name === component);
+  const port = container?.ports?.find((item) => item.name === 'http')?.containerPort;
+  const portEnvironment = container?.env?.find((item) => item.name === 'PORT')?.value;
+  if (!Number.isInteger(port) || portEnvironment !== String(port)) {
+    throw new Error(`${component} PORT must match its named HTTP container port`);
+  }
+  return port;
+};
+
 const backend = podFor('backend');
 const frontend = podFor('frontend');
 if (!backend || !frontend) throw new Error('OpenSign frontend or backend pod not found');
+const backendPort = listenerFor('backend');
+const frontendPort = listenerFor('frontend');
 
 const backendHealth = kubectl([
   'exec',
@@ -33,7 +55,7 @@ const backendHealth = kubectl([
   '--',
   'node',
   '-e',
-  "fetch('http://127.0.0.1:8080/').then(async r=>{const b=await r.text();if(!r.ok||!b.includes('opensign-server is running'))throw new Error(r.status+' '+b);console.log(b)})",
+  `fetch('http://127.0.0.1:${backendPort}/').then(async r=>{const b=await r.text();if(!r.ok||!b.includes('opensign-server is running'))throw new Error(r.status+' '+b);console.log(b)})`,
 ]);
 const frontendHealth = kubectl([
   'exec',
@@ -43,7 +65,7 @@ const frontendHealth = kubectl([
   '--',
   'node',
   '-e',
-  "fetch('http://127.0.0.1:3000/').then(async r=>{const b=await r.text();if(!r.ok||!b.includes('<html'))throw new Error(r.status+' '+b);console.log('frontend ok')})",
+  `fetch('http://127.0.0.1:${frontendPort}/').then(async r=>{const b=await r.text();if(!r.ok||!b.includes('<html'))throw new Error(r.status+' '+b);console.log('frontend ok')})`,
 ]);
 if (!backendHealth.includes('opensign-server is running') || !frontendHealth.includes('frontend ok')) {
   throw new Error('unexpected OpenSign health response');

@@ -5,6 +5,14 @@ signature platform, with separate frontend and API workloads, HelmForge
 MongoDB, durable document storage, External Secrets, and hardened Kubernetes
 networking.
 
+## Features
+
+- Separate frontend and Parse API workloads with independent process listeners.
+- Bundled or external MongoDB, retained local documents, and S3-compatible storage.
+- Generated, existing, or External Secrets-backed application credentials.
+- Ingress, Gateway API, dual-stack Services, HPA, disruption budgets, and NetworkPolicy.
+- Pinned official image digests with non-root execution and explicit security boundaries.
+
 ## Install
 
 ```bash
@@ -18,12 +26,17 @@ The first user is created through the application. Configure HTTPS, a stable
 master key, a signing certificate, SMTP, and tested backups before accepting
 production documents.
 
-## Runtime model
+## Architecture
 
-OpenSign consists of a React frontend on port 3000 and a Parse Server backend
-on port 8080. The chart exposes them through separate Services and public
-hostnames because the backend owns root-level Parse routes in addition to
-`/app`.
+OpenSign consists of a React frontend and a Parse Server backend. Their real
+listeners default to ports 3000 and 8080 and are configured through
+`containerPorts.frontend` and `containerPorts.backend`. The chart exposes them
+through separate Services and public hostnames because the backend owns
+root-level Parse routes in addition to `/app`.
+
+The application listener ports are independent from `service.frontendPort` and
+`service.backendPort`. Services, probes, and NetworkPolicies target the named
+`http` ports, so listener overrides remain consistent end to end.
 
 The frontend defaults to two replicas and supports HPA. The backend remains a
 single `Recreate` replica because upstream runs migrations during startup and
@@ -76,9 +89,12 @@ DNS, MongoDB, public HTTP/HTTPS, and the configured SMTP port. Private database,
 SMTP, S3, webhook, or proxy destinations require explicit
 `networkPolicy.extraEgress` rules.
 
-Both application containers run as UID/GID 1000 with read-only root
-filesystems. Bounded writable volumes hold the frontend build, backend copy-up,
-exports, signing work files, and `/tmp` without weakening the container root.
+Both application containers run as UID/GID 1000 with dropped capabilities and
+RuntimeDefault seccomp. The frontend root filesystem is read-only. The official
+backend writes randomly named PFX work files in its application directory, so
+its root remains writable; bounded volumes still isolate documents and `/tmp`.
+This explicit upstream compatibility exception avoids copying the 643 MiB
+`node_modules` tree during every Pod startup.
 
 ## Availability
 
@@ -94,6 +110,8 @@ storage to protect state, and schedule upgrades with a brief API interruption.
 | `frontend.replicaCount` | `2` | Stateless web replicas |
 | `frontend.autoscaling.enabled` | `false` | CPU or memory based frontend HPA |
 | `frontend.podDisruptionBudget.enabled` | `true` | Protect frontend availability |
+| `containerPorts.frontend` | `3000` | Real frontend Node.js listener |
+| `containerPorts.backend` | `8080` | Real backend Node.js listener |
 | `mongodb.enabled` | `true` | Bundled HelmForge MongoDB |
 | `mongodb.auth.rootPassword` | `""` | Optional URI-safe password; empty lets the subchart generate one |
 | `storage.type` | `local` | Local PVC or S3-compatible documents |
@@ -106,14 +124,28 @@ storage to protect state, and schedule upgrades with a brief API interruption.
 Every value is documented in [values.yaml](values.yaml) and constrained by
 [values.schema.json](values.schema.json).
 
+## Examples
+
+Use the reviewed [production values](examples/production.yaml) as a starting
+point, then replace every hostname, Secret name, storage endpoint, and capacity
+with environment-specific values:
+
+```bash
+helm upgrade --install opensign oci://ghcr.io/helmforgedev/helm/opensign \
+  --namespace opensign \
+  --create-namespace \
+  --version 1.0.0 \
+  --values examples/production.yaml
+```
+
 ## Validation scenarios
 
 The chart validates the default topology, immutable images, generated and
 external Secrets, local and S3 storage contracts, external MongoDB, Ingress,
-Gateway API, dual-stack Services, HPA, disruption protection, and invalid
-configuration fail-fast behavior. The k3d smoke verifies both HTTP workloads,
-runtime UID 1000, stable master-key retention, clean logs/events, and MongoDB
-connectivity.
+Gateway API, dual-stack Services, non-default application listeners, HPA,
+disruption protection, and invalid configuration fail-fast behavior. The k3d
+smoke discovers the real listeners, verifies both HTTP workloads, runtime UID
+1000, stable master-key retention, clean logs/events, and MongoDB connectivity.
 
 ## Security scan
 
@@ -130,6 +162,18 @@ Kubescape reported no critical or high-severity failures. The remaining medium
 and low findings are limited to the maintained MongoDB dependency, whose
 writable data filesystem and bootstrap context are required by the upstream
 database image.
+
+## Troubleshooting
+
+- If the frontend loads but API calls fail, verify that `config.apiUrl` ends in
+  `/app` and resolves to the backend hostname from the browser.
+- If a Pod never becomes Ready after changing a listener, confirm that
+  `containerPorts.frontend` or `containerPorts.backend` is valid and that no
+  `extraEnv` entry attempts to override `PORT`.
+- If signing fails, verify the PKCS#12 base64 payload and passphrase together;
+  restore both from the same recovery set as the Parse master key.
+- If uploads fail, inspect the retained PVC or S3 credentials and ensure the
+  NetworkPolicy egress rules allow private storage endpoints.
 
 ## Limitations
 
