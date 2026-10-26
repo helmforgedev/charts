@@ -440,8 +440,8 @@
       "required": ["enabled", "ingressFrom", "stunIngressFrom", "extraEgress"],
       "properties": {
         "enabled": { "type": "boolean" },
-        "ingressFrom": { "type": "array", "items": { "type": "object" } },
-        "stunIngressFrom": { "type": "array", "items": { "type": "object" } },
+        "ingressFrom": { "type": "array", "items": { "$ref": "#/definitions/networkPolicyPeer" } },
+        "stunIngressFrom": { "type": "array", "items": { "$ref": "#/definitions/networkPolicyPeer" } },
         "extraEgress": { "type": "array", "items": { "type": "object" } }
       }
     },
@@ -465,6 +465,57 @@
         { "type": "number", "minimum": 0 },
         { "type": "string", "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+|m|k|M|G|T|P|E|Ki|Mi|Gi|Ti|Pi|Ei)?$" }
       ]
+    },
+    "labelSelector": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "matchLabels": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "matchExpressions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["key", "operator"],
+            "properties": {
+              "key": { "type": "string", "minLength": 1 },
+              "operator": { "type": "string", "enum": ["In", "NotIn", "Exists", "DoesNotExist"] },
+              "values": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+    "networkPolicyPeer": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "podSelector": { "$ref": "#/definitions/labelSelector" },
+        "namespaceSelector": { "$ref": "#/definitions/labelSelector" },
+        "ipBlock": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cidr"],
+          "properties": {
+            "cidr": { "type": "string", "minLength": 1 },
+            "except": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+          }
+        }
+      },
+      "anyOf": [
+        { "required": ["podSelector"] },
+        { "required": ["namespaceSelector"] },
+        { "required": ["ipBlock"] }
+      ],
+      "not": {
+        "anyOf": [
+          { "required": ["ipBlock", "podSelector"] },
+          { "required": ["ipBlock", "namespaceSelector"] }
+        ]
+      }
     },
     "env": {
       "type": "array",
