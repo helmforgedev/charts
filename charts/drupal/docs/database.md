@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Database Modes
 
 The Drupal chart prepares the runtime and storage, but the final site installation is completed through Drupal's installer.

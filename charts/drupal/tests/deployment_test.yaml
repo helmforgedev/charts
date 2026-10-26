@@ -104,6 +104,51 @@ tests:
             containerPort: 80
             protocol: TCP
 
+  - it: should configure Apache and the container port from one value
+    template: templates/deployment.yaml
+    set:
+      containerPorts.http: 8080
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http
+            containerPort: 8080
+            protocol: TCP
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: configure-apache-port
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: 'Listen 8080'
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: apache-config
+            mountPath: /etc/apache2
+            readOnly: true
+
+  - it: should allow a compatible custom image to opt into Apache port configuration
+    template: templates/deployment.yaml
+    set:
+      image.repository: example.com/custom-drupal
+      image.configureApachePort: true
+      containerPorts.http: 8080
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: configure-apache-port
+
+  - it: should recognize the short official Drupal repository reference
+    template: templates/deployment.yaml
+    set:
+      image.repository: drupal
+      containerPorts.http: 8080
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: configure-apache-port
+
   - it: should render startup probe by default
     template: templates/deployment.yaml
     asserts:
@@ -147,6 +192,19 @@ tests:
       - equal:
           path: spec.template.spec.securityContext.fsGroup
           value: 33
+
+  - it: should apply the default pod hardening controls
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
 
   - it: should mount php.ini when configured
     template: templates/deployment.yaml
