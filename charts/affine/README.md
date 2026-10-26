@@ -160,10 +160,11 @@ are exercised by the behavioral tests, with a real Prometheus scrape and loaded 
 Render an example before applying it:
 
 ```bash
-helm dependency build charts/affine
-helm template affine charts/affine \
+git clone --depth 1 https://github.com/helmforgedev/charts.git helmforge-charts
+helm dependency build helmforge-charts/charts/affine
+helm template affine helmforge-charts/charts/affine \
   --namespace knowledge \
-  --values charts/affine/examples/production-ingress.yaml
+  --values helmforge-charts/charts/affine/examples/production-ingress.yaml
 ```
 
 Every hostname, Secret reference, storage class, Gateway parent and NetworkPolicy
