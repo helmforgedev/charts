@@ -1,20 +1,73 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Ghostfolio Helm chart
 
 Deploy [Ghostfolio](https://ghostfol.io), the open-source wealth-management
 application, with a pinned official image, PostgreSQL, Redis, OIDC,
 External Secrets, hardened networking, and upstream-native health checks.
 
+## Features
+
+- Official, pinned Ghostfolio image with no floating tag.
+- Maintained PostgreSQL and Redis dependencies plus explicit external-service
+  Secret contracts.
+- A configurable application listener that changes the real upstream `PORT`.
+- Ingress and Gateway API exposure with canonical URL and proxy controls.
+- Experimental OIDC, native External Secrets resources and retained identity.
+- Hardened non-root runtime, read-only root filesystem and product-aware
+  NetworkPolicy.
+- Upstream liveness and dependency-aware readiness probes.
+
+## Architecture
+
+One Ghostfolio Deployment owns migrations, seeding, scheduled work and the web
+server. PostgreSQL is the system of record and Redis provides operational cache
+state. Both services can be deployed as HelmForge dependencies or supplied
+externally through Secret-backed contracts. See [DESIGN.md](DESIGN.md) for
+topology diagrams, boundaries and the singleton rationale.
+
 ## Install
 
 ```bash
 helm install ghostfolio oci://ghcr.io/helmforgedev/helm/ghostfolio \
-  --version 1.0.1 \
   --namespace ghostfolio \
   --create-namespace
 ```
 
 The first registered account becomes the administrator. Keep the installation
 private until that registration is complete.
+
+## Configuration
+
+`containerPorts.http` configures the real Ghostfolio HTTP listener through the
+official `PORT` environment variable. `service.port` independently controls the
+Kubernetes Service port and targets the named `http` container port. Both
+default to `3333`. Because the application runs as UID 1000 with every Linux
+capability dropped, the listener must remain at or above 1024.
+
+| Value                                         | Default  | Purpose |
+| --------------------------------------------- | -------- | ------- |
+| `containerPorts.http`                         | `3333`   | Ghostfolio process listener |
+| `service.port`                                | `3333`   | Kubernetes Service-facing port |
+| `ghostfolio.rootUrl`                          | derived  | Canonical public origin and OIDC callback base |
+| `ghostfolio.trustProxy`                       | `""`     | Exact Express trusted-proxy policy |
+| `ghostfolio.existingSecret`                   | `""`     | Stable access-token salt and JWT secret |
+| `postgresql.enabled`                          | `true`   | Deploy the HelmForge PostgreSQL dependency |
+| `redis.enabled`                               | `true`   | Deploy the HelmForge Redis dependency |
+| `database.external.enabled`                   | `false`  | Use complete external PostgreSQL URL Secrets |
+| `redis.external.enabled`                      | `false`  | Use an external Redis endpoint and password Secret |
+| `serviceAccount.automountServiceAccountToken` | `false`  | Keep the Kubernetes API token unmounted |
+| `networkPolicy.enabled`                       | `true`   | Apply product-aware ingress and egress isolation |
+
+Every value and nested contract is documented in [values.yaml](values.yaml)
+and validated by [values.schema.json](values.schema.json).
+
+## Examples
+
+Use [`examples/production.yaml`](examples/production.yaml) as a hardened
+starting point and [`examples/oidc.yaml`](examples/oidc.yaml) for experimental
+OIDC. Store all application identity, provider, database and Redis credentials
+in Kubernetes Secrets or native ExternalSecret resources.
 
 ## Runtime model
 
@@ -92,6 +145,15 @@ PostgreSQL backup. Before upgrades:
 
 See [docs/operations.md](docs/operations.md) for rollout and recovery details.
 
+## Security
+
+The application and dependency-wait containers run without root privileges or
+added capabilities. Ghostfolio receives no Kubernetes API token and can write
+only to its bounded temporary and npm-cache volumes. The default NetworkPolicy
+permits DNS, bundled state services and public HTTP/HTTPS market-data traffic;
+private external destinations require explicit peers. Keep first-user
+registration private and use HTTPS for every public endpoint.
+
 ## Key values
 
 | Value | Default | Purpose |
@@ -120,11 +182,23 @@ product-specific smoke test proves migrations and seed ran, both official
 health endpoints return `OK`, the runtime is singleton, and application identity
 is backed by a nonempty Secret.
 
-## Security scan
+## Troubleshooting
+
+- If startup stalls, inspect both dependency-wait init containers and confirm
+  the PostgreSQL and Redis Services have endpoints.
+- If readiness fails while liveness succeeds, inspect `/api/v1/health` and the
+  database and Redis credentials; dependency loss intentionally withdraws
+  traffic without restarting the process.
+- If OIDC redirects fail, align `ghostfolio.rootUrl`, the registered callback
+  and the proxy trust policy.
+- If NetworkPolicy blocks an external private service, add the appropriate
+  `networkPolicyPeers` or native `networkPolicy.extraEgress` rule.
+- Keep `replicaCount=1`; the chart rejects additional replicas because upstream
+  does not document migration or scheduled-job leader election.
+
+## Security Scan: `ghostfolio`
 
 Security scan results use the same Kubescape policy set as HelmForge CI.
-
-Security Scan: ghostfolio
 
 | Framework                | Score |
 | ------------------------ | ----: |
