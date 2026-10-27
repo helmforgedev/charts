@@ -211,7 +211,10 @@ when a configuration is supplied. The chart passes that value to AdGuard Home's
 `--web-addr` argument, while Services continue to target the named `http` port.
 For chart-managed configuration, `containerPorts.dns` is written into
 `dns.port`. If `config.existingSecret` or a previously initialized configuration
-PVC is used, its `dns.port` must match `containerPorts.dns`.
+PVC is used, its `dns.port` must match `containerPorts.dns`. In wizard mode,
+select `containerPorts.dns` as the DNS listener before completing setup; the
+wizard otherwise proposes port `53`, which will not match a custom Service
+target.
 
 ### Persistence
 
