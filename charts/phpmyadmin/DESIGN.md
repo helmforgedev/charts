@@ -1,204 +1,152 @@
-<!-- SPDX-License-Identifier: Apache-2.0 -->
-
 # phpMyAdmin Chart Design
 
-This document describes the architecture and operational model for the HelmForge phpMyAdmin chart.
+## Scope
 
-## Goals
+This chart deploys the official phpMyAdmin image as a stateless Kubernetes web
+application. It supports a fixed MySQL or MariaDB endpoint, a curated list of
+servers, or an operator-selected arbitrary server. The chart owns the
+Deployment, Service, optional Ingress or Gateway API HTTPRoute, configuration
+and credential Secrets, optional session PVC, NetworkPolicy,
+PodDisruptionBudget, HorizontalPodAutoscaler, ServiceAccount, ExternalSecret,
+and Helm test resources.
 
-- Keep the default deployment simple for development and troubleshooting.
-- Provide opt-in production controls without forcing every install to be production-shaped.
-- Expose official phpMyAdmin Docker image capabilities through structured values.
-- Support current Kubernetes patterns: Gateway API, External Secrets Operator v1, NetworkPolicy, HPA,
-  PDB, Service dual-stack, and ServiceAccount token control.
+The release supplies the container and Kubernetes integration around
+phpMyAdmin. It does not own the target databases. Database lifecycle,
+authentication policy, TLS certificates, grants, backups, auditing, and
+availability remain the responsibility of the database operators.
 
-## Non-Goals
+## Architecture
 
-- The chart does not install MySQL, MariaDB, External Secrets Operator, Gateway API CRDs, or a Gateway controller.
-- The chart does not make phpMyAdmin safe to expose publicly by itself.
-- The chart does not manage database users or privileges.
-
-## Default Development Architecture
-
-```text
-Developer
-   |
-   | kubectl port-forward
-   v
-Service ClusterIP
-   |
-   v
-phpMyAdmin Deployment
-   |
-   | PMA_HOST or login-entered host
-   v
-MySQL/MariaDB
+```mermaid
+flowchart LR
+  User[Administrator browser] --> Edge[Ingress or Gateway API]
+  Edge --> Service[phpMyAdmin Service]
+  Service --> Web[phpMyAdmin and Apache pod]
+  Web --> Database[(MySQL or MariaDB servers)]
+  Auth[Credential Secret or ExternalSecret] --> Web
+  Config[Generated or custom configuration] --> Web
+  Sessions[(Optional shared session PVC)] --> Web
+  HPA[HorizontalPodAutoscaler] --> Web
 ```
 
-Default characteristics:
+The public Service uses a named target port, so its stable `service.port` is
+independent from the Apache process listener. `containerPorts.http` is passed
+to the official image as `APACHE_PORT` and is also used by the container port,
+probes, and NetworkPolicy. Ingress and HTTPRoute resources always target the
+Service rather than individual pods.
 
-- one replica;
-- no Ingress or Gateway;
-- no NetworkPolicy;
-- no ExternalSecret;
-- ServiceAccount token not mounted;
-- access through port-forward.
+Database traffic leaves the pod directly. A single-server configuration uses
+`PMA_HOST` and `PMA_PORT`; a curated multi-server configuration uses the
+parallel `PMA_HOSTS`, `PMA_PORTS`, and optional `PMA_VERBOSES` lists. Arbitrary
+server mode deliberately transfers endpoint selection to the authenticated
+user and therefore requires stricter network controls.
 
-## Internal Production Architecture With Ingress
+## Design Decisions
 
-```text
-User/VPN/SSO
-   |
-   v
-Ingress Controller + TLS
-   |
-   v
-Service
-   |
-   v
-phpMyAdmin replicas
-   |
-   | restricted egress
-   v
-MySQL/MariaDB
+The official phpMyAdmin image is pinned and configured only through supported
+image environment variables and mounted configuration. The Apache listener is
+not merely declared in the pod: the chart sets `APACHE_PORT`, ensuring a port
+override changes the real process. Service routing uses the `http` port name to
+avoid coupling Service and container port numbers.
 
-External Secrets Operator
-   |
-   v
-Kubernetes Secret -> phpMyAdmin env
-```
+Cookie authentication is the default because it avoids placing database user
+credentials in the browser URL or forcing a shared database identity. Optional
+automatic login exists for controlled environments, but username, password,
+control-user password, and blowfish secret can be read from an existing Secret
+or External Secrets Operator. Unsupported image variables are intentionally
+not invented by the chart.
 
-Recommended controls:
+phpMyAdmin is stateless unless shared sessions are enabled. One replica is the
+safe default. Multiple replicas require either a session strategy that remains
+valid across pods or acceptance that a user may need to authenticate again.
+The optional session PVC provides shared filesystem state, but its access mode
+and storage implementation must support the chosen replica topology.
 
-- TLS at the Ingress layer.
-- SSO, VPN, or reverse proxy authentication before phpMyAdmin.
-- Existing Secret or ExternalSecret for credentials.
-- NetworkPolicy with only required ingress and database egress.
-- Least-privilege database accounts.
-- PDB and optional HPA.
-- Shared `/sessions` storage or sticky sessions when using multiple replicas.
+Generated configuration covers ordinary chart values. `config.customConfig`
+is an explicit escape hatch for phpMyAdmin settings that are not modeled by the
+chart. Because it is executable PHP configuration, it is treated as trusted
+operator input and included in the Deployment checksum so changes roll pods.
 
-## Gateway API Architecture
+## Production Boundary
 
-```text
-Client
-   |
-   v
-Gateway listener
-   |
-   v
-HTTPRoute
-   |
-   v
-phpMyAdmin Service
-   |
-   v
-phpMyAdmin Pod
-```
+The chart does not create MySQL or MariaDB, database accounts, schemas,
+certificates, DNS records, ingress controllers, Gateway controllers, External
+Secrets Operator, shared storage, or monitoring infrastructure. It cannot
+verify that a database endpoint is authoritative, that credentials have least
+privilege, or that a server permits the intended administrative operations.
 
-The chart renders only `HTTPRoute`. Platform teams remain responsible for GatewayClass, Gateway
-listeners, TLS certificates, cross-namespace route attachment policy, and controller operations.
+Production operators must choose the exposure model, authenticate users before
+they reach phpMyAdmin where appropriate, restrict database egress, provide TLS
+to both browser and database paths, rotate credentials, audit administrative
+activity, and test database recovery independently. Public internet exposure is
+not a default or recommended topology. An internal route behind identity-aware
+access controls is the usual production boundary.
 
-## External Secrets Architecture
+Gateway API support creates an HTTPRoute and references an existing Gateway.
+Listener configuration, certificates, allowed routes, cross-namespace grants,
+and controller lifecycle remain external. Ingress support likewise assumes an
+existing controller and certificate workflow.
 
-```text
-External secret backend
-   |
-   v
-SecretStore or ClusterSecretStore
-   |
-   v
-ExternalSecret external-secrets.io/v1
-   |
-   v
-Kubernetes Secret
-   |
-   v
-phpMyAdmin environment variables
-   |
-   v
-Generated config.user.inc.php when needed
-```
+## Security Boundary
 
-The chart supports External Secrets for:
+The pod runs with a restricted security context, no privilege escalation,
+dropped Linux capabilities, runtime-default seccomp, and no automatically
+mounted ServiceAccount token. The exact filesystem policy follows the official
+image requirements. Secrets are referenced instead of copied into ConfigMaps,
+and External Secrets integration can reconcile them from an external provider.
 
-- auto-login username;
-- auto-login password;
-- cookie blowfish secret;
-- configuration-storage control password.
+NetworkPolicy can constrain browser ingress and database, DNS, and HTTPS
+egress. Enforcement depends on the cluster CNI. Arbitrary server mode is
+especially sensitive because a user-controlled hostname can otherwise turn the
+pod into a network pivot. Operators should restrict destinations to approved
+database networks and avoid broad HTTPS egress unless it is required for a
+specific integration.
 
-Inline values are acceptable for local development only. Production should use `auth.existingSecret` or `externalSecrets.auth`.
-The phpMyAdmin Docker image does not consume every phpMyAdmin setting as an environment variable. For auth modes other than `cookie` and for
-a stable cookie blowfish secret, the chart writes a generated `config.user.inc.php` and reads secret material from a pod environment variable
-populated by Kubernetes Secret references.
+phpMyAdmin is an administrative interface with intentionally powerful database
+capabilities. The chart cannot compensate for weak database grants, shared
+administrator accounts, missing multi-factor authentication at the access
+layer, unsafe custom PHP configuration, or credentials committed to values
+files. Database TLS verification and stable cookie secrets are production
+requirements when their threat models apply.
 
-## Multi-Server Architecture
+## Observability Boundary
 
-```text
-phpMyAdmin
-   |
-   +-- PMA_HOSTS[0] -> MySQL primary
-   +-- PMA_HOSTS[1] -> MySQL replica
-   +-- PMA_HOSTS[2] -> MariaDB analytics
-```
+Kubernetes startup, readiness, and liveness probes verify that Apache can serve
+the phpMyAdmin endpoint on the configured listener. Standard output and error
+streams provide application and web-server logs. Deployment status, pod
+restarts, Kubernetes events, HPA state, PVC health, route status, and the Helm
+test provide infrastructure-level evidence.
 
-Use `phpmyadmin.hosts`, `phpmyadmin.ports`, and `phpmyadmin.verboses` to provide a curated server list.
-Use `phpmyadmin.arbitrary=true` only when the user population is trusted to choose valid database
-endpoints.
-When database TLS is enabled with `phpmyadmin.hosts`, the chart renders the multi-host variables
-`PMA_SSLS`, `PMA_SSL_VERIFIES`, `PMA_SSL_CAS`, `PMA_SSL_CERTS`, and `PMA_SSL_KEYS` so TLS settings line up with the `PMA_HOSTS` order.
+The chart does not install metrics exporters, dashboards, tracing, log
+collection, or alerts. Operators should monitor HTTP availability and latency,
+authentication failures, server errors, pod restarts, probe failures, session
+storage capacity, HPA saturation, rejected route attachments, database
+connection failures, TLS failures, and denied NetworkPolicy traffic. A healthy
+HTTP response does not prove that every configured database is reachable or
+that a user has valid grants.
 
-## Session Strategy
+## Known Gaps and Limitations
 
-phpMyAdmin is mostly stateless, but web sessions can matter for multi-replica deployments.
+- phpMyAdmin has no bundled database; a successful deployment can still show a
+  connection error until an approved endpoint and credentials are available.
+- Multi-server host, port, TLS, and display-name lists must remain aligned.
+- Arbitrary server mode expands the egress threat surface and cannot be made
+  safe by UI configuration alone.
+- Shared filesystem sessions depend on a storage class whose access modes fit
+  the requested replica count and scheduling topology.
+- The chart does not provide database activity auditing or an identity-aware
+  proxy in front of phpMyAdmin.
+- Custom PHP configuration can override behavior beyond what the values schema
+  and templates can validate.
+- Helm tests validate web reachability, not login, database grants, queries,
+  imports, exports, or failover between database servers.
 
-```text
-Replica A ----+
-              +--> /sessions shared volume
-Replica B ----+
-```
+## Explicit Non-Goals
 
-Recommended choices:
-
-- single replica for simple admin use;
-- multiple replicas with shared `/sessions` storage when session continuity is required;
-- ingress stickiness as an alternative when storage is not available.
-
-## Service Dual Stack
-
-The chart leaves `service.ipFamilyPolicy` and `service.ipFamilies` empty by default so the cluster default applies. On IPv4/IPv6 clusters, use:
-
-```yaml
-service:
-  ipFamilyPolicy: PreferDualStack
-  ipFamilies:
-    - IPv4
-    - IPv6
-```
-
-Use `RequireDualStack` only when the cluster is known to support dual-stack Services.
-
-## Security Model
-
-phpMyAdmin is a powerful database administration UI. The chart provides controls, but production safety depends on the platform configuration.
-
-Production baseline:
-
-- do not expose directly to the public internet;
-- require TLS;
-- put phpMyAdmin behind VPN, SSO, reverse proxy auth, or IP allowlists;
-- use least-privilege database users;
-- avoid auto-login unless the surrounding access controls are strong;
-- mount ServiceAccount tokens only when needed;
-- restrict ingress and egress with NetworkPolicy;
-- prefer External Secrets or existing Kubernetes Secrets.
-
-## Validation Matrix
-
-Each change should be validated with:
-
-- `helm lint`;
-- `helm unittest`;
-- `helm template` for default and example values;
-- local HelmForge validations for ExternalSecrets, Gateway API, values quality, and CI evidence;
-- K3D install for default, production, ExternalSecret, Gateway API, NetworkPolicy, and dual-stack scenarios where the local cluster supports them.
+- Provisioning or upgrading MySQL and MariaDB servers
+- Creating database users, grants, schemas, or backups
+- Exposing phpMyAdmin publicly by default
+- Embedding an ingress, Gateway, certificate, or identity provider controller
+- Guessing credentials or generating database administrator accounts
+- Validating arbitrary PHP configuration semantics
+- Providing a database proxy, connection pooler, or SQL audit platform
