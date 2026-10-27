@@ -4,7 +4,7 @@ OpenCut is an open-source video editor. This HelmForge chart deploys the
 OpenCut web application with PostgreSQL and Redis dependencies, plus a
 Redis-over-HTTP bridge required by the upstream application runtime.
 
-## Highlights
+## Features
 
 - HelmForge-maintained `docker.io/helmforge/opencut:v0.3.0` image.
 - PostgreSQL and Redis subcharts for a turnkey install.
@@ -15,6 +15,15 @@ Redis-over-HTTP bridge required by the upstream application runtime.
   schema, and Helm tests.
 - Production, external-service, and networking guides with runnable examples.
 
+## Architecture
+
+The OpenCut web Deployment listens on `containerPorts.http` and connects to
+PostgreSQL plus an Upstash-compatible Redis HTTP endpoint. By default, the
+release owns HelmForge PostgreSQL and Redis subcharts and runs a dedicated
+`serverless-redis-http` bridge. The Service ports remain independent of both
+process listener ports. See [DESIGN.md](DESIGN.md) for trust boundaries and
+dependency modes.
+
 ## Install
 
 ```bash
@@ -23,7 +32,9 @@ helm install opencut oci://ghcr.io/helmforgedev/helm/opencut \
   --set opencut.betterAuthSecret="$(openssl rand -hex 32)"
 ```
 
-## External Database
+## Examples
+
+### External Database
 
 ```yaml
 postgresql:
@@ -81,6 +92,33 @@ networkPolicy:
   extraEgress: []
 ```
 
+## Configuration
+
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `containerPorts.http` | `3000` | OpenCut process HTTP listener. |
+| `service.port` | `80` | OpenCut Service port; targets the named HTTP port. |
+| `opencut.siteUrl` | `""` | Public URL used by authentication callbacks and browser links. |
+| `opencut.betterAuthSecret` | `""` | Stable Better Auth secret; set explicitly for production. |
+| `opencut.marbleApiUrl` | `https://api.marblecms.com` | Marble CMS API URL. |
+| `opencut.extraEnv` | `[]` | Additional environment variables, excluding chart-managed listener variables. |
+| `postgresql.enabled` | `true` | Deploy the bundled HelmForge PostgreSQL chart. |
+| `database.external.host` | `""` | External PostgreSQL host when the bundled database is disabled. |
+| `redis.enabled` | `true` | Deploy the bundled HelmForge Redis chart. |
+| `redisHttp.enabled` | `true` | Deploy the Redis-over-HTTP bridge. |
+| `redisHttp.containerPorts.http` | `80` | Redis HTTP bridge process listener (`SRH_PORT`). |
+| `redisHttp.service.port` | `80` | Redis HTTP bridge Service port. |
+| `redisHttp.external.url` | `""` | External Upstash-compatible endpoint when the bridge is disabled. |
+| `ingress.enabled` | `false` | Render an Ingress. |
+| `gateway.enabled` | `false` | Render a Gateway API HTTPRoute. |
+| `networkPolicy.enabled` | `false` | Isolate OpenCut and the Redis HTTP bridge. |
+| `autoscaling.enabled` | `false` | Enable the OpenCut HorizontalPodAutoscaler. |
+| `pdb.enabled` | `true` | Render a PodDisruptionBudget. |
+
+`containerPorts.http` and `redisHttp.containerPorts.http` change the real
+application listeners through `PORT` and `SRH_PORT`. They do not change
+`service.port` or `redisHttp.service.port`.
+
 ## Documentation
 
 - [Design](DESIGN.md)
@@ -121,6 +159,17 @@ helm template opencut charts/opencut -f charts/opencut/ci/ci-values.yaml
 helm unittest charts/opencut
 kubeconform -strict -summary rendered.yaml
 ```
+
+## Troubleshooting
+
+- If the web pod is healthy but traffic fails, compare `service.port`, the
+  named `targetPort`, and `containerPorts.http`.
+- If authentication redirects to the wrong origin, set `opencut.siteUrl` to
+  the exact externally visible URL.
+- If the Redis HTTP bridge is not ready, verify its token, Redis credentials,
+  and that `SRH_PORT` matches `redisHttp.containerPorts.http`.
+- If NetworkPolicy is enabled, confirm DNS, PostgreSQL, Redis, and required
+  HTTPS destinations are allowed.
 
 ### Security Scan: `opencut`
 

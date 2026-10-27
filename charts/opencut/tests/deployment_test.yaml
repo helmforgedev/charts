@@ -25,6 +25,16 @@ tests:
           value: true
         template: templates/deployment.yaml
       - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 3000
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PORT
+            value: "3000"
+        template: templates/deployment.yaml
+      - equal:
           path: spec.template.spec.initContainers[0].name
           value: prepare-runtime-app
         template: templates/deployment.yaml
@@ -84,6 +94,18 @@ tests:
           value: 60
         template: templates/redis-http.yaml
         documentIndex: 0
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 80
+        template: templates/redis-http.yaml
+        documentIndex: 0
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SRH_PORT
+            value: "80"
+        template: templates/redis-http.yaml
+        documentIndex: 0
       - matchRegex:
           path: spec.template.metadata.annotations["checksum/secret"]
           pattern: "^[a-f0-9]{64}$"
@@ -115,6 +137,47 @@ tests:
           value: platform-critical
         template: templates/redis-http.yaml
         documentIndex: 0
+
+  - it: should configure both real process listeners independently from Services
+    set:
+      containerPorts.http: 3080
+      service.port: 9080
+      redisHttp.containerPorts.http: 8080
+      redisHttp.service.port: 9081
+      opencut.betterAuthSecret: test-secret
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 3080
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PORT
+            value: "3080"
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8080
+        template: templates/redis-http.yaml
+        documentIndex: 0
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SRH_PORT
+            value: "8080"
+        template: templates/redis-http.yaml
+        documentIndex: 0
+
+  - it: should reject OpenCut listener overrides through extraEnv
+    set:
+      opencut.extraEnv:
+        - name: PORT
+          value: "9999"
+    asserts:
+      - failedTemplate:
+          errorMessage: opencut.extraEnv must not override chart-managed listener variable PORT; use containerPorts.http
+        template: templates/deployment.yaml
 
   - it: should keep redis HTTP bridge names within DNS label length
     set:

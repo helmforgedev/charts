@@ -179,9 +179,17 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 {{- end -}}
 
+{{- define "opencut.validateListenerEnv" -}}
+{{- range .Values.opencut.extraEnv -}}
+{{- if has .name (list "PORT" "HOSTNAME") -}}
+{{- fail (printf "opencut.extraEnv must not override chart-managed listener variable %s; use containerPorts.http" .name) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "opencut.redisRestEgressPort" -}}
 {{- if .Values.redisHttp.enabled -}}
-{{- .Values.redisHttp.service.port | toString -}}
+{{- .Values.redisHttp.containerPorts.http | toString -}}
 {{- else -}}
 {{- $url := .Values.redisHttp.external.url | default "" -}}
 {{- $withoutScheme := regexReplaceAll "^[a-zA-Z][a-zA-Z0-9+.-]*://" $url "" -}}
