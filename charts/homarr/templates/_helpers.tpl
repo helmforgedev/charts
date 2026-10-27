@@ -260,10 +260,12 @@ do not need URL encoding inside a rendered connection string.
 {{- end -}}
 
 {{- define "homarr.postgresqlSecretName" -}}
-{{- $defaultName := printf "%s-%s-auth" .Release.Name (.Values.postgresql.nameOverride | default "postgresql") -}}
+{{- $postgresqlName := .Values.postgresql.nameOverride | default "postgresql" | trunc 63 | trimSuffix "-" -}}
+{{- $baseName := printf "%s-%s" .Release.Name $postgresqlName | trunc 63 | trimSuffix "-" -}}
 {{- if .Values.postgresql.fullnameOverride -}}
-  {{- $defaultName = printf "%s-auth" .Values.postgresql.fullnameOverride -}}
+  {{- $baseName = .Values.postgresql.fullnameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
+{{- $defaultName := printf "%s-auth" ($baseName | trunc 58 | trimSuffix "-") | trunc 63 | trimSuffix "-" -}}
 {{- if .Values.postgresql.auth.existingSecret -}}
 {{- .Values.postgresql.auth.existingSecret -}}
 {{- else if and (dig "externalSecrets" "enabled" false .Values.postgresql) (dig "externalSecrets" "auth" "enabled" false .Values.postgresql) -}}

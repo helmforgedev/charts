@@ -4,7 +4,7 @@
 
 When `database.mode=auto`, the chart chooses a database in this order:
 
-1. external database when `database.external.host` or `database.external.existingSecret` is set
+1. external database when `database.external.host` and database credentials are set
 2. bundled PostgreSQL when `postgresql.enabled=true`
 3. SQLite when no database backend is configured
 

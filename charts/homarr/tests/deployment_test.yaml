@@ -247,6 +247,20 @@ tests:
                 name: homarr-postgresql-managed
                 key: user-password
 
+  - it: should match the PostgreSQL Secret name truncation
+    set:
+      postgresql:
+        enabled: true
+        fullnameOverride: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        auth:
+          database: homarr
+          username: homarr
+          password: test
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name == "DB_PASSWORD")].valueFrom.secretKeyRef.name
+          pattern: "^a{58}-auth$"
+
   - it: should set external Redis env vars
     set:
       redis:
