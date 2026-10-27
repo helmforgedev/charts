@@ -88,6 +88,14 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- define "discount-bandit.validateDatabase" -}}
 {{- $mode := include "discount-bandit.databaseMode" . -}}
+{{- range .Values.discountBandit.extraEnv -}}
+  {{- if eq (.name | default "") "SERVER_NAME" -}}
+    {{- fail "discountBandit.extraEnv must not override SERVER_NAME; use containerPorts.http" -}}
+  {{- end -}}
+{{- end -}}
+{{- if and (not .Values.supervisor.configMap.enabled) (ne (.Values.containerPorts.http | int) 80) -}}
+  {{- fail "custom containerPorts.http requires supervisor.configMap.enabled=true" -}}
+{{- end -}}
 {{- if eq $mode "external" -}}
   {{- if and (not .Values.database.external.password) (not .Values.database.external.existingSecret) (not (and .Values.externalSecrets.enabled .Values.externalSecrets.database.enabled)) -}}
     {{- fail "database.mode=external requires database.external.password, database.external.existingSecret, or externalSecrets.database.enabled=true" -}}
