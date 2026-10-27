@@ -89,11 +89,14 @@ existing controller and certificate workflow.
 
 ## Security Boundary
 
-The pod runs with a restricted security context, no privilege escalation,
-dropped Linux capabilities, runtime-default seccomp, and no automatically
-mounted ServiceAccount token. The exact filesystem policy follows the official
-image requirements. Secrets are referenced instead of copied into ConfigMaps,
-and External Secrets integration can reconcile them from an external provider.
+The chart exposes `podSecurityContext`, `securityContext`, and
+`serviceAccount.automountServiceAccountToken` so operators can configure
+restricted execution, dropped capabilities, runtime-default seccomp, and token
+mounting for their environment. These are configurable settings rather than
+chart guarantees; the default pod and container security-context maps are
+empty. The exact filesystem policy follows the official image requirements.
+Secrets are referenced instead of copied into ConfigMaps, and External Secrets
+integration can reconcile them from an external provider.
 
 NetworkPolicy can constrain browser ingress and database, DNS, and HTTPS
 egress. Enforcement depends on the cluster CNI. Arbitrary server mode is
@@ -111,11 +114,14 @@ requirements when their threat models apply.
 
 ## Observability Boundary
 
-Kubernetes startup, readiness, and liveness probes verify that Apache can serve
-the phpMyAdmin endpoint on the configured listener. Standard output and error
-streams provide application and web-server logs. Deployment status, pod
-restarts, Kubernetes events, HPA state, PVC health, route status, and the Helm
-test provide infrastructure-level evidence.
+For regular authentication modes, Kubernetes startup, readiness, and liveness
+HTTP probes verify that Apache can serve the phpMyAdmin endpoint on the
+configured listener. With `authType: http`, the Deployment uses TCP probes;
+those prove only that the listener accepts connections, not that Apache serves
+the phpMyAdmin endpoint. Standard output and error streams provide application
+and web-server logs. Deployment status, pod restarts, Kubernetes events, HPA
+state, PVC health, route status, and the Helm test provide infrastructure-level
+evidence.
 
 The chart does not install metrics exporters, dashboards, tracing, log
 collection, or alerts. Operators should monitor HTTP availability and latency,

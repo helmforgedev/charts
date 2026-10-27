@@ -19,6 +19,16 @@ tests:
           path: spec.maxReplicas
           value: 3
 
+  - it: should render an integer memory utilization target
+    template: templates/hpa.yaml
+    set:
+      autoscaling.enabled: true
+      autoscaling.targetMemoryUtilizationPercentage: 80
+    asserts:
+      - equal:
+          path: spec.metrics[1].resource.target.averageUtilization
+          value: 80
+
   - it: should render PDB when enabled
     template: templates/pdb.yaml
     set:
@@ -28,6 +38,26 @@ tests:
           of: PodDisruptionBudget
       - equal:
           path: spec.minAvailable
+          value: 1
+
+  - it: should render percentage minimum availability
+    template: templates/pdb.yaml
+    set:
+      pdb.enabled: true
+      pdb.minAvailable: 50%
+    asserts:
+      - equal:
+          path: spec.minAvailable
+          value: 50%
+
+  - it: should render integer maximum unavailability
+    template: templates/pdb.yaml
+    set:
+      pdb.enabled: true
+      pdb.maxUnavailable: 1
+    asserts:
+      - equal:
+          path: spec.maxUnavailable
           value: 1
 
   - it: should render sessions PVC when persistent sessions are enabled
