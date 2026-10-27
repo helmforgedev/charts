@@ -16,6 +16,27 @@ tests:
       - matchRegex:
           path: data["kibana.yml"]
           pattern: "http://.*-bundled-elasticsearch:9200"
+      - matchRegex:
+          path: data["kibana.yml"]
+          pattern: "server.port: 5601"
+
+  - it: configures server.port from containerPorts
+    template: templates/configmap.yaml
+    set:
+      containerPorts.http: 15601
+    asserts:
+      - matchRegex:
+          path: data["kibana.yml"]
+          pattern: "server.port: 15601"
+
+  - it: rejects server.port in extraConfig
+    template: templates/configmap.yaml
+    set:
+      extraConfig:
+        server.port: 15601
+    asserts:
+      - failedTemplate:
+          errorMessage: "extraConfig must not override server.port; use containerPorts.http"
 
   - it: renders kibana.yml with external Elasticsearch hosts
     template: templates/configmap.yaml

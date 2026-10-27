@@ -168,6 +168,14 @@ app.kubernetes.io/part-of: helmforge
 
 {{- define "kibana.validate" -}}
 {{- $auth := .Values.elasticsearch.auth.type -}}
+{{- if hasKey .Values.extraConfig "server.port" -}}
+{{- fail "extraConfig must not override server.port; use containerPorts.http" -}}
+{{- end -}}
+{{- range .Values.extraEnv -}}
+{{- if eq (.name | default "") "SERVER_PORT" -}}
+{{- fail "extraEnv must not override SERVER_PORT; use containerPorts.http" -}}
+{{- end -}}
+{{- end -}}
 {{- if and .Values.bundledElasticsearch.enabled (eq (include "kibana.bundledElasticsearchSecured" .) "true") -}}
 {{- fail "bundled Elasticsearch with security enabled (bundled-elasticsearch.security.enabled=true or clusterProfile=production-ha) is not supported in bundled mode: this chart wires only the plain-HTTP Service URL, not TLS CA verification or auth, so Kibana would connect to the wrong (https) endpoint. Use external mode instead -- set bundledElasticsearch.enabled=false and configure elasticsearch.hosts + elasticsearch.tls + elasticsearch.auth against your secured cluster." -}}
 {{- end -}}

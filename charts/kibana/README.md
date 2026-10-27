@@ -40,6 +40,26 @@ bundled-elasticsearch:
 For production, keep `bundledElasticsearch.enabled=false` and connect to an
 independently operated Elasticsearch cluster.
 
+## Configuration
+
+The application listener and Kubernetes Service port are independent:
+
+| Purpose | Process listener | Service port |
+| --- | --- | --- |
+| Kibana HTTP | `containerPorts.http` (default `5601`) | `service.port` (default `5601`) |
+
+Changing `containerPorts.http` writes Kibana's official `server.port` setting,
+updates the container port and NetworkPolicy, and keeps probes on the named
+`http` port. The Service always targets that named port, so `service.port` may
+be changed independently.
+
+```yaml
+containerPorts:
+  http: 15601
+service:
+  port: 15602
+```
+
 ## Production Notes
 
 Use static encryption keys for HA deployments. Kibana uses these keys for
@@ -100,6 +120,8 @@ gateway:
 | `image.flavor` | Image flavor: `default` or `wolfi` | `default` |
 | `image.tag` | Kibana image tag | `9.5.1` |
 | `replicaCount` | Number of Kibana replicas | `1` |
+| `containerPorts.http` | Kibana `server.port` application listener | `5601` |
+| `service.port` | Kubernetes Service port | `5601` |
 | `elasticsearch.hosts` | External Elasticsearch URLs used when bundled mode is disabled | `[http://elasticsearch:9200]` |
 | `bundledElasticsearch.enabled` | Enable HelmForge Elasticsearch dependency | `true` |
 | `elasticsearch.auth.type` | Elasticsearch auth mode: `none`, `basic`, `serviceAccountToken` | `none` |
@@ -131,10 +153,10 @@ helm template kibana-test charts/kibana | kubeconform -strict -summary
 - [Networking](./docs/networking.md)
 - [External Secrets](./docs/external-secrets.md)
 
-### 🟢 Security Scan: `kibana`
+### Security Scan: `kibana`
 
 | Framework | Score |
 |---|---|
 | MITRE + NSA + SOC2 | **88.333336%** |
 
-> ✅ Security posture acceptable.
+Security posture: acceptable.

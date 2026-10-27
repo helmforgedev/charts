@@ -39,6 +39,9 @@ Optional integrations:
 - Keep Elasticsearch connectivity explicit in `elasticsearch.hosts`.
 - Use a dependency alias for bundled Elasticsearch to avoid breaking the
   existing `elasticsearch.*` connection values.
+- Keep `containerPorts.http` independent from `service.port`; the former
+  configures Kibana's real `server.port`, while the Service targets the named
+  `http` container port.
 - Require stable encryption keys for multi-replica deployments.
 - Render External Secrets Operator resources only when requested.
 - Keep Gateway API and Ingress as separate, non-overlapping entry points.
@@ -49,6 +52,43 @@ Production deployments should connect to a managed or separately operated
 Elasticsearch cluster with TLS, authentication, and static Kibana encryption
 keys. The bundled Elasticsearch subchart is primarily for local validation,
 development, demos, and tightly scoped platform-owned stacks.
+
+Operators own Elasticsearch availability, capacity, backups, restore tests,
+version compatibility, TLS certificates, authentication policy, ingress or
+Gateway controllers, DNS, and monitoring infrastructure. The chart does not
+turn the bundled development profile into a production Elasticsearch service.
+
+## Security Boundary
+
+The chart runs Kibana as a non-root user, drops Linux capabilities, disables
+service account token mounting, and supports the official Wolfi image. It can
+mount an Elasticsearch CA and credentials from an existing Secret or External
+Secrets Operator resource. Static Kibana encryption keys are required for
+multiple replicas.
+
+The chart does not configure Kibana users, roles, spaces, SSO, or an
+authorization boundary at the ingress layer. Operators must secure external
+Elasticsearch, restrict network access, terminate TLS at a trusted edge, and
+control access to Secrets and saved objects.
+
+## Observability Boundary
+
+Kubernetes startup, readiness, and liveness probes validate the Kibana status
+endpoint on the configured application listener. The optional ServiceMonitor
+is intended only for deployments that expose Prometheus-compatible metrics at
+the configured path. Operators own the metrics integration, dashboards, alert
+thresholds, log aggregation, and Elasticsearch health monitoring.
+
+## Known Gaps and Limitations
+
+- Bundled Elasticsearch uses the unauthenticated development profile and is
+  not a production database topology.
+- The chart does not automate saved object exports, Elasticsearch snapshots,
+  or rollback of saved object migrations.
+- ServiceMonitor creation does not install or configure a Kibana metrics
+  exporter.
+- Secured external Elasticsearch skips the BusyBox wait container because it
+  does not mount the external credentials or CA material.
 
 ## Explicit Non-Goals
 

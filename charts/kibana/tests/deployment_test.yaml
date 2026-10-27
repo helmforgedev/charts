@@ -18,6 +18,25 @@ tests:
           path: spec.template.spec.containers[0].ports[0].containerPort
           value: 5601
 
+  - it: configures the real Kibana HTTP listener
+    template: templates/deployment.yaml
+    set:
+      containerPorts.http: 15601
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 15601
+
+  - it: rejects SERVER_PORT in extraEnv
+    template: templates/deployment.yaml
+    set:
+      extraEnv:
+        - name: SERVER_PORT
+          value: "15601"
+    asserts:
+      - failedTemplate:
+          errorMessage: "extraEnv must not override SERVER_PORT; use containerPorts.http"
+
   - it: supports Wolfi image flavor
     template: templates/deployment.yaml
     set:
