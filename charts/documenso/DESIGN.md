@@ -85,7 +85,9 @@ HTTP/HTTPS while excluding private address ranges. Operators must review every
 policy in the namespace and add explicit peers for private SMTP, object storage,
 Gotenberg, identity-provider, webhook, and other integration endpoints. When an
 Ingress or Gateway controller runs in another namespace, its Pod or namespace
-selector must be included in `networkPolicy.ingressFrom`.
+selector must be included in `networkPolicy.ingressFrom`. A non-empty list
+replaces the default namespace-local peer, so include `podSelector: {}` when
+same-namespace clients must retain access.
 
 ## Observability boundary
 

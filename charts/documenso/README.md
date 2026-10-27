@@ -87,7 +87,10 @@ NetworkPolicy permits namespace-local HTTP ingress, DNS, selected PostgreSQL and
 Redis services, and public HTTP/HTTPS. Broad public egress excludes private
 ranges; private SMTP, object-storage, Gotenberg, identity-provider, and webhook
 destinations need explicit `networkPolicy.extraEgress` rules. Add an Ingress or
-Gateway controller from another namespace to `networkPolicy.ingressFrom`.
+Gateway controller from another namespace to `networkPolicy.ingressFrom`. A
+non-empty list replaces the default namespace-local peer; include
+`podSelector: {}` alongside the controller peer to preserve same-namespace
+access.
 
 ## State and recovery
 
