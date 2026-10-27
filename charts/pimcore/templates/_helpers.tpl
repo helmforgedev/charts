@@ -189,6 +189,11 @@ exec "$@"
 {{- range $tag := list .Values.image.tag .Values.project.runtimeImage.tag .Values.waitForDependencies.image.tag .Values.nginx.image.tag .Values.mercure.image.tag -}}
 {{- if has $tag (list "latest" "stable" "main" "master" "edge") -}}{{ fail "all image tags must be immutable release tags" }}{{- end -}}
 {{- end -}}
+{{- if eq (int .Values.containerPorts.http) (int .Values.containerPorts.phpFpm) -}}{{ fail "containerPorts.http and containerPorts.phpFpm must be different" }}{{- end -}}
+{{- if eq (int .Values.containerPorts.mercure) 443 -}}{{ fail "containerPorts.mercure must not be 443 because bundled Mercure uses plain HTTP" }}{{- end -}}
+{{- range $env := .Values.pimcore.extraEnv -}}
+{{- if eq $env.name "PHP_FPM_LISTEN" -}}{{ fail "pimcore.extraEnv must not override the reserved PHP_FPM_LISTEN variable" }}{{- end -}}
+{{- end -}}
 {{- if not (has .Values.database.mode (list "mariadb" "external")) -}}{{ fail "database.mode must be mariadb or external" }}{{- end -}}
 {{- if and (eq .Values.database.mode "mariadb") (not .Values.mariadb.enabled) -}}{{ fail "mariadb.enabled must be true when database.mode=mariadb" }}{{- end -}}
 {{- if and (eq .Values.database.mode "external") (or (empty .Values.database.external.host) (and (empty .Values.database.external.existingSecret) (empty .Values.database.external.password))) -}}{{ fail "external database requires host and password or existingSecret" }}{{- end -}}

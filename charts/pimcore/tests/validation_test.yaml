@@ -80,3 +80,24 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: externalSecrets.items must not be empty when enabled
+  - it: rejects matching HTTP and PHP-FPM listeners
+    set:
+      containerPorts.http: 9000
+      containerPorts.phpFpm: 9000
+    asserts:
+      - failedTemplate:
+          errorMessage: containerPorts.http and containerPorts.phpFpm must be different
+  - it: rejects port 443 for the plain HTTP Mercure listener
+    set:
+      containerPorts.mercure: 443
+    asserts:
+      - failedTemplate:
+          errorMessage: containerPorts.mercure must not be 443 because bundled Mercure uses plain HTTP
+  - it: rejects overrides of the reserved PHP-FPM listener variable
+    set:
+      pimcore.extraEnv:
+        - name: PHP_FPM_LISTEN
+          value: 0.0.0.0:9000
+    asserts:
+      - failedTemplate:
+          errorMessage: pimcore.extraEnv must not override the reserved PHP_FPM_LISTEN variable

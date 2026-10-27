@@ -76,23 +76,29 @@ into the image. Public assets need RWX or external storage before scaling.
 
 ## Security boundary
 
-Workloads run without ServiceAccount tokens, privilege escalation, or Linux
-capabilities. Secrets are consumed by reference. DSNs are assembled inside the
-container to avoid placing passwords in rendered manifests. The nginx sidecar
-uses a read-only root filesystem, while the PHP runtime remains writable only
-because the upstream image and common Pimcore workflows require runtime paths
-that are not fully relocatable. Immutable production images should minimize
-those writable paths and be scanned independently.
+By default, workloads run without ServiceAccount tokens, privilege escalation,
+or Linux capabilities. Operators can change these defaults through
+`serviceAccount.automountServiceAccountToken`, `securityContext`, and
+`nginxSecurityContext`; every override changes the security posture and must be
+reviewed. Database and RabbitMQ DSNs are assembled inside the container from
+Secret-backed variables. `pimcore.opensearchDSN` is rendered directly and must
+not contain credentials. The nginx sidecar uses a read-only root filesystem,
+while the PHP runtime remains writable only because the upstream image and
+common Pimcore workflows require runtime paths that are not fully relocatable.
+Immutable production images should minimize those writable paths and be
+scanned independently.
 
-The chart protects registration values, administrator credentials, application
-secrets, encryption keys, dependency passwords, and Mercure JWT material as
-Kubernetes Secrets. It cannot determine whether inline values were committed
-to source control, whether an existing Secret is rotated, or whether the
-identity and authorization model configured by the Pimcore project is safe.
-NetworkPolicy is opt-in because enforcement depends on the cluster CNI; once
-enabled, operators must explicitly allow external databases, identity systems,
-object stores, OpenSearch, package repositories used during evaluation
-bootstrap, and any project-specific integrations.
+The chart writes inline registration values, administrator credentials,
+application secrets, encryption keys, dependency passwords, and Mercure JWT
+material to `Secret.stringData`. Those values can appear in rendered manifests
+and Helm release storage. Production deployments should use `existingSecret`
+or External Secrets instead of inline sensitive values. The chart cannot
+determine whether an existing Secret is rotated or whether the identity and
+authorization model configured by the Pimcore project is safe. NetworkPolicy
+is opt-in because enforcement depends on the cluster CNI. When egress
+enforcement is enabled, operators must explicitly allow external databases,
+identity systems, object stores, OpenSearch, package repositories used during
+evaluation bootstrap, and any project-specific integrations.
 
 ## Observability boundary
 
