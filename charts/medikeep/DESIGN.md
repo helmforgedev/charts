@@ -113,9 +113,13 @@ three configurable data mounts; this image constraint is explicit rather than
 silently weakening the pod at runtime.
 
 Public Ingress, Gateway, NodePort, or LoadBalancer exposure is rejected unless
-an existing runtime Secret or a non-default initial administrator password is
-configured. NetworkPolicy can limit ingress and egress, but operators must add
-identity-provider and integration destinations when egress isolation is used.
+an existing runtime Secret or an initial administrator password is configured.
+The chart also rejects an inline `admin123` password. Helm cannot inspect an
+existing Secret's data, so operators must provide a strong value under
+`secrets.adminDefaultPasswordKey`; a publicly exposed pod will fail to start if
+that key is absent. NetworkPolicy can limit ingress and egress, but operators
+must add identity-provider and integration destinations when egress isolation
+is used.
 Kubernetes Secrets are transport objects, not encryption or rotation systems;
 cluster encryption at rest and external secret lifecycle remain operator
 responsibilities.

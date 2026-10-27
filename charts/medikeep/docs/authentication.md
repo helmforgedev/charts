@@ -1,6 +1,11 @@
 # Authentication and Secrets
 
-MediKeep creates a default `admin` user on fresh installs. Upstream defaults the first password to `admin123` unless `ADMIN_DEFAULT_PASSWORD` is set before the first startup.
+MediKeep creates a default `admin` user on fresh installs. Upstream defaults the
+first password to `admin123` unless `ADMIN_DEFAULT_PASSWORD` is set before the
+first startup. The chart rejects that inline value for public exposure. When
+using an existing Secret, Helm cannot inspect its data: ensure the configured
+administrator-password key exists and contains a strong value. A publicly
+exposed pod will fail to start when the key is missing.
 
 For production, create a runtime Secret and reference it with `secrets.existingSecret`:
 

@@ -204,6 +204,9 @@ password
 {{- if and (or .Values.ingress.enabled .Values.gatewayAPI.enabled (eq .Values.service.type "NodePort") (eq .Values.service.type "LoadBalancer")) (not .Values.secrets.existingSecret) (empty .Values.secrets.adminDefaultPassword) -}}
 {{- fail "public exposure requires secrets.existingSecret or secrets.adminDefaultPassword to prevent the upstream default administrator password" -}}
 {{- end -}}
+{{- if and (or .Values.ingress.enabled .Values.gatewayAPI.enabled (eq .Values.service.type "NodePort") (eq .Values.service.type "LoadBalancer")) (not .Values.secrets.existingSecret) (eq .Values.secrets.adminDefaultPassword "admin123") -}}
+{{- fail "public exposure rejects the upstream default admin123 password; set a strong secrets.adminDefaultPassword or provide secrets.existingSecret" -}}
+{{- end -}}
 {{- if and .Values.networkPolicy.enabled .Values.networkPolicy.egress.enabled (not .Values.postgresql.enabled) (empty .Values.networkPolicy.egress.databaseTo) -}}
 {{- fail "networkPolicy.egress.databaseTo is required for an external database when egress isolation is enabled" -}}
 {{- end -}}
