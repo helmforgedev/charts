@@ -44,6 +44,52 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 # =============================================================================
+# Contract validation
+# =============================================================================
+
+{{- define "druid.validateValues" -}}
+{{- if and (eq .Values.metadata.mode "subchart") (not .Values.postgresql.enabled) -}}
+  {{- fail "metadata.mode=subchart requires postgresql.enabled=true" -}}
+{{- end -}}
+{{- if and (eq .Values.metadata.mode "external") .Values.postgresql.enabled -}}
+  {{- fail "metadata.mode=external requires postgresql.enabled=false" -}}
+{{- end -}}
+{{- if and (eq .Values.metadata.mode "external") (not .Values.metadata.external.host) -}}
+  {{- fail "metadata.external.host is required when metadata.mode=external" -}}
+{{- end -}}
+{{- if and (eq .Values.metadata.mode "external") (not .Values.metadata.external.existingSecret) (not .Values.metadata.external.password) -}}
+  {{- fail "metadata.external.password or metadata.external.existingSecret is required when metadata.mode=external" -}}
+{{- end -}}
+{{- if and (eq .Values.zookeeperConfig.mode "subchart") (not .Values.zookeeper.enabled) -}}
+  {{- fail "zookeeperConfig.mode=subchart requires zookeeper.enabled=true" -}}
+{{- end -}}
+{{- if and (eq .Values.zookeeperConfig.mode "external") .Values.zookeeper.enabled -}}
+  {{- fail "zookeeperConfig.mode=external requires zookeeper.enabled=false" -}}
+{{- end -}}
+{{- if and (eq .Values.zookeeperConfig.mode "external") (not .Values.zookeeperConfig.external.hosts) -}}
+  {{- fail "zookeeperConfig.external.hosts is required when zookeeperConfig.mode=external" -}}
+{{- end -}}
+{{- if and (eq .Values.deepStorage.type "s3") (not .Values.deepStorage.s3.bucket) -}}
+  {{- fail "deepStorage.s3.bucket is required when deepStorage.type=s3" -}}
+{{- end -}}
+{{- if and (eq .Values.deepStorage.type "s3") (not .Values.deepStorage.s3.existingSecret) (or (not .Values.deepStorage.s3.accessKey) (not .Values.deepStorage.s3.secretKey)) -}}
+  {{- fail "deepStorage.s3 accessKey and secretKey or existingSecret are required when deepStorage.type=s3" -}}
+{{- end -}}
+{{- if and .Values.ingress.enabled (not .Values.router.enabled) -}}
+  {{- fail "ingress.enabled requires router.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.ingress.enabled (not .Values.ingress.hosts) -}}
+  {{- fail "ingress.hosts must contain at least one host when ingress.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.gatewayAPI.enabled (not .Values.router.enabled) -}}
+  {{- fail "gatewayAPI.enabled requires router.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.gatewayAPI.enabled (not .Values.gatewayAPI.parentRefs) -}}
+  {{- fail "gatewayAPI.parentRefs must contain at least one Gateway when gatewayAPI.enabled=true" -}}
+{{- end -}}
+{{- end -}}
+
+# =============================================================================
 # Metadata Storage (PostgreSQL)
 # =============================================================================
 

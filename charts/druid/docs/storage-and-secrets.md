@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Apache Druid Storage and Secrets Guide
 
 ## Storage Domains
@@ -45,6 +47,11 @@ metadata:
 The same contract can target MySQL by setting `metadata.external.type=mysql`
 and using the MySQL port.
 
+The chart rejects mixed dependency modes. `metadata.mode=subchart` requires
+the PostgreSQL dependency, while `metadata.mode=external` requires it to be
+disabled and requires a host plus a password or existing Secret. The same
+fail-fast relationship applies to bundled and external ZooKeeper.
+
 ## S3 Deep Storage
 
 S3-compatible deep storage is the recommended production configuration because
@@ -77,6 +84,10 @@ deepStorage:
 The Secret referenced by `deepStorage.s3.existingSecret` must contain the keys
 configured by `existingSecretAccessKeyKey` and `existingSecretSecretKeyKey`.
 The defaults are `access-key` and `secret-key`.
+
+S3 mode requires a bucket and either both direct credential values or an
+existing Secret. The current chart contract does not claim cloud workload
+identity support because it always projects the static S3 credential variables.
 
 ## External Secrets Operator
 

@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Apache Druid
 
 Apache Druid is a high-performance, real-time analytics database designed for fast
@@ -12,7 +14,7 @@ analytic applications, BI dashboards, and real-time data exploration.
 - **Bundled ZooKeeper** - native ZooKeeper StatefulSet with option for external cluster
 - **Deep storage** - local or S3-compatible (MinIO, AWS S3)
 - **Persistent volumes** - segment cache (historical) and task storage (middlemanager)
-- **Health probes** - liveness on `/status/health`, readiness on `/status/selfDiscovered`
+- **Health probes** - startup and liveness on `/status/health`, readiness on `/status/selfDiscovered`
 - **Ingress support** - configurable with `ingressClassName` (traefik, nginx, etc.)
 - **Gateway API support** - optional HTTPRoute for the router/web console
 - **Dual-stack Services** - optional `ipFamilyPolicy` / `ipFamilies` on every Druid Service
@@ -22,13 +24,13 @@ analytic applications, BI dashboards, and real-time data exploration.
 
 ## Security Scan
 
-🟢 Security Scan: druid
+Security scan: druid
 
 | Framework | Score |
 |-----------|-------|
 | MITRE + NSA + SOC2 | 83.000000% |
 
-✅ Security posture acceptable.
+Security posture: acceptable.
 
 The default scan keeps Druid writable paths and resource limits configurable
 instead of forcing a one-size-fits-all production profile. For hardened
@@ -53,21 +55,24 @@ helm install druid oci://ghcr.io/helmforgedev/helm/druid --version <version> -f 
 
 ## Architecture
 
-```text
-StatefulSet: coordinator (port 8081)
-StatefulSet: overlord (port 8090)
-Deployment:  broker (port 8082)
-Deployment:  router (port 8888) <- web console
-StatefulSet: historical (port 8083, PVC: segment-cache)
-StatefulSet: middlemanager (port 8091, PVC: task-storage)
-  +-- PostgreSQL (subchart, metadata storage)
-  +-- ZooKeeper (bundled StatefulSet, coordination)
+```mermaid
+flowchart LR
+  client[Users and API clients] --> router[Router]
+  router --> broker[Broker]
+  broker --> historical[Historical]
+  coordinator[Coordinator] --> historical
+  overlord[Overlord] --> middle[MiddleManager]
+  middle --> deep[(S3 deep storage)]
+  historical --> deep
+  roles[Druid roles] --> metadata[(PostgreSQL metadata)]
+  roles --> zk[(ZooKeeper)]
 ```
 
 ## Default Values
 
 | Key | Default | Description |
 |-----|---------|-------------|
+| `global` | `{}` | Helm ecosystem compatibility values |
 | `image.repository` | `apache/druid` | Druid container image |
 | `image.tag` | `"38.0.0"` | Image tag |
 | `coordinator.enabled` | `true` | Enable coordinator |
@@ -95,6 +100,7 @@ StatefulSet: middlemanager (port 8091, PVC: task-storage)
 | `service.port` | `80` | Router service port |
 | `service.ipFamilyPolicy` | omitted | Optional Kubernetes Service IP family policy |
 | `service.ipFamilies` | omitted | Optional ordered Service IP families |
+| `serviceAccount.automountServiceAccountToken` | `false` | Mount Kubernetes API credentials into workload Pods |
 | `ingress.enabled` | `false` | Enable ingress |
 | `ingress.ingressClassName` | `traefik` | Ingress class |
 | `gatewayAPI.enabled` | `false` | Enable Gateway API HTTPRoute for the router |
@@ -311,6 +317,40 @@ historical:
   extraProperties: |
     druid.segmentCache.locations=[{"path":"/opt/druid/var/druid/segment-cache","maxSize":10737418240}]
 ```
+
+## Configuration validation
+
+The chart fails before resource creation when bundled and external dependency
+modes conflict, when external PostgreSQL or ZooKeeper endpoints are incomplete,
+when S3 mode lacks a bucket or credentials, or when Ingress and Gateway API
+routes do not have an enabled Router and required routing references.
+
+Run the same render checks locally before an upgrade:
+
+```bash
+helm lint --strict charts/druid
+helm template druid charts/druid -f values.yaml >/dev/null
+```
+
+## Troubleshooting
+
+List the role Pods and inspect rollout state:
+
+```bash
+kubectl get pods,svc -l app.kubernetes.io/instance=druid
+kubectl get events --sort-by=.lastTimestamp
+```
+
+Inspect the Router and a selected Druid role when discovery or queries fail:
+
+```bash
+kubectl logs deployment/druid-druid-router --tail=200
+kubectl logs statefulset/druid-druid-coordinator --tail=200
+```
+
+For dependency failures, verify that the configured PostgreSQL and ZooKeeper
+Services are reachable and that the referenced Secret contains the documented
+keys. For S3 failures, verify bucket access and the endpoint TLS trust chain.
 
 ## Examples
 
