@@ -1,6 +1,14 @@
 # Exposure
 
-MediKeep serves HTTP on port `8000`. The chart exposes it through a ClusterIP Service by default.
+MediKeep serves HTTP on the upstream-fixed container port `8000`. The chart
+exposes it through a ClusterIP Service by default. `service.port` can differ
+because the Service targets the named `http` port; the removed `app.port` value
+never changed the upstream Uvicorn listener.
+
+```yaml
+service:
+  port: 8080
+```
 
 ## Ingress
 

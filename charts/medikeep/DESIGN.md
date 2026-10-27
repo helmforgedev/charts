@@ -1,68 +1,169 @@
 # MediKeep Chart Design
 
-MediKeep is a single web application container backed by PostgreSQL and writable filesystem paths for uploads, backups, and logs.
-The chart keeps those concerns explicit instead of hiding them behind a generic application scaffold.
+## Scope
 
-## Runtime Model
+This chart deploys the official MediKeep image as a single React and FastAPI
+application backed by PostgreSQL. It owns the Kubernetes workload, Service,
+application Secret, writable volumes, optional exposure resources, optional
+ExternalSecret resources, and the bundled PostgreSQL dependency integration.
 
-The upstream image serves the React frontend and FastAPI backend from one container on port `8000`.
-The chart renders one Deployment with `strategy: Recreate` and `replicaCount: 1` by default.
-Scaling above one pod is blocked because MediKeep writes uploads and generated backups to local mounted paths.
+The chart deliberately exposes MediKeep-specific controls instead of hiding
+them behind a generic workload abstraction. The supported image is
+`ghcr.io/afairgiant/medikeep:v0.72.0`, which publishes Linux `amd64` and
+`arm64` manifests.
 
-## Image
+## Architecture
 
-The chart uses the official upstream image:
+The default topology keeps the application and database inside the release.
+Uploads and generated backups are separate persistence domains.
 
-```text
-ghcr.io/afairgiant/medikeep:v0.72.0
+```mermaid
+flowchart LR
+  User[User] --> Service[ClusterIP Service]
+  Service --> App[MediKeep pod<br/>React and FastAPI<br/>TCP 8000]
+  App --> Uploads[(Uploads PVC)]
+  App --> Backups[(Backups PVC)]
+  App --> Logs[Ephemeral logs]
+  App --> PostgreSQL[(Bundled PostgreSQL)]
+  App --> Secret[Application Secret]
 ```
 
-The tag maps to the upstream `v0.72.0` release and publishes Linux `amd64` and `arm64` manifests.
+A production deployment can terminate TLS at an Ingress or Gateway, source
+credentials through External Secrets Operator, and use an externally managed
+PostgreSQL service.
 
-## Database
+```mermaid
+flowchart LR
+  User[User] --> TLS[Ingress or Gateway<br/>TLS termination]
+  TLS --> Service[ClusterIP Service]
+  Service --> App[MediKeep pod<br/>TCP 8000]
+  App --> Uploads[(Uploads PVC)]
+  App --> Backups[(Backups PVC)]
+  App --> Database[(External PostgreSQL)]
+  Store[SecretStore or<br/>ClusterSecretStore] --> ESO[ExternalSecret]
+  ESO --> Secret[Runtime Secret]
+  Secret --> App
+```
 
-PostgreSQL is required.
-The default install uses the HelmForge PostgreSQL dependency so local validation and small self-hosted installs work without an external database.
-Production users can disable the subchart and point MediKeep at an external PostgreSQL service with an existing Secret for the password.
+## Design Decisions
 
-## Secrets
+### Fixed application listener
 
-MediKeep requires `SECRET_KEY` for persistent JWT/session behavior.
-The chart creates a Kubernetes Secret when `secrets.existingSecret` is empty, generating the key on first install and reusing it with `lookup` on upgrades.
+The pinned upstream entrypoint executes Uvicorn with `--port 8000` in HTTP and
+HTTPS modes. MediKeep does not expose a supported environment variable for
+changing that listener. The Deployment therefore declares literal port `8000`
+with the GR-082 fixed-port marker. `service.port` remains independently
+configurable and targets the named `http` container port.
 
-The chart also supports optional Secret-backed values for `ADMIN_DEFAULT_PASSWORD` and `SSO_CLIENT_SECRET`.
-External Secrets Operator is exposed as a generic `externalSecrets.items` list so users can materialize the same app Secret or database Secret from their provider.
+The former `app.port` value was removed because it changed only Kubernetes
+metadata and could make probes and Service routing target a socket that the
+process never opened. Users who previously set it must remove it; the actual
+MediKeep listener remains `8000`.
 
-## Persistence
+### Singleton workload and rollout strategy
 
-The upstream container writes to:
+MediKeep writes uploads, logs, and generated backups to pod-mounted paths. The
+chart rejects `replicaCount` values above one and uses `Recreate` so two pods do
+not concurrently write the same `ReadWriteOnce` volumes. A PodDisruptionBudget
+can protect voluntary maintenance, but it does not create high availability.
 
-- `/app/uploads`
-- `/app/backups`
-- `/app/logs`
+### Database choices
 
-Uploads and backups default to PVCs. Logs default to `emptyDir` because medical application logs can contain sensitive operational traces and should not be retained accidentally.
+The default installation uses the HelmForge PostgreSQL dependency for a
+self-contained deployment and deterministic validation. Operators can disable
+the dependency and provide an external host plus a Secret-backed password. The
+wait init container gates application startup on the selected database socket.
 
-## Security
+### Secrets and lifecycle
 
-The upstream image contains an `appuser` account with UID/GID `999`.
-The chart runs the container directly as that user and sets `fsGroup: 999` so mounted volumes are writable without relying on the image's root entrypoint path.
-The container drops Linux capabilities, disallows privilege escalation, and uses the runtime default seccomp profile.
+MediKeep requires a stable `SECRET_KEY`. When no existing Secret is supplied,
+the chart generates the key at install time and reuses it through `lookup` on
+upgrades. The initial administrator password and SSO client secret can use the
+same Secret. External Secrets Operator can materialize that Secret without
+placing credentials in Helm values.
 
-## Exposure
+### Persistence domains
 
-MediKeep is an HTTP web app, so the chart supports both Ingress and the canonical HelmForge Gateway API `gatewayAPI.httpRoutes` surface. TLS should normally terminate at the ingress controller or Gateway.
+Uploads and generated backups use distinct PVCs by default. Logs use
+`emptyDir` because retaining health-related operational context should require
+an explicit policy. PostgreSQL and file volumes must be backed up and restored
+together to preserve attachment references.
+
+## Production Boundary
+
+The chart provides one MediKeep replica, optional bundled PostgreSQL,
+persistence primitives, health probes, NetworkPolicy, Ingress, Gateway API,
+External Secrets integration, and resource controls. Operators remain
+responsible for storage classes, off-cluster backups, tested restores, database
+high availability, TLS certificates, DNS, identity-provider availability,
+disaster recovery, and jurisdiction-specific health-data requirements.
+
+For a production deployment, provide a strong initial administrator password,
+use stable Secret sources, protect public routes, enable NetworkPolicy, assign
+appropriate resources, and implement coordinated backups for PostgreSQL,
+uploads, and generated backup files.
+
+## Security Boundary
+
+The application runs as upstream UID/GID `999`, drops all Linux capabilities,
+disallows privilege escalation, and uses the runtime-default seccomp profile.
+The ServiceAccount token is not mounted by default. The root filesystem cannot
+be read-only because the upstream process writes application paths outside the
+three configurable data mounts; this image constraint is explicit rather than
+silently weakening the pod at runtime.
+
+Public Ingress, Gateway, NodePort, or LoadBalancer exposure is rejected unless
+an existing runtime Secret or a non-default initial administrator password is
+configured. NetworkPolicy can limit ingress and egress, but operators must add
+identity-provider and integration destinations when egress isolation is used.
+Kubernetes Secrets are transport objects, not encryption or rotation systems;
+cluster encryption at rest and external secret lifecycle remain operator
+responsibilities.
+
+## Observability Boundary
+
+Startup, readiness, and liveness probes call the upstream `/health` endpoint on
+the named `http` port. The runtime smoke test verifies that endpoint and the SSO
+configuration contract against a Ready pod. Application logs are available
+through standard container logging and may optionally be persisted.
+
+The chart does not create metrics exporters, ServiceMonitor resources, tracing
+collectors, dashboards, or alert rules because MediKeep does not publish a
+stable chart-owned telemetry contract. Operators should monitor pod restarts,
+probe failures, HTTP availability, PostgreSQL health, PVC capacity, backup age,
+and restore-test results with their platform tooling.
+
+## Known Gaps and Limitations
+
+- MediKeep is intentionally limited to one replica and does not provide active
+  high availability.
+- The upstream listener is fixed at TCP `8000`; only the Service port is
+  configurable.
+- The upstream filesystem behavior prevents `readOnlyRootFilesystem: true`
+  without maintaining a chart-specific writable-path overlay.
+- The chart does not schedule off-cluster backups or validate restore recovery.
+- NetworkPolicy cannot describe external DNS destinations portably; restricted
+  environments must provide suitable CIDR or namespace peers.
+
+## Non-Goals
+
+- Rebuilding or patching the official MediKeep image.
+- Managing PostgreSQL high availability, external database users, or database
+  lifecycle outside the bundled dependency.
+- Provisioning an identity provider, TLS issuer, Gateway controller, Ingress
+  controller, External Secrets Operator, or SecretStore.
+- Claiming regulatory compliance solely from Kubernetes configuration.
+- Supporting multiple MediKeep replicas before upstream provides shared-file
+  storage and concurrency guarantees.
 
 ## Validation Scope
 
-The chart includes unit tests for:
-
-- official image and PostgreSQL environment wiring
-- app and external database Secrets
-- uploads, backups, and logs volume behavior
-- Ingress, Gateway API, Service dual-stack, NetworkPolicy, and validation failures
-
-Full readiness is gated by:
+Unit tests cover the official image, fixed listener and independent Service
+port, database and Secret wiring, persistent volumes, exposure resources,
+NetworkPolicy, External Secrets, security contexts, and fail-fast validation.
+CI scenarios exercise the default, production, external database, SSO-only,
+Ingress, Gateway API, External Secrets, dual-stack, NetworkPolicy, and
+ephemeral-storage paths. The complete release gate is:
 
 ```bash
 make validate-chart CHART=medikeep

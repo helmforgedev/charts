@@ -15,6 +15,12 @@ path or authentication environment contract. See
 [upstream release](https://github.com/afairgiant/MediKeep/releases/tag/v0.72.0).
 Back up PostgreSQL and uploaded records before upgrading.
 
+The legacy `app.port` value has been removed. The pinned upstream entrypoint
+always starts Uvicorn on container port `8000`, so that value changed only
+Kubernetes metadata and could break traffic. Remove `app.port` from existing
+values files. Use `service.port` when clients need a different Kubernetes
+Service port; the Service continues to target the fixed named `http` listener.
+
 ## Install
 
 ```bash
@@ -28,7 +34,38 @@ MediKeep exposes HTTP on port `8000`. For local access:
 kubectl port-forward svc/medikeep 8000:8000
 ```
 
-## Production Notes
+## Configuration
+
+The chart keeps the fixed upstream listener separate from the Kubernetes
+Service port. This example exposes Service port `8080` while MediKeep continues
+to listen on container port `8000`:
+
+```yaml
+service:
+  port: 8080
+
+app:
+  timezone: America/New_York
+  logLevel: INFO
+  debug: false
+  enableApiDocs: false
+```
+
+Common configuration groups are:
+
+- `image`, `app`, and `probes` for the pinned image and application runtime.
+- `secrets` and `medikeep.sso` for authentication and stable credentials.
+- `postgresql` or `database.external` for the database topology.
+- `persistence` for uploads, generated backups, and optional persistent logs.
+- `service`, `ingress`, and `gatewayAPI` for exposure.
+- `networkPolicy`, `resources`, `securityContext`, and `podSecurityContext` for
+  production controls.
+
+See [Authentication and Secrets](docs/authentication.md),
+[Exposure](docs/exposure.md), [Production](docs/production.md), and
+[Storage](docs/storage.md) for complete examples and operational boundaries.
+
+## Security and Production Notes
 
 MediKeep stores personal health data. Treat the database, uploads PVC, backups PVC, logs, and Kubernetes Secrets as sensitive.
 
