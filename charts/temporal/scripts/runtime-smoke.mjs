@@ -21,9 +21,21 @@ const health = kubectl(['exec', `deployment/${admin.metadata.name}`, '--', 'temp
 assert.match(health, /SERVING|healthy/i);
 
 const webService = deployments.find((item) => item.metadata.labels['app.kubernetes.io/component'] === 'web').metadata.name;
+const webServiceResource = JSON.parse(kubectl(['get', 'service', webService, '-o', 'json']));
+const webServicePort = webServiceResource.spec.ports.find((port) => port.name === 'http')?.port;
+assert.ok(Number.isInteger(webServicePort), `Service ${webService} does not expose the named http port`);
 const child = spawn(
   'kubectl',
-  ['--context', context, '-n', namespace, 'port-forward', `service/${webService}`, '0:8080', '--address=127.0.0.1'],
+  [
+    '--context',
+    context,
+    '-n',
+    namespace,
+    'port-forward',
+    `service/${webService}`,
+    `0:${webServicePort}`,
+    '--address=127.0.0.1',
+  ],
   { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] },
 );
 let output = '';
