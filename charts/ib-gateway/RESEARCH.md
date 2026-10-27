@@ -4,7 +4,7 @@
 **Requester:** Aidas-dev
 **Upstream:** [gnzsnz/ib-gateway-docker](https://github.com/gnzsnz/ib-gateway-docker)
 **Research date:** 2026-10-12
-**Last verified:** 2026-10-26
+**Last verified:** 2026-10-27
 
 ## Product and runtime
 
@@ -24,7 +24,7 @@ provide safe high availability.
 - Selected channel: `10.51`.
 - Image: `ghcr.io/gnzsnz/ib-gateway:10.51`, always selected by the immutable
   digest below rather than the mutable channel tag alone.
-- Manifest index: `sha256:1e2236804ac949b789197c225a048c0c891c9958f948c87166226e5b647ff581`.
+- Manifest index: `sha256:85975f493bcacc8341cb42e6946c460868d165e5f64d9924b1958c8f03e7bee4`.
 - Platforms: linux/amd64 and linux/arm64.
 - `make image-verify` and a direct manifest inspection passed for both platforms.
 - The repository is MIT licensed, but the image contains proprietary IB
