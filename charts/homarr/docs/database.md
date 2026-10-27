@@ -6,8 +6,7 @@ When `database.mode=auto`, the chart chooses a database in this order:
 
 1. external database when `database.external.host` or `database.external.existingSecret` is set
 2. bundled PostgreSQL when `postgresql.enabled=true`
-3. bundled MySQL when `mysql.enabled=true`
-4. SQLite when no database backend is configured
+3. SQLite when no database backend is configured
 
 Only one database backend should be enabled at a time.
 
@@ -47,32 +46,6 @@ Legacy `postgresql.primary.*` values from older dependency layouts are not
 accepted when the bundled PostgreSQL subchart is enabled. Move those overrides to
 `postgresql.standalone.*` before upgrading.
 
-## Bundled MySQL
-
-```yaml
-database:
-  mode: mysql
-
-mysql:
-  enabled: true
-  auth:
-    database: homarr
-    username: homarr
-    password: "change-me"
-    rootPassword: "change-root"
-```
-
-Use MySQL when it better matches your platform standards or migration plan.
-
-Legacy `mysql.primary.*` values from older dependency layouts are not accepted
-when the bundled MySQL subchart is enabled. Move those overrides to
-`mysql.standalone.*` before upgrading.
-
-The chart disables Homarr's internal DNS cache by default (`homarr.enableDnsCaching=false`) so MySQL and other Kubernetes
-Services are resolved through cluster DNS during startup and background jobs. Local k3d validation showed this prevents a
-transient Homarr `sessionCleanup` connection timeout with the bundled MySQL Service. The chart also delays the bundled
-MySQL startup probe to avoid first-boot Warning events on slower nodes.
-
 ## External Database
 
 ```yaml
@@ -96,7 +69,6 @@ The backup CronJob is database-aware:
 
 - SQLite archives `/appdata`
 - PostgreSQL uses `pg_dump`
-- MySQL uses `mysqldump`
 
 ```yaml
 backup:
@@ -110,12 +82,22 @@ backup:
 
 Test restore procedures before relying on backups for production recovery.
 
+## Migrating Historical MySQL Installations
+
+Homarr v2.6.0 supports SQLite and PostgreSQL only. Before upgrading an older
+release that used bundled or external MySQL, use Homarr's official
+[MySQL-to-SQLite converter](https://homarr.dev/docs/advanced/mysql-to-sqlite/),
+validate the converted database with the target Homarr version, and
+then configure this chart for SQLite or PostgreSQL. The chart does not run this
+data migration automatically because it changes the storage engine and requires
+an operator-controlled backup and verification point.
+
 <!-- @AI-METADATA
 type: chart-doc
 title: Homarr Database and Backup Modes
 description: Database and backup guide for the Homarr Helm chart
 
-keywords: homarr, sqlite, postgresql, mysql, backup, restore, helm, kubernetes
+keywords: homarr, sqlite, postgresql, backup, restore, helm, kubernetes
 
 purpose: Explain database selection, bundled and external database modes, and backup behavior
 scope: Chart Documentation

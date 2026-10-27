@@ -10,13 +10,13 @@ Current application version: `v2.6.0`.
 ## Features
 
 - **Official Homarr image** from `ghcr.io/homarr-labs/homarr`
-- **Database backends** SQLite3 (default), PostgreSQL, or MySQL with auto-detection
-- **PostgreSQL and MySQL subcharts** optional bundled database deployments using HelmForge PostgreSQL `2.0.4` and MySQL `2.0.3`
+- **Database backends** SQLite3 (default) or PostgreSQL with deterministic auto-detection
+- **PostgreSQL subchart** optional bundled database deployment using HelmForge PostgreSQL `2.1.1`
 - **Encryption key management** auto-generated or existing secret for `SECRET_ENCRYPTION_KEY`
 - **Kubernetes integration** optional workload discovery via `ENABLE_KUBERNETES`
 - **External Redis** optional external Redis for multi-instance setups
 - **Persistent storage** application data in `/appdata`
-- **S3-compatible backup** database-aware CronJob (SQLite tar, pg_dump, mysqldump)
+- **S3-compatible backup** database-aware CronJob using `tar` for SQLite or `pg_dump` for PostgreSQL
 - **Ingress support** configurable ingress with TLS
 - **Gateway API support** optional HTTPRoute for modern Kubernetes ingress controllers
 - **Dual-stack ready Service** optional `ipFamilyPolicy` and `ipFamilies`
@@ -48,6 +48,16 @@ helm install homarr helmforge/homarr
 ```
 
 Access the web UI at `http://<service-ip>:7575` and create your first account.
+
+## Architecture
+
+Homarr runs as a single Deployment backed by an `/appdata` PVC. SQLite is the
+zero-dependency default. PostgreSQL can be supplied by the optional HelmForge
+subchart or by an external service. A generated or existing Secret provides the
+stable encryption material required for saved integration credentials. Ingress
+and Gateway API resources route through the Service to Homarr's fixed port
+`7575`. See [DESIGN.md](DESIGN.md) for trust boundaries, recovery ownership, and
+supported topologies.
 
 ## Examples
 
@@ -120,18 +130,6 @@ postgresql:
     password: "db-password"
 ```
 
-### MySQL Subchart
-
-```yaml
-mysql:
-  enabled: true
-  auth:
-    database: homarr
-    username: homarr
-    password: "db-password"
-    rootPassword: "root-password"
-```
-
 ### External PostgreSQL
 
 ```yaml
@@ -181,7 +179,7 @@ backup:
 | `homarr.enableKubernetes` | `false` | Enable K8s workload discovery |
 | `encryption.key` | `""` | 32-byte hex encryption key (auto-generated) |
 | `encryption.existingSecret` | `""` | Existing secret with encryption key |
-| `database.mode` | `auto` | Database mode: auto, sqlite, external, postgresql, mysql |
+| `database.mode` | `auto` | Database mode: auto, sqlite, external, or postgresql |
 | `database.sqlite.path` | `/appdata/db/db.sqlite` | SQLite file path |
 | `database.external.vendor` | `postgres` | External DB vendor |
 | `database.external.host` | `""` | External DB host |
@@ -189,14 +187,12 @@ backup:
 | `postgresql.enabled` | `false` | Deploy PostgreSQL subchart |
 | `postgresql.auth.database` | `homarr` | PostgreSQL database name |
 | `postgresql.auth.username` | `homarr` | PostgreSQL username |
+| `postgresql.auth.existingSecret` | `""` | Existing PostgreSQL Secret containing application and superuser passwords |
+| `postgresql.auth.existingSecretUserPasswordKey` | `user-password` | Application password key in the existing Secret |
 | `postgresql.initdb.scripts` | Homarr grants | PostgreSQL bootstrap grants required for Homarr migrations |
 | `postgresqlUpgradeJob.enabled` | `true` | Run a pre-upgrade hook that reapplies PostgreSQL grants on existing bundled PostgreSQL PVCs |
 | `postgresqlUpgradeJob.requireExistingResources` | `true` | Require an existing bundled PostgreSQL Secret and Service before rendering the pre-upgrade hook |
 | `postgresql.standalone.persistence.enabled` | `true` | Enable PostgreSQL persistence |
-| `mysql.enabled` | `false` | Deploy MySQL subchart |
-| `mysql.auth.database` | `homarr` | MySQL database name |
-| `mysql.auth.username` | `homarr` | MySQL username |
-| `mysql.standalone.persistence.enabled` | `true` | Enable MySQL persistence |
 | `redis.external` | `false` | Use external Redis |
 | `redis.host` | `""` | External Redis host |
 | `redis.port` | `6379` | External Redis port |
@@ -224,8 +220,7 @@ When `database.mode` is `auto` (default), the chart detects which database to us
 
 1. If `database.external.host` is set -> **external** database
 2. If `postgresql.enabled` is `true` -> **PostgreSQL subchart**
-3. If `mysql.enabled` is `true` -> **MySQL subchart**
-4. Otherwise -> **SQLite3** (zero configuration)
+3. Otherwise -> **SQLite3** (zero configuration)
 
 ## Encryption Key
 
@@ -265,18 +260,17 @@ writable and does not force a non-root UID or dropped capabilities by default. O
 
 ## Upgrade Notes
 
-This update moves the default image to `v2.6.0`. Review the
+This update aligns the chart with the default `v2.6.0` image. Review the
 [upstream v2.6.0 release](https://github.com/homarr-labs/homarr/releases/tag/v2.6.0)
-before upgrading production environments. The patch fixes board access-control
-forms and removes the v2 beta announcement. The chart remains on stable v1.
-No database, storage, port, or required environment variable changes were
-identified in the upstream comparison.
+before upgrading production environments and back up `/appdata` plus any
+external database first. Homarr v2 no longer supports MySQL, so historical
+MySQL installations require the migration described below.
 
-For PostgreSQL and MySQL, the chart sets `DB_DIALECT`, `DB_DRIVER`, and discrete database environment variables instead of
+For PostgreSQL, the chart sets `DB_DIALECT`, `DB_DRIVER`, and discrete database environment variables instead of
 rendering a full `DB_URL`; this avoids requiring URL-encoded passwords in Kubernetes Secrets.
 
 The chart sets `ENABLE_DNS_CACHING=false` by default. Homarr documents this setting for DNS/IP edge cases, and k3d
-validation showed it avoids transient MySQL connection timeouts when Homarr resolves Kubernetes Services during startup.
+validation showed it avoids transient database connection timeouts when Homarr resolves Kubernetes Services during startup.
 Set `homarr.enableDnsCaching=true` only when your cluster DNS behavior is known to be compatible with Homarr's internal
 cache.
 
@@ -288,10 +282,21 @@ are created before the upgrade hook runs. Existing external PostgreSQL databases
 first Homarr startup because Homarr creates the `drizzle` schema during migration.
 
 When upgrading from older dependency layouts, move legacy `postgresql.primary.*`
-and `mysql.primary.*` overrides to `postgresql.standalone.*` and
-`mysql.standalone.*`. The chart fails fast when those legacy blocks are still
-present with the corresponding subchart enabled so database persistence settings
-are not silently ignored.
+overrides to `postgresql.standalone.*`. The chart fails fast when that legacy
+block remains with the subchart enabled so persistence settings are not silently
+ignored.
+
+Homarr v2.6.0 supports SQLite and PostgreSQL, but not MySQL. Before upgrading a
+release that used the removed `mysql.*` chart values or an external MySQL
+database, follow Homarr's official
+[MySQL-to-SQLite conversion procedure](https://homarr.dev/docs/advanced/mysql-to-sqlite/), verify
+the converted data, and then select SQLite or PostgreSQL. The chart intentionally
+rejects the obsolete MySQL contract instead of rendering a deployment that the
+pinned application image cannot run.
+
+The application listener is fixed by the official image at port `7575`.
+`service.port` changes only the Kubernetes Service port; its named target still
+routes to the fixed container listener.
 
 After changing database mode or credentials, verify the application pod and selected database backend:
 
@@ -299,6 +304,21 @@ After changing database mode or credentials, verify the application pod and sele
 kubectl get pods -l app.kubernetes.io/instance=<release> -n <namespace>
 kubectl logs -l app.kubernetes.io/name=homarr -n <namespace> --all-containers --tail=100
 ```
+
+## Troubleshooting
+
+- If readiness fails, query `/api/health/ready` inside the Pod and inspect
+  application logs for database migration errors.
+- If a PostgreSQL-backed release cannot start, verify Service DNS, credentials,
+  ownership of the application database, and `CREATE` permission for the Homarr
+  user.
+- If integrations become unreadable after reinstall, restore the original
+  `SECRET_ENCRYPTION_KEY`; a newly generated key cannot decrypt previous values.
+- If Kubernetes discovery is enabled but no workloads appear, confirm that the
+  ServiceAccount token mount is explicitly enabled and that the assigned RBAC is
+  limited to the namespaces and resources Homarr needs.
+- If an upgrade originated from MySQL, stop and complete Homarr's supported
+  database conversion before starting the v2 application.
 
 ## More Information
 
@@ -318,7 +338,7 @@ Security posture acceptable. Validated with Kubescape 4.0.13 against the rendere
 <!-- @AI-METADATA
 type: chart-readme
 title: Homarr Helm Chart
-description: Modern application dashboard with SQLite, PostgreSQL, MySQL, Kubernetes integration, and S3 backup
+description: Modern application dashboard with SQLite, PostgreSQL, Kubernetes integration, and S3 backup
 
 keywords: homarr, dashboard, homepage, self-hosted, kubernetes
 

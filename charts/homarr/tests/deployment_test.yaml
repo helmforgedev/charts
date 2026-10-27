@@ -46,17 +46,6 @@ tests:
       - failedTemplate:
           errorPattern: "postgresql.primary.* is not supported by the HelmForge PostgreSQL 2.x dependency used by this chart"
 
-  - it: should fail fast when MySQL primary values are still present
-    set:
-      mysql:
-        enabled: true
-        primary:
-          persistence:
-            enabled: true
-    asserts:
-      - failedTemplate:
-          errorPattern: "mysql.primary.* is not supported by the HelmForge MySQL 2.x dependency used by this chart"
-
   - it: should not have initContainers for SQLite
     asserts:
       - isNull:
@@ -149,45 +138,6 @@ tests:
           content:
             name: DB_URL
 
-  - it: should set DB_DRIVER to mysql2 for MySQL
-    set:
-      mysql:
-        enabled: true
-        auth:
-          database: homarr
-          username: homarr
-          password: test
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: DB_DRIVER
-            value: "mysql2"
-
-  - it: should set discrete database env vars without DB_URL for MySQL
-    set:
-      mysql:
-        enabled: true
-        auth:
-          database: homarr
-          username: homarr
-          password: test
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: DB_DIALECT
-            value: "mysql"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: DB_HOST
-            value: "RELEASE-NAME-mysql"
-      - notContains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: DB_URL
-
   - it: should set DB_URL for SQLite
     asserts:
       - contains:
@@ -226,12 +176,20 @@ tests:
     set:
       homarr:
         enableKubernetes: true
+      serviceAccount:
+        automountServiceAccountToken: true
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
             name: ENABLE_KUBERNETES
             value: "true"
+
+  - it: should keep the Kubernetes API token unmounted by default
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
 
   - it: should not set ENABLE_KUBERNETES by default
     asserts:
@@ -264,8 +222,8 @@ tests:
             name: DB_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: RELEASE-NAME-homarr-database
-                key: database-password
+                name: RELEASE-NAME-postgresql-auth
+                key: user-password
 
   - it: should set external Redis env vars
     set:

@@ -3,6 +3,9 @@
 # Homarr Configuration
 # =============================================================================
 
+# -- Values shared with HelmForge dependency charts.
+global: {}
+
 # -- Homarr image
 image:
   repository: ghcr.io/homarr-labs/homarr
@@ -58,15 +61,15 @@ encryption:
 # =============================================================================
 # Database
 # =============================================================================
-# Homarr supports SQLite3 (default), PostgreSQL, and MySQL.
+# Homarr v2 supports SQLite3 (default) and PostgreSQL.
 # Use `database.mode` to select explicitly, or leave as `auto` to auto-detect
 # based on which database section is configured.
 #
-# Auto-detection priority: external -> postgresql -> mysql -> sqlite
+# Auto-detection priority: external -> postgresql -> sqlite
 # =============================================================================
 
 database:
-  # -- Database mode: auto | sqlite | external | postgresql | mysql
+  # -- Database mode: auto | sqlite | external | postgresql
   mode: auto
 
   sqlite:
@@ -74,7 +77,7 @@ database:
     path: /appdata/db/db.sqlite
 
   external:
-    # -- Database vendor: postgres | mysql
+    # -- External database vendor. Homarr v2 supports PostgreSQL.
     vendor: postgres
     # -- External database hostname
     host: ""
@@ -103,6 +106,12 @@ postgresql:
     username: homarr
     # -- Database password (auto-generated if empty)
     password: ""
+    # -- Existing Secret managed outside the PostgreSQL subchart
+    existingSecret: ""
+    # -- Application password key in the existing PostgreSQL Secret
+    existingSecretUserPasswordKey: user-password
+    # -- Superuser password key used by the optional pre-upgrade grants Job
+    existingSecretPostgresPasswordKey: postgres-password
   initdb:
     scripts:
       10-homarr-privileges.sh: |
@@ -164,30 +173,6 @@ postgresqlUpgradeJob:
     limits:
       cpu: 100m
       memory: 128Mi
-
-# -- Deploy MySQL as a subchart
-mysql:
-  enabled: false
-  # -- MySQL architecture (standalone or replication)
-  architecture: standalone
-  auth:
-    # -- Database name created on first run
-    database: homarr
-    # -- Database username created on first run
-    username: homarr
-    # -- Database password (auto-generated if empty)
-    password: ""
-    # -- Root password (auto-generated if empty)
-    rootPassword: ""
-  standalone:
-    persistence:
-      # -- Enable persistence for MySQL data
-      enabled: true
-      # -- PVC size for MySQL
-      size: 8Gi
-  startupProbe:
-    # -- Delay MySQL startup probing to avoid transient startup Warning events in k3d and slower nodes
-    initialDelaySeconds: 30
 
 # =============================================================================
 # Redis
@@ -271,7 +256,7 @@ startupProbe:
   # -- Enable startup probe
   enabled: true
   # -- Path for HTTP GET probe
-  path: /
+  path: /api/health/ready
   initialDelaySeconds: 30
   periodSeconds: 5
   timeoutSeconds: 3
@@ -281,7 +266,7 @@ livenessProbe:
   # -- Enable liveness probe
   enabled: true
   # -- Path for HTTP GET probe
-  path: /
+  path: /api/health/live
   initialDelaySeconds: 0
   periodSeconds: 15
   timeoutSeconds: 5
@@ -291,7 +276,7 @@ readinessProbe:
   # -- Enable readiness probe
   enabled: true
   # -- Path for HTTP GET probe
-  path: /
+  path: /api/health/ready
   initialDelaySeconds: 0
   periodSeconds: 10
   timeoutSeconds: 5
@@ -390,11 +375,14 @@ serviceAccount:
   # -- Annotations for the ServiceAccount
   annotations: {}
 
+  # -- Mount a Kubernetes API token. Enable only with scoped RBAC for Kubernetes integration.
+  automountServiceAccountToken: false
+
 # =============================================================================
 # Backup (CronJob + S3)
 # =============================================================================
 # Database-aware backup: SQLite archives the full /appdata directory,
-# PostgreSQL uses pg_dump, MySQL uses mysqldump. All upload to S3.
+# PostgreSQL uses pg_dump. All modes upload to S3.
 # =============================================================================
 
 backup:
@@ -427,8 +415,6 @@ backup:
     sqlite: docker.io/library/alpine:3.22
     # -- Image used for PostgreSQL backup (must have pg_dump)
     postgresql: docker.io/library/postgres:18.3-alpine
-    # -- Image used for MySQL backup (must have mysqldump)
-    mysql: docker.io/library/mysql:8.4
     # -- Image used for S3 upload (MinIO client)
     uploader: docker.io/helmforge/mc:1.0.0
 
@@ -481,8 +467,6 @@ backup:
     existingSecretPasswordKey: database-password
     # -- Extra arguments for pg_dump
     postgresDumpArgs: ""
-    # -- Extra arguments for mysqldump
-    mysqlDumpArgs: "--single-transaction --quick --skip-lock-tables --no-tablespaces"
 
 # =============================================================================
 # External Secrets Operator

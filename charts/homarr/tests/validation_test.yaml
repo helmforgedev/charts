@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: should require explicit token mounting for Kubernetes integration
+    set:
+      homarr:
+        enableKubernetes: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "homarr.enableKubernetes=true requires serviceAccount.automountServiceAccountToken=true and scoped RBAC"
+
+  - it: should require credentials for an external database host
+    set:
+      database:
+        external:
+          host: postgres.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.external.password or database.external.existingSecret is required when database.external.host is set"
+
+  - it: should require a host for external database credentials
+    set:
+      database:
+        external:
+          existingSecret: homarr-database
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.external.host is required when external database credentials are configured"
