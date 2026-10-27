@@ -25,6 +25,9 @@ tests:
           path: spec.template.spec.containers[1].ports[0].containerPort
           value: 8080
       - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 9000
+      - equal:
           path: spec.template.spec.containers[1].readinessProbe.httpGet.path
           value: /readyz
       - equal:
@@ -36,6 +39,47 @@ tests:
       - equal:
           path: spec.template.spec.containers[1].securityContext.readOnlyRootFilesystem
           value: true
+  - it: configures every application listener from containerPorts
+    set:
+      containerPorts.http: 18080
+      containerPorts.phpFpm: 19000
+      containerPorts.mercure: 13000
+      mercure.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 19000
+        template: deployment-web.yaml
+      - equal:
+          path: spec.template.spec.containers[1].ports[0].containerPort
+          value: 18080
+        template: deployment-web.yaml
+      - matchRegex:
+          path: data["default.conf"]
+          pattern: "server 127.0.0.1:19000;"
+        template: configmap.yaml
+      - matchRegex:
+          path: data["default.conf"]
+          pattern: "listen 18080;"
+        template: configmap.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PHP_FPM_LISTEN
+            value: "127.0.0.1:19000"
+        template: deployment-web.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SERVER_NAME
+            value: ":13000"
+        documentIndex: 0
+        template: deployment-mercure.yaml
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 13000
+        documentIndex: 0
+        template: deployment-mercure.yaml
   - it: permits rolling updates when project and assets support concurrent mounts
     template: deployment-web.yaml
     set:
