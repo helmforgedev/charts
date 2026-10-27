@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Value validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: should require metrics when ServiceMonitor is enabled
+    set:
+      metrics.serviceMonitor.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "metrics.enabled must be true when metrics.serviceMonitor.enabled=true"
+
+  - it: should reject colliding application and metrics ports
+    set:
+      metrics.enabled: true
+      metrics.port: 1337
+    asserts:
+      - failedTemplate:
+          errorMessage: "metrics.port must differ from olivetin.port because OliveTin uses separate listeners"
+
+  - it: should require ingress hosts
+    set:
+      ingress.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "ingress.hosts must contain at least one host when ingress.enabled=true"
+
+  - it: should require Gateway API routes
+    set:
+      gatewayAPI.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "gatewayAPI.httpRoutes must contain at least one route when gatewayAPI.enabled=true"
+
+  - it: should require ExternalSecret items
+    set:
+      externalSecrets.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "externalSecrets.items must contain at least one item when externalSecrets.enabled=true"
+
+  - it: should reject a duplicate PORT environment variable
+    set:
+      olivetin.extraEnv:
+        - name: PORT
+          value: "1447"
+    asserts:
+      - failedTemplate:
+          errorMessage: "olivetin.extraEnv must not override PORT; use olivetin.port"
+
+  - it: should protect selector labels
+    set:
+      podLabels:
+        app.kubernetes.io/name: override
+    asserts:
+      - failedTemplate:
+          errorMessage: "podLabels must not override the selector label app.kubernetes.io/name"

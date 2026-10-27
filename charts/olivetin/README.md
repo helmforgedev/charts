@@ -77,6 +77,7 @@ kubectl port-forward svc/<release>-olivetin 1337:80
 | `externalSecrets.refreshInterval` | `1h` | Default provider sync interval |
 | `externalSecrets.items` | `[]` | ExternalSecret item list with full ESO `spec` blocks |
 | `metrics.enabled` | `false` | Enable Prometheus metrics |
+| `metrics.port` | `1341` | Dedicated Prometheus listener and Service port |
 | `metrics.defaultGoMetrics` | `false` | Expose default Go runtime metrics |
 | `metrics.serviceMonitor.enabled` | `false` | Create ServiceMonitor |
 | `resources` | requests/limits set | Default CPU and memory requests and limits |
@@ -89,11 +90,17 @@ OliveTin exposes metrics at `/metrics`. To enable scraping with Prometheus Opera
 ```yaml
 metrics:
   enabled: true
+  port: 1341
   defaultGoMetrics: false
   serviceMonitor:
     enabled: true
     interval: 30s
 ```
+
+OliveTin serves Prometheus metrics on a separate internal listener. The chart
+binds that listener to `0.0.0.0:<metrics.port>`, exposes the named `metrics`
+Service port, and configures ServiceMonitor to scrape `/metrics`. Enabling a
+ServiceMonitor without metrics is rejected.
 
 ## Configuration
 
@@ -101,7 +108,11 @@ The `config` value is mounted as `/config/config.yaml` inside the container. It 
 so OliveTin runtime expressions such as `{{ message }}` remain literal for OliveTin to evaluate. Set `configTpl.enabled=true`
 only when you intentionally want Helm to render templates inside `config`.
 
-See the [OliveTin documentation](https://docs.olivetin.app) for all available options.
+The chart parses the result as YAML and owns the `prometheus` and
+`listenAddressPrometheus` settings so metrics work consistently with starter
+and custom configurations. See the
+[chart configuration guide](docs/configuration.md) and the
+[OliveTin documentation](https://docs.olivetin.app) for all available options.
 
 ## Upgrade Notes
 
@@ -114,6 +125,24 @@ The chart now propagates `olivetin.port` through `PORT`; remove any duplicate
 `PORT` entry from `olivetin.extraEnv` and configure the port only through
 `olivetin.port`. Enabling persistence now creates the data PVC when
 `persistence.existingClaim` is empty.
+
+## Security
+
+OliveTin executes operator-defined shell commands. Do not expose it publicly
+without configuring OliveTin authentication and ACLs or an authenticated
+reverse proxy. Trusted-header authentication also requires preventing clients
+from bypassing that proxy.
+
+The chart defaults to a non-root container, drops all capabilities, disables
+privilege escalation, uses runtime-default seccomp, and does not mount a
+ServiceAccount token. If actions call the Kubernetes API, explicitly enable the
+token and bind only the minimum RBAC. Keep credentials in Kubernetes Secrets or
+External Secrets; `values.config` is stored in a ConfigMap.
+
+The optional `/data` PVC stores only files that actions deliberately write
+there. Session files, themes, and logs under `/config` remain ephemeral. The
+chart does not create NetworkPolicy because action destinations are specific to
+each deployment.
 
 ### Security Scan: olivetin
 
@@ -187,4 +216,5 @@ olivetin:
 ## More Information
 
 - [OliveTin documentation](https://docs.olivetin.app)
-- [Source code](https://github.com/helmforgedev/charts/tree/main/charts/olivetin)
+- [OliveTin source](https://github.com/OliveTin/OliveTin)
+- [HelmForge chart source](https://github.com/helmforgedev/charts/tree/main/charts/olivetin)
