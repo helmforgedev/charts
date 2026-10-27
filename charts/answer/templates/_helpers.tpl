@@ -343,6 +343,9 @@ database-password
 {{- if hasKey .Values.podLabels "app.kubernetes.io/instance" -}}
 {{- fail "podLabels must not override the selector label app.kubernetes.io/instance" -}}
 {{- end -}}
+{{- if hasKey .Values.podLabels "app.kubernetes.io/component" -}}
+{{- fail "podLabels must not override the NetworkPolicy selector label app.kubernetes.io/component" -}}
+{{- end -}}
 {{- end -}}
 {{- range .Values.answer.extraEnv -}}
 {{- if has .name (list "INSTALL_PORT" "SITE_ADDR" "SWAGGER_ADDRESS_PORT") -}}

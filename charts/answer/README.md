@@ -96,8 +96,10 @@ postgresql:
       size: 20Gi
 ```
 
-For GitOps, provide database credentials through External Secrets or another
-Secret controller instead of committing an inline password.
+For GitOps with an external database, provide credentials through
+`database.external.existingSecret` and `externalSecrets.database`. Bundled
+PostgreSQL mode rejects `database.external.existingSecret`, so this flow does
+not apply to the bundled database.
 
 ### External database
 

@@ -40,9 +40,12 @@ networkPolicy:
           kubernetes.io/metadata.name: ingress-system
 ```
 
-When `extraIngress` is non-empty, only those peers may reach Answer. Ensure the
-labels match the actual ingress-controller or Gateway pods and namespaces before
-enabling the restriction in production.
+When `extraIngress` is non-empty, this policy allows only those peers. Kubernetes
+NetworkPolicies are additive, however, so another policy selecting the Answer
+pod can still allow broader sources. The restriction also depends on a network
+plugin that enforces NetworkPolicy. Before relying on it in production, verify
+both cluster enforcement and every policy selecting the Answer pod, and confirm
+that the peer labels match the actual ingress-controller or Gateway workloads.
 
 The chart intentionally does not apply an egress policy. Answer deployments may
 need DNS, SMTP, OAuth/OIDC, external databases, plugin services, and external

@@ -28,10 +28,15 @@ flowchart TB
   databaseSecret[Database Secret] --> server
   eso[External Secrets Operator] -. optional reconciliation .-> adminSecret
   eso -. optional reconciliation .-> databaseSecret
-  backup[Backup CronJob] --> data
-  backup --> database
+  backup[Backup CronJob] -->|SQLite mode only| data
+  backup -->|SQL dump in PostgreSQL or MySQL mode| database
   backup --> objectStorage[S3-compatible object storage]
 ```
+
+The backup CronJob includes `/data` only in SQLite mode. PostgreSQL and MySQL
+backups contain the SQL dump but not Answer's file-backed uploads,
+configuration, or plugins, so SQL-mode operators must back up `/data`
+separately and restore it together with the database dump.
 
 The Service exposes `service.port` to clients and targets the named `http` port.
 The server container declares that named port from `containerPorts.http`. The chart
