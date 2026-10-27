@@ -1,4 +1,7 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if eq (int .Values.containerPorts.proxy) (int .Values.containerPorts.proxyApi) }}
+{{- fail "containerPorts.proxy and containerPorts.proxyApi must be different because both listeners share the proxy pod" }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -43,17 +46,17 @@ spec:
           imagePullPolicy: {{ .Values.proxy.image.pullPolicy }}
           args:
             - {{ printf "--ip=%s" (include "jupyterhub.proxyBindIp" .) | quote }}
-            - --port=8000
+            - {{ printf "--port=%d" (int .Values.containerPorts.proxy) | quote }}
             - {{ printf "--api-ip=%s" (include "jupyterhub.proxyApiBindIp" .) | quote }}
-            - --api-port=8001
-            - --default-target=http://{{ include "jupyterhub.hubName" . }}:8081
-            - --error-target=http://{{ include "jupyterhub.hubName" . }}:8081{{ include "jupyterhub.hubErrorPath" . }}
+            - {{ printf "--api-port=%d" (int .Values.containerPorts.proxyApi) | quote }}
+            - --default-target=http://{{ include "jupyterhub.hubName" . }}:{{ .Values.service.hubPort }}
+            - --error-target=http://{{ include "jupyterhub.hubName" . }}:{{ .Values.service.hubPort }}{{ include "jupyterhub.hubErrorPath" . }}
             - --log-level={{ .Values.proxy.logLevel }}
           ports:
             - name: http
-              containerPort: 8000
+              containerPort: {{ .Values.containerPorts.proxy }}
             - name: api
-              containerPort: 8001
+              containerPort: {{ .Values.containerPorts.proxyApi }}
           env:
             - name: CONFIGPROXY_AUTH_TOKEN
               valueFrom:
