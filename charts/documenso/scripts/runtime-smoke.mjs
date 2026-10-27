@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import { execFileSync } from 'node:child_process';
 
 const [context, namespace, release] = process.argv.slice(2);
