@@ -25,13 +25,15 @@ const bridge = deployments.find(
 const service = services.find(
   item => item.spec.selector?.['app.kubernetes.io/component'] === 'web',
 );
+const bridgeService = services.find(
+  item => item.spec.selector?.['app.kubernetes.io/component'] === 'redis-http',
+);
 
 assert.ok(web, 'OpenCut web Deployment required');
-assert.ok(bridge, 'Redis HTTP bridge Deployment required');
 assert.ok(service, 'OpenCut Service required');
 
 const webContainer = web.spec.template.spec.containers.find(item => item.name === 'opencut');
-const bridgeContainer = bridge.spec.template.spec.containers.find(item => item.name === 'redis-http');
+const bridgeContainer = bridge?.spec.template.spec.containers.find(item => item.name === 'redis-http');
 const webPort = webContainer?.ports?.find(port => port.name === 'http')?.containerPort;
 const bridgePort = bridgeContainer?.ports?.find(port => port.name === 'http')?.containerPort;
 const processPort = Number(webContainer?.env?.find(item => item.name === 'PORT')?.value);
@@ -39,12 +41,17 @@ const bridgeProcessPort = Number(bridgeContainer?.env?.find(item => item.name ==
 const servicePort = service.spec.ports.find(port => port.name === 'http');
 
 assert.ok(Number.isInteger(webPort), 'Named OpenCut HTTP container port required');
-assert.ok(Number.isInteger(bridgePort), 'Named Redis HTTP container port required');
 assert.equal(processPort, webPort, 'PORT must configure the rendered OpenCut container port');
-assert.equal(bridgeProcessPort, bridgePort, 'SRH_PORT must configure the rendered bridge container port');
 assert.equal(servicePort?.targetPort, 'http', 'Service must target the named OpenCut HTTP port');
 assert.equal(web.spec.template.spec.automountServiceAccountToken, false);
-assert.equal(bridge.spec.template.spec.automountServiceAccountToken, false);
+if (bridge) {
+  assert.ok(bridgeService, 'Redis HTTP bridge Service required when the bridge is deployed');
+  assert.ok(Number.isInteger(bridgePort), 'Named Redis HTTP container port required');
+  assert.equal(bridgeProcessPort, bridgePort, 'SRH_PORT must configure the rendered bridge container port');
+  assert.equal(bridge.spec.template.spec.automountServiceAccountToken, false);
+} else {
+  assert.equal(bridgeService, undefined, 'Redis HTTP bridge Service must be absent in external endpoint mode');
+}
 
 const webPod = JSON.parse(kubectl([
   'get', 'pods', '-l', `${selector},app.kubernetes.io/component=web`, '-o', 'json',
@@ -57,4 +64,5 @@ kubectl([
   'wget', '-qO-', `http://127.0.0.1:${webPort}/api/health`,
 ]);
 
-console.log(`OpenCut runtime smoke passed: Service ${servicePort.port} -> container ${webPort}; Redis HTTP ${bridgePort}.`);
+const bridgeSummary = bridge ? `Redis HTTP ${bridgePort}` : 'external Redis HTTP endpoint';
+console.log(`OpenCut runtime smoke passed: Service ${servicePort.port} -> container ${webPort}; ${bridgeSummary}.`);
