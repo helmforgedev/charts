@@ -26,9 +26,10 @@ flowchart LR
   identity --> worker
 ```
 
-The web, worker, and proxy containers share one Recreate Pod and one application
-PVC. Bundled PostGIS and Redis remain separate stateful workloads. External
-dependency mode replaces either subchart without changing the application Pod.
+The web, worker, and proxy containers share one Recreate Pod. Rails and Sidekiq
+share one application PVC. Bundled PostGIS and Redis remain separate stateful
+workloads. External dependency mode replaces either subchart without changing the
+application Pod.
 
 ## Main Design Decisions
 
