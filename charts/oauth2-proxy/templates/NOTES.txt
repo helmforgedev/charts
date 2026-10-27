@@ -9,6 +9,10 @@
    Internal: {{ include "oauth2-proxy.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
    Health:   /ping and /ready
    Image:    {{ include "oauth2-proxy.image" . }}
+   Container HTTP: {{ .Values.containerPorts.http }}
+{{- if .Values.metrics.enabled }}
+   Metrics:  {{ .Values.metrics.port }}
+{{- end }}
 
 3. Credentials
 
@@ -53,7 +57,16 @@
    2. Keep config.reverseProxy.trustedProxyIps limited to trusted edge proxy CIDRs.
    3. Use HTTPS at the edge and keep config.cookie.secure=true outside local tests.
 
-7. Documentation
+7. Troubleshooting
+
+   If probes fail, inspect the effective listener and pod logs:
+     kubectl get deploy/{{ include "oauth2-proxy.fullname" . }} -n {{ .Release.Namespace }} -o yaml
+     kubectl logs -n {{ .Release.Namespace }} deploy/{{ include "oauth2-proxy.fullname" . }} -c oauth2-proxy
+
+   If redirects are incorrect, verify config.redirectUrl and trusted proxy CIDRs.
+   If login loops after rollout, verify that the cookie Secret stayed stable.
+
+8. Documentation
 
    Chart: https://helmforge.dev/docs/charts/oauth2-proxy
    Source: https://github.com/helmforgedev/charts/tree/main/charts/oauth2-proxy

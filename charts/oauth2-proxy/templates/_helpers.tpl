@@ -121,23 +121,28 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 {{- end -}}
 
+{{- define "oauth2-proxy.listenerArgs" -}}
+- --http-address=0.0.0.0:{{ .Values.containerPorts.http }}
+{{- if .Values.metrics.enabled }}
+- --metrics-address=0.0.0.0:{{ .Values.metrics.port }}
+{{- end }}
+{{- end -}}
+
 {{- define "oauth2-proxy.alphaConfig" -}}
 {{- $alpha := deepCopy .Values.alphaConfig.config -}}
 {{- $server := get $alpha "server" | default (dict) -}}
 {{- if kindIs "map" $server -}}
-{{- if and (not (hasKey $server "bindAddress")) (not (hasKey $server "BindAddress")) -}}
-{{- $_ := set $server "bindAddress" "0.0.0.0:4180" -}}
-{{- end -}}
+{{- $_ := set $server "bindAddress" (printf "0.0.0.0:%v" .Values.containerPorts.http) -}}
 {{- $_ := set $alpha "server" $server -}}
 {{- end -}}
-{{- if .Values.metrics.enabled -}}
 {{- $metricsServer := get $alpha "metricsServer" | default (dict) -}}
 {{- if kindIs "map" $metricsServer -}}
-{{- if and (not (hasKey $metricsServer "bindAddress")) (not (hasKey $metricsServer "BindAddress")) -}}
+{{- if .Values.metrics.enabled -}}
 {{- $_ := set $metricsServer "bindAddress" (printf "0.0.0.0:%v" .Values.metrics.port) -}}
+{{- else -}}
+{{- $_ := set $metricsServer "bindAddress" "-" -}}
 {{- end -}}
 {{- $_ := set $alpha "metricsServer" $metricsServer -}}
-{{- end -}}
 {{- end -}}
 {{- toYaml $alpha -}}
 {{- end -}}
@@ -149,6 +154,15 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $trustedProxyIps := default (list) .Values.config.reverseProxy.trustedProxyIps -}}
 {{- if and .Values.config.reverseProxy.enabled (eq (len $trustedProxyIps) 0) -}}
 {{- fail "config.reverseProxy.trustedProxyIps must contain at least one trusted proxy CIDR when config.reverseProxy.enabled=true" -}}
+{{- end -}}
+{{- if hasKey .Values.extraArgs "http-address" -}}
+{{- fail "extraArgs.http-address is chart-owned; set containerPorts.http instead" -}}
+{{- end -}}
+{{- if hasKey .Values.extraArgs "metrics-address" -}}
+{{- fail "extraArgs.metrics-address is chart-owned; set metrics.port instead" -}}
+{{- end -}}
+{{- if and .Values.metrics.enabled (eq (int .Values.containerPorts.http) (int .Values.metrics.port)) -}}
+{{- fail "containerPorts.http and metrics.port must be different when metrics.enabled=true" -}}
 {{- end -}}
 {{- range $key := list "app.kubernetes.io/name" "app.kubernetes.io/instance" -}}
 {{- if hasKey $.Values.podLabels $key -}}

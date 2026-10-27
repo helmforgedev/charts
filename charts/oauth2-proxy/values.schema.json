@@ -13,6 +13,7 @@
     "fullnameOverride": { "type": "string", "default": "" },
     "commonLabels": { "type": "object" },
     "replicaCount": { "type": "integer", "minimum": 1, "default": 2 },
+    "revisionHistoryLimit": { "type": "integer", "minimum": 0, "default": 3 },
     "image": {
       "type": "object",
       "additionalProperties": false,
@@ -21,6 +22,15 @@
         "tag": { "type": "string", "default": "v7.15.5" },
         "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"], "default": "IfNotPresent" }
       }
+    },
+    "imagePullSecrets": { "type": "array", "items": { "type": "object" }, "default": [] },
+    "containerPorts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "http": { "type": "integer", "minimum": 1, "maximum": 65535, "default": 4180 }
+      },
+      "required": ["http"]
     },
     "auth": {
       "type": "object",
@@ -71,15 +81,34 @@
       "additionalProperties": true,
       "properties": {
         "provider": { "type": "string", "default": "github" },
+        "providerDisplayName": { "type": "string", "default": "" },
         "oidcIssuerUrl": { "type": "string", "default": "" },
         "redirectUrl": { "type": "string", "default": "" },
         "upstreams": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
         "emailDomains": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "whitelistDomains": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "cookie": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": { "type": "string", "default": "" },
+            "domains": { "type": "array", "items": { "type": "string" }, "default": [] },
+            "secure": { "type": "boolean", "default": true },
+            "sameSite": { "type": "string", "enum": ["", "lax", "strict", "none"], "default": "lax" },
+            "expire": { "type": "string", "default": "168h" },
+            "refresh": { "type": "string", "default": "" }
+          }
+        },
         "reverseProxy": {
           "type": "object",
           "additionalProperties": true,
           "properties": {
             "enabled": { "type": "boolean", "default": false },
+            "realClientIpHeader": {
+              "type": "string",
+              "enum": ["X-Forwarded-For", "X-Real-IP", "X-ProxyUser-IP", "X-Envoy-External-Address", "CF-Connecting-IP"],
+              "default": "X-Real-IP"
+            },
             "trustedProxyIps": { "type": "array", "items": { "type": "string" }, "default": [] }
           },
           "allOf": [
@@ -98,7 +127,53 @@
               }
             }
           ]
-        }
+        },
+        "headers": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "setXAuthRequest": { "type": "boolean", "default": true },
+            "passAuthorizationHeader": { "type": "boolean", "default": false },
+            "passAccessToken": { "type": "boolean", "default": false },
+            "passUserHeaders": { "type": "boolean", "default": true },
+            "skipAuthStripHeaders": { "type": "boolean", "default": true }
+          }
+        },
+        "logging": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "standard": { "type": "boolean", "default": true },
+            "request": { "type": "boolean", "default": true },
+            "auth": { "type": "boolean", "default": true },
+            "silencePing": { "type": "boolean", "default": true },
+            "excludePaths": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "extraConfig": { "type": "string", "default": "" }
+      }
+    },
+    "authenticatedEmailsFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "existingSecret": { "type": "string", "default": "" },
+        "secretKey": { "type": "string", "default": "restricted_user_access" },
+        "emails": { "type": "array", "items": { "type": "string", "format": "email" }, "default": [] }
+      }
+    },
+    "extraArgs": { "type": "object", "additionalProperties": true },
+    "extraEnv": { "type": "array", "items": { "type": "object" }, "default": [] },
+    "envFrom": { "type": "array", "items": { "type": "object" }, "default": [] },
+    "serviceAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "create": { "type": "boolean", "default": true },
+        "name": { "type": "string", "default": "" },
+        "annotations": { "type": "object" },
+        "automountServiceAccountToken": { "type": "boolean", "default": false }
       }
     },
     "service": {
@@ -153,7 +228,11 @@
       "additionalProperties": true,
       "properties": {
         "enabled": { "type": "boolean", "default": false },
-        "parentRefs": { "type": "array", "items": { "type": "object" }, "default": [] }
+        "annotations": { "type": "object" },
+        "parentRefs": { "type": "array", "items": { "type": "object" }, "default": [] },
+        "hostnames": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "path": { "type": "string", "default": "/" },
+        "pathType": { "type": "string", "enum": ["Exact", "PathPrefix", "RegularExpression"], "default": "PathPrefix" }
       }
     },
     "networkPolicy": {
@@ -166,9 +245,132 @@
         "extraEgress": { "type": "array", "items": { "type": "object" }, "default": [] }
       }
     },
-    "resources": { "type": "object" },
-    "podSecurityContext": { "type": "object" },
-    "securityContext": { "type": "object" },
+    "autoscaling": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "minReplicas": { "type": "integer", "minimum": 1, "default": 2 },
+        "maxReplicas": { "type": "integer", "minimum": 1, "default": 6 },
+        "targetCPUUtilizationPercentage": { "type": "integer", "minimum": 1, "maximum": 100, "default": 70 },
+        "targetMemoryUtilizationPercentage": { "type": "integer", "minimum": 1, "maximum": 100, "default": 80 }
+      }
+    },
+    "pdb": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "minAvailable": { "type": ["integer", "string"], "default": 1 }
+      }
+    },
+    "probes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "startup": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "path": { "type": "string", "pattern": "^/" },
+            "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+            "periodSeconds": { "type": "integer", "minimum": 1 },
+            "timeoutSeconds": { "type": "integer", "minimum": 1 },
+            "failureThreshold": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "liveness": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "path": { "type": "string", "pattern": "^/" },
+            "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+            "periodSeconds": { "type": "integer", "minimum": 1 },
+            "timeoutSeconds": { "type": "integer", "minimum": 1 },
+            "failureThreshold": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "readiness": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "path": { "type": "string", "pattern": "^/" },
+            "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+            "periodSeconds": { "type": "integer", "minimum": 1 },
+            "timeoutSeconds": { "type": "integer", "minimum": 1 },
+            "failureThreshold": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "properties": {
+        "requests": {
+          "type": "object",
+          "properties": {
+            "cpu": { "type": "string" },
+            "memory": { "type": "string" }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "cpu": { "type": "string" },
+            "memory": { "type": "string" }
+          }
+        }
+      }
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "properties": {
+        "runAsNonRoot": { "type": "boolean" },
+        "runAsUser": { "type": "integer", "minimum": 1 },
+        "runAsGroup": { "type": "integer", "minimum": 1 },
+        "fsGroup": { "type": "integer", "minimum": 1 },
+        "seccompProfile": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string", "enum": ["RuntimeDefault", "Localhost", "Unconfined"] }
+          }
+        }
+      }
+    },
+    "securityContext": {
+      "type": "object",
+      "properties": {
+        "allowPrivilegeEscalation": { "type": "boolean" },
+        "readOnlyRootFilesystem": { "type": "boolean" },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "drop": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+    "priorityClassName": { "type": "string", "default": "" },
+    "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0, "default": 30 },
+    "tolerations": { "type": "array", "items": { "type": "object" }, "default": [] },
+    "topologySpreadConstraints": { "type": "array", "items": { "type": "object" }, "default": [] },
+    "extraVolumes": { "type": "array", "items": { "type": "object" }, "default": [] },
+    "extraVolumeMounts": { "type": "array", "items": { "type": "object" }, "default": [] },
+    "test": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "image": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "repository": { "type": "string", "default": "docker.io/library/busybox" },
+            "tag": { "type": "string", "default": "1.37.0" },
+            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"], "default": "IfNotPresent" }
+          }
+        }
+      }
+    },
     "extraObjects": { "type": "array", "items": { "type": "object" }, "default": [] }
   }
 }

@@ -14,9 +14,9 @@ tests:
       auth.clientSecret: test-secret
       auth.cookieSecret: "0123456789abcdef0123456789abcdef"
     asserts:
-      - equal:
-          path: spec.template.spec.initContainers[0].args[1]
-          value: --config-test
+      - contains:
+          path: spec.template.spec.initContainers[0].args
+          content: --config-test
         template: templates/deployment.yaml
       - equal:
           path: spec.template.spec.containers[0].image
@@ -29,6 +29,23 @@ tests:
       - equal:
           path: spec.template.spec.automountServiceAccountToken
           value: false
+        template: templates/deployment.yaml
+
+  - it: should wire the configured HTTP port to both config validation and runtime
+    set:
+      containerPorts.http: 8080
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].args
+          content: --http-address=0.0.0.0:8080
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --http-address=0.0.0.0:8080
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8080
         template: templates/deployment.yaml
 
   - it: should use an existing secret without rendering a chart-managed secret
@@ -177,16 +194,17 @@ tests:
         template: templates/secret.yaml
         documentIndex: 1
 
-  - it: should preserve explicit alpha listener config
+  - it: should enforce chart-owned listener config in alpha mode
     set:
       auth.createSecret: false
       externalSecrets.enabled: true
       alphaConfig.enabled: true
       alphaConfig.config:
         server:
-          bindAddress: 0.0.0.0:8080
+          bindAddress: 0.0.0.0:9090
         metricsServer:
           bindAddress: "-"
+      containerPorts.http: 8080
     asserts:
       - matchRegex:
           path: stringData["alpha-config.yaml"]
@@ -195,9 +213,27 @@ tests:
         documentIndex: 0
       - matchRegex:
           path: stringData["alpha-config.yaml"]
-          pattern: "metricsServer:\\n\\s+bindAddress: ['\"]-['\"]"
+          pattern: 'metricsServer:\n\s+bindAddress: 0\.0\.0\.0:44180'
         template: templates/secret.yaml
         documentIndex: 0
+
+  - it: should reject listener overrides through extraArgs
+    set:
+      extraArgs:
+        http-address: 0.0.0.0:9090
+    asserts:
+      - failedTemplate:
+          errorMessage: extraArgs.http-address is chart-owned; set containerPorts.http instead
+        template: templates/deployment.yaml
+
+  - it: should reject a metrics port collision
+    set:
+      containerPorts.http: 44180
+      metrics.port: 44180
+    asserts:
+      - failedTemplate:
+          errorMessage: containerPorts.http and metrics.port must be different when metrics.enabled=true
+        template: templates/deployment.yaml
 
   - it: should pass reverse proxy trust flags in alpha mode
     set:
