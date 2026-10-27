@@ -54,14 +54,16 @@ flowchart LR
 
 Production operators must provide real provider credentials, a stable cookie
 Secret, explicit callback and upstream URLs, HTTPS at the edge, trusted proxy
-CIDRs when forwarded headers are enabled, and NetworkPolicy destinations for the
-identity provider and upstreams. HPA requires an upstream/session design that is
-safe across replicas.
+CIDRs when forwarded headers are enabled, and, when NetworkPolicy is enabled,
+destinations for the identity provider and upstreams. HPA requires an
+upstream/session design that is safe across replicas.
 
 ## Security Boundary
 
-The chart runs the official image as non-root with a read-only root filesystem,
-dropped capabilities, RuntimeDefault seccomp, and no ServiceAccount token. It
+By default, the chart runs the official image as non-root with a read-only root
+filesystem, dropped capabilities, RuntimeDefault seccomp, and no ServiceAccount
+token. Operators can override these defaults through `podSecurityContext`,
+`securityContext`, and `serviceAccount.automountServiceAccountToken`. The chart
 validates configuration before starting and consumes credentials from Secrets.
 Identity-provider policy, upstream authorization, external Secret-store access,
 TLS termination, cookie-domain selection, and edge-header sanitization remain

@@ -167,6 +167,12 @@ When `alphaConfig.enabled=true`, the chart renders the structured
 from `metrics.port`; disabling metrics forces that alpha listener off. Matching
 CLI flags are passed to both the config-test init container and runtime.
 
+An external alpha Secret cannot be rewritten or inspected during Helm render.
+When `alphaConfig.existingSecret` is set, its `server.bindAddress` must be
+`0.0.0.0:4180` and its enabled metrics listener must be `0.0.0.0:44180`.
+The chart rejects custom listener ports with an external alpha Secret; use the
+chart-managed `alphaConfig.config` contract when custom ports are required.
+
 ### Security Scan: oauth2-proxy
 
 | Framework          | Score   |

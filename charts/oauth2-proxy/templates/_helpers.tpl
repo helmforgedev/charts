@@ -164,6 +164,12 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if and .Values.metrics.enabled (eq (int .Values.containerPorts.http) (int .Values.metrics.port)) -}}
 {{- fail "containerPorts.http and metrics.port must be different when metrics.enabled=true" -}}
 {{- end -}}
+{{- if and .Values.alphaConfig.enabled .Values.alphaConfig.existingSecret (ne (int .Values.containerPorts.http) 4180) -}}
+{{- fail "alphaConfig.existingSecret cannot be combined with a custom containerPorts.http; the external alpha config listener cannot be verified by the chart" -}}
+{{- end -}}
+{{- if and .Values.alphaConfig.enabled .Values.alphaConfig.existingSecret .Values.metrics.enabled (ne (int .Values.metrics.port) 44180) -}}
+{{- fail "alphaConfig.existingSecret cannot be combined with a custom metrics.port; the external alpha config listener cannot be verified by the chart" -}}
+{{- end -}}
 {{- range $key := list "app.kubernetes.io/name" "app.kubernetes.io/instance" -}}
 {{- if hasKey $.Values.podLabels $key -}}
 {{- fail (printf "podLabels cannot override reserved selector label %s" $key) -}}
