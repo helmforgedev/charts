@@ -341,11 +341,11 @@ admin-password
 {{- end -}}
 
 {{- define "paperless-ngx.tikaEndpoint" -}}
-{{- printf "http://%s-tika:9998" (include "paperless-ngx.fullname" .) -}}
+{{- printf "http://%s-tika:%v" (include "paperless-ngx.fullname" .) .Values.tika.containerPorts.http -}}
 {{- end -}}
 
 {{- define "paperless-ngx.gotenbergEndpoint" -}}
-{{- printf "http://%s-gotenberg:3000" (include "paperless-ngx.fullname" .) -}}
+{{- printf "http://%s-gotenberg:%v" (include "paperless-ngx.fullname" .) .Values.gotenberg.containerPorts.http -}}
 {{- end -}}
 
 {{/*
@@ -382,5 +382,20 @@ emptyDir: {}
 {{- end -}}
 {{- if and .Values.paperless.url (not (regexMatch "^https?://[^/]+$" (.Values.paperless.url | trimSuffix "/"))) -}}
 {{- fail "paperless-ngx: paperless.url must be scheme and host only, for example https://paperless.example.com (no path)" -}}
+{{- end -}}
+{{- range .Values.paperless.extraEnv -}}
+{{- if eq .name "PAPERLESS_PORT" -}}
+{{- fail "paperless-ngx: paperless.extraEnv must not override PAPERLESS_PORT; use containerPorts.http" -}}
+{{- end -}}
+{{- end -}}
+{{- range .Values.tika.args -}}
+{{- if regexMatch "^(?:--host(?:=|$)|-h(?:=|$)|--port(?:=|$)|-p(?:=|$))" . -}}
+{{- fail "paperless-ngx: tika.args must not override --host or --port; use tika.containerPorts.http" -}}
+{{- end -}}
+{{- end -}}
+{{- range .Values.gotenberg.args -}}
+{{- if regexMatch "^--api-port(?:=|$)" . -}}
+{{- fail "paperless-ngx: gotenberg.args must not override --api-port; use gotenberg.containerPorts.http" -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}

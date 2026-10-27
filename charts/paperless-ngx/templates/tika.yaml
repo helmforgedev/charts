@@ -34,19 +34,19 @@ spec:
         - name: tika
           image: {{ printf "%s:%s" $c.image.repository $c.image.tag | quote }}
           imagePullPolicy: {{ $c.image.pullPolicy }}
-          {{- if hasKey $c "args" }}
-          {{- with $c.args }}
           args:
+            - --host=0.0.0.0
+            - {{ printf "--port=%v" $c.containerPorts.http | quote }}
+            {{- with $c.args }}
             {{- toYaml . | nindent 12 }}
-          {{- end }}
-          {{- end }}
+            {{- end }}
           {{- with $c.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           ports:
             - name: http
-              containerPort: 9998
+              containerPort: {{ $c.containerPorts.http }}
               protocol: TCP
           readinessProbe:
             httpGet:
@@ -100,7 +100,7 @@ spec:
     {{- include "paperless-ngx.componentSelectorLabels" (dict "ctx" . "component" "tika") | nindent 4 }}
   ports:
     - name: http
-      port: 9998
+      port: {{ $c.containerPorts.http }}
       targetPort: http
       protocol: TCP
 {{- end }}
