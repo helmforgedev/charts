@@ -42,6 +42,39 @@ tests:
             containerPort: 80
             protocol: TCP
 
+  - it: should configure the real Answer listener independently from the Service port
+    template: templates/deployment.yaml
+    set:
+      containerPorts.http: 8080
+      service.port: 9080
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http
+            containerPort: 8080
+            protocol: TCP
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: INSTALL_PORT
+            value: "8080"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SITE_ADDR
+            value: "0.0.0.0:8080"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SWAGGER_ADDRESS_PORT
+            value: ":8080"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SITE_URL
+            value: "http://localhost:9080"
+
   - it: should mount data volume
     template: templates/deployment.yaml
     asserts:
@@ -336,14 +369,36 @@ tests:
           path: spec.template.spec.securityContext.seccompProfile.type
           value: RuntimeDefault
       - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
           path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
           value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
       - contains:
           path: spec.template.spec.containers[0].securityContext.capabilities.drop
           content: ALL
       - contains:
           path: spec.template.spec.containers[0].securityContext.capabilities.add
           content: NET_BIND_SERVICE
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tmp
+            mountPath: /tmp
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tmp
+            emptyDir: {}
 
   - it: should add extra env vars
     template: templates/deployment.yaml

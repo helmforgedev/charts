@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # External Secrets
 
 The chart can render External Secrets Operator resources for credentials that should be sourced from an external provider.
