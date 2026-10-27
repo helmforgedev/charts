@@ -59,6 +59,44 @@ External database mode is recommended when operators already provide backup, res
 - Gateway API and Ingress are both opt-in and use the chart's single HTTP service backend.
 - Backup is opt-in and uses `mysqldump` plus the HelmForge `mc` image to upload compressed dumps to S3-compatible storage.
 
+## Design Decisions
+
+- The official image entrypoint remains authoritative for first-run Dolibarr
+  initialization. The chart supplies an argument wrapper that changes both
+  Apache port declarations, verifies them, and then executes
+  `apache2-foreground`.
+- `service.port` and `containerPorts.http` are deliberately separate: the first
+  is a cluster-facing Service contract; the second is the real process listener.
+- The Deployment uses `Recreate` and a single replica because the default
+  documents and custom volumes are `ReadWriteOnce` and Dolibarr does not provide
+  a chart-owned shared-filesystem coordination contract.
+- NetworkPolicy restricts ingress only. Egress remains unrestricted because
+  Dolibarr integrations and external database destinations are deployment-specific.
+- A pod-template checksum covers chart-rendered Secrets. Existing or
+  ExternalSecret-managed credential rotation still requires an operator rollout.
+
+## Security Boundary
+
+The chart disables ServiceAccount token automounting and selects only the
+Dolibarr pod in its NetworkPolicy, excluding hooks and validation pods. Secret
+values are consumed through Secret references rather than command arguments.
+TLS termination, Secret-store authorization, database server policy, egress
+allowlists, image admission, and storage encryption are outside the chart boundary.
+
+The official image performs bootstrap work as root and writes beneath its Apache
+and application directories. The chart therefore does not claim a non-root or
+read-only-root-filesystem posture. Operators using a hardened derivative image
+must validate ownership, entrypoint behavior, and persistent-volume permissions.
+
+## Observability Boundary
+
+Startup, readiness, and liveness probes verify the application through the named
+HTTP port. The chart-owned runtime smoke additionally checks a real Dolibarr HTTP
+response and the effective Apache listener configuration. Kubernetes events,
+container logs, database metrics, application audit logs, and backup monitoring
+remain the operator's responsibility. The official image does not expose a
+stable Prometheus endpoint, so this chart does not create a ServiceMonitor.
+
 ## Production Boundary
 
 For production, operators should provide explicit values for:
@@ -78,6 +116,18 @@ For production, operators should provide explicit values for:
 - bundled high availability database topology
 - application cron orchestration before a stable Kubernetes validation path exists
 - installing Dolibarr marketplace modules automatically
+
+## Known Gaps
+
+- Secret changes made outside Helm are not observable through a deterministic
+  checksum; restart the Deployment after external credential rotation.
+- The default NetworkPolicy does not restrict egress because destinations vary
+  across email, payment, webhook, API, and external-database integrations.
+- Horizontal scaling is not offered while the supported storage contract uses
+  single-writer PVCs.
+- Application-aware restore automation is not yet included; backups cover the
+  database while documents and custom-module volumes require a coordinated
+  storage backup.
 
 <!-- @AI-METADATA
 type: design

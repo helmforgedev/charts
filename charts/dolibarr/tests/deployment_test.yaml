@@ -20,6 +20,34 @@ tests:
           path: spec.strategy.type
           value: Recreate
 
+  - it: should disable service account token mounting
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+
+  - it: should configure Apache and the pod port from containerPorts.http
+    set:
+      containerPorts.http: 8080
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8080
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].name
+          value: http
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[2]
+          pattern: "http_port=8080"
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[2]
+          pattern: "exec apache2-foreground"
+
+  - it: should restart when chart-managed secret content changes
+    asserts:
+      - exists:
+          path: spec.template.metadata.annotations["checksum/secret-values"]
+
   - it: should use the appVersion image tag by default
     asserts:
       - equal:

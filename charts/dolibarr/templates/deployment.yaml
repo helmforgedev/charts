@@ -17,6 +17,7 @@ spec:
   template:
     metadata:
       annotations:
+        checksum/secret-values: {{ toJson (dict "admin" .Values.admin "runtime" .Values.runtime "database" .Values.database "mysqlAuth" .Values.mysql.auth) | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -34,6 +35,7 @@ spec:
       {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "dolibarr.serviceAccountName" . }}
       {{- end }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -69,6 +71,16 @@ spec:
         - name: dolibarr
           image: {{ include "dolibarr.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - /bin/sh
+            - -ec
+            - |
+              http_port={{ .Values.containerPorts.http }}
+              sed -ri "s/^Listen[[:space:]]+[0-9]+$/Listen ${http_port}/" /etc/apache2/ports.conf
+              sed -ri "s#<VirtualHost \\*:[0-9]+>#<VirtualHost *:${http_port}>#" /etc/apache2/sites-available/000-default.conf
+              grep -qx "Listen ${http_port}" /etc/apache2/ports.conf
+              grep -Fqx "<VirtualHost *:${http_port}>" /etc/apache2/sites-available/000-default.conf
+              exec apache2-foreground
           {{- with .Values.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
@@ -155,7 +167,7 @@ spec:
             {{- end }}
           ports:
             - name: http
-              containerPort: 80
+              containerPort: {{ .Values.containerPorts.http }}
               protocol: TCP
           {{- if .Values.startupProbe.enabled }}
           startupProbe:

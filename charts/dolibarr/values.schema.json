@@ -48,6 +48,19 @@
         "type": "object"
       }
     },
+    "containerPorts": {
+      "type": "object",
+      "description": "Dolibarr container listener ports",
+      "properties": {
+        "http": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "HTTP port listened to by Apache inside the container"
+        }
+      },
+      "required": ["http"]
+    },
     "dolibarr": {
       "type": "object",
       "description": "Dolibarr application configuration",
@@ -256,7 +269,23 @@
             },
             "resources": {
               "type": "object",
-              "description": "Resources for standalone MySQL"
+              "description": "Resources for standalone MySQL",
+              "properties": {
+                "requests": {
+                  "type": "object",
+                  "properties": {
+                    "cpu": { "type": "string" },
+                    "memory": { "type": "string" }
+                  }
+                },
+                "limits": {
+                  "type": "object",
+                  "properties": {
+                    "cpu": { "type": "string" },
+                    "memory": { "type": "string" }
+                  }
+                }
+              }
             }
           }
         },
@@ -418,11 +447,41 @@
       "properties": {
         "resources": {
           "type": "object",
-          "description": "CPU and memory requests/limits for the wait-for-db init container"
+          "description": "CPU and memory requests/limits for the wait-for-db init container",
+          "properties": {
+            "requests": {
+              "type": "object",
+              "properties": {
+                "cpu": { "type": "string" },
+                "memory": { "type": "string" }
+              }
+            },
+            "limits": {
+              "type": "object",
+              "properties": {
+                "cpu": { "type": "string" },
+                "memory": { "type": "string" }
+              }
+            }
+          }
         },
         "securityContext": {
           "type": "object",
-          "description": "Security context for the wait-for-db init container"
+          "description": "Security context for the wait-for-db init container",
+          "properties": {
+            "allowPrivilegeEscalation": { "type": "boolean" },
+            "runAsNonRoot": { "type": "boolean" },
+            "runAsUser": { "type": "integer", "minimum": 1 },
+            "capabilities": {
+              "type": "object",
+              "properties": {
+                "drop": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -595,6 +654,25 @@
         "annotations": {
           "type": "object",
           "description": "Annotations for the ServiceAccount"
+        },
+        "automountServiceAccountToken": {
+          "type": "boolean",
+          "description": "Mount the Kubernetes API token in the Dolibarr pod"
+        }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "description": "NetworkPolicy configuration for the Dolibarr pod",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Create an ingress NetworkPolicy"
+        },
+        "ingressFrom": {
+          "type": "array",
+          "description": "Custom NetworkPolicy ingress peers",
+          "items": { "type": "object" }
         }
       }
     },
@@ -794,8 +872,25 @@
         "enabled": { "type": "boolean", "default": false },
         "apiVersion": { "type": "string" },
         "refreshInterval": { "type": "string" },
-        "secretStoreRef": { "type": "object" },
-        "target": { "type": "object" },
+        "secretStoreRef": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "kind": {
+              "type": "string",
+              "enum": ["SecretStore", "ClusterSecretStore"]
+            }
+          }
+        },
+        "target": {
+          "type": "object",
+          "properties": {
+            "creationPolicy": {
+              "type": "string",
+              "enum": ["Owner", "Orphan", "Merge", "None"]
+            }
+          }
+        },
         "data": { "type": "array" }
       }
     }
