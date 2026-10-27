@@ -289,10 +289,13 @@ ignored.
 Homarr v2.6.0 supports SQLite and PostgreSQL, but not MySQL. Before upgrading a
 release that used the removed `mysql.*` chart values or an external MySQL
 database, follow Homarr's official
-[MySQL-to-SQLite conversion procedure](https://homarr.dev/docs/advanced/mysql-to-sqlite/), verify
-the converted data, and then select SQLite or PostgreSQL. The chart intentionally
-rejects the obsolete MySQL contract instead of rendering a deployment that the
-pinned application image cannot run.
+[MySQL-to-SQLite conversion procedure](https://homarr.dev/docs/advanced/mysql-to-sqlite/).
+The converter produces SQLite data: deploy that converted SQLite database first
+and validate the application data before completing the chart upgrade. Switching
+the converted installation to PostgreSQL requires a separate, operator-controlled
+and validated data migration. The chart intentionally rejects the obsolete MySQL
+contract instead of rendering a deployment that the pinned application image
+cannot run.
 
 The application listener is fixed by the official image at port `7575`.
 `service.port` changes only the Kubernetes Service port; its named target still

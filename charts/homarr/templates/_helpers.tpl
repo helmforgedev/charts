@@ -80,6 +80,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- define "homarr.databaseMode" -}}
 {{- $mode := .Values.database.mode | default "auto" -}}
+{{- $legacyMysqlEnabled := dig "enabled" false (.Values.mysql | default dict) -}}
+{{- if $legacyMysqlEnabled -}}
+{{- fail "mysql.enabled is not supported by Homarr v2. Convert the MySQL database to SQLite and validate the converted SQLite deployment before upgrading." -}}
+{{- end -}}
 {{- if not (has $mode (list "auto" "sqlite" "external" "postgresql")) -}}
 {{- fail (printf "database.mode must be one of: auto, sqlite, external, postgresql (got %s)" $mode) -}}
 {{- end -}}
@@ -256,12 +260,16 @@ do not need URL encoding inside a rendered connection string.
 {{- end -}}
 
 {{- define "homarr.postgresqlSecretName" -}}
+{{- $defaultName := printf "%s-%s-auth" .Release.Name (.Values.postgresql.nameOverride | default "postgresql") -}}
+{{- if .Values.postgresql.fullnameOverride -}}
+  {{- $defaultName = printf "%s-auth" .Values.postgresql.fullnameOverride -}}
+{{- end -}}
 {{- if .Values.postgresql.auth.existingSecret -}}
 {{- .Values.postgresql.auth.existingSecret -}}
-{{- else if .Values.postgresql.fullnameOverride -}}
-{{- printf "%s-auth" .Values.postgresql.fullnameOverride -}}
+{{- else if and (dig "externalSecrets" "enabled" false .Values.postgresql) (dig "externalSecrets" "auth" "enabled" false .Values.postgresql) -}}
+{{- dig "externalSecrets" "auth" "targetName" "" .Values.postgresql | default $defaultName -}}
 {{- else -}}
-{{- printf "%s-%s-auth" .Release.Name (.Values.postgresql.nameOverride | default "postgresql") -}}
+{{- $defaultName -}}
 {{- end -}}
 {{- end -}}
 

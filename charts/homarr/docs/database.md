@@ -87,10 +87,12 @@ Test restore procedures before relying on backups for production recovery.
 Homarr v2.6.0 supports SQLite and PostgreSQL only. Before upgrading an older
 release that used bundled or external MySQL, use Homarr's official
 [MySQL-to-SQLite converter](https://homarr.dev/docs/advanced/mysql-to-sqlite/),
-validate the converted database with the target Homarr version, and
-then configure this chart for SQLite or PostgreSQL. The chart does not run this
-data migration automatically because it changes the storage engine and requires
-an operator-controlled backup and verification point.
+deploy the converted SQLite database, and validate it with the target Homarr
+version before completing the chart upgrade. The converter does not write
+PostgreSQL data. Selecting PostgreSQL afterward requires a separate,
+operator-controlled and validated data migration. The chart does not run either
+migration automatically because each changes the storage engine and requires a
+backup and verification point.
 
 <!-- @AI-METADATA
 type: chart-doc
