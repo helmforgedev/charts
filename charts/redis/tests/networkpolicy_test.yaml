@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: NetworkPolicy
+templates:
+  - networkpolicy.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should isolate Redis data pods without selecting test pods
+    set:
+      networkPolicy.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.podSelector.matchLabels["app.kubernetes.io/component"]
+          value: redis
+      - contains:
+          path: spec.ingress[0].ports
+          content:
+            protocol: TCP
+            port: 6379
+
+  - it: should allow the configured Redis Cluster bus listener
+    set:
+      architecture: cluster
+      networkPolicy.enabled: true
+      containerPorts.clusterBus: 16380
+    asserts:
+      - contains:
+          path: spec.ingress[0].ports
+          content:
+            protocol: TCP
+            port: 16380
+
+  - it: should render a separate Sentinel policy
+    set:
+      architecture: sentinel
+      networkPolicy.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: spec.podSelector.matchLabels["app.kubernetes.io/component"]
+          value: sentinel
+        documentIndex: 1

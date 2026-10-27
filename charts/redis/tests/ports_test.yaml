@@ -1,0 +1,108 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Listener port contracts
+templates:
+  - configmap.yaml
+  - service.yaml
+  - standalone-statefulset.yaml
+  - sentinel-statefulset.yaml
+  - cluster-statefulset.yaml
+  - cluster-init-job.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should keep the Service port independent from the Redis listener
+    template: standalone-statefulset.yaml
+    set:
+      containerPorts.redis: 6380
+      service.ports.redis: 6379
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 6380
+      - matchRegex:
+          path: spec.template.spec.containers[0].livenessProbe.exec.command[2]
+          pattern: "-p 6380"
+
+  - it: should configure the Redis process listener
+    template: configmap.yaml
+    set:
+      containerPorts.redis: 6380
+    asserts:
+      - matchRegex:
+          path: data["redis-standalone.conf"]
+          pattern: "(?m)^port 6380$"
+
+  - it: should keep the client Service on its configured port and named target
+    template: service.yaml
+    documentIndex: 1
+    set:
+      containerPorts.redis: 6380
+      service.ports.redis: 6379
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: redis
+            port: 6379
+            targetPort: redis
+
+  - it: should configure the exporter listener independently from its Service port
+    template: standalone-statefulset.yaml
+    set:
+      metrics.enabled: true
+      containerPorts.metrics: 9122
+      service.ports.metrics: 9121
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].ports[0].containerPort
+          value: 9122
+      - contains:
+          path: spec.template.spec.containers[1].env
+          content:
+            name: REDIS_EXPORTER_WEB_LISTEN_ADDRESS
+            value: 0.0.0.0:9122
+
+  - it: should configure Sentinel to use its container listener
+    template: sentinel-statefulset.yaml
+    set:
+      architecture: sentinel
+      containerPorts.sentinel: 26380
+      service.ports.sentinel: 26379
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 26380
+      - matchRegex:
+          path: spec.template.spec.containers[0].livenessProbe.exec.command[2]
+          pattern: "-p 26380"
+
+  - it: should configure Redis Cluster client and bus listeners
+    template: configmap.yaml
+    set:
+      architecture: cluster
+      containerPorts.redis: 6380
+      containerPorts.clusterBus: 16380
+    asserts:
+      - matchRegex:
+          path: data["redis-cluster.conf"]
+          pattern: "(?m)^cluster-port 16380$"
+      - matchRegex:
+          path: data["redis-cluster.conf"]
+          pattern: "(?m)^cluster-announce-port 6380$"
+      - matchRegex:
+          path: data["redis-cluster.conf"]
+          pattern: "(?m)^cluster-announce-bus-port 16380$"
+
+  - it: should use the Redis container listener during cluster initialization
+    template: cluster-init-job.yaml
+    set:
+      architecture: cluster
+      containerPorts.redis: 6380
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "-p 6380"
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: ":6380"

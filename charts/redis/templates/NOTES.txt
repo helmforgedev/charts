@@ -53,7 +53,7 @@ Sentinel service:
 - DNS: {{ include "redis.sentinelServiceFqdn" . }}
 - Port: {{ .Values.service.ports.sentinel }}
 - Master set: {{ .Values.sentinel.masterSet }}
-- Seed node: {{ include "redis.nodePodFqdn" . }}:{{ .Values.service.ports.redis }}
+- Seed node: {{ include "redis.nodePodFqdn" . }}:{{ .Values.containerPorts.redis }}
 - Data nodes: {{ .Values.node.replicaCount }} role-neutral peers
 {{- end }}
 
@@ -136,7 +136,7 @@ Sentinel master set name:
 
 Verify Sentinel can see the primary:
 
-  kubectl exec -n {{ .Release.Namespace }} sts/{{ include "redis.sentinelStatefulSetName" . }} -- redis-cli {{ include "redis.cliTlsArgs" . }} -p {{ .Values.service.ports.sentinel }} SENTINEL masters
+  kubectl exec -n {{ .Release.Namespace }} sts/{{ include "redis.sentinelStatefulSetName" . }} -- redis-cli {{ include "redis.cliTlsArgs" . }} -p {{ .Values.containerPorts.sentinel }} SENTINEL masters
 {{- end }}
 
 {{- if include "redis.isCluster" . }}
@@ -146,7 +146,7 @@ Use a Redis Cluster-compatible client and connect through:
 
 Check cluster state:
 
-  kubectl exec -n {{ .Release.Namespace }} sts/{{ include "redis.clusterStatefulSetName" . }} -- redis-cli{{ if .Values.auth.enabled }} -a "$(kubectl get secret {{ include "redis.secretName" . }} -n {{ .Release.Namespace }} -o jsonpath='{.data.{{ .Values.auth.existingSecretPasswordKey }}}' | base64 -d)"{{ end }} cluster info
+  kubectl exec -n {{ .Release.Namespace }} sts/{{ include "redis.clusterStatefulSetName" . }} -- redis-cli -p {{ .Values.containerPorts.redis }}{{ if .Values.auth.enabled }} -a "$(kubectl get secret {{ include "redis.secretName" . }} -n {{ .Release.Namespace }} -o jsonpath='{.data.{{ .Values.auth.existingSecretPasswordKey }}}' | base64 -d)"{{ end }} cluster info
 {{- end }}
 
 5. Configuration summary
@@ -162,9 +162,11 @@ Persistence:
 
 Networking:
 - Service type: {{ .Values.service.type }}
-- Redis port: {{ .Values.service.ports.redis }}
-- Sentinel port: {{ .Values.service.ports.sentinel }}
-- Metrics port: {{ .Values.service.ports.metrics }}
+- Redis Service/listener ports: {{ .Values.service.ports.redis }}/{{ .Values.containerPorts.redis }}
+- Sentinel Service/listener ports: {{ .Values.service.ports.sentinel }}/{{ .Values.containerPorts.sentinel }}
+- Metrics Service/listener ports: {{ .Values.service.ports.metrics }}/{{ .Values.containerPorts.metrics }}
+- Cluster bus listener port: {{ .Values.containerPorts.clusterBus }}
+- NetworkPolicy enabled: {{ .Values.networkPolicy.enabled }}
 
 Scheduling:
 - PriorityClass: {{ default "(not configured)" .Values.priorityClassName }}
@@ -192,7 +194,15 @@ Common checks:
 - If dual-stack fields are rejected, verify the Kubernetes version and cluster network configuration.
 - If metrics are missing, verify `metrics.enabled`, Service ports, and ServiceMonitor labels.
 
-7. Resources
+7. Security notes
+=================
+
+- Keep authentication enabled and source credentials from an existing Secret or ExternalSecret.
+- Enable TLS whenever Redis traffic crosses a trust boundary.
+- In cluster mode without TLS, restrict the cluster bus port to trusted Redis peers.
+- When NetworkPolicy is enabled, explicitly allow every client and metrics scraper that is outside the release namespace.
+
+8. Resources
 ============
 
 - HelmForge chart docs: https://helmforge.dev/docs/charts/redis

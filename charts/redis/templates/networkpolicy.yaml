@@ -1,0 +1,88 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "redis.fullname" . }}-data
+  labels:
+    {{- include "redis.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "redis.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: redis
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "redis.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: redis
+        {{- if include "redis.isSentinel" . }}
+        - podSelector:
+            matchLabels:
+              {{- include "redis.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: sentinel
+        {{- end }}
+        {{- if .Values.networkPolicy.ingress.allowSameNamespace }}
+        - podSelector: {}
+        {{- end }}
+        {{- with .Values.networkPolicy.ingress.extraFrom }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.containerPorts.redis }}
+        {{- if include "redis.isCluster" . }}
+        - protocol: TCP
+          port: {{ .Values.containerPorts.clusterBus }}
+        {{- end }}
+    {{- if and .Values.metrics.enabled .Values.networkPolicy.metrics.enabled (or .Values.networkPolicy.metrics.allowSameNamespace (gt (len .Values.networkPolicy.metrics.extraFrom) 0)) }}
+    - from:
+        {{- if .Values.networkPolicy.metrics.allowSameNamespace }}
+        - podSelector: {}
+        {{- end }}
+        {{- with .Values.networkPolicy.metrics.extraFrom }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.containerPorts.metrics }}
+    {{- end }}
+{{- if include "redis.isSentinel" . }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "redis.fullname" . }}-sentinel
+  labels:
+    {{- include "redis.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "redis.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: sentinel
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "redis.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: redis
+        - podSelector:
+            matchLabels:
+              {{- include "redis.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: sentinel
+        {{- if .Values.networkPolicy.ingress.allowSameNamespace }}
+        - podSelector: {}
+        {{- end }}
+        {{- with .Values.networkPolicy.ingress.extraFrom }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.containerPorts.sentinel }}
+{{- end }}
+{{- end }}

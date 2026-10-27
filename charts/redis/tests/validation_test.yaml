@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Value validation
+templates:
+  - validate.yaml
+tests:
+  - it: should reject the same client and cluster bus listener
+    set:
+      architecture: cluster
+      containerPorts.redis: 16379
+      containerPorts.clusterBus: 16379
+    asserts:
+      - failedTemplate:
+          errorMessage: containerPorts.clusterBus must differ from containerPorts.redis in cluster mode
+
+  - it: should reject a metrics listener collision
+    set:
+      metrics.enabled: true
+      containerPorts.redis: 9121
+      containerPorts.metrics: 9121
+    asserts:
+      - failedTemplate:
+          errorMessage: containerPorts.metrics must differ from containerPorts.redis when metrics are enabled
+
+  - it: should reject a Redis listener override through config.redis
+    set:
+      config.redis: |-
+        port 6380
+    asserts:
+      - failedTemplate:
+          errorMessage: config.redis cannot override chart-managed listener, cluster announcement, bind, or protected-mode directives
+
+  - it: should reject a Sentinel listener override through config.sentinel
+    set:
+      config.sentinel: |-
+        sentinel announce-port 26380
+    asserts:
+      - failedTemplate:
+          errorMessage: config.sentinel cannot override chart-managed listener, announcement, or monitor directives

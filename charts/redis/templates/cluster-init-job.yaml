@@ -20,6 +20,11 @@ spec:
     spec:
       restartPolicy: OnFailure
       serviceAccountName: {{ include "redis.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: redis-cli
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -28,18 +33,18 @@ spec:
           args:
             - |
               for i in $(seq 0 $(({{ .Values.cluster.nodes }} - 1))); do
-                until redis-cli -h "{{ include "redis.clusterStatefulSetName" . }}-${i}.{{ include "redis.headlessServiceFqdn" . }}" {{- if .Values.auth.enabled }} -a "$REDIS_PASSWORD" {{- end }} ping; do
+                until redis-cli -h "{{ include "redis.clusterStatefulSetName" . }}-${i}.{{ include "redis.headlessServiceFqdn" . }}" -p {{ .Values.containerPorts.redis }} {{- if .Values.auth.enabled }} -a "$REDIS_PASSWORD" {{- end }} ping; do
                   echo "waiting for node $i"
                   sleep 5
                 done
               done
-              if redis-cli -h "{{ include "redis.clusterStatefulSetName" . }}-0.{{ include "redis.headlessServiceFqdn" . }}" {{- if .Values.auth.enabled }} -a "$REDIS_PASSWORD" {{- end }} cluster info | grep -q cluster_state:ok; then
+              if redis-cli -h "{{ include "redis.clusterStatefulSetName" . }}-0.{{ include "redis.headlessServiceFqdn" . }}" -p {{ .Values.containerPorts.redis }} {{- if .Values.auth.enabled }} -a "$REDIS_PASSWORD" {{- end }} cluster info | grep -q cluster_state:ok; then
                 echo "cluster already initialized"
                 exit 0
               fi
               yes yes | redis-cli --cluster create \
               {{- range $i, $_ := until (.Values.cluster.nodes | int) }}
-                {{ include "redis.clusterStatefulSetName" $ }}-{{ $i }}.{{ include "redis.headlessServiceFqdn" $ }}:{{ $.Values.service.ports.redis }} \
+                {{ include "redis.clusterStatefulSetName" $ }}-{{ $i }}.{{ include "redis.headlessServiceFqdn" $ }}:{{ $.Values.containerPorts.redis }} \
               {{- end }}
               --cluster-replicas {{ .Values.cluster.replicasPerMaster }} {{- if .Values.auth.enabled }} -a "$REDIS_PASSWORD" {{- end }}
           env:
@@ -54,4 +59,6 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
 {{- end }}

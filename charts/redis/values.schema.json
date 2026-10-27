@@ -352,6 +352,37 @@
         }
       }
     },
+    "containerPorts": {
+      "type": "object",
+      "description": "Application listener ports used inside Redis pods",
+      "additionalProperties": false,
+      "properties": {
+        "redis": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "Redis process listener port"
+        },
+        "sentinel": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "Sentinel process listener port"
+        },
+        "clusterBus": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "Redis Cluster bus listener port"
+        },
+        "metrics": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "redis_exporter listener port"
+        }
+      }
+    },
     "service": {
       "type": "object",
       "description": "Service configuration",
@@ -413,6 +444,31 @@
           "description": "Dual-stack ipFamilies (GR-058)",
           "items": { "type": "string", "enum": ["IPv4", "IPv6"] },
           "maxItems": 2
+        }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "description": "Ingress NetworkPolicy configuration",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "ingress": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "allowSameNamespace": { "type": "boolean" },
+            "extraFrom": { "type": "array", "items": { "type": "object" } }
+          }
+        },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "allowSameNamespace": { "type": "boolean" },
+            "extraFrom": { "type": "array", "items": { "type": "object" } }
+          }
         }
       }
     },
@@ -509,7 +565,14 @@
       "type": "object",
       "description": "Pod-level security context",
       "properties": {
-        "fsGroup": { "type": "integer" }
+        "fsGroup": { "type": "integer" },
+        "seccompProfile": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string", "enum": ["RuntimeDefault", "Localhost", "Unconfined"] },
+            "localhostProfile": { "type": "string" }
+          }
+        }
       }
     },
     "securityContext": {
@@ -520,7 +583,14 @@
         "runAsGroup": { "type": "integer" },
         "runAsNonRoot": { "type": "boolean" },
         "allowPrivilegeEscalation": { "type": "boolean" },
-        "readOnlyRootFilesystem": { "type": "boolean" }
+        "readOnlyRootFilesystem": { "type": "boolean" },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "add": { "type": "array", "items": { "type": "string" } },
+            "drop": { "type": "array", "items": { "type": "string" } }
+          }
+        }
       }
     },
     "podLabels": {
