@@ -1,10 +1,36 @@
 # Dawarich design
 
+## Scope
+
 The chart packages the official Rails/Sidekiq image, an official unprivileged NGINX
 proxy, HelmForge PostgreSQL with official PostGIS, and HelmForge Redis. Each database
 can instead be external. There is no custom application build or Bitnami dependency.
 
-## Process and storage ownership
+## Architecture
+
+```mermaid
+flowchart LR
+  client[Browser or API client] --> route[Ingress or HTTPRoute]
+  route --> service[Dawarich Service]
+  service --> proxy[Unprivileged NGINX proxy]
+  proxy --> rails[Rails web on loopback]
+  rails --> postgis[(PostGIS)]
+  rails --> redis[(Redis cache and queues)]
+  worker[Sidekiq worker] --> postgis
+  worker --> redis
+  rails --> files[(Application PVC)]
+  worker --> files
+  metrics[Prometheus] -. authenticated scrape .-> proxy
+  metrics -. authenticated scrape .-> worker
+  identity[Retained identity Secret] --> rails
+  identity --> worker
+```
+
+The web, worker, and proxy containers share one Recreate Pod and one application
+PVC. Bundled PostGIS and Redis remain separate stateful workloads. External
+dependency mode replaces either subchart without changing the application Pod.
+
+## Main Design Decisions
 
 A singleton Recreate Pod keeps Rails, Sidekiq and local files together. Separate
 Deployments with RWO storage would permit incompatible scheduling, and multiple web
@@ -36,7 +62,20 @@ Existing data must pass identity checks before migrations. An affected historica
 import backfill is blocked for review because its upstream migration rescues a SQL
 error; the chart does not rewrite migration history or silently repair native rows.
 
-## Dependencies and observability
+## Security Boundary
+
+The application Pod runs as UID/GID 1000 with read-only image filesystems,
+RuntimeDefault seccomp, dropped capabilities, and no Kubernetes API token.
+Password material is limited to the bootstrap init; runtime containers receive
+only the connection and identity credentials they require. Public registration
+and OAuth enrollment routes are denied by the local-account proxy policy.
+
+Cluster administrators, node access, Pod exec, and Secret readers remain trusted.
+NetworkPolicy requires an enforcing CNI and review of every policy selecting the
+same Pods. External TLS terminators, storage systems, and secret controllers are
+outside the chart trust boundary.
+
+## Observability Boundary
 
 Bundled PostGIS 18.6 uses its official amd64 manifest with an architecture selector.
 Extensions are installed as DBA; the application migrates its own objects as an
@@ -50,7 +89,7 @@ HTTP 200 from hiding worker loss. NetworkPolicy limits both ports. Readiness che
 native dependency access and the current Sidekiq heartbeat; behavior tests complete
 an actual queued import and verify its coordinates.
 
-## Recovery and boundaries
+## Production Boundary
 
 Recovery quiesces both writers and restores PostGIS plus complete local storage into
 new destinations, preserving custom SRIDs, identity, OTP login and attachment bytes.
@@ -62,3 +101,21 @@ NetworkPolicy requires an enforcing CNI and reviewed namespace policies. Ingress
 off-cluster retention, bucket controls and image vulnerability management remain
 deployment responsibilities. The chart makes no claim of independent application
 security certification.
+
+## Known Gaps
+
+- The singleton Recreate topology has an intentional maintenance interruption and
+  does not provide horizontal scaling or zero-downtime rollout.
+- The bundled official PostGIS image is pinned to amd64; other architectures need
+  an externally operated compatible PostGIS service.
+- Native S3 storage does not remove the local PVC or provide coordinated backups.
+- Recovery remains an operator-run quiesce, database dump, filesystem snapshot,
+  identity-secret retention, and restore workflow.
+
+## Non-Goals
+
+- installing Ingress, Gateway API, External Secrets, Prometheus, or storage controllers
+- managing external PostGIS, Redis, S3 bucket, DNS, or TLS lifecycle
+- supporting Redis Cluster as a replacement for distinct logical databases
+- automating Rails/OTP encryption-key rotation or repairing unsafe historical data
+- claiming application security certification from manifest hardening alone
