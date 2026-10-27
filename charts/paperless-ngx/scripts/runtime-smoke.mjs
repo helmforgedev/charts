@@ -9,13 +9,14 @@ if (!context?.startsWith('k3d-helmforge-') || !namespace || !release) {
 
 const retryableTransportError = /(?:connection reset|forcibly closed|i\/o timeout|unable to upgrade connection|websocket|\bEOF\b)/i;
 
-function kubectl(args) {
+function kubectl(args, input) {
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
       return execFileSync('kubectl', ['--context', context, '-n', namespace, ...args], {
         encoding: 'utf8',
+        input,
         timeout: 60_000,
-        stdio: ['ignore', 'pipe', 'pipe'],
+        stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
       });
     } catch (error) {
       const message = `${error.message ?? ''}\n${error.stderr ?? ''}`;
@@ -66,15 +67,32 @@ const webServicePort = webService.spec.ports.find(port => port.name === 'http').
 const smokePod = `${release}-runtime-smoke`.slice(0, 63).replace(/-+$/, '');
 kubectl(['delete', 'pod', smokePod, '--ignore-not-found=true', '--wait=true']);
 try {
-  kubectl([
-    'run', smokePod,
-    `--image=${webContainer.image}`,
-    '--restart=Never',
-    `--labels=app.kubernetes.io/instance=${release},app.kubernetes.io/component=runtime-smoke`,
-    '--command', '--',
-    'python', '-c',
-    `import urllib.request; request = urllib.request.Request("http://${webService.metadata.name}:${webServicePort}/", headers={"Host": "localhost"}); response = urllib.request.urlopen(request, timeout=15); print(response.status); response.close()`,
-  ]);
+  const requestScript = `import urllib.request; request = urllib.request.Request("http://${webService.metadata.name}:${webServicePort}/", headers={"Host": "localhost"}); response = urllib.request.urlopen(request, timeout=15); print(response.status); response.close()`;
+  const smokeManifest = {
+    apiVersion: 'v1',
+    kind: 'Pod',
+    metadata: {
+      name: smokePod,
+      labels: {
+        'app.kubernetes.io/instance': release,
+        'app.kubernetes.io/component': 'runtime-smoke',
+      },
+    },
+    spec: {
+      activeDeadlineSeconds: 60,
+      automountServiceAccountToken: false,
+      restartPolicy: 'Never',
+      securityContext: webPod.spec.securityContext,
+      containers: [{
+        name: 'runtime-smoke',
+        image: webContainer.image,
+        imagePullPolicy: webContainer.imagePullPolicy,
+        command: ['python', '-c', requestScript],
+        securityContext: webContainer.securityContext,
+      }],
+    },
+  };
+  kubectl(['apply', '-f', '-'], JSON.stringify(smokeManifest));
   let phase = '';
   for (let attempt = 0; attempt < 60; attempt += 1) {
     phase = kubectl(['get', 'pod', smokePod, '-o', 'jsonpath={.status.phase}']).trim();
