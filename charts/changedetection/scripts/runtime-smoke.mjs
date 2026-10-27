@@ -16,7 +16,7 @@ if (browserContainer) {
   if (JSON.stringify(browserContainer.command) !== JSON.stringify(['/usr/local/bin/entrypoint.sh'])) {
     throw new Error('Browser entrypoint command does not match the pinned upstream image contract');
   }
-  if (JSON.stringify(browserContainer.args) !== JSON.stringify(['--port', String(browserPort)])) {
+  if (JSON.stringify(browserContainer.args) !== JSON.stringify(['--host', '127.0.0.1', '--port', String(browserPort)])) {
     throw new Error('Browser process arguments do not match its declared listener port');
   }
   const driverUrl = app.env?.find(variable => variable.name === 'PLAYWRIGHT_DRIVER_URL')?.value;

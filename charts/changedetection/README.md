@@ -73,8 +73,10 @@ browser:
 The sidecar runs the upstream-recommended `docker.io/dgtlmoon/sockpuppetbrowser` and the main container receives
 `PLAYWRIGHT_DRIVER_URL` automatically. Keep browser resources sized separately
 from the application container when JavaScript rendering is used heavily. The
-chart passes `browser.port` to the Sockpuppet process with `--port`; it is an
-internal same-pod listener and is not published by the Service.
+chart passes `browser.port` to the Sockpuppet process with `--port`, binds its
+WebSocket listener to `127.0.0.1`, and does not publish it through the Service.
+When the browser is enabled, neither application listener may use Sockpuppet's
+fixed statistics port `8080`.
 
 ## Persistence
 
@@ -267,7 +269,7 @@ probes:
 | `changedetection.extraEnv` | `[]` | Extra environment variables |
 | `changedetection.envFrom` | `[]` | Extra envFrom sources |
 | `browser.enabled` | `false` | Enable Playwright browser sidecar |
-| `browser.port` | `3000` | Sockpuppet WebSocket listener passed to the real process |
+| `browser.port` | `3000` | Loopback Sockpuppet WebSocket listener; when enabled it must differ from `changedetection.port` and Sockpuppet statistics port `8080` |
 | `browser.image.repository` | `docker.io/dgtlmoon/sockpuppetbrowser` | Browser sidecar image repository |
 | `browser.image.tag` | `0.0.3` | Browser sidecar image tag |
 | `browser.image.digest` | `sha256:1d8f72d2ce2085faed4232e5ae1e65c02efe5b831a18e127829b267c260b4fb2` | Immutable browser sidecar image index digest |

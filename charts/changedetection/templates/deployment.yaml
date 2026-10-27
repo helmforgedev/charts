@@ -1,4 +1,15 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.browser.enabled }}
+{{- if eq (int .Values.browser.port) (int .Values.changedetection.port) }}
+{{- fail "browser.port must differ from changedetection.port because both containers share the Pod network namespace" }}
+{{- end }}
+{{- if eq (int .Values.browser.port) 8080 }}
+{{- fail "browser.port must differ from the Sockpuppet statistics port 8080" }}
+{{- end }}
+{{- if eq (int .Values.changedetection.port) 8080 }}
+{{- fail "changedetection.port must differ from the Sockpuppet statistics port 8080 when browser.enabled=true" }}
+{{- end }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -162,6 +173,8 @@ spec:
           command:
             - /usr/local/bin/entrypoint.sh
           args:
+            - --host
+            - 127.0.0.1
             - --port
             - {{ .Values.browser.port | quote }}
           ports:
@@ -169,14 +182,20 @@ spec:
               containerPort: {{ .Values.browser.port }}
               protocol: TCP
           startupProbe:
-            tcpSocket:
-              port: browser
+            exec:
+              command:
+                - python3
+                - -c
+                - {{ printf "import socket; socket.create_connection(('127.0.0.1', %d), 1).close()" (int .Values.browser.port) | quote }}
             periodSeconds: 2
             timeoutSeconds: 1
             failureThreshold: 60
           readinessProbe:
-            tcpSocket:
-              port: browser
+            exec:
+              command:
+                - python3
+                - -c
+                - {{ printf "import socket; socket.create_connection(('127.0.0.1', %d), 1).close()" (int .Values.browser.port) | quote }}
             periodSeconds: 5
             timeoutSeconds: 1
             failureThreshold: 3

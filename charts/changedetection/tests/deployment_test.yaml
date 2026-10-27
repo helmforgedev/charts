@@ -185,11 +185,17 @@ tests:
           path: spec.template.spec.containers[1].name
           value: browser
       - equal:
-          path: spec.template.spec.containers[1].startupProbe.tcpSocket.port
-          value: browser
+          path: spec.template.spec.containers[1].startupProbe.exec.command
+          value:
+            - python3
+            - -c
+            - "import socket; socket.create_connection(('127.0.0.1', 3000), 1).close()"
       - equal:
-          path: spec.template.spec.containers[1].readinessProbe.tcpSocket.port
-          value: browser
+          path: spec.template.spec.containers[1].readinessProbe.exec.command
+          value:
+            - python3
+            - -c
+            - "import socket; socket.create_connection(('127.0.0.1', 3000), 1).close()"
 
   - it: should set PLAYWRIGHT_DRIVER_URL when browser enabled
     set:
@@ -213,16 +219,48 @@ tests:
       - equal:
           path: spec.template.spec.containers[1].args
           value:
+            - --host
+            - 127.0.0.1
             - --port
             - "3010"
       - equal:
           path: spec.template.spec.containers[1].ports[0].containerPort
           value: 3010
+      - equal:
+          path: spec.template.spec.containers[1].startupProbe.exec.command[2]
+          value: "import socket; socket.create_connection(('127.0.0.1', 3010), 1).close()"
+      - equal:
+          path: spec.template.spec.containers[1].readinessProbe.exec.command[2]
+          value: "import socket; socket.create_connection(('127.0.0.1', 3010), 1).close()"
       - contains:
           path: spec.template.spec.containers[0].env
           content:
             name: PLAYWRIGHT_DRIVER_URL
             value: "ws://127.0.0.1:3010"
+
+  - it: should reject a browser listener collision with the application
+    set:
+      browser.enabled: true
+      browser.port: 5000
+    asserts:
+      - failedTemplate:
+          errorMessage: "browser.port must differ from changedetection.port because both containers share the Pod network namespace"
+
+  - it: should reject the Sockpuppet statistics port for the browser listener
+    set:
+      browser.enabled: true
+      browser.port: 8080
+    asserts:
+      - failedTemplate:
+          errorMessage: "browser.port must differ from the Sockpuppet statistics port 8080"
+
+  - it: should reject the Sockpuppet statistics port for the application listener
+    set:
+      browser.enabled: true
+      changedetection.port: 8080
+    asserts:
+      - failedTemplate:
+          errorMessage: "changedetection.port must differ from the Sockpuppet statistics port 8080 when browser.enabled=true"
 
   - it: should render envFrom sources for externalized configuration
     set:

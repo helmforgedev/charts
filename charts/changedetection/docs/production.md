@@ -96,9 +96,10 @@ browser:
 
 Browser rendering materially increases CPU and memory usage. Tune pod resources
 from observed workload behavior. `browser.port` configures the Sockpuppet
-process, its declared container port, and `PLAYWRIGHT_DRIVER_URL` together. It
-remains an internal loopback listener and should not be exposed through a
-Service.
+process, its declared container port, and `PLAYWRIGHT_DRIVER_URL` together. The
+chart also passes `--host 127.0.0.1`, so the WebSocket listener remains on
+loopback and should not be exposed through a Service. Reserve port `8080` for
+Sockpuppet's fixed statistics listener whenever the sidecar is enabled.
 
 ## Extra Python Packages
 

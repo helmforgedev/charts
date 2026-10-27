@@ -36,9 +36,10 @@ flowchart TB
 The Service selects only the application pod and targets the named `http`
 port. `changedetection.port` configures both the container declaration and the
 upstream `PORT` environment variable. When browser rendering is enabled,
-`browser.port` is passed to Sockpuppet through its `--port` argument and is
-used in `PLAYWRIGHT_DRIVER_URL`; the browser listener is never exposed by a
-Service.
+`browser.port` is passed to Sockpuppet through its `--port` argument, while
+`--host 127.0.0.1` constrains the WebSocket listener to loopback. The same
+address is used in `PLAYWRIGHT_DRIVER_URL`; the browser listener is never
+exposed by a Service.
 
 ## Design Decisions
 
@@ -48,8 +49,8 @@ Service.
   and optional Python user packages all live below `/datastore`.
 - A datastore initializer disables upstream sample watches on a fresh volume
   unless `changedetection.defaultWatches.enabled=true` is explicit.
-- The browser runs as a same-pod sidecar so its WebSocket listener stays on
-  loopback. This avoids a remotely reachable browser-control endpoint.
+- The browser runs as a same-pod sidecar and is explicitly bound to loopback.
+  This avoids a remotely reachable browser-control endpoint.
 - The browser image is pinned by digest. Its real listener is configurable
   through the supported Sockpuppet `--port` command-line option.
 - Ingress and Gateway API are independent, disabled-by-default routing
