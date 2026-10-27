@@ -86,7 +86,8 @@ from the first Ingress host or HTTPRoute hostname for simpler environments.
 NetworkPolicy permits namespace-local HTTP ingress, DNS, selected PostgreSQL and
 Redis services, and public HTTP/HTTPS. Broad public egress excludes private
 ranges; private SMTP, object-storage, Gotenberg, identity-provider, and webhook
-destinations need explicit `networkPolicy.extraEgress` rules.
+destinations need explicit `networkPolicy.extraEgress` rules. Add an Ingress or
+Gateway controller from another namespace to `networkPolicy.ingressFrom`.
 
 ## State and recovery
 
@@ -175,6 +176,7 @@ complete, commented contract, including resource and scheduling subfields.
 | `runtimeStorage.sizeLimit` | `512Mi` | Per-runtime `emptyDir` capacity |
 | `networkPolicy.enabled` | `true` | Product-aware traffic isolation |
 | `networkPolicy.egressIsolation` | `true` | Restrict application egress |
+| `networkPolicy.ingressFrom` | `[]` | Additional Ingress or Gateway controller peers |
 | `networkPolicy.extraEgress` | `[]` | Installation-specific egress rules |
 
 Every value is documented in [values.yaml](values.yaml) and checked by
@@ -185,8 +187,10 @@ Every value is documented in [values.yaml](values.yaml) and checked by
 The chart tests the default topology, BullMQ with Redis, Ingress, Gateway API,
 dual-stack Service, native External Secrets, immutable identity keys, external
 service invariants, disruption protection, autoscaling, and scale-out safety.
-The k3d smoke verifies application health, the upstream UID, generated
-identity, clean events/logs, and stable rollout.
+The chart-owned `scripts/runtime-smoke.mjs` check verifies application health,
+UID 1001, and a non-empty identity Secret. The k3d wrapper separately verifies
+rollout readiness, restart state, warning or failure events, and selected crash
+or error signatures in Pod logs.
 
 ## Security scan
 

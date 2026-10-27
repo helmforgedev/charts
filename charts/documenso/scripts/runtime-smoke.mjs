@@ -26,4 +26,4 @@ const secretName = kubectl(['get', 'deployment', deployment, '-o', 'jsonpath={.s
 const secret = kubectl(['get', 'secret', secretName, '-o', 'jsonpath={.data.nextauth-secret}']);
 if (!secret) throw new Error('application identity secret is empty');
 
-console.log(`health ok; uid=${uid}; identity secret retained`);
+console.log(`health ok; uid=${uid}; identity secret present`);

@@ -50,9 +50,10 @@ storage when configured.
   storms during a database outage.
 - Single-replica installations use `Recreate`. Horizontal scaling is accepted
   only with BullMQ and S3 because jobs and documents must be shared.
-- Generated NextAuth and encryption keys use Helm `lookup`, a retained Secret,
-  and optional existing-Secret or External Secrets contracts so application
-  identity survives upgrades.
+- Server-side Helm upgrades can preserve generated NextAuth and encryption keys
+  through `lookup`. Client-side GitOps rendering cannot perform that lookup, so
+  GitOps users must configure a stable `documenso.existingSecret`, including
+  when External Secrets materializes the Secret.
 - A signing certificate is optional for initial rollout because upstream starts
   without one, but production signing requires the PKCS#12 Secret.
 
@@ -82,16 +83,20 @@ The NetworkPolicy is additive and requires an enforcing CNI. It permits
 namespace-local application ingress, DNS, selected state services, and public
 HTTP/HTTPS while excluding private address ranges. Operators must review every
 policy in the namespace and add explicit peers for private SMTP, object storage,
-Gotenberg, identity-provider, webhook, and other integration endpoints.
+Gotenberg, identity-provider, webhook, and other integration endpoints. When an
+Ingress or Gateway controller runs in another namespace, its Pod or namespace
+selector must be included in `networkPolicy.ingressFrom`.
 
 ## Observability boundary
 
 Startup and readiness call `/api/health`; TCP liveness verifies that the process
 still accepts connections. `/api/certificate-status` provides signing
 diagnostics, and the BullMQ dashboard is available to upstream-authorized
-administrators when that provider is enabled. The runtime smoke test verifies
-the native application health response, workload identity, retained secrets,
-rollout stability, events, and crash-free logs.
+administrators when that provider is enabled. The chart-owned runtime smoke
+script verifies the native health response, UID 1001, and a non-empty identity
+Secret. The k3d wrapper separately verifies rollout readiness, warning or
+failure events, restart state, and selected crash or error signatures in Pod
+logs; it does not prove Secret retention across independent renders.
 
 Documenso does not document a native Prometheus endpoint, so the chart does not
 create a misleading ServiceMonitor. Cluster-level metrics, centralized logs,
