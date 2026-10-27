@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: NetworkPolicy
+templates:
+  - templates/networkpolicy.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should allow only the active web and DNS listeners
+    set:
+      networkPolicy.enabled: true
+      containerPorts.setup: 3100
+      containerPorts.dns: 1053
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: spec.policyTypes
+          value:
+            - Ingress
+      - contains:
+          path: spec.ingress[0].ports
+          content:
+            port: 3100
+            protocol: TCP
+      - contains:
+          path: spec.ingress[0].ports
+          content:
+            port: 1053
+            protocol: UDP
+
+  - it: should apply peer restrictions and opt-in egress isolation
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.ingressFrom:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-system
+      networkPolicy.extraEgress:
+        - to:
+            - ipBlock:
+                cidr: 1.1.1.1/32
+          ports:
+            - port: 53
+              protocol: UDP
+    asserts:
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - equal:
+          path: spec.ingress[0].from[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: ingress-system
+      - equal:
+          path: spec.egress[0].to[0].ipBlock.cidr
+          value: 1.1.1.1/32

@@ -54,6 +54,35 @@
         "type": "object"
       }
     },
+    "containerPorts": {
+      "type": "object",
+      "description": "Application listener ports",
+      "additionalProperties": false,
+      "required": ["setup", "http", "dns"],
+      "properties": {
+        "setup": {
+          "type": "integer",
+          "description": "Initial setup wizard HTTP listener",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 3000
+        },
+        "http": {
+          "type": "integer",
+          "description": "Configured admin UI HTTP listener",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 80
+        },
+        "dns": {
+          "type": "integer",
+          "description": "DNS listener used for chart-managed configuration",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 53
+        }
+      }
+    },
     "config": {
       "type": "object",
       "description": "AdGuard Home configuration",
@@ -165,6 +194,11 @@
         "annotations": {
           "type": "object",
           "description": "Annotations for the ServiceAccount"
+        },
+        "automountServiceAccountToken": {
+          "type": "boolean",
+          "description": "Mount the Kubernetes API token into chart workloads",
+          "default": false
         }
       }
     },
@@ -303,6 +337,37 @@
               "maxItems": 2
             }
           }
+        }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "description": "NetworkPolicy configuration for the AdGuard Home server",
+      "additionalProperties": false,
+      "required": ["enabled", "ingressFrom", "extraIngress", "extraEgress"],
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Restrict inbound traffic to the declared listeners",
+          "default": false
+        },
+        "ingressFrom": {
+          "type": "array",
+          "description": "NetworkPolicy peers allowed to reach web and DNS listeners; empty allows all sources",
+          "items": { "type": "object" },
+          "default": []
+        },
+        "extraIngress": {
+          "type": "array",
+          "description": "Additional complete ingress rules",
+          "items": { "type": "object" },
+          "default": []
+        },
+        "extraEgress": {
+          "type": "array",
+          "description": "Additional complete egress rules; non-empty enables egress isolation",
+          "items": { "type": "object" },
+          "default": []
         }
       }
     },

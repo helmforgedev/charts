@@ -56,6 +56,15 @@ app.kubernetes.io/component: server
 {{- if or (not (empty .Values.config.adGuardHome)) .Values.config.existingSecret -}}true{{- end -}}
 {{- end -}}
 
+{{/* Active web listener: setup wizard or configured admin UI. */}}
+{{- define "adguard-home.webPort" -}}
+{{- if (include "adguard-home.hasConfig" .) -}}
+{{- .Values.containerPorts.http -}}
+{{- else -}}
+{{- .Values.containerPorts.setup -}}
+{{- end -}}
+{{- end -}}
+
 {{/* Config secret name */}}
 {{- define "adguard-home.configSecretName" -}}
 {{- if .Values.config.existingSecret -}}

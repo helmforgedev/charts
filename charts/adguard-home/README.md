@@ -197,6 +197,22 @@ backup:
 | `config.adGuardHome` | `{}` | Pre-seed AdGuardHome.yaml config (empty = wizard mode) |
 | `config.existingSecret` | `""` | Existing Secret with `AdGuardHome.yaml` key |
 
+### Application Listeners
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `containerPorts.setup` | `3000` | Initial setup wizard listener passed to `--web-addr` |
+| `containerPorts.http` | `80` | Configured admin UI listener passed to `--web-addr` |
+| `containerPorts.dns` | `53` | DNS listener written into chart-managed `AdGuardHome.yaml` |
+
+The application listener and public Service port are independent. The active
+web listener is `containerPorts.setup` in wizard mode and `containerPorts.http`
+when a configuration is supplied. The chart passes that value to AdGuard Home's
+`--web-addr` argument, while Services continue to target the named `http` port.
+For chart-managed configuration, `containerPorts.dns` is written into
+`dns.port`. If `config.existingSecret` or a previously initialized configuration
+PVC is used, its `dns.port` must match `containerPorts.dns`.
+
 ### Persistence
 
 | Key | Default | Description |
@@ -249,6 +265,7 @@ backup:
 |-----|---------|-------------|
 | `podSecurityContext` | `{}` | Pod-level security context |
 | `securityContext` | `{}` | Main container security context |
+| `serviceAccount.automountServiceAccountToken` | `false` | Mount the Kubernetes API token into chart workloads |
 | `initPermissions.enabled` | `true` | Normalize `/opt/adguardhome/conf` and `/opt/adguardhome/work` permissions before startup |
 | `initPermissions.image.repository` | `docker.io/library/busybox` | Init permissions container image |
 | `initPermissions.image.tag` | `1.37` | Init permissions image tag |
@@ -258,6 +275,20 @@ backup:
 When `securityContext.runAsUser` or `podSecurityContext.runAsUser` is configured for a non-root runtime, pre-seed `AdGuardHome.yaml` with
 `config.adGuardHome` or `config.existingSecret`. The interactive setup wizard requires administrator privileges on first launch;
 pre-seeded mode runs successfully with non-root UID and `podSecurityContext.fsGroup`.
+
+The optional NetworkPolicy allows inbound traffic only on the active web and
+DNS listeners. With an empty `networkPolicy.ingressFrom`, those ports remain
+reachable from all sources, which preserves LoadBalancer DNS traffic. Supply
+explicit peers to restrict sources. Egress stays unrestricted unless
+`networkPolicy.extraEgress` contains rules; a non-empty list enables egress
+isolation and must include every required upstream DNS and HTTPS destination.
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `networkPolicy.enabled` | `false` | Render a NetworkPolicy for the server pod |
+| `networkPolicy.ingressFrom` | `[]` | Optional peers allowed to reach the declared listeners |
+| `networkPolicy.extraIngress` | `[]` | Additional complete ingress rules |
+| `networkPolicy.extraEgress` | `[]` | Complete egress rules; non-empty enables egress isolation |
 
 ### Sync (adguardhome-sync)
 
@@ -305,7 +336,7 @@ pre-seeded mode runs successfully with non-root UID and `podSecurityContext.fsGr
 | `externalSecrets.apiVersion` | `external-secrets.io/v1` | ExternalSecrets API version |
 | `externalSecrets.refreshInterval` | `"0"` | Refresh interval (`"0"` = create-once bootstrap) |
 | `externalSecrets.secretStoreRef.name` | `""` | SecretStore / ClusterSecretStore name — **required** |
-| `externalSecrets.secretStoreRef.kind` | `ClusterSecretStore` | Store kind |
+| `externalSecrets.secretStoreRef.kind` | `SecretStore` | Store kind |
 | `externalSecrets.target.creationPolicy` | `Owner` | Secret creation policy |
 | `externalSecrets.data` | `[]` | Data mappings — **must** include an entry with `secretKey: AdGuardHome.yaml` |
 
@@ -336,6 +367,7 @@ pre-seeded mode runs successfully with non-root UID and `podSecurityContext.fsGr
 | HTTPRoute | `gateway.enabled` | Gateway API route for the web UI |
 | ExternalSecret | `externalSecrets.enabled` | Fetches AdGuardHome.yaml from external secrets store |
 | ServiceAccount | `serviceAccount.create` | Dedicated SA |
+| NetworkPolicy | `networkPolicy.enabled` | Listener-scoped ingress and optional egress isolation |
 | Deployment (sync) | `sync.enabled` | adguardhome-sync |
 | Secret (sync) | `sync.enabled`, no `existingSecret` | Sync credentials |
 | CronJob (backup) | `backup.enabled` | Automated S3 backup |
