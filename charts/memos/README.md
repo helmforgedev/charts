@@ -123,6 +123,11 @@ provisioning:
   existingSecret: memos-provisioning
 ```
 
+This Secret replaces the chart-generated provisioning Secret; the two are not merged. If the deployment must retain
+the generated closed-registration policy while also owning private access, the replacement Secret must include both a
+complete `memos-instance-setting-general.json` with `disallowUserRegistration: true` and
+`memos-instance-setting-access.json` with `INSTANCE_ACCESS_MODE_PRIVATE`.
+
 The Secret keys become filenames and must use Memos' supported names:
 
 - `memos-idp-<label>.json`
@@ -292,9 +297,10 @@ RSS removal in the [official release notes](https://github.com/usememos/memos/re
 On the first 0.31 startup, if no `ACCESS` setting exists, Memos initializes it to `PUBLIC` when
 `memos.instanceUrl` is nonempty and to `PRIVATE` otherwise. The initialized setting is persisted, so later changes to
 `memos.instanceUrl` do not change access policy. Deployments that require private access with a canonical instance URL
-must provision `memos-instance-setting-access.json` with `INSTANCE_ACCESS_MODE_PRIVATE` before first startup. Drain
-older replicas before changing the policy during a mixed-version rollout because 0.30 still uses the legacy
-instance-URL rule.
+must provision `memos-instance-setting-access.json` with `INSTANCE_ACCESS_MODE_PRIVATE` before first startup. When
+`provisioning.existingSecret` is used, it replaces the generated closed-registration `GENERAL` policy, so include a
+complete `memos-instance-setting-general.json` in the same Secret when registration must remain closed. Drain older
+replicas before changing the policy during a mixed-version rollout because 0.30 still uses the legacy instance-URL rule.
 
 ## Backups
 

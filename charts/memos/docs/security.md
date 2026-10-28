@@ -67,7 +67,9 @@ Public access is controlled by the Memos `ACCESS` setting, not by later changes 
 Memos 0.31 startup, if no `ACCESS` setting exists, Memos initializes it to `PUBLIC` when `memos.instanceUrl` is nonempty
 and to `PRIVATE` otherwise. The initialized setting is persisted. A deployment that requires private access with a
 canonical instance URL must include `memos-instance-setting-access.json` with `INSTANCE_ACCESS_MODE_PRIVATE` in the
-provisioning Secret before first startup.
+provisioning Secret before first startup. Because `provisioning.existingSecret` replaces the generated provisioning
+Secret, it must also include a complete `memos-instance-setting-general.json` with `disallowUserRegistration: true`
+when the chart's closed-registration policy must be preserved.
 
 ## NetworkPolicy
 
