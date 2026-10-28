@@ -82,7 +82,7 @@ backend process inside the AIO image.
 | `replicaCount` | Number of replicas | `1` |
 | `ingress.enabled` | Enable Ingress | `false` |
 | `ingress.host` | Primary hostname (auto-derives all URLs) | `""` |
-| `postgresql.enabled` | Enable PostgreSQL subchart (`helmforge/postgresql` `2.0.2`) | `true` |
+| `postgresql.enabled` | Enable PostgreSQL subchart (`helmforge/postgresql` `2.1.1`) | `true` |
 | `postgresql.initdb.scripts` | Bootstrap Hoppscotch PostgreSQL extensions | `pg_trgm` |
 | `postgresqlExtensionsJob.enabled` | Run the pre-upgrade hook that ensures `pg_trgm` exists on bundled PostgreSQL PVCs before Prisma migrations | `true` |
 | `postgresqlExtensionsJob.requireExistingResources` | Only render the `pg_trgm` pre-upgrade hook when bundled PostgreSQL resources already exist | `true` |
