@@ -170,14 +170,13 @@ spec:
                   key: {{ include "hoppscotch.signingSecretKey" . }}
           securityContext: {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           resources: {{- toYaml .Values.resources | nindent 12 }}
-        - name: prepare-runtime-files
+        - name: prepare-site-files
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command:
             - sh
             - -c
             - |
-              cp -R /dist/backend/. /runtime-backend/
               cp -R /site/. /runtime-site/
           securityContext:
             allowPrivilegeEscalation: false
@@ -195,8 +194,6 @@ spec:
               cpu: 500m
               memory: 512Mi
           volumeMounts:
-            - name: backend-runtime
-              mountPath: /runtime-backend
             - name: site-runtime
               mountPath: /runtime-site
         {{- with .Values.initContainers }}
@@ -290,8 +287,6 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
           volumeMounts:
-            - name: backend-runtime
-              mountPath: /dist/backend
             - name: site-runtime
               mountPath: /site
           livenessProbe:
@@ -319,8 +314,6 @@ spec:
             periodSeconds: 10
           resources: {{- toYaml .Values.resources | nindent 12 }}
       volumes:
-        - name: backend-runtime
-          emptyDir: {}
         - name: site-runtime
           emptyDir: {}
       {{- with .Values.nodeSelector }}
