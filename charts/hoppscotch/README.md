@@ -15,8 +15,7 @@ helm install hoppscotch helmforge/hoppscotch
 ### OCI Registry
 
 ```bash
-helm install hoppscotch oci://ghcr.io/helmforgedev/helm/hoppscotch \
-  --version 1.1.2
+helm install hoppscotch oci://ghcr.io/helmforgedev/helm/hoppscotch
 ```
 
 ## Quick Start

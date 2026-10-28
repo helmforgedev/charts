@@ -255,6 +255,39 @@ tests:
           path: spec.template.spec.containers[0].resources.requests.memory
         template: deployment.yaml
 
+  - it: should render extended resources and seccomp overrides
+    set:
+      podSecurityContext:
+        seccompProfile:
+          type: Localhost
+          localhostProfile: profiles/hoppscotch-pod.json
+      containerSecurityContext:
+        seccompProfile:
+          type: Localhost
+          localhostProfile: profiles/hoppscotch-container.json
+      resources:
+        requests:
+          ephemeral-storage: 128Mi
+        limits:
+          ephemeral-storage: 256Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.localhostProfile
+          value: profiles/hoppscotch-pod.json
+        template: deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.seccompProfile.localhostProfile
+          value: profiles/hoppscotch-container.json
+        template: deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.ephemeral-storage
+          value: 128Mi
+        template: deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.ephemeral-storage
+          value: 256Mi
+        template: deployment.yaml
+
   - it: should have checksum annotations
     asserts:
       - isNotNull:

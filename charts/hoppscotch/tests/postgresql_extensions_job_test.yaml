@@ -55,3 +55,34 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
+
+  - it: should render extended resources and seccomp overrides
+    set:
+      postgresqlExtensionsJob:
+        requireExistingResources: false
+        podSecurityContext:
+          seccompProfile:
+            type: Localhost
+            localhostProfile: profiles/hoppscotch-pod.json
+        securityContext:
+          seccompProfile:
+            type: Localhost
+            localhostProfile: profiles/hoppscotch-container.json
+        resources:
+          requests:
+            ephemeral-storage: 64Mi
+          limits:
+            ephemeral-storage: 128Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.localhostProfile
+          value: profiles/hoppscotch-pod.json
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.seccompProfile.localhostProfile
+          value: profiles/hoppscotch-container.json
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.ephemeral-storage
+          value: 64Mi
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.ephemeral-storage
+          value: 128Mi

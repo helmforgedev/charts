@@ -54,9 +54,10 @@ For production, operators should define:
 
 The chart protects the workload boundary by running the application and database extension hook as non-root users,
 dropping Linux capabilities, disabling privilege escalation, and disabling Kubernetes API credential automounting by
-default. NetworkPolicy can restrict application ingress and baseline egress to DNS and PostgreSQL. TLS termination,
-OAuth application registration, SecretStore policy, and authorization within external PostgreSQL remain operator or
-platform responsibilities.
+default. NetworkPolicy can restrict application ingress. Its baseline egress rules allow DNS and PostgreSQL ports but
+do not select destination peers; operators must add destination selectors when isolation requires them. TLS
+termination, OAuth application registration, SecretStore policy, and authorization within external PostgreSQL remain
+operator or platform responsibilities.
 
 Sensitive values may come from chart-managed Secrets, explicitly named existing Secrets, or External Secrets. The
 chart never provisions the external secret backend. Operators must preserve `DATA_ENCRYPTION_KEY` and
