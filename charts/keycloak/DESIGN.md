@@ -1,5 +1,38 @@
 # Keycloak Chart Design
 
+## Scope
+
+This chart deploys the official Keycloak server as a Kubernetes Deployment for
+development or production-oriented identity workloads. It models public and
+administrative routing, database connectivity, clustered embedded caches,
+bootstrap credentials, realm import, provider and theme mounts, health,
+metrics, tracing, backup, and External Secrets integration.
+
+The chart manages Kubernetes resources around Keycloak. It does not reconcile
+realms, clients, users, identity providers, or custom extensions after startup.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  clients[OIDC and SAML clients] --> edge[Ingress, HTTPRoute, or Service]
+  admins[Administrators] --> adminEdge[Optional restricted admin route]
+  edge --> keycloak[Keycloak Deployment]
+  adminEdge --> keycloak
+  keycloak --> db[External PostgreSQL or MySQL<br/>or HelmForge database subchart]
+  keycloak <-->|JGroups cache transport| peers[Other Keycloak replicas]
+  secrets[Secret or ExternalSecret] --> keycloak
+  imports[Realm, provider, and theme volumes] --> keycloak
+  monitoring[Prometheus and tracing backend] -.-> management[Management Service]
+  management --> keycloak
+  backup[Optional backup CronJob] --> db
+  backup --> objectStore[S3-compatible object storage]
+```
+
+Public application traffic and management traffic use separate Services. In a
+multi-replica deployment, Keycloak uses the configured embedded-cache bind port
+for JGroups traffic and the upstream offset of 50000 for failure detection.
+
 ## Product Goal
 
 Deliver a Keycloak chart that is explicit about production correctness.
@@ -17,7 +50,7 @@ It should not try to behave like the Keycloak Operator.
 ## Image and Version Baseline
 
 - image: `quay.io/keycloak/keycloak`
-- starting app baseline: `26.5.5`
+- current app baseline: `26.8.1`
 
 ## Supported Modes in v1
 
@@ -259,12 +292,12 @@ pdb:
 
 ## Database Contract
 
-### `mode: dev`
+### Development mode database
 
 - local development database is allowed
 - chart should make this clearly non-production
 
-### `mode: production`
+### Production mode database
 
 - external database required
 - missing database configuration must fail template rendering with clear messages
@@ -391,6 +424,58 @@ Current preference:
   - production
   - multiple replicas
   - cache/discovery explicitly enabled
+
+## Production Boundary
+
+The chart provides production-oriented Kubernetes primitives, but the operator
+remains responsible for database high availability, database migration and
+restore testing, stable public and admin hostnames, TLS policy, capacity
+planning, PodDisruptionBudget selection, and safe upgrade sequencing.
+
+Bundled PostgreSQL or MySQL is useful for a self-contained installation, but an
+externally operated database is the recommended production boundary. Realm
+import is a startup mechanism and must not be treated as continuous desired
+state reconciliation. The bundled database defaults pre-create Liquibase's
+bookkeeping tables so a fresh multi-replica deployment can acquire the schema
+migration lock without racing table creation. External empty databases must be
+bootstrapped with one replica or prepared equivalently before scaling out.
+
+## Security Boundary
+
+- The Keycloak container runs non-root with dropped capabilities and a
+  read-only root filesystem by default.
+- Bootstrap, database, truststore, backup, and integration credentials belong
+  in Kubernetes Secrets or External Secrets; inline values are conveniences,
+  not the preferred production path.
+- The management Service is cluster-internal and is never attached to the
+  public ingress or HTTPRoute by this chart.
+- NetworkPolicy is opt-in because the chart cannot infer every ingress
+  controller, monitoring namespace, database destination, or identity-provider
+  egress dependency.
+- Keycloak realm roles, client permissions, administrator privileges, and
+  identity-provider trust are application concerns outside the chart boundary.
+
+## Observability Boundary
+
+- Startup, readiness, and liveness probes use Keycloak's management health
+  endpoints and validate the local process, not downstream identity providers.
+- The management Service can expose Keycloak metrics to an optional
+  ServiceMonitor. Prometheus installation and alert policy are external.
+- OpenTelemetry tracing and metrics endpoints can be configured, but the chart
+  does not deploy or operate the receiving backend.
+- Database, ingress, object-storage, and external identity-provider telemetry
+  must be monitored separately by the platform operator.
+
+## Current Gaps and Improvement Candidates
+
+- Realm resources are not reconciled after startup import.
+- Provider and theme artifacts must already exist in ConfigMaps, Secrets, or a
+  custom image; the chart does not build or download extensions.
+- Cross-site clustering and operator-managed rolling topology changes are not
+  implemented.
+- Backup automation covers database exports to S3-compatible storage; complete
+  disaster recovery still requires tested restore procedures and external
+  retention controls.
 
 ## Explicit Non-Goals for v1
 

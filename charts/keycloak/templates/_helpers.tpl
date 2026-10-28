@@ -541,6 +541,10 @@ true
   valueFrom:
     fieldRef:
       fieldPath: metadata.name
+{{- if gt (int .Values.replicaCount) 1 }}
+- name: KC_CACHE_EMBEDDED_NETWORK_BIND_PORT
+  value: {{ .Values.cache.embeddedNetworkBindPort | quote }}
+{{- end }}
 {{- if .Values.metrics.userEvents }}
 - name: KC_EVENT_METRICS_USER_ENABLED
   value: "true"

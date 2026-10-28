@@ -267,6 +267,8 @@ cache:
   enabled: true
   # -- Cache stack used when replicaCount > 1 in production mode
   stack: jdbc-ping
+  # -- Embedded cache transport bind port. The FD_SOCK2 failure-detection port uses the upstream +50000 offset.
+  embeddedNetworkBindPort: 7800
   multiReplicaDefaults:
     # -- Apply production-oriented scheduling defaults when replicaCount > 1 and no custom affinity/topology spread is set
     enabled: true
@@ -689,6 +691,41 @@ postgresql:
     username: keycloak
     # -- Required when using the PostgreSQL subchart so Keycloak can connect deterministically
     password: ""
+  initdb:
+    scripts:
+      10-keycloak-liquibase.sh: |
+        #!/bin/bash
+        set -euo pipefail
+        export PGPASSWORD="${POSTGRES_PASSWORD}"
+        psql --username "${POSTGRES_USER}" --dbname "${APP_DATABASE}" \
+          --set=app_username="${APP_USERNAME}" <<'SQL'
+        SET ROLE :"app_username";
+        CREATE TABLE IF NOT EXISTS public.databasechangelog (
+          id VARCHAR(255) NOT NULL,
+          author VARCHAR(255) NOT NULL,
+          filename VARCHAR(255) NOT NULL,
+          dateexecuted TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+          orderexecuted INTEGER NOT NULL,
+          exectype VARCHAR(10) NOT NULL,
+          md5sum VARCHAR(35),
+          description VARCHAR(255),
+          comments VARCHAR(255),
+          tag VARCHAR(255),
+          liquibase VARCHAR(20),
+          contexts VARCHAR(255),
+          labels VARCHAR(255),
+          deployment_id VARCHAR(10)
+        );
+        CREATE TABLE IF NOT EXISTS public.databasechangeloglock (
+          id INTEGER PRIMARY KEY,
+          locked BOOLEAN NOT NULL,
+          lockgranted TIMESTAMP WITHOUT TIME ZONE,
+          lockedby VARCHAR(255)
+        );
+        INSERT INTO public.databasechangeloglock (id, locked)
+        VALUES (1, FALSE)
+        ON CONFLICT (id) DO NOTHING;
+        SQL
 
 mysql:
   # -- Enable the local MySQL chart as the Keycloak database
@@ -699,3 +736,33 @@ mysql:
     username: keycloak
     # -- Required when using the MySQL subchart so Keycloak can connect deterministically
     password: ""
+  initdb:
+    scripts:
+      10-keycloak-liquibase.sh: |
+        #!/bin/sh
+        set -eu
+        mysql --protocol=socket -uroot -p"${MYSQL_ROOT_PASSWORD}" "${MYSQL_DATABASE}" <<'SQL'
+        CREATE TABLE IF NOT EXISTS databasechangelog (
+          id VARCHAR(255) NOT NULL,
+          author VARCHAR(255) NOT NULL,
+          filename VARCHAR(255) NOT NULL,
+          dateexecuted DATETIME NOT NULL,
+          orderexecuted INT NOT NULL,
+          exectype VARCHAR(10) NOT NULL,
+          md5sum VARCHAR(35),
+          description VARCHAR(255),
+          comments VARCHAR(255),
+          tag VARCHAR(255),
+          liquibase VARCHAR(20),
+          contexts VARCHAR(255),
+          labels VARCHAR(255),
+          deployment_id VARCHAR(10)
+        );
+        CREATE TABLE IF NOT EXISTS databasechangeloglock (
+          id INT PRIMARY KEY,
+          locked BOOLEAN NOT NULL,
+          lockgranted DATETIME,
+          lockedby VARCHAR(255)
+        );
+        INSERT IGNORE INTO databasechangeloglock (id, locked) VALUES (1, FALSE);
+        SQL

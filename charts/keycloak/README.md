@@ -284,10 +284,12 @@ postgresql:
 | `postgresql.auth.database` | Subchart database name | `keycloak` |
 | `postgresql.auth.username` | Subchart database username | `keycloak` |
 | `postgresql.auth.password` | Subchart database password | `""` |
+| `postgresql.initdb.scripts` | First-boot scripts, including Liquibase bookkeeping table bootstrap for safe multi-replica startup | built-in |
 | `mysql.enabled` | Enable MySQL subchart | `false` |
 | `mysql.auth.database` | Subchart database name | `keycloak` |
 | `mysql.auth.username` | Subchart database username | `keycloak` |
 | `mysql.auth.password` | Subchart database password | `""` |
+| `mysql.initdb.scripts` | First-boot scripts, including Liquibase bookkeeping table bootstrap for safe multi-replica startup | built-in |
 | `truststore.enabled` | Enable additional truststore paths | `false` |
 | `truststore.existingSecret` | Secret with PEM or PKCS12 trust material | `""` |
 | `truststore.existingConfigMap` | ConfigMap with PEM or PKCS12 trust material | `""` |
@@ -295,6 +297,7 @@ postgresql:
 | `truststore.kubernetes.enabled` | Trust Kubernetes/OpenShift service account CAs when mounted | `true` |
 | `replicaCount` | Number of Keycloak replicas | `1` |
 | `cache.stack` | Cache stack for multi-replica production | `jdbc-ping` |
+| `cache.embeddedNetworkBindPort` | Embedded cache transport port; failure detection uses this port plus 50000 | `7800` |
 | `cache.multiReplicaDefaults.enabled` | Apply default scheduling hints for multi-replica workloads | `true` |
 | `cache.multiReplicaDefaults.podAntiAffinity` | Generated pod anti-affinity mode | `preferred` |
 | `resources` | Explicit CPU and memory requests/limits for the main container | `{}` |

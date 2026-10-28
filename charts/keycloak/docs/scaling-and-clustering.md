@@ -29,6 +29,19 @@ For the current chart scope:
 - keep `cache.stack: jdbc-ping` unless there is a tested reason to move away from it
 - keep autoscaling outside the chart until there is a stronger Keycloak-specific operational model
 
+## Database bootstrap
+
+Fresh multi-replica startup must serialize the initial Liquibase migration. The
+bundled PostgreSQL and MySQL configurations pre-create Liquibase's bookkeeping
+tables during database initialization so every Keycloak replica uses the same
+lock before applying schema changes.
+
+For an external empty database, bootstrap the first Keycloak replica before
+scaling out, or have the database administrator create both
+`databasechangelog` and `databasechangeloglock` as described by the upstream
+Keycloak migration guide. Starting multiple replicas concurrently against an
+empty database can race while creating those bookkeeping tables.
+
 ## About `jdbc-ping`
 
 `jdbc-ping` is the current recommended stack in this chart because it keeps node discovery tied to the shared production database instead of requiring Kubernetes-specific discovery plugins.
@@ -130,9 +143,9 @@ pdb:
 
 ## Official product references
 
-- Keycloak caching and transport stacks: https://www.keycloak.org/server/caching
-- Keycloak production configuration: https://www.keycloak.org/server/configuration-production
-- Keycloak release notes: https://www.keycloak.org/docs/latest/release_notes/index.html
+- [Keycloak caching and transport stacks](https://www.keycloak.org/server/caching)
+- [Keycloak production configuration](https://www.keycloak.org/server/configuration-production)
+- [Keycloak release notes](https://www.keycloak.org/docs/latest/release_notes/index.html)
 
 <!-- @AI-METADATA
 type: chart-docs
