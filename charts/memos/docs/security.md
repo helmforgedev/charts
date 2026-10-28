@@ -73,10 +73,11 @@ supplying it replaces the complete group. Include a complete `memos-instance-set
 `disallowUserRegistration: true` when the deployment must guarantee closed registration, and preserve the intended
 `disallowPasswordAuth` value and every other field.
 
-Treat `ACCESS` and `GENERAL` updates as security-policy transitions. Drain external traffic and, for a multi-replica
-deployment, scale the StatefulSet to zero before updating the Secret. Restore replicas and traffic only after every pod
-is Ready and startup logs confirm the new files loaded. A rolling restart can leave old and new replicas enforcing
-different policies during the rollout.
+Treat `ACCESS` and `GENERAL` updates as security-policy transitions. Drain external traffic and scale the StatefulSet
+to zero before updating the Secret, regardless of `replicaCount`. Memos reads the files only during startup, and external
+Secret data is not part of the pod-template checksum. Restore replicas and traffic only after every pod is Ready and
+startup logs confirm the new files loaded. With multiple replicas, a rolling restart can leave old and new replicas
+enforcing different policies during the rollout.
 
 ## NetworkPolicy
 

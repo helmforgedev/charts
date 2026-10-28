@@ -56,9 +56,10 @@ guarantee the chart's closed-registration policy while also owning private acces
 policy.
 
 For non-security settings on a single replica, update the Secret and restart the StatefulSet. For an `ACCESS` or
-`GENERAL` policy change, first drain external traffic. When `replicaCount` is greater than one, a rolling restart can
-leave old and new replicas enforcing different policies. Scale the workload to zero before updating the Secret, then
-restore the previous replica count and traffic:
+`GENERAL` policy change, first drain external traffic. Memos reads the files only during startup, and external Secret
+data is not part of the pod-template checksum. Scale the workload to zero before updating the Secret regardless of
+`replicaCount`, then restore the previous replica count and traffic. With multiple replicas, a rolling restart can also
+leave old and new replicas enforcing different policies:
 
 ```bash
 REPLICAS=3 # Set this to the current replica count.
