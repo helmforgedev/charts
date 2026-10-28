@@ -164,6 +164,9 @@ ServiceMonitor without a stable upstream metrics endpoint.
 
 - one application replica creates an availability boundary during upgrades
 - SQLite is not an HA database and uses the same PVC as other runtime state
+- the SQLite backup CronJob archives live `/data`; concurrent writes can make
+  the SQLite files inconsistent or corrupt, so production backups require a
+  quiesced application or a SQLite-aware snapshot/backup process
 - the backup CronJob is not a continuous or transactional multi-system backup
 - SQL-mode backups still require `/data` protection for attachments and keys
 - NetworkPolicy cannot secure traffic on CNIs that do not enforce it

@@ -93,6 +93,7 @@ and back up `/data` and the database before upgrading.
 
 - enable `backup.enabled` only after confirming the selected storage mode and S3 endpoint contract
 - in `sqlite` mode the chart archives `/data` and uploads it to the configured bucket
+- the SQLite archive reads live files and is not transactionally consistent with concurrent writes; quiesce Vaultwarden or use a SQLite-aware snapshot/backup process for production recovery points
 - in `external`, `postgresql`, and `mysql` modes the chart runs a database dump and uploads the compressed result
 - the built-in backup path is intentionally focused on backup creation, not restore orchestration
 - prefer `backup.s3.caSecret` for private or self-signed certificate authorities; use `backup.s3.insecureSkipVerify` only as a temporary compatibility escape hatch

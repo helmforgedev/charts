@@ -101,7 +101,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if .Values.data.persistence.existingClaim -}}
 {{- .Values.data.persistence.existingClaim -}}
 {{- else -}}
-{{- include "vaultwarden.suffixedName" (dict "base" (include "vaultwarden.fullname" .) "suffix" "-data") -}}
+{{- printf "%s-data" (include "vaultwarden.fullname" .) -}}
 {{- end -}}
 {{- end -}}
 
@@ -214,9 +214,9 @@ sqlite
 {{- if eq $mode "external" -}}
 {{- .Values.database.external.host -}}
 {{- else if eq $mode "postgresql" -}}
-{{- include "vaultwarden.suffixedName" (dict "base" .Release.Name "suffix" "-postgresql") -}}
+{{- include "postgresql.clientServiceName" .Subcharts.postgresql -}}
 {{- else if eq $mode "mysql" -}}
-{{- include "vaultwarden.suffixedName" (dict "base" .Release.Name "suffix" "-mysql") -}}
+{{- include "mysql.clientServiceName" .Subcharts.mysql -}}
 {{- else -}}
 {{- "" -}}
 {{- end -}}
