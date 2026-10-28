@@ -63,9 +63,11 @@ Treat every matching JSON file as sensitive plaintext. Do not place provisioning
 ConfigMaps. Memos rejects invalid files before serving traffic, redacts secret fields from APIs, and keeps file-backed
 resources immutable until the file is removed and the pod restarts.
 
-Public access is controlled by the Memos `ACCESS` setting, not by `memos.instanceUrl`. For a deployment-owned private
-policy, include `memos-instance-setting-access.json` with
-`INSTANCE_ACCESS_MODE_PRIVATE` in the provisioning Secret.
+Public access is controlled by the Memos `ACCESS` setting, not by later changes to `memos.instanceUrl`. On the first
+Memos 0.31 startup, if no `ACCESS` setting exists, Memos initializes it to `PUBLIC` when `memos.instanceUrl` is nonempty
+and to `PRIVATE` otherwise. The initialized setting is persisted. A deployment that requires private access with a
+canonical instance URL must include `memos-instance-setting-access.json` with `INSTANCE_ACCESS_MODE_PRIVATE` in the
+provisioning Secret before first startup.
 
 ## NetworkPolicy
 

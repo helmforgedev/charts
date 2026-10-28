@@ -274,7 +274,6 @@ Configure ingress-controller and external-service peers before applying network 
 
 Back up the data volume and external database before upgrading. Review these upstream compatibility changes:
 
-- on the first 0.31 startup, the legacy 0.30 instance URL behavior initializes a dedicated `ACCESS` database setting
 - the shared-memo endpoint is now `GET /api/v1/shares/{share_token}/memo`
 - saved filters use CEL timestamp fields and `now` instead of `now()`; for example,
   `created_ts >= now - duration("24h")`
@@ -290,9 +289,12 @@ exports, multiple attachment backends and request hardening. Before upgrading,
 review the administrator access expansion, Shortcut-to-View API migration and
 RSS removal in the [official release notes](https://github.com/usememos/memos/releases/tag/v0.31.0).
 
-After the first 0.31 startup, changing `memos.instanceUrl` no longer changes access policy. Review the `ACCESS` setting
-in the administrator UI or provision `memos-instance-setting-access.json` explicitly. Drain older replicas before
-changing the policy during a mixed-version rollout because 0.30 still uses the legacy instance-URL rule.
+On the first 0.31 startup, if no `ACCESS` setting exists, Memos initializes it to `PUBLIC` when
+`memos.instanceUrl` is nonempty and to `PRIVATE` otherwise. The initialized setting is persisted, so later changes to
+`memos.instanceUrl` do not change access policy. Deployments that require private access with a canonical instance URL
+must provision `memos-instance-setting-access.json` with `INSTANCE_ACCESS_MODE_PRIVATE` before first startup. Drain
+older replicas before changing the policy during a mixed-version rollout because 0.30 still uses the legacy
+instance-URL rule.
 
 ## Backups
 

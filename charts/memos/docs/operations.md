@@ -38,9 +38,11 @@ memos:
   instanceUrl: https://memos.example.com
 ```
 
-The proxy must preserve `Host` and standard forwarded headers. In Memos 0.31, the canonical URL is independent from
-anonymous access. Manage public or private behavior through the administrator `ACCESS` setting or a provisioned
-`memos-instance-setting-access.json` file. RSS was removed upstream in 0.31.
+The proxy must preserve `Host` and standard forwarded headers. On the first Memos 0.31 startup, if no `ACCESS` setting
+exists, Memos initializes it to `PUBLIC` when `memos.instanceUrl` is nonempty and to `PRIVATE` otherwise. The initialized
+setting is persisted, so later changes to the canonical URL do not change anonymous access. A deployment that requires
+private access with a canonical instance URL must provision `memos-instance-setting-access.json` with
+`INSTANCE_ACCESS_MODE_PRIVATE` before first startup. RSS was removed upstream in 0.31.
 
 ## Provisioned Configuration
 
