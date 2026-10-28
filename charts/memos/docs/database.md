@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Memos Database
 
 Memos supports SQLite, MySQL, and PostgreSQL.

@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Memos Security
 
 ## Container Identity
@@ -54,12 +56,16 @@ ranges. Only use it when the targets are trusted internal services and egress is
 ## Deployment Configuration Secrets
 
 Use `provisioning.existingSecret` for OAuth2 client secrets, SMTP credentials, S3 credentials, and AI provider keys that
-Memos 0.30 loads from `/etc/secrets`. The chart mounts the Secret read-only with group-readable mode `0440` for the
+Memos 0.31 loads from `/etc/secrets`. The chart mounts the Secret read-only with group-readable mode `0440` for the
 non-root container.
 
 Treat every matching JSON file as sensitive plaintext. Do not place provisioning JSON directly in Helm values, logs, or
 ConfigMaps. Memos rejects invalid files before serving traffic, redacts secret fields from APIs, and keeps file-backed
 resources immutable until the file is removed and the pod restarts.
+
+Public access is controlled by the Memos `ACCESS` setting, not by `memos.instanceUrl`. For a deployment-owned private
+policy, include `memos-instance-setting-access.json` with
+`INSTANCE_ACCESS_MODE_PRIVATE` in the provisioning Secret.
 
 ## NetworkPolicy
 

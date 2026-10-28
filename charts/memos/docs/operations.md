@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Memos Operations
 
 ## Runtime Checks
@@ -29,17 +31,16 @@ curl --fail http://127.0.0.1:5230/healthz
 
 ## Reverse Proxy
 
-Keep `memos.instanceUrl` empty for private mode, including behind a reverse proxy. Set it explicitly only when anonymous
-access to public notes and RSS is intended:
+Set `memos.instanceUrl` to the canonical external HTTP(S) URL when links and callbacks must use the public hostname:
 
 ```yaml
 memos:
   instanceUrl: https://memos.example.com
 ```
 
-The proxy must preserve `Host` and standard forwarded headers. In Memos 0.30, `MEMOS_INSTANCE_URL` also changes
-public-content policy; it is not merely a proxy URL setting. Private notes and files still require authentication when
-public mode is enabled.
+The proxy must preserve `Host` and standard forwarded headers. In Memos 0.31, the canonical URL is independent from
+anonymous access. Manage public or private behavior through the administrator `ACCESS` setting or a provisioned
+`memos-instance-setting-access.json` file. RSS was removed upstream in 0.31.
 
 ## Provisioned Configuration
 
@@ -62,7 +63,7 @@ Before upgrading:
 1. Back up the PVC.
 2. Back up the external database if `database.driver` is `mysql` or `postgres`.
 3. Confirm the target image tag in the chart release notes.
-4. Review the 0.30 public-mode, shared API, saved-filter, and MCP compatibility notes.
+4. Review the 0.30 API/filter changes and the 0.31 access-policy, Shortcut-to-View, and RSS compatibility notes.
 5. Run the upgrade with `helm upgrade`.
 6. Watch the StatefulSet rollout, `/healthz`, and logs.
 
@@ -86,7 +87,7 @@ DSN.
 
 `Reverse proxy issues`
 
-Verify `memos.instanceUrl` and proxy forwarding headers.
+Verify `memos.instanceUrl`, proxy forwarding headers, and the independent Memos `ACCESS` policy.
 
 `Attachments missing after migration`
 
