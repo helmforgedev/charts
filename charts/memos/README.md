@@ -123,10 +123,13 @@ provisioning:
   existingSecret: memos-provisioning
 ```
 
-This Secret replaces the chart-generated provisioning Secret; the two are not merged. If the deployment must retain
-the generated closed-registration policy while also owning private access, the replacement Secret must include both a
-complete `memos-instance-setting-general.json` with `disallowUserRegistration: true` and
-`memos-instance-setting-access.json` with `INSTANCE_ACCESS_MODE_PRIVATE`.
+This Secret replaces the chart-generated provisioning Secret; the two Secret sources are not merged. Memos still
+applies precedence by setting group: a group without a file remains database-managed, while a supplied file replaces
+that complete group. To guarantee the chart's closed-registration policy while also owning private access, include both
+a complete `memos-instance-setting-general.json` with `disallowUserRegistration: true` and
+`memos-instance-setting-access.json` with `INSTANCE_ACCESS_MODE_PRIVATE`. Preserve the intended
+`disallowPasswordAuth` value and every other `GENERAL` field; omit the `GENERAL` file instead when the database must
+remain authoritative for that group.
 
 The Secret keys become filenames and must use Memos' supported names:
 
@@ -298,9 +301,11 @@ On the first 0.31 startup, if no `ACCESS` setting exists, Memos initializes it t
 `memos.instanceUrl` is nonempty and to `PRIVATE` otherwise. The initialized setting is persisted, so later changes to
 `memos.instanceUrl` do not change access policy. Deployments that require private access with a canonical instance URL
 must provision `memos-instance-setting-access.json` with `INSTANCE_ACCESS_MODE_PRIVATE` before first startup. When
-`provisioning.existingSecret` is used, it replaces the generated closed-registration `GENERAL` policy, so include a
-complete `memos-instance-setting-general.json` in the same Secret when registration must remain closed. Drain older
-replicas before changing the policy during a mixed-version rollout because 0.30 still uses the legacy instance-URL rule.
+`provisioning.existingSecret` is used, the generated `GENERAL` file is not mounted. Omitting `GENERAL` keeps the
+database policy; supplying it replaces the complete group. Include a complete `memos-instance-setting-general.json`
+when the deployment must guarantee closed registration, preserving `disallowPasswordAuth` and the other current
+policy values. Drain older replicas before changing the policy during a mixed-version rollout because 0.30 still uses
+the legacy instance-URL rule.
 
 ## Backups
 

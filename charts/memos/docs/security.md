@@ -68,8 +68,10 @@ Memos 0.31 startup, if no `ACCESS` setting exists, Memos initializes it to `PUBL
 and to `PRIVATE` otherwise. The initialized setting is persisted. A deployment that requires private access with a
 canonical instance URL must include `memos-instance-setting-access.json` with `INSTANCE_ACCESS_MODE_PRIVATE` in the
 provisioning Secret before first startup. Because `provisioning.existingSecret` replaces the generated provisioning
-Secret, it must also include a complete `memos-instance-setting-general.json` with `disallowUserRegistration: true`
-when the chart's closed-registration policy must be preserved.
+Secret source, the generated `GENERAL` file is not mounted. Omitting that file retains the database `GENERAL` policy;
+supplying it replaces the complete group. Include a complete `memos-instance-setting-general.json` with
+`disallowUserRegistration: true` when the deployment must guarantee closed registration, and preserve the intended
+`disallowPasswordAuth` value and every other field.
 
 ## NetworkPolicy
 

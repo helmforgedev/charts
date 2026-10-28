@@ -47,11 +47,13 @@ private access with a canonical instance URL must provision `memos-instance-sett
 ## Provisioned Configuration
 
 When `provisioning.existingSecret` is set, it replaces the chart-generated provisioning Secret rather than merging
-with it. Memos reads matching files from `/etc/secrets` once during startup. To retain the generated
-closed-registration policy while also owning private access, include both a complete
+the two Secret sources. Memos reads matching files from `/etc/secrets` once during startup and applies precedence by
+setting group. A group without a file remains database-managed; a supplied file replaces that complete group. To
+guarantee the chart's closed-registration policy while also owning private access, include both a complete
 `memos-instance-setting-general.json` with `disallowUserRegistration: true` and
-`memos-instance-setting-access.json` with `INSTANCE_ACCESS_MODE_PRIVATE`. After updating the Secret, restart the
-StatefulSet and watch both the rollout and startup logs:
+`memos-instance-setting-access.json` with `INSTANCE_ACCESS_MODE_PRIVATE`. Preserve the intended
+`disallowPasswordAuth` value and all other `GENERAL` fields, or omit the `GENERAL` file to retain the database
+policy. After updating the Secret, restart the StatefulSet and watch both the rollout and startup logs:
 
 ```bash
 kubectl rollout restart statefulset/memos
