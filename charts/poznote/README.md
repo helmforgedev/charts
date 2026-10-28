@@ -22,7 +22,7 @@ helm install my-release oci://ghcr.io/helmforgedev/helm/poznote --version 1.0.0
 ### Minimal Configuration
 
 ```yaml
-# Deploy with defaults -- PVC enabled, port 80
+# Deploy with defaults -- PVC enabled, Nginx listener and Service on port 80
 persistence:
   data:
     enabled: true
@@ -45,6 +45,7 @@ ingress:
 ## Features
 
 - Official upstream image pinned to stable release
+- Configurable Nginx listener independent from the client-facing Service port
 - SQLite persistence via single PVC
 - Ingress and Gateway API exposure
 - OIDC/SSO authentication support
@@ -80,6 +81,7 @@ ingress:
 |-----------|-------------|---------|
 | `app.timezone` | Container timezone | `UTC` |
 | `app.debug` | Enable debug mode | `false` |
+| `containerPorts.http` | Nginx listener inside the container | `80` |
 
 #### Persistence Parameters
 
@@ -95,7 +97,7 @@ ingress:
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `service.type` | Service type | `ClusterIP` |
-| `service.port` | Service port | `80` |
+| `service.port` | Client-facing Service port | `80` |
 | `ingress.enabled` | Enable Ingress | `false` |
 | `ingress.ingressClassName` | Ingress class | `traefik` |
 | `gatewayAPI.enabled` | Enable Gateway API | `false` |
@@ -132,6 +134,19 @@ kubectl port-forward svc/my-release-poznote 8080:80
 # Open http://127.0.0.1:8080
 # Default login: admin_change_me / admin
 ```
+
+The Service targets the named `http` port. To run Nginx on a non-default
+container port while keeping a different Service port:
+
+```yaml
+containerPorts:
+  http: 8080
+service:
+  port: 80
+```
+
+The chart passes `containerPorts.http` to the official image as
+`POZNOTE_LISTEN_PORT`; changing `service.port` alone does not move Nginx.
 
 ## Non-Goals
 
@@ -184,6 +199,22 @@ MCP user selection and optional `POZNOTE_MCP_AUTH_TOKEN` apply to the separate
 MCP server; the chart does not deploy or expose it. Review the
 [upstream releases](https://github.com/timothepoznanski/poznote/releases)
 before upgrading integrations.
+
+## Troubleshooting
+
+- Pod not ready: inspect `kubectl logs deploy/<release>-poznote` and verify the
+  data PVC is writable by GID 82.
+- Service has no response: verify `containerPorts.http` matches
+  `POZNOTE_LISTEN_PORT` in the rendered Deployment and that the Service targets
+  the named `http` port.
+- OIDC login fails: verify the Secret keys, redirect URI, issuer, and provider
+  reachability before enabling SSO-only mode.
+- Integrations time out with NetworkPolicy enabled: add only the required OIDC,
+  S3, SMTP, AI, transcription, Git, or webhook destinations to the egress rules.
+- Data is missing after restart: confirm `persistence.data.enabled=true` and
+  that the expected PVC is mounted at `/var/www/html/data`.
+
+See the [production guide](docs/production.md) for backup and restore boundaries.
 
 ## Security Scan
 
