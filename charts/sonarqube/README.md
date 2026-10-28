@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # SonarQube
 
 SonarQube Community Build for Kubernetes using the official Docker image.
@@ -19,7 +21,7 @@ helm install sonarqube helmforge/sonarqube -f values.yaml
 helm install sonarqube oci://ghcr.io/helmforgedev/helm/sonarqube -f values.yaml
 ```
 
-## What this chart covers
+## Features
 
 - official `docker.io/library/sonarqube` image
 - `embedded` mode for disposable local validation
@@ -35,6 +37,21 @@ helm install sonarqube oci://ghcr.io/helmforgedev/helm/sonarqube -f values.yaml
 - optional NetworkPolicy, PodDisruptionBudget, persistence, extra containers, and extra volumes
 - optional extra manifests for small companion resources and self-contained CI fixtures
 - Helm test pod that validates the SonarQube system status endpoint
+
+## Architecture
+
+The chart deploys one SonarQube Community Build pod behind a named-port Service.
+It connects to embedded evaluation storage, the optional HelmForge PostgreSQL
+dependency, or an external PostgreSQL service. Persistent volumes hold data and
+extensions; an optional init container installs checksum-verified plugins before
+the application starts. See [DESIGN.md](DESIGN.md) for trust boundaries, backup
+ownership, observability, and known gaps.
+
+## Examples
+
+Reusable configurations are available in [`examples/`](examples/): bundled
+PostgreSQL, external PostgreSQL, production exposure, and the community branch
+plugin. The snippets below show the main contracts directly.
 
 ## Database Modes
 
@@ -99,6 +116,8 @@ The chart can install the community branch plugin and patch the SonarQube web ap
 communityBranchPlugin:
   enabled: true
   version: "26.4.0"
+  jarSha256: ""
+  webappSha256: ""
 ```
 
 The chart pins plugin `26.4.0` independently from the SonarQube image release.
@@ -106,6 +125,19 @@ This combination is covered by the chart's plugin validation scenario; review
 upstream compatibility notes before selecting another plugin or image version.
 
 See [Community Branch Plugin](docs/community-branch-plugin.md).
+
+Additional plugins accept an optional SHA-256 checksum. URLs are supplied to the
+installer through environment variables so shell metacharacters are not
+interpreted:
+
+```yaml
+plugins:
+  enabled: true
+  install:
+    - name: sonar-auth-oidc
+      url: https://artifacts.example.com/sonar-auth-oidc.jar
+      sha256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+```
 
 ## Exposure
 
@@ -162,12 +194,16 @@ networkPolicy:
             port: 443
 ```
 
-## Main Values
+## Configuration
+
+### Main Values
 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/library/sonarqube` | Official SonarQube image repository |
 | `image.tag` | `26.8.0.126808-community` | SonarQube Community Build image tag |
+| `containerPorts.http` | `9000` | Real SonarQube listener port, wired through `SONAR_WEB_PORT` |
+| `service.port` | `9000` | Client-facing Service port; targets the named application port |
 | `sonarqube.databaseMode` | `auto` | `auto`, `embedded`, `postgresql`, or `external` |
 | `postgresql.enabled` | `false` | Deploy HelmForge PostgreSQL as a subchart |
 | `waitForDatabase.enabled` | `true` | Wait for bundled PostgreSQL before starting SonarQube |
@@ -176,6 +212,8 @@ networkPolicy:
 | `externalSecrets.enabled` | `false` | Render ExternalSecret resources |
 | `plugins.enabled` | `false` | Enable plugin download init container |
 | `communityBranchPlugin.enabled` | `false` | Install and wire the branch plugin |
+| `communityBranchPlugin.jarSha256` | `""` | Optional plugin JAR checksum |
+| `communityBranchPlugin.webappSha256` | `""` | Optional patched webapp checksum |
 | `persistence.data.enabled` | `true` | Persist SonarQube data |
 | `persistence.extensions.enabled` | `true` | Persist installed plugins |
 | `service.ipFamilyPolicy` | `~` | Optional Kubernetes Service IP family policy |
@@ -191,6 +229,21 @@ networkPolicy:
 Before production use, read [Production](docs/production.md).
 SonarQube embeds Elasticsearch and requires host kernel settings for production bootstrap checks.
 The chart defaults to disabled bootstrap checks for k3d and evaluation; production clusters should set the host requirements and use bundled or external PostgreSQL.
+
+Back up PostgreSQL together with the data and extensions volumes. The logs volume
+is optional and is not required to restore application state. The chart does not
+schedule backups or restores.
+
+## Troubleshooting
+
+- If the pod remains in `Init`, inspect the database wait or plugin installer init
+  container logs with `kubectl logs <pod> -c <container>`.
+- If readiness fails, query the configured context path followed by
+  `/api/system/status` through the Service and confirm it reports `UP`.
+- If plugin installation fails, verify outbound access, artifact compatibility,
+  and the configured SHA-256 checksum.
+- If production bootstrap checks fail, prepare the node kernel and process limits
+  documented in [Production](docs/production.md).
 
 ## References
 

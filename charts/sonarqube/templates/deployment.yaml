@@ -70,20 +70,48 @@ spec:
         - name: install-plugins
           image: "{{ .Values.plugins.image.repository }}:{{ .Values.plugins.image.tag }}"
           imagePullPolicy: {{ .Values.plugins.image.pullPolicy }}
+          env:
+            {{- range $index, $plugin := .Values.plugins.install }}
+            - name: {{ printf "HELMFORGE_PLUGIN_URL_%d" $index }}
+              value: {{ $plugin.url | quote }}
+            - name: {{ printf "HELMFORGE_PLUGIN_SHA256_%d" $index }}
+              value: {{ $plugin.sha256 | default "" | quote }}
+            {{- end }}
+            {{- if .Values.communityBranchPlugin.enabled }}
+            - name: HELMFORGE_BRANCH_PLUGIN_JAR_URL
+              value: {{ include "sonarqube.communityBranchJarUrl" . | quote }}
+            - name: HELMFORGE_BRANCH_PLUGIN_JAR_SHA256
+              value: {{ .Values.communityBranchPlugin.jarSha256 | quote }}
+            - name: HELMFORGE_BRANCH_PLUGIN_WEBAPP_URL
+              value: {{ include "sonarqube.communityBranchWebappUrl" . | quote }}
+            - name: HELMFORGE_BRANCH_PLUGIN_WEBAPP_SHA256
+              value: {{ .Values.communityBranchPlugin.webappSha256 | quote }}
+            {{- end }}
           command: ["sh", "-ec"]
           args:
             - |
               set -eu
               mkdir -p /extensions/plugins
-              {{- range .Values.plugins.install }}
-              wget -O "/extensions/plugins/{{ .name }}.jar" {{ .url | quote }}
+              download_artifact() {
+                destination="$1"
+                url_variable="$2"
+                checksum_variable="$3"
+                url="$(printenv "${url_variable}")"
+                checksum="$(printenv "${checksum_variable}")"
+                wget -O "${destination}" "${url}"
+                if [ -n "${checksum}" ]; then
+                  printf '%s  %s\n' "${checksum}" "${destination}" | sha256sum -c -
+                fi
+              }
+              {{- range $index, $plugin := .Values.plugins.install }}
+              download_artifact "/extensions/plugins/{{ $plugin.name }}.jar" {{ printf "HELMFORGE_PLUGIN_URL_%d" $index }} {{ printf "HELMFORGE_PLUGIN_SHA256_%d" $index }}
               {{- end }}
               {{- if .Values.communityBranchPlugin.enabled }}
               rm -f /extensions/plugins/sonarqube-community-branch-plugin-*.jar
               branch_plugin="/extensions/plugins/{{ include "sonarqube.communityBranchJarName" . }}"
-              wget -O "${branch_plugin}" {{ include "sonarqube.communityBranchJarUrl" . | quote }}
+              download_artifact "${branch_plugin}" HELMFORGE_BRANCH_PLUGIN_JAR_URL HELMFORGE_BRANCH_PLUGIN_JAR_SHA256
               mkdir -p /web
-              wget -O /tmp/sonarqube-webapp.zip {{ include "sonarqube.communityBranchWebappUrl" . | quote }}
+              download_artifact /tmp/sonarqube-webapp.zip HELMFORGE_BRANCH_PLUGIN_WEBAPP_URL HELMFORGE_BRANCH_PLUGIN_WEBAPP_SHA256
               unzip -o /tmp/sonarqube-webapp.zip -d /web
               rm -f /tmp/sonarqube-webapp.zip
               chmod g=u "${branch_plugin}"

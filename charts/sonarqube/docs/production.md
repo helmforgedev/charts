@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Production
 
 Use PostgreSQL for production. For a self-contained release, enable the HelmForge PostgreSQL subchart:
@@ -63,6 +65,13 @@ Use `existingClaim` when PVC lifecycle is managed outside Helm.
 
 If `postgresql.enabled=true`, also size and back up the PostgreSQL PVC according to your retention requirements.
 
+## Backup and Restore Boundary
+
+A recoverable SonarQube backup combines a consistent PostgreSQL backup with the
+data and extensions volumes. The logs volume is optional and is not required for
+application recovery. Schedule and test backups outside this chart; restoring
+only a PVC or only PostgreSQL is not a complete recovery procedure.
+
 ## Network
 
 Use Gateway API or Ingress for HTTP exposure. SonarQube should normally be served behind TLS at the edge.
@@ -89,3 +98,6 @@ sonarqube:
 ## Upgrades
 
 Read SonarSource upgrade notes before changing `image.tag`. Keep plugins compatible with the target SonarQube version, especially when `communityBranchPlugin.enabled=true`.
+
+Validate database migrations and restore readiness in a non-production namespace
+before promoting an upgrade.
