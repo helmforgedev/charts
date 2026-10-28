@@ -199,7 +199,7 @@ tests:
       plugins.enabled: true
       plugins.install:
         - name: sonar-auth-oidc
-          url: 'https://example.com/sonar-auth-oidc.jar?token=$value&shell=`date`'
+          url: 'https://example.com/sonar-auth-oidc.jar?literal=$(TOKEN)&token=$value&shell=`date`'
           sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
       communityBranchPlugin.enabled: true
       communityBranchPlugin.jarSha256: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
@@ -215,7 +215,7 @@ tests:
           path: spec.template.spec.initContainers[0].env
           content:
             name: HELMFORGE_PLUGIN_URL_0
-            value: 'https://example.com/sonar-auth-oidc.jar?token=$value&shell=`date`'
+            value: 'https://example.com/sonar-auth-oidc.jar?literal=$$(TOKEN)&token=$value&shell=`date`'
       - contains:
           path: spec.template.spec.initContainers[0].env
           content:
@@ -224,9 +224,15 @@ tests:
       - matchRegex:
           path: spec.template.spec.initContainers[0].args[0]
           pattern: 'sha256sum -c -'
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: 'temporary="\$\{destination\}\.download"'
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: 'mv -f "\$\{temporary\}" "\$\{destination\}"'
       - notMatchRegex:
           path: spec.template.spec.initContainers[0].args[0]
-          pattern: 'token=\\$value'
+          pattern: 'token=[$]value'
       - matchRegex:
           path: spec.template.spec.initContainers[0].args[0]
           pattern: "rm -f /extensions/plugins/sonarqube-community-branch-plugin-\\*.jar"

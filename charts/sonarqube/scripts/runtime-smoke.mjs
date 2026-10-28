@@ -12,7 +12,7 @@ const kubectl = (args) =>
     timeout: 120_000,
   });
 
-const selector = `app.kubernetes.io/instance=${release},app.kubernetes.io/name=sonarqube`;
+const selector = `app.kubernetes.io/instance=${release},app.kubernetes.io/component=sonarqube`;
 const services = JSON.parse(kubectl(['get', 'services', '-l', selector, '-o', 'json']));
 const service = services.items.find((item) => item.spec?.ports?.some((port) => port.name === 'http'));
 assert.ok(service, 'SonarQube Service with named http port not found');
@@ -66,8 +66,13 @@ const status = JSON.parse(statusOutput);
 assert.equal(status.status, 'UP');
 assert.equal(status.version, '26.8.0.126808');
 
-const jdbcUrl = container.env?.find((entry) => entry.name === 'SONAR_JDBC_URL')?.value;
-if (jdbcUrl !== undefined) assert.match(jdbcUrl, /^jdbc:postgresql:\/\//);
+let jdbcUrl;
+try {
+  jdbcUrl = kubectl(['exec', pod.metadata.name, '-c', 'sonarqube', '--', 'printenv', 'SONAR_JDBC_URL']).trim();
+} catch {
+  jdbcUrl = '';
+}
+if (jdbcUrl) assert.match(jdbcUrl, /^jdbc:postgresql:\/\//);
 console.log(
   `PASS SonarQube ${status.version} status=${status.status} listener=${httpContainerPort} service=${httpServicePort.port} database=${jdbcUrl ? 'postgresql' : 'embedded'}`,
 );

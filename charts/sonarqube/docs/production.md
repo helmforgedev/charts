@@ -72,6 +72,17 @@ data and extensions volumes. The logs volume is optional and is not required for
 application recovery. Schedule and test backups outside this chart; restoring
 only a PVC or only PostgreSQL is not a complete recovery procedure.
 
+Preserve the source of truth required to recreate database credentials. For
+`sonarqube.databaseMode=external`, this includes the Secret and key referenced by
+`database.external.existingSecret`, or the ExternalSecret definition plus the
+provider-side secret data. Do not rely on an inline password stored only in a
+release command or unversioned values file.
+
+For recovery, stop SonarQube, restore PostgreSQL and required volumes, and remove
+the restored `data/es8` directory from the SonarQube data volume before starting
+the Deployment. SonarQube rebuilds its Elasticsearch indexes from PostgreSQL.
+Confirm the reindex completes before declaring the recovery successful.
+
 ## Network
 
 Use Gateway API or Ingress for HTTP exposure. SonarQube should normally be served behind TLS at the edge.

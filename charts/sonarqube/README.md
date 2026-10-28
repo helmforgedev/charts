@@ -43,9 +43,9 @@ helm install sonarqube oci://ghcr.io/helmforgedev/helm/sonarqube -f values.yaml
 The chart deploys one SonarQube Community Build pod behind a named-port Service.
 It connects to embedded evaluation storage, the optional HelmForge PostgreSQL
 dependency, or an external PostgreSQL service. Persistent volumes hold data and
-extensions; an optional init container installs checksum-verified plugins before
-the application starts. See [DESIGN.md](DESIGN.md) for trust boundaries, backup
-ownership, observability, and known gaps.
+extensions; an optional init container installs optionally checksum-verified
+plugins before the application starts. See [DESIGN.md](DESIGN.md) for trust
+boundaries, backup ownership, observability, and known gaps.
 
 ## Examples
 

@@ -73,17 +73,17 @@ spec:
           env:
             {{- range $index, $plugin := .Values.plugins.install }}
             - name: {{ printf "HELMFORGE_PLUGIN_URL_%d" $index }}
-              value: {{ $plugin.url | quote }}
+              value: {{ $plugin.url | replace "$(" "$$(" | quote }}
             - name: {{ printf "HELMFORGE_PLUGIN_SHA256_%d" $index }}
               value: {{ $plugin.sha256 | default "" | quote }}
             {{- end }}
             {{- if .Values.communityBranchPlugin.enabled }}
             - name: HELMFORGE_BRANCH_PLUGIN_JAR_URL
-              value: {{ include "sonarqube.communityBranchJarUrl" . | quote }}
+              value: {{ include "sonarqube.communityBranchJarUrl" . | replace "$(" "$$(" | quote }}
             - name: HELMFORGE_BRANCH_PLUGIN_JAR_SHA256
               value: {{ .Values.communityBranchPlugin.jarSha256 | quote }}
             - name: HELMFORGE_BRANCH_PLUGIN_WEBAPP_URL
-              value: {{ include "sonarqube.communityBranchWebappUrl" . | quote }}
+              value: {{ include "sonarqube.communityBranchWebappUrl" . | replace "$(" "$$(" | quote }}
             - name: HELMFORGE_BRANCH_PLUGIN_WEBAPP_SHA256
               value: {{ .Values.communityBranchPlugin.webappSha256 | quote }}
             {{- end }}
@@ -98,10 +98,19 @@ spec:
                 checksum_variable="$3"
                 url="$(printenv "${url_variable}")"
                 checksum="$(printenv "${checksum_variable}")"
-                wget -O "${destination}" "${url}"
-                if [ -n "${checksum}" ]; then
-                  printf '%s  %s\n' "${checksum}" "${destination}" | sha256sum -c -
+                temporary="${destination}.download"
+                rm -f "${temporary}"
+                if ! wget -O "${temporary}" "${url}"; then
+                  rm -f "${temporary}"
+                  return 1
                 fi
+                if [ -n "${checksum}" ]; then
+                  if ! printf '%s  %s\n' "${checksum}" "${temporary}" | sha256sum -c -; then
+                    rm -f "${temporary}"
+                    return 1
+                  fi
+                fi
+                mv -f "${temporary}" "${destination}"
               }
               {{- range $index, $plugin := .Values.plugins.install }}
               download_artifact "/extensions/plugins/{{ $plugin.name }}.jar" {{ printf "HELMFORGE_PLUGIN_URL_%d" $index }} {{ printf "HELMFORGE_PLUGIN_SHA256_%d" $index }}
