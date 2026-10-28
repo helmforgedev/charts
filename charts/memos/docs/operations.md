@@ -53,13 +53,24 @@ guarantee the chart's closed-registration policy while also owning private acces
 `memos-instance-setting-general.json` with `disallowUserRegistration: true` and
 `memos-instance-setting-access.json` with `INSTANCE_ACCESS_MODE_PRIVATE`. Preserve the intended
 `disallowPasswordAuth` value and all other `GENERAL` fields, or omit the `GENERAL` file to retain the database
-policy. After updating the Secret, restart the StatefulSet and watch both the rollout and startup logs:
+policy.
+
+For non-security settings on a single replica, update the Secret and restart the StatefulSet. For an `ACCESS` or
+`GENERAL` policy change, first drain external traffic. When `replicaCount` is greater than one, a rolling restart can
+leave old and new replicas enforcing different policies. Scale the workload to zero before updating the Secret, then
+restore the previous replica count and traffic:
 
 ```bash
-kubectl rollout restart statefulset/memos
+REPLICAS=3 # Set this to the current replica count.
+kubectl scale statefulset/memos --replicas=0
+kubectl wait --for=delete pod -l app.kubernetes.io/name=memos --timeout=120s
+kubectl apply -f memos-provisioning-secret.yaml
+kubectl scale statefulset/memos --replicas="$REPLICAS"
 kubectl rollout status statefulset/memos
 kubectl logs statefulset/memos --tail=100
 ```
+
+Do not restore traffic until every replica is Ready and startup logs confirm that the new files loaded successfully.
 
 An unreadable file, invalid JSON, unknown field, duplicate key, or unsafe authentication combination prevents startup.
 Memos does not partially apply a file set.

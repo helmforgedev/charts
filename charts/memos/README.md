@@ -166,7 +166,16 @@ stringData:
       "generalSetting": {
         "disallowUserRegistration": true,
         "disallowPasswordAuth": false,
-        "weekStartDayOffset": 1
+        "additionalScript": "",
+        "additionalStyle": "",
+        "customProfile": {
+          "title": "",
+          "description": "",
+          "logoUrl": ""
+        },
+        "weekStartDayOffset": 1,
+        "disallowChangeUsername": false,
+        "disallowChangeNickname": false
       }
     }
 ```
