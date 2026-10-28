@@ -129,7 +129,8 @@ The chart sets `listenAddressPrometheus` to
 configures ServiceMonitor to scrape `/metrics`. The chart-managed metrics
 settings override `prometheus` and `listenAddressPrometheus` entries in a
 custom `config` so the rendered configuration and Kubernetes ports cannot
-drift.
+drift. When metrics are disabled, the chart forces `prometheus.enabled=false`
+and removes any custom Prometheus listener address.
 
 ## Persistence
 

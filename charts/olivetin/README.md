@@ -110,7 +110,9 @@ only when you intentionally want Helm to render templates inside `config`.
 
 The chart parses the result as YAML and owns the `prometheus` and
 `listenAddressPrometheus` settings so metrics work consistently with starter
-and custom configurations. See the
+and custom configurations. When metrics are disabled, it forces
+`prometheus.enabled=false` and removes any custom Prometheus listener address.
+See the
 [chart configuration guide](docs/configuration.md) and the
 [OliveTin documentation](https://docs.olivetin.app) for all available options.
 
