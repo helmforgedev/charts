@@ -3,7 +3,7 @@
 **Chart request:** helmforgedev/charts#1077
 **Requester:** drieks
 **Upstream:** [Matterbridge on GitHub](https://github.com/Luligu/matterbridge)
-**Research date:** 2026-10-16
+**Research date:** 2026-10-28
 
 ## Product and Runtime
 
@@ -11,11 +11,13 @@ Matterbridge is an Apache-2.0 Matter plugin manager. It exposes devices from
 platforms such as Zigbee2MQTT, MQTT, Home Assistant, Homebridge and Shelly to
 Matter controllers including Apple Home, Google Home and Amazon Alexa.
 
-The stable upstream release selected for this chart is `3.10.13`, published on
-2026-10-09. The official pinned image is
-`docker.io/luligu/matterbridge:3.10.13`. HelmForge manifest verification
+The stable upstream release selected for this chart is `3.10.14`, published on
+2026-10-16. The official pinned image is
+`docker.io/luligu/matterbridge:3.10.14`. HelmForge manifest verification
 confirmed `linux/amd64` and `linux/arm64` support. The selected standalone image
-reports OCI application version `3.10.13`.
+reports OCI application version `3.10.14` and includes Node.js 24. It does not
+include `ffmpeg`; camera plugins that require it are outside the hardened
+non-root, read-only default runtime contract.
 
 Year-based tags such as `2026.9.1` in the same repository are Home Assistant
 add-on images with an s6 `/init` entrypoint. They are a different distribution
@@ -182,7 +184,8 @@ does not invent an unsupported scheduled backup format.
 | Host ports collide | Pod cannot start | Singleton validation and scheduling docs |
 | PVC lost | Re-pairing may be required | Retain policy, atomic PVC and backup guide |
 | Plugin first boot is slow | False liveness failures | Generous startup probe |
-| Root runtime | Reduced hardening | Drop capabilities, no privilege escalation, no API token |
+| Root-oriented upstream entrypoint | Reduced hardening | Start the included binary directly as UID/GID 1000 |
+| Camera plugin requires `ffmpeg` | Plugin cannot stream video | Document the unsupported startup-install path; do not grant root writes |
 | UI exposed publicly | Control-plane risk | Private-access guidance and proxy/TLS documentation |
 
 ## Recommendation
@@ -196,7 +199,7 @@ reflection as supported features.
 ## Primary Sources
 
 - [Matterbridge repository](https://github.com/Luligu/matterbridge)
-- [Matterbridge 3.10.13 release](https://github.com/Luligu/matterbridge/releases/tag/3.10.13)
+- [Matterbridge 3.10.14 release](https://github.com/Luligu/matterbridge/releases/tag/3.10.14)
 - [Official Docker documentation](https://github.com/Luligu/matterbridge/blob/main/README-DOCKER.md)
 - [Official Docker Compose file](https://github.com/Luligu/matterbridge/blob/main/docker/docker-compose.yml)
 - [Official health check source](https://github.com/Luligu/matterbridge/blob/main/packages/core/src/mb_health.ts)

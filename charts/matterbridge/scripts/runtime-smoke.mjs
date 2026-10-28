@@ -15,6 +15,15 @@ const pod = pods.find(p => !p.metadata.deletionTimestamp
 assert.ok(pod, 'Ready Matterbridge pod required');
 const container = pod.spec.containers.find(c => c.name === 'matterbridge');
 const port = container.ports.find(p => p.name === 'http').containerPort;
+const frontendFlag = container.args.indexOf('--frontend');
+assert.notEqual(frontendFlag, -1, '--frontend argument required');
+const listenerPort = Number(container.args[frontendFlag + 1]);
+assert.equal(listenerPort, port, 'frontend listener must match the named container port');
+const services = JSON.parse(kubectl(['get', 'services', '-l', `app.kubernetes.io/instance=${release}`, '-o', 'json'])).items;
+const frontendService = services.find(service => service.spec.ports.some(candidate => candidate.name === 'http'));
+assert.ok(frontendService, 'Frontend Service with named http port required');
+const servicePort = frontendService.spec.ports.find(candidate => candidate.name === 'http');
+assert.equal(servicePort.targetPort, 'http', 'frontend Service must target the named container port');
 const code = `
 const fs=require('node:fs'),path=require('node:path');
 let dir=path.dirname(fs.realpathSync('/usr/local/bin/matterbridge')), version;
@@ -30,4 +39,4 @@ fetch('http://127.0.0.1:${port}/health').then(async r=>{
 const result = JSON.parse(kubectl(['exec', pod.metadata.name, '-c', 'matterbridge', '--', 'node', '-e', code]));
 assert.equal(result.version, '3.10.14');
 
-console.log('Matterbridge standalone 3.10.14: installed package version and live HTTP health verified.');
+console.log(`Matterbridge standalone 3.10.14: listener=${listenerPort} service=${servicePort.port} and live HTTP health verified.`);
