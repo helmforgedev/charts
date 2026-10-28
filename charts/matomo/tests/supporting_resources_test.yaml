@@ -1,0 +1,86 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: matomo supporting resources
+templates:
+  - configmap.yaml
+  - secret.yaml
+  - pvc.yaml
+  - serviceaccount.yaml
+  - servicemonitor.yaml
+  - extra-manifests.yaml
+tests:
+  - it: renders the PHP configuration
+    template: configmap.yaml
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: data["custom.ini"]
+          pattern: "memory_limit = 256M"
+  - it: renders an external database password Secret
+    template: secret.yaml
+    set:
+      mysql:
+        enabled: false
+      database:
+        mode: external
+        external:
+          host: mysql.example.com
+          password: test-password
+    asserts:
+      - isKind:
+          of: Secret
+      - equal:
+          path: stringData["database-password"]
+          value: test-password
+  - it: renders the application PVC
+    template: pvc.yaml
+    asserts:
+      - isKind:
+          of: PersistentVolumeClaim
+      - equal:
+          path: spec.resources.requests.storage
+          value: 10Gi
+  - it: skips the PVC for an existing claim
+    template: pvc.yaml
+    set:
+      persistence:
+        existingClaim: matomo-data
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: renders a ServiceAccount without token automounting
+    template: serviceaccount.yaml
+    asserts:
+      - isKind:
+          of: ServiceAccount
+      - equal:
+          path: automountServiceAccountToken
+          value: false
+  - it: renders a ServiceMonitor when enabled
+    template: servicemonitor.yaml
+    set:
+      metrics:
+        serviceMonitor:
+          enabled: true
+    asserts:
+      - isKind:
+          of: ServiceMonitor
+      - equal:
+          path: spec.endpoints[0].port
+          value: http
+  - it: renders operator-supplied manifests
+    template: extra-manifests.yaml
+    set:
+      extraManifests:
+        - apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: matomo-extra
+          data:
+            enabled: "true"
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: matomo-extra

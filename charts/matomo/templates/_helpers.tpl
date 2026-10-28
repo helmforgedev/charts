@@ -190,6 +190,7 @@ app.kubernetes.io/part-of: helmforge
 {{- if and .Values.gatewayAPI.enabled (empty .Values.gatewayAPI.httpRoutes) -}}{{- fail "gatewayAPI.httpRoutes must contain at least one route when gatewayAPI.enabled=true" -}}{{- end -}}
 {{- if and .Values.metrics.serviceMonitor.enabled (not .Values.metrics.serviceMonitor.interval) -}}{{- fail "metrics.serviceMonitor.interval is required when metrics.serviceMonitor.enabled=true" -}}{{- end -}}
 {{- if and (eq $databaseMode "external") (not .Values.database.external.existingSecret) (not .Values.database.external.password) (ne (include "matomo.hasDatabaseExternalSecret" .) "true") -}}{{- fail "external database mode requires database.external.password, database.external.existingSecret, or ExternalSecret targeting the database secret" -}}{{- end -}}
+{{- if and (eq .Values.webServer.mode "external") (empty .Values.extraContainers) -}}{{- fail "webServer.mode=external requires an HTTP server in extraContainers" -}}{{- end -}}
 {{- if .Values.podLabels -}}
 {{- if hasKey .Values.podLabels "app.kubernetes.io/name" -}}{{- fail "podLabels must not override app.kubernetes.io/name" -}}{{- end -}}
 {{- if hasKey .Values.podLabels "app.kubernetes.io/instance" -}}{{- fail "podLabels must not override app.kubernetes.io/instance" -}}{{- end -}}
