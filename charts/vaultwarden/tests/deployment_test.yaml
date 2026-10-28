@@ -57,6 +57,31 @@ tests:
           path: spec.template.spec.securityContext.fsGroup
           value: 1000
 
+  - it: should not automount Kubernetes API credentials
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+
+  - it: should reject pod labels that override the instance selector
+    set:
+      podLabels:
+        app.kubernetes.io/instance: custom
+    template: deployment.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: 'podLabels must not override selector label "app.kubernetes.io/instance"'
+
+  - it: should reject pod labels that override the name selector
+    set:
+      podLabels:
+        app.kubernetes.io/name: custom
+    template: deployment.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: 'podLabels must not override selector label "app.kubernetes.io/name"'
+
   - it: should have probes by default
     template: deployment.yaml
     asserts:

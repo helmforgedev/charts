@@ -1,0 +1,150 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Validation
+templates:
+  - deployment.yaml
+  - ingress.yaml
+  - backup-configmap.yaml
+  - secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should fail when ingress is enabled without hosts
+    set:
+      ingress.enabled: true
+    template: ingress.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "ingress.enabled requires ingress.hosts to contain at least one host"
+
+  - it: should fail when automatic database selection is ambiguous
+    set:
+      database.external.host: database.example.com
+      postgresql.enabled: true
+    template: secret.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "vaultwarden database selection is ambiguous: configure only one of database.external.host, postgresql.enabled, or mysql.enabled"
+
+  - it: should fail when SQLite is combined with PostgreSQL
+    set:
+      database.mode: sqlite
+      postgresql.enabled: true
+    template: secret.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.mode=sqlite cannot be combined with database.external, postgresql.enabled, or mysql.enabled"
+
+  - it: should fail when external mode has no source
+    set:
+      database.mode: external
+    template: secret.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.mode=external requires database.external.host or database.external.existingSecret"
+
+  - it: should fail when external mode is combined with a bundled database
+    set:
+      database.mode: external
+      database.external.host: database.example.com
+      postgresql.enabled: true
+    template: secret.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.mode=external cannot be combined with postgresql.enabled or mysql.enabled"
+
+  - it: should fail when PostgreSQL mode does not enable PostgreSQL
+    set:
+      database.mode: postgresql
+    template: secret.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.mode=postgresql requires postgresql.enabled=true"
+
+  - it: should fail when MySQL mode does not enable MySQL
+    set:
+      database.mode: mysql
+    template: secret.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.mode=mysql requires mysql.enabled=true"
+
+  - it: should fail when a generated database URL has no password
+    set:
+      database.mode: postgresql
+      postgresql.enabled: true
+    template: secret.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "vaultwarden database mode postgresql requires an application password value to build DATABASE_URL"
+
+  - it: should fail when SMTP has no host
+    set:
+      smtp.enabled: true
+      smtp.from: vault@example.com
+    template: deployment.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "smtp.host is required when smtp.enabled is true"
+
+  - it: should fail when SMTP has no sender
+    set:
+      smtp.enabled: true
+      smtp.host: smtp.example.com
+    template: deployment.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "smtp.from is required when smtp.enabled is true"
+
+  - it: should fail when backup has no endpoint
+    set:
+      backup.enabled: true
+    template: secret.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.s3.endpoint is required when backup.enabled is true"
+
+  - it: should fail when backup has no bucket
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.example.com
+    template: secret.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.s3.bucket is required when backup.enabled is true"
+
+  - it: should fail when backup has no credentials
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.example.com
+      backup.s3.bucket: backups
+    template: secret.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey"
+
+  - it: should fail when SQLite backup has no persistent data
+    set:
+      data.persistence.enabled: false
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.example.com
+      backup.s3.bucket: backups
+      backup.s3.existingSecret: vaultwarden-backup
+    template: secret.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup for sqlite mode requires data.persistence.enabled=true"
+
+  - it: should fail when opaque external MySQL has no backup connection override
+    set:
+      database.mode: external
+      database.external.vendor: mysql
+      database.external.existingSecret: vaultwarden-database
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.example.com
+      backup.s3.bucket: backups
+      backup.s3.existingSecret: vaultwarden-backup
+    template: secret.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup for external mysql with database.external.existingSecret requires backup.database overrides or backup.database.existingSecret"
