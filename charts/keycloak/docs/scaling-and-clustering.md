@@ -31,6 +31,8 @@ For the current chart scope:
 - treat `cache.embeddedNetworkBindPort` as an immutable rollout setting; when
   changing it, set `deployment.strategy.type: Recreate` for that rollout so
   old and new pods cannot form separate cache clusters on different ports
+- the chart applies the configured cache transport port from the first replica,
+  so later scale-out does not change the listener implicitly
 
 ## Database bootstrap
 
@@ -39,17 +41,21 @@ bundled PostgreSQL and MySQL configurations pre-create Liquibase's bookkeeping
 tables during database initialization so every Keycloak replica uses the same
 lock before applying schema changes.
 
-For an external empty database, bootstrap the first Keycloak replica before
-scaling out, or have the database administrator create both
+For an external empty PostgreSQL database, bootstrap the first Keycloak replica
+before scaling out, or have the database administrator create both
 `databasechangelog` and `databasechangeloglock` as described by the upstream
 Keycloak migration guide. Starting multiple replicas concurrently against an
 empty database can race while creating those bookkeeping tables.
 
-The bundled MySQL path enforces this staged bootstrap because concurrent
-Keycloak schema initialization can deadlock on MySQL's Liquibase row lock.
-Install with `replicaCount: 1`, wait for Keycloak to become ready, and then use
-`helm upgrade` to increase the replica count. Bundled PostgreSQL supports a
-fresh multi-replica installation with its pre-created bookkeeping tables.
+Bundled and external MySQL use an explicit staged-bootstrap contract because
+concurrent Keycloak schema initialization can deadlock on MySQL's Liquibase row
+lock. Start with `replicaCount: 1` and
+`database.mysqlSchemaInitialized: false`, wait for Keycloak to become ready,
+then set `database.mysqlSchemaInitialized: true` while increasing the replica
+count. Use the same two-step values transition in GitOps. An existing initialized
+schema may set the confirmation to `true` on its first chart deployment.
+Bundled PostgreSQL supports a fresh multi-replica installation with its
+pre-created bookkeeping tables.
 
 ## About `jdbc-ping`
 

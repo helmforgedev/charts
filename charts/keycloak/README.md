@@ -262,6 +262,7 @@ postgresql:
 | `proxy.headers` | Proxy headers mode | `xforwarded` |
 | `proxy.trustedAddresses` | Trusted proxy IPs/CIDRs | `""` |
 | `proxy.protocolEnabled` | Enable HAProxy PROXY protocol | `false` |
+| `database.mysqlSchemaInitialized` | Confirm the schema exists before running multiple replicas with bundled or external MySQL | `false` |
 | `database.external.vendor` | External database vendor | `postgres` |
 | `database.external.host` | External database host | `""` |
 | `database.external.name` | External database name | `keycloak` |
@@ -285,11 +286,11 @@ postgresql:
 | `postgresql.auth.username` | Subchart database username | `keycloak` |
 | `postgresql.auth.password` | Subchart database password | `""` |
 | `postgresql.initdb.scripts` | First-boot scripts, including Liquibase bookkeeping table bootstrap for safe multi-replica startup | built-in |
-| `mysql.enabled` | Enable MySQL subchart; fresh installs require one Keycloak replica until schema initialization completes | `false` |
+| `mysql.enabled` | Enable MySQL subchart; use the explicit staged-bootstrap confirmation before scaling out | `false` |
 | `mysql.auth.database` | Subchart database name | `keycloak` |
 | `mysql.auth.username` | Subchart database username | `keycloak` |
 | `mysql.auth.password` | Subchart database password | `""` |
-| `mysql.initdb.scripts` | First-boot scripts, including Liquibase bookkeeping table bootstrap for safe multi-replica startup | built-in |
+| `mysql.initdb.scripts` | First-boot scripts that prepare Liquibase bookkeeping tables before the required staged bootstrap | built-in |
 | `truststore.enabled` | Enable additional truststore paths | `false` |
 | `truststore.existingSecret` | Secret with PEM or PKCS12 trust material | `""` |
 | `truststore.existingConfigMap` | ConfigMap with PEM or PKCS12 trust material | `""` |

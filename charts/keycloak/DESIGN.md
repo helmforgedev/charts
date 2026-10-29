@@ -32,6 +32,8 @@ flowchart LR
 Public application traffic and management traffic use separate Services. In a
 multi-replica deployment, Keycloak uses the configured embedded-cache bind port
 for JGroups traffic and the upstream offset of 50000 for failure detection.
+The bind port is applied from the first replica so scale-out preserves the same
+listener.
 Changing that bind port requires a `Recreate` rollout because old and new pods
 cannot share a cache cluster while listening on different transport ports.
 
@@ -438,12 +440,14 @@ Bundled PostgreSQL or MySQL is useful for a self-contained installation, but an
 externally operated database is the recommended production boundary. Realm
 import is a startup mechanism and must not be treated as continuous desired
 state reconciliation. The bundled database defaults pre-create Liquibase's
-bookkeeping tables so a fresh multi-replica deployment can acquire the schema
-migration lock without racing table creation. External empty databases must be
-bootstrapped with one replica or prepared equivalently before scaling out.
-Fresh installations using bundled MySQL also start with one replica and scale
-out through a later Helm upgrade because concurrent MySQL schema migration can
-deadlock on Keycloak's Liquibase row lock.
+bookkeeping tables. Bundled PostgreSQL can therefore acquire the schema
+migration lock during fresh multi-replica startup. Empty external PostgreSQL
+databases must be bootstrapped with one replica or prepared equivalently before
+scaling out. Bundled and external MySQL require an explicit two-step transition:
+initialize with one replica, then set `database.mysqlSchemaInitialized: true`
+while scaling out. This render-time confirmation works with both Helm and GitOps
+and prevents concurrent first-start migrations from deadlocking on MySQL's
+Liquibase row lock.
 
 ## Security Boundary
 

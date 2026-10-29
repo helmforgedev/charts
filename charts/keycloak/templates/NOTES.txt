@@ -174,8 +174,9 @@ Clustering:
 - Cluster transport ports are exposed on the pod: {{ .Values.cache.embeddedNetworkBindPort }} and {{ add .Values.cache.embeddedNetworkBindPort 50000 }}.
 - Changing the cluster transport port requires a full restart; set deployment.strategy.type=Recreate for that rollout to avoid a split cache cluster.
 {{- end }}
-{{- if .Values.mysql.enabled }}
-- Bundled MySQL must initialize the Keycloak schema with one replica before scaling out through a later Helm upgrade.
+{{- if or .Values.mysql.enabled (and .Values.database.external.host (eq .Values.database.external.vendor "mysql")) }}
+- MySQL schema initialization confirmed: {{ .Values.database.mysqlSchemaInitialized }}.
+- Initialize MySQL with one replica, then set database.mysqlSchemaInitialized=true while scaling out. This explicit transition supports both Helm and GitOps.
 {{- end }}
 
 Observability:

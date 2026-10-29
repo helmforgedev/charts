@@ -45,6 +45,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- define "keycloak.validateAll" -}}
 {{- $mode := .Values.mode | default "dev" -}}
+{{- $usesExternalMySQL := and .Values.database.external.host (eq .Values.database.external.vendor "mysql") -}}
+{{- $usesMySQL := or .Values.mysql.enabled $usesExternalMySQL -}}
 {{- if not (has $mode (list "dev" "production")) -}}
   {{- fail "mode must be one of: dev, production" -}}
 {{- end -}}
@@ -68,19 +70,17 @@ app.kubernetes.io/instance: {{ .Release.Name }}
   {{- if and (gt (int .Values.replicaCount) 1) (not .Values.cache.enabled) -}}
     {{- fail "production multi-replica deployments require cache.enabled=true" -}}
   {{- end -}}
-  {{- if and .Release.IsInstall (gt (int .Values.replicaCount) 1) .Values.mysql.enabled -}}
-    {{- fail "fresh installations with bundled MySQL require replicaCount=1; complete Keycloak schema initialization, then scale out with helm upgrade" -}}
+  {{- if and (gt (int .Values.replicaCount) 1) $usesMySQL (not .Values.database.mysqlSchemaInitialized) -}}
+    {{- fail "multi-replica MySQL requires database.mysqlSchemaInitialized=true; initialize the Keycloak schema with one replica, then confirm completion before scaling out" -}}
   {{- end -}}
 {{- end -}}
-{{- if gt (int .Values.replicaCount) 1 -}}
-  {{- $transportPort := int .Values.cache.embeddedNetworkBindPort -}}
-  {{- $failureDetectionPort := add $transportPort 50000 -}}
-  {{- if and .Values.http.enabled (or (eq $transportPort (int .Values.http.port)) (eq $failureDetectionPort (int .Values.http.port))) -}}
-    {{- fail "cache transport and failure-detection ports must differ from http.port" -}}
-  {{- end -}}
-  {{- if or (eq $transportPort (int .Values.http.managementPort)) (eq $failureDetectionPort (int .Values.http.managementPort)) -}}
-    {{- fail "cache transport and failure-detection ports must differ from http.managementPort" -}}
-  {{- end -}}
+{{- $transportPort := int .Values.cache.embeddedNetworkBindPort -}}
+{{- $failureDetectionPort := add $transportPort 50000 -}}
+{{- if or (eq $transportPort (int .Values.http.port)) (eq $failureDetectionPort (int .Values.http.port)) -}}
+  {{- fail "cache transport and failure-detection ports must differ from http.port" -}}
+{{- end -}}
+{{- if or (eq $transportPort (int .Values.http.managementPort)) (eq $failureDetectionPort (int .Values.http.managementPort)) -}}
+  {{- fail "cache transport and failure-detection ports must differ from http.managementPort" -}}
 {{- end -}}
 {{- if and .Values.proxy.trustedAddresses (not .Values.proxy.headers) -}}
   {{- fail "proxy.trustedAddresses requires proxy.headers to be set" -}}
@@ -554,10 +554,8 @@ true
   valueFrom:
     fieldRef:
       fieldPath: metadata.name
-{{- if gt (int .Values.replicaCount) 1 }}
 - name: KC_CACHE_EMBEDDED_NETWORK_BIND_PORT
   value: {{ .Values.cache.embeddedNetworkBindPort | quote }}
-{{- end }}
 {{- if .Values.metrics.userEvents }}
 - name: KC_EVENT_METRICS_USER_ENABLED
   value: "true"

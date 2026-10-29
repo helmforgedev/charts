@@ -411,6 +411,34 @@ tests:
             name: failure-detector
           any: true
 
+  - it: should pin a custom cache transport port before the first scale-out
+    template: deployment.yaml
+    set:
+      mode: production
+      hostname.hostname: sso.example.com
+      database.external.host: pg-host
+      database.external.password: prodpass
+      cache.embeddedNetworkBindPort: 7900
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KC_CACHE_EMBEDDED_NETWORK_BIND_PORT
+            value: "7900"
+
+  - it: should allow multi-replica bundled MySQL after schema initialization is confirmed
+    template: deployment.yaml
+    set:
+      mode: production
+      hostname.hostname: sso.example.com
+      mysql.enabled: true
+      mysql.auth.password: prodpass
+      database.mysqlSchemaInitialized: true
+      replicaCount: 3
+    asserts:
+      - isKind:
+          of: Deployment
+
   - it: should render overridden security contexts
     template: deployment.yaml
     set:

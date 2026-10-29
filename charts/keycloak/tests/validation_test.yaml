@@ -72,6 +72,7 @@ tests:
       database.external.password: prodpass
       replicaCount: 2
       cache.embeddedNetworkBindPort: 7900
+      http.enabled: false
       http.port: 7900
     asserts:
       - failedTemplate:
@@ -90,7 +91,7 @@ tests:
       - failedTemplate:
           errorMessage: "cache transport and failure-detection ports must differ from http.managementPort"
 
-  - it: should fail a fresh multi-replica installation with bundled MySQL
+  - it: should fail multi-replica bundled MySQL until schema initialization is confirmed
     set:
       mode: production
       hostname.hostname: sso.example.com
@@ -99,7 +100,19 @@ tests:
       replicaCount: 3
     asserts:
       - failedTemplate:
-          errorMessage: "fresh installations with bundled MySQL require replicaCount=1; complete Keycloak schema initialization, then scale out with helm upgrade"
+          errorMessage: "multi-replica MySQL requires database.mysqlSchemaInitialized=true; initialize the Keycloak schema with one replica, then confirm completion before scaling out"
+
+  - it: should fail multi-replica external MySQL until schema initialization is confirmed
+    set:
+      mode: production
+      hostname.hostname: sso.example.com
+      database.external.vendor: mysql
+      database.external.host: mysql.example.com
+      database.external.password: prodpass
+      replicaCount: 3
+    asserts:
+      - failedTemplate:
+          errorMessage: "multi-replica MySQL requires database.mysqlSchemaInitialized=true; initialize the Keycloak schema with one replica, then confirm completion before scaling out"
 
   - it: should fail PDB minAvailable equal to replicaCount
     set:
