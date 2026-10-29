@@ -123,6 +123,9 @@ dedicated worker lifecycle.
 - Museum has no semantic server releases; HelmForge pins the immutable commit
   published by Ente's official production-image workflow.
 - The Prometheus listener is fixed at 2112 in the upstream binary.
+- Low Museum listener ports require the container runtime's
+  `net.ipv4.ip_unprivileged_port_start` policy to permit non-root binds; the
+  independent Service port remains the portable way to expose a low port.
 - `/ping` cannot detect object-storage or client-side CORS failures.
 - The backup CronJob covers PostgreSQL only, not live objects or Secrets.
 - Application-level replication is intentionally outside the supported HA

@@ -114,6 +114,12 @@ The Ente binary hard-codes Prometheus on port 2112, so that process listener is
 a documented fixed-protocol exception. `museum.service.metricsPort` changes the
 Service port only; its named target remains the fixed `metrics` container port.
 
+Museum runs as a non-root container with all Linux capabilities dropped. A
+listener below the runtime's `net.ipv4.ip_unprivileged_port_start` requires the
+runtime to permit non-root binds; otherwise, keep the application listener on
+an unprivileged port and expose the desired low port through
+`museum.service.port`.
+
 ## Required production inputs
 
 A production installation needs:
