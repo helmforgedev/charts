@@ -65,7 +65,9 @@ email delivery before relying on password recovery or sharing notifications.
 
 Helm uninstall deletes the chart-created application PVC. Use
 `persistence.existingClaim` when the volume lifecycle is managed independently,
-and retain tested backups before removing a release or namespace.
+set `persistence.existingClaimAccessModes` to the claim's actual access modes
+when cron or backup is enabled, and retain tested backups before removing a
+release or namespace.
 
 PostgreSQL and Redis are enabled by default. To use managed private endpoints,
 disable the corresponding subchart and provide `externalDatabase` or
@@ -85,7 +87,9 @@ exclusive lock also serializes manually instantiated Jobs with scheduled runs.
 
 The CronJob mounts the application PVC and is pinned to the application Pod's
 node by default so `ReadWriteOnce` volumes work. `ReadWriteOncePod` cannot be used
-while cron or backup is enabled. Inspect executions with `kubectl get jobs -l
+while cron or backup is enabled. Existing claims must declare their actual modes
+through `persistence.existingClaimAccessModes`; rendering fails when the value is
+missing for these multi-Pod paths. Inspect executions with `kubectl get jobs -l
 app.kubernetes.io/component=cron` and `kubectl logs job/<job-name> -c cron`.
 Set `cron.suspend: true` to retain manual Job support without scheduling runs.
 
@@ -259,6 +263,7 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md).
 | `securityContext.capabilities.drop` | capabilities drop | `["ALL"]` |
 | `persistence.enabled` | Enable the complete /var/www/html PVC. | `true` |
 | `persistence.existingClaim` | Reuse a PVC, including a restored instance. | `""` |
+| `persistence.existingClaimAccessModes` | Actual access modes of existingClaim; required when cron or backup is enabled. | `[]` |
 | `persistence.storageClass` | Storage class; empty uses the cluster default. | `""` |
 | `persistence.accessModes` | Access modes for the single application writer. | `["ReadWriteOnce"]` |
 | `persistence.size` | Requested volume size. | `"10Gi"` |

@@ -35,9 +35,14 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- define "nextcloud.redisSecret" -}}{{ if .Values.redis.enabled }}{{ include "redis.secretName" .Subcharts.redis }}{{ else }}{{ .Values.externalRedis.existingSecret }}{{ end }}{{- end -}}
 {{- define "nextcloud.redisKey" -}}{{ if .Values.redis.enabled }}{{ .Values.redis.auth.existingSecretPasswordKey }}{{ else }}{{ .Values.externalRedis.existingSecretPasswordKey }}{{ end }}{{- end -}}
 {{- define "nextcloud.validate" -}}
+{{- $claimAccessModes := .Values.persistence.accessModes -}}
+{{- if .Values.persistence.existingClaim -}}
+{{- $claimAccessModes = .Values.persistence.existingClaimAccessModes -}}
+{{- if and (or .Values.cron.enabled .Values.backup.enabled) (empty $claimAccessModes) -}}{{ fail "persistence.existingClaimAccessModes must declare the existing PVC access modes when cron.enabled or backup.enabled is true" }}{{- end -}}
+{{- end -}}
 {{- if and .Values.cron.enabled (not .Values.persistence.enabled) -}}{{ fail "cron.enabled requires persistence.enabled=true so the CronJob can execute the installed application" }}{{- end -}}
-{{- if and .Values.cron.enabled (has "ReadWriteOncePod" .Values.persistence.accessModes) -}}{{ fail "cron.enabled is incompatible with ReadWriteOncePod because the application and CronJob must mount the PVC from separate Pods" }}{{- end -}}
-{{- if and .Values.backup.enabled (has "ReadWriteOncePod" .Values.persistence.accessModes) -}}{{ fail "backup.enabled is incompatible with ReadWriteOncePod because the application and backup Job must mount the PVC from separate Pods" }}{{- end -}}
+{{- if and .Values.cron.enabled (has "ReadWriteOncePod" $claimAccessModes) -}}{{ fail "cron.enabled is incompatible with ReadWriteOncePod because the application and CronJob must mount the PVC from separate Pods" }}{{- end -}}
+{{- if and .Values.backup.enabled (has "ReadWriteOncePod" $claimAccessModes) -}}{{ fail "backup.enabled is incompatible with ReadWriteOncePod because the application and backup Job must mount the PVC from separate Pods" }}{{- end -}}
 {{- if and .Values.backup.enabled .Values.restore.enabled -}}{{ fail "backup.enabled and restore.enabled cannot both be true" }}{{- end -}}
 {{- if or .Values.backup.enabled .Values.restore.enabled -}}
 {{- if not .Values.persistence.enabled -}}{{ fail "backup and restore require persistence.enabled=true" }}{{- end -}}

@@ -93,7 +93,10 @@ the Kubernetes CronJob controller's concurrency policy.
 
 Default required Pod affinity keeps the Job on the application node for RWO
 volumes. `ReadWriteOncePod` is incompatible while cron or backup is enabled
-because each Job mounts the application claim from a separate Pod.
+because each Job mounts the application claim from a separate Pod. For a
+platform-managed PVC, `persistence.existingClaimAccessModes` must explicitly
+declare the claim's real modes before either multi-Pod path can render; local
+Helm rendering cannot reliably inspect cluster objects.
 
 ### Backup and restore coordination
 
