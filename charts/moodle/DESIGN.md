@@ -81,8 +81,9 @@ controller.
 
 ## Security boundary
 
-Apache and PHP run as UID/GID 33 on configurable unprivileged listeners with no
-added capabilities, no privilege escalation and read-only root/code filesystems.
+Apache and PHP run as UID/GID 33 on configurable unprivileged listeners in the
+1024-65535 range, with no added capabilities, no privilege escalation and
+read-only root/code filesystems.
 The public document root excludes `config.php`, CLI scripts and rendered values.
 Application, database, Redis, SMTP and metrics credentials come from Secrets.
 

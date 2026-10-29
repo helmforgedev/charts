@@ -68,8 +68,9 @@ if ($settings['metrics']['enabled']) {
     $CFG->forced_plugin_settings['monitoringexporter_prometheus']['prometheus_token'] = $token;
     // Prometheus connects to pod IPs on the private listener. Present Moodle's
     // canonical origin internally so its routing does not redirect the scrape.
-    // SERVER_PORT is supplied by Apache, not a forwarded client header.
-    if (($_SERVER['SERVER_PORT'] ?? '') === (string)$settings['metrics']['port']) {
+    // This marker is set only by the private Apache VirtualHost. SERVER_PORT
+    // cannot identify the socket because UseCanonicalName Off honors Host.
+    if (($_SERVER['HELMFORGE_METRICS_LISTENER'] ?? '') === '1') {
         $origin = parse_url($CFG->wwwroot);
         $_SERVER['HTTP_HOST'] = $origin['host'] . (isset($origin['port']) ? ':' . $origin['port'] : '');
         $_SERVER['SERVER_NAME'] = $origin['host'];

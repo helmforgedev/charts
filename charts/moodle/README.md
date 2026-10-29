@@ -397,7 +397,7 @@ Optional authenticated Moodle application metrics through tool_monitoring.
 | Parameter | Default | Meaning |
 | --- | --- | --- |
 | `metrics.enabled` | `false` | Install/configure the plugin and expose a private metrics listener. |
-| `metrics.port` | `9090` | Private Apache metrics listener and metrics Service port. |
+| `metrics.port` | `9090` | Private unprivileged Apache metrics listener and metrics Service port (1024-65535). |
 | `metrics.existingSecret` | `""` | Existing Secret containing the bearer token; empty generates a retained Secret. |
 | `metrics.existingSecretTokenKey` | `token` | Key containing a nonempty token in the metrics Secret. |
 | `metrics.plugin.mode` | `archive` | archive downloads pinned source; image requires the plugin in the application image. |
@@ -571,7 +571,7 @@ Container listeners configured in the chart-owned Apache configuration.
 
 | Parameter | Default | Meaning |
 | --- | --- | --- |
-| `containerPorts.http` | `8080` | Moodle web application listener. |
+| `containerPorts.http` | `8080` | Moodle unprivileged web application listener (1024-65535). |
 
 ### service
 
