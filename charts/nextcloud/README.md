@@ -99,6 +99,20 @@ Nextcloud app plus the upstream setup test.
 
 See [setup, verification and lifecycle instructions](docs/integrations.md) before enabling them.
 
+## Architecture
+
+The chart deliberately runs a single Nextcloud Apache replica with `Recreate`
+updates. The application Pod, background CronJob, bundled or external
+PostgreSQL, and standalone Redis share one consistency boundary. The complete
+application PVC and PostgreSQL database must be backed up and restored
+together; Redis is runtime state, not a backup substitute.
+
+Optional Imaginary and Client Push containers share the application Pod
+lifecycle. Backup and restore Jobs coordinate the application, background cron,
+PVC, PostgreSQL, and S3-compatible backup storage. See [DESIGN.md](DESIGN.md)
+for the topology, security boundary, production responsibilities, and explicit
+non-goals.
+
 ## Backup and restore
 
 Integrated backups stop the application and cron, capture PostgreSQL and the
@@ -110,6 +124,24 @@ administrator credentials, fresh PVC and empty database.
 See [backup and restore](docs/backup-restore.md) before enabling the schedule.
 Retain external Secrets separately. Practice restoration and verify non-admin
 login, file contents/identities, shares, settings and new writes.
+
+## Troubleshooting
+
+Start with Kubernetes state and the application logs:
+
+```bash
+kubectl -n nextcloud get pods,jobs,cronjobs,pvc
+kubectl -n nextcloud logs deployment/nextcloud -c nextcloud --tail=200
+kubectl -n nextcloud describe pod -l app.kubernetes.io/instance=nextcloud
+```
+
+For background processing, inspect the latest cron Job and its `cron`
+container. For backup or restore failures, do not remove a retained coordination
+lock or scale the application manually until the failure boundary is understood;
+follow the recovery procedure in [backup and restore](docs/backup-restore.md).
+When optional Client Push setup cannot reach the App Store, distinguish network
+policy or upstream availability from application compatibility before retrying;
+see [integrations](docs/integrations.md).
 
 ## Examples and operational guides
 
