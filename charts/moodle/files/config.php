@@ -69,7 +69,7 @@ if ($settings['metrics']['enabled']) {
     // Prometheus connects to pod IPs on the private listener. Present Moodle's
     // canonical origin internally so its routing does not redirect the scrape.
     // SERVER_PORT is supplied by Apache, not a forwarded client header.
-    if (($_SERVER['SERVER_PORT'] ?? '') === '9090') {
+    if (($_SERVER['SERVER_PORT'] ?? '') === (string)$settings['metrics']['port']) {
         $origin = parse_url($CFG->wwwroot);
         $_SERVER['HTTP_HOST'] = $origin['host'] . (isset($origin['port']) ? ':' . $origin['port'] : '');
         $_SERVER['SERVER_NAME'] = $origin['host'];

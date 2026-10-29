@@ -7,7 +7,7 @@ metadata:
     {{- include "moodle.labels" . | nindent 4 }}
 data:
   settings.json: |
-    {{- dict "moodle" (omit .Values.moodle "adminPassword" "extraConfig" "extraEnv" "extraEnvFrom") "database" .Values.database "sessions" .Values.sessions "smtp" .Values.smtp "metrics" .Values.metrics | toPrettyJson | nindent 4 }}
+    {{- dict "moodle" (omit .Values.moodle "adminPassword" "extraConfig" "extraEnv" "extraEnvFrom") "database" .Values.database "sessions" .Values.sessions "smtp" .Values.smtp "metrics" .Values.metrics "containerPorts" .Values.containerPorts "service" (dict "port" .Values.service.port) | toPrettyJson | nindent 4 }}
   extra-config.php: |
     <?php
     // SPDX-License-Identifier: Apache-2.0
@@ -43,9 +43,9 @@ data:
     PidFile /tmp/apache.pid
     DefaultRuntimeDir /tmp
     Mutex file:/tmp default
-    Listen 8080
+    Listen {{ .Values.containerPorts.http }}
     {{- if .Values.metrics.enabled }}
-    Listen 9090
+    Listen {{ .Values.metrics.port }}
     {{- end }}
     IncludeOptional /etc/apache2/mods-enabled/*.load
     IncludeOptional /etc/apache2/mods-enabled/*.conf
@@ -92,7 +92,7 @@ data:
     <LocationMatch "^/(r.php/)?monitoringexporter_prometheus/">
       Require all denied
     </LocationMatch>
-    <VirtualHost *:9090>
+    <VirtualHost *:{{ .Values.metrics.port }}>
       <Location />
         Require all denied
       </Location>

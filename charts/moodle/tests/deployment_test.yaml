@@ -19,6 +19,42 @@ tests:
           value: >-
             docker.io/moodlehq/moodle-php-apache:8.4-bookworm@sha256:922af51668352004b4255cdc1f726a63f0cee7c1354eaf66dd8d5f2c7cc379b5
     template: templates/deployment.yaml
+  - it: configures the default Apache web listener
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8080
+    template: templates/deployment.yaml
+  - it: configures independent web and metrics listeners
+    set:
+      containerPorts.http: 18080
+      service.port: 18081
+      metrics.enabled: true
+      metrics.port: 19090
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 18080
+      - equal:
+          path: spec.template.spec.containers[0].ports[1].containerPort
+          value: 19090
+    template: templates/deployment.yaml
+  - it: renders listener overrides into Apache configuration
+    set:
+      containerPorts.http: 18080
+      metrics.enabled: true
+      metrics.port: 19090
+    asserts:
+      - matchRegex:
+          path: data["apache.conf"]
+          pattern: "(?m)^Listen 18080$"
+      - matchRegex:
+          path: data["apache.conf"]
+          pattern: "(?m)^Listen 19090$"
+      - matchRegex:
+          path: data["apache.conf"]
+          pattern: "<VirtualHost \\*:19090>"
+    template: templates/configmap.yaml
   - it: separates verified code preparation from database installation
     asserts:
       - equal:

@@ -38,7 +38,8 @@ Prometheus Operator and its CRDs must already exist. Configure its ServiceMonito
 and PrometheusRule selectors to match the labels above and include the Moodle
 namespace. The chart does not install Prometheus itself.
 
-The dedicated ClusterIP Service listens on port 9090. Only
+The dedicated ClusterIP Service and private Apache listener use `metrics.port`,
+which defaults to `9090`. Only
 `/r.php/monitoringexporter_prometheus/metrics` is allowed on that listener, with
 Bearer authentication. Missing and invalid tokens return 403. The application
 listener rejects the monitoring route, including requests with valid tokens.

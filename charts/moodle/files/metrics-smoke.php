@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // Lab-only behavioral verification, including a temporary course when Prometheus is present.
 $service = $argv[1];
-$publicService = $argv[2];
-$prometheus = $argv[3] ?? '';
+$metricsPort = (int)$argv[2];
+$publicService = $argv[3];
+$prometheus = $argv[4] ?? '';
 $path = '/r.php/monitoringexporter_prometheus/metrics';
 function http(string $url, array $headers = []): array {
     $curl = curl_init($url);
@@ -16,10 +17,10 @@ function http(string $url, array $headers = []): array {
 }
 $token = trim(file_get_contents('/opt/metrics-auth/token'));
 foreach (['', 'invalid-lab-token'] as $invalid) {
-    [$status] = http("http://$service:9090$path", $invalid === '' ? [] : ['Authorization: Bearer ' . $invalid]);
+    [$status] = http("http://$service:$metricsPort$path", $invalid === '' ? [] : ['Authorization: Bearer ' . $invalid]);
     if ($status !== 403) { throw new RuntimeException('Metrics must reject missing and invalid tokens'); }
 }
-[$status, $body] = http("http://$service:9090$path", ['Authorization: Bearer ' . $token]);
+[$status, $body] = http("http://$service:$metricsPort$path", ['Authorization: Bearer ' . $token]);
 if ($status !== 200 || str_contains($body, '<?php')) { throw new RuntimeException('Authenticated metrics failed'); }
 $settings = json_decode(file_get_contents('/opt/helmforge/settings.json'), true, 512, JSON_THROW_ON_ERROR);
 foreach ($settings['metrics']['enabledMetrics'] as $metric) {
@@ -29,7 +30,7 @@ foreach ($settings['metrics']['enabledMetrics'] as $metric) {
 }
 [$status] = http("http://$publicService$path", ['Authorization: Bearer ' . $token]);
 if ($status !== 403) { throw new RuntimeException('Metrics route must be blocked on the public listener'); }
-[$status] = http("http://$service:9090/login/index.php");
+[$status] = http("http://$service:$metricsPort/login/index.php");
 if ($status !== 403) { throw new RuntimeException('Private listener must not expose login pages'); }
 echo "Metrics: missing/invalid token 403, authenticated 200, expected families, listener isolation verified\n";
 if ($prometheus === '') { exit(0); }

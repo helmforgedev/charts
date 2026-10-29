@@ -10,7 +10,7 @@ verified before extraction. MoodleHQ's image supplies the runtime, not the LMS.
 
 ## Features
 
-- Read-only Moodle code, non-root Apache on port 8080, dropped capabilities.
+- Read-only Moodle code, configurable non-root Apache listeners, dropped capabilities.
 - PostgreSQL, MySQL or MariaDB: external servers or selectable HelmForge subcharts.
 - Verified database TLS, custom connection ports and existing credential Secrets.
 - Serialized first installation using upstream CLI and database advisory locks.
@@ -397,6 +397,7 @@ Optional authenticated Moodle application metrics through tool_monitoring.
 | Parameter | Default | Meaning |
 | --- | --- | --- |
 | `metrics.enabled` | `false` | Install/configure the plugin and expose a private metrics listener. |
+| `metrics.port` | `9090` | Private Apache metrics listener and metrics Service port. |
 | `metrics.existingSecret` | `""` | Existing Secret containing the bearer token; empty generates a retained Secret. |
 | `metrics.existingSecretTokenKey` | `token` | Key containing a nonempty token in the metrics Secret. |
 | `metrics.plugin.mode` | `archive` | archive downloads pinned source; image requires the plugin in the application image. |
@@ -410,7 +411,7 @@ Optional authenticated Moodle application metrics through tool_monitoring.
 | `metrics.serviceMonitor.scrapeTimeout` | `20s` | Per-scrape timeout, lower than interval. |
 | `metrics.serviceMonitor.relabelings` | `[]` | Target relabeling rules. |
 | `metrics.serviceMonitor.metricRelabelings` | `[]` | Metric relabeling rules; avoid summing global Moodle counts across web replicas. |
-| `metrics.ingressFrom` | `[]` | Allowed metrics clients when NetworkPolicy is enabled; empty permits any client on port 9090. |
+| `metrics.ingressFrom` | `[]` | Allowed metrics clients when NetworkPolicy is enabled; empty permits any client on `metrics.port`. |
 | `metrics.prometheusRule.enabled` | `false` | Create scrape availability and persistent overdue-task alerts; requires ServiceMonitor. |
 | `metrics.prometheusRule.labels` | `{}` | Labels matching the Prometheus ruleSelector. |
 | `metrics.prometheusRule.unavailableFor` | `5m` | How long all scrape targets must be missing or down before alerting. |
@@ -564,6 +565,14 @@ Dedicated service account configuration.
 | `serviceAccount.name` | `""` | Account name override. |
 | `serviceAccount.annotations` | `{}` | Account annotations. |
 
+### containerPorts
+
+Container listeners configured in the chart-owned Apache configuration.
+
+| Parameter | Default | Meaning |
+| --- | --- | --- |
+| `containerPorts.http` | `8080` | Moodle web application listener. |
+
 ### service
 
 Web service options.
@@ -571,7 +580,7 @@ Web service options.
 | Parameter | Default | Meaning |
 | --- | --- | --- |
 | `service.type` | `ClusterIP` | Service type. |
-| `service.port` | `80` | Service port; Apache listens on unprivileged 8080. |
+| `service.port` | `80` | Service port, independent from `containerPorts.http`. |
 | `service.annotations` | `{}` | Service annotations. |
 
 ### ingress
