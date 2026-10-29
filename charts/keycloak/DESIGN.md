@@ -32,6 +32,8 @@ flowchart LR
 Public application traffic and management traffic use separate Services. In a
 multi-replica deployment, Keycloak uses the configured embedded-cache bind port
 for JGroups traffic and the upstream offset of 50000 for failure detection.
+Changing that bind port requires a `Recreate` rollout because old and new pods
+cannot share a cache cluster while listening on different transport ports.
 
 ## Product Goal
 
@@ -439,6 +441,9 @@ state reconciliation. The bundled database defaults pre-create Liquibase's
 bookkeeping tables so a fresh multi-replica deployment can acquire the schema
 migration lock without racing table creation. External empty databases must be
 bootstrapped with one replica or prepared equivalently before scaling out.
+Fresh installations using bundled MySQL also start with one replica and scale
+out through a later Helm upgrade because concurrent MySQL schema migration can
+deadlock on Keycloak's Liquibase row lock.
 
 ## Security Boundary
 

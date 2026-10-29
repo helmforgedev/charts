@@ -68,6 +68,19 @@ app.kubernetes.io/instance: {{ .Release.Name }}
   {{- if and (gt (int .Values.replicaCount) 1) (not .Values.cache.enabled) -}}
     {{- fail "production multi-replica deployments require cache.enabled=true" -}}
   {{- end -}}
+  {{- if and .Release.IsInstall (gt (int .Values.replicaCount) 1) .Values.mysql.enabled -}}
+    {{- fail "fresh installations with bundled MySQL require replicaCount=1; complete Keycloak schema initialization, then scale out with helm upgrade" -}}
+  {{- end -}}
+{{- end -}}
+{{- if gt (int .Values.replicaCount) 1 -}}
+  {{- $transportPort := int .Values.cache.embeddedNetworkBindPort -}}
+  {{- $failureDetectionPort := add $transportPort 50000 -}}
+  {{- if and .Values.http.enabled (or (eq $transportPort (int .Values.http.port)) (eq $failureDetectionPort (int .Values.http.port))) -}}
+    {{- fail "cache transport and failure-detection ports must differ from http.port" -}}
+  {{- end -}}
+  {{- if or (eq $transportPort (int .Values.http.managementPort)) (eq $failureDetectionPort (int .Values.http.managementPort)) -}}
+    {{- fail "cache transport and failure-detection ports must differ from http.managementPort" -}}
+  {{- end -}}
 {{- end -}}
 {{- if and .Values.proxy.trustedAddresses (not .Values.proxy.headers) -}}
   {{- fail "proxy.trustedAddresses requires proxy.headers to be set" -}}

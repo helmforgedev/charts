@@ -28,6 +28,9 @@ For the current chart scope:
 - keep `cache.enabled: true` when `replicaCount > 1`
 - keep `cache.stack: jdbc-ping` unless there is a tested reason to move away from it
 - keep autoscaling outside the chart until there is a stronger Keycloak-specific operational model
+- treat `cache.embeddedNetworkBindPort` as an immutable rollout setting; when
+  changing it, set `deployment.strategy.type: Recreate` for that rollout so
+  old and new pods cannot form separate cache clusters on different ports
 
 ## Database bootstrap
 
@@ -41,6 +44,12 @@ scaling out, or have the database administrator create both
 `databasechangelog` and `databasechangeloglock` as described by the upstream
 Keycloak migration guide. Starting multiple replicas concurrently against an
 empty database can race while creating those bookkeeping tables.
+
+The bundled MySQL path enforces this staged bootstrap because concurrent
+Keycloak schema initialization can deadlock on MySQL's Liquibase row lock.
+Install with `replicaCount: 1`, wait for Keycloak to become ready, and then use
+`helm upgrade` to increase the replica count. Bundled PostgreSQL supports a
+fresh multi-replica installation with its pre-created bookkeeping tables.
 
 ## About `jdbc-ping`
 

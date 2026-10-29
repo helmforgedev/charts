@@ -267,7 +267,7 @@ cache:
   enabled: true
   # -- Cache stack used when replicaCount > 1 in production mode
   stack: jdbc-ping
-  # -- Embedded cache transport bind port. The FD_SOCK2 failure-detection port uses the upstream +50000 offset.
+  # -- Non-privileged embedded cache transport bind port (1024-15535). FD_SOCK2 uses the upstream +50000 offset. Changing this value requires deployment.strategy.type=Recreate for the rollout.
   embeddedNetworkBindPort: 7800
   multiReplicaDefaults:
     # -- Apply production-oriented scheduling defaults when replicaCount > 1 and no custom affinity/topology spread is set
@@ -728,7 +728,7 @@ postgresql:
         SQL
 
 mysql:
-  # -- Enable the local MySQL chart as the Keycloak database
+  # -- Enable the local MySQL chart as the Keycloak database. Fresh installs must start with replicaCount=1; scale out only after schema initialization.
   enabled: false
   architecture: standalone
   auth:
@@ -742,7 +742,7 @@ mysql:
         #!/bin/sh
         set -eu
         mysql --protocol=socket -uroot -p"${MYSQL_ROOT_PASSWORD}" "${MYSQL_DATABASE}" <<'SQL'
-        CREATE TABLE IF NOT EXISTS databasechangelog (
+        CREATE TABLE IF NOT EXISTS DATABASECHANGELOG (
           id VARCHAR(255) NOT NULL,
           author VARCHAR(255) NOT NULL,
           filename VARCHAR(255) NOT NULL,
@@ -758,11 +758,11 @@ mysql:
           labels VARCHAR(255),
           deployment_id VARCHAR(10)
         );
-        CREATE TABLE IF NOT EXISTS databasechangeloglock (
+        CREATE TABLE IF NOT EXISTS DATABASECHANGELOGLOCK (
           id INT PRIMARY KEY,
           locked BOOLEAN NOT NULL,
           lockgranted DATETIME,
           lockedby VARCHAR(255)
         );
-        INSERT IGNORE INTO databasechangeloglock (id, locked) VALUES (1, FALSE);
+        INSERT IGNORE INTO DATABASECHANGELOGLOCK (id, locked) VALUES (1, FALSE);
         SQL

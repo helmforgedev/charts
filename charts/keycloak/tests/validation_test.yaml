@@ -64,6 +64,43 @@ tests:
       - failedTemplate:
           errorMessage: "production multi-replica deployments require cache.enabled=true"
 
+  - it: should fail when the cache transport port collides with the HTTP port
+    set:
+      mode: production
+      hostname.hostname: sso.example.com
+      database.external.host: pg-host
+      database.external.password: prodpass
+      replicaCount: 2
+      cache.embeddedNetworkBindPort: 7900
+      http.port: 7900
+    asserts:
+      - failedTemplate:
+          errorMessage: "cache transport and failure-detection ports must differ from http.port"
+
+  - it: should fail when the cache failure-detection port collides with the management port
+    set:
+      mode: production
+      hostname.hostname: sso.example.com
+      database.external.host: pg-host
+      database.external.password: prodpass
+      replicaCount: 2
+      cache.embeddedNetworkBindPort: 7900
+      http.managementPort: 57900
+    asserts:
+      - failedTemplate:
+          errorMessage: "cache transport and failure-detection ports must differ from http.managementPort"
+
+  - it: should fail a fresh multi-replica installation with bundled MySQL
+    set:
+      mode: production
+      hostname.hostname: sso.example.com
+      mysql.enabled: true
+      mysql.auth.password: prodpass
+      replicaCount: 3
+    asserts:
+      - failedTemplate:
+          errorMessage: "fresh installations with bundled MySQL require replicaCount=1; complete Keycloak schema initialization, then scale out with helm upgrade"
+
   - it: should fail PDB minAvailable equal to replicaCount
     set:
       pdb.enabled: true
