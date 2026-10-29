@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import assert from 'node:assert/strict';
-import {execFileSync, spawn} from 'node:child_process';
+import {execFileSync} from 'node:child_process';
 
 const [context, namespace, release] = process.argv.slice(2);
 assert.match(context ?? '', /^k3d-/);
@@ -94,46 +94,43 @@ const serviceHttp = service.spec.ports.find(port => port.name === 'http');
 assert.equal(serviceHttp.port, expectedServicePort, 'Service must expose the deployed Service port value');
 assert.equal(serviceHttp.targetPort, 'http');
 
-const forward = spawn(
-  'kubectl',
-  [
-    '--context', context, '-n', namespace,
-    'port-forward', `service/${service.metadata.name}`, `:${serviceHttp.port}`,
-    '--address=127.0.0.1',
-  ],
-  {windowsHide: true, stdio: ['ignore', 'pipe', 'pipe']},
-);
-let forwardOutput = '';
-for (const stream of [forward.stdout, forward.stderr]) {
-  stream.on('data', chunk => { forwardOutput += chunk; });
+const serviceChecker = `${release}-service-smoke-${process.pid}`.slice(0, 63).replace(/-+$/, '');
+const serviceProgram = `
+const assert = require('node:assert/strict');
+const url = 'http://${service.metadata.name}:${serviceHttp.port}/api/health';
+let response;
+let lastError;
+const deadline = Date.now() + 30000;
+while (Date.now() < deadline) {
+  try {
+    response = await fetch(url, {signal: AbortSignal.timeout(3000)});
+    if (response.status === 200) break;
+    lastError = new Error('unexpected HTTP status ' + response.status);
+  } catch (error) {
+    lastError = error;
+  }
+  await new Promise(resolve => setTimeout(resolve, 500));
 }
-
+assert.ok(response, 'Bulwark Service request failed: ' + (lastError?.cause?.message || lastError?.message));
+assert.equal(response.status, 200);
+const health = await response.json();
+assert.equal(health.status, 'healthy');
+console.log('Bulwark Service DNS and ClusterIP routing verified');
+`;
 try {
-  const deadline = Date.now() + 20_000;
-  while (!/127\.0\.0\.1:(\d+) ->/.test(forwardOutput) && Date.now() < deadline && forward.exitCode === null) {
-    await new Promise(resolve => setTimeout(resolve, 100));
-  }
-  const localPort = forwardOutput.match(/127\.0\.0\.1:(\d+) ->/)?.[1];
-  assert.ok(localPort, `Bulwark Service port-forward unavailable: ${forwardOutput}`);
-  const response = await fetch(`http://127.0.0.1:${localPort}/api/health`, {
-    signal: AbortSignal.timeout(10_000),
-  });
-  assert.equal(response.status, 200, 'Bulwark health endpoint must be reachable through the Service');
+  const serviceResult = kubectl([
+    'run', serviceChecker,
+    '--rm', '--attach', '--restart=Never',
+    `--image=${container.image}`,
+    '--image-pull-policy=IfNotPresent',
+    '--labels=helmforge.dev/runtime-smoke=true',
+    '--command', '--',
+    'node', '--input-type=commonjs', '-e',
+    `(async()=>{${serviceProgram}})().catch(error=>{console.error(error);process.exit(1)})`,
+  ]);
+  console.log(serviceResult.trim());
 } finally {
-  if (process.platform === 'win32' && forward.exitCode === null) {
-    try {
-      execFileSync('taskkill', ['/PID', String(forward.pid), '/T', '/F'], {stdio: 'ignore'});
-    } catch (error) {
-      let exited = false;
-      try { process.kill(forward.pid, 0); } catch (processError) {
-        if (processError.code === 'ESRCH') exited = true;
-        else throw processError;
-      }
-      if (!exited) throw error;
-    }
-  } else {
-    forward.kill();
-  }
+  kubectl(['delete', 'pod', serviceChecker, '--ignore-not-found=true', '--wait=false']);
 }
 
 console.log(`Bulwark listener ${expectedHttpPort}, independent Service port ${expectedServicePort}, official image, and hardened runtime verified`);
