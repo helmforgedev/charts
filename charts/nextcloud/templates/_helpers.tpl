@@ -37,6 +37,7 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- define "nextcloud.validate" -}}
 {{- if and .Values.cron.enabled (not .Values.persistence.enabled) -}}{{ fail "cron.enabled requires persistence.enabled=true so the CronJob can execute the installed application" }}{{- end -}}
 {{- if and .Values.cron.enabled (has "ReadWriteOncePod" .Values.persistence.accessModes) -}}{{ fail "cron.enabled is incompatible with ReadWriteOncePod because the application and CronJob must mount the PVC from separate Pods" }}{{- end -}}
+{{- if and .Values.backup.enabled (has "ReadWriteOncePod" .Values.persistence.accessModes) -}}{{ fail "backup.enabled is incompatible with ReadWriteOncePod because the application and backup Job must mount the PVC from separate Pods" }}{{- end -}}
 {{- if and .Values.backup.enabled .Values.restore.enabled -}}{{ fail "backup.enabled and restore.enabled cannot both be true" }}{{- end -}}
 {{- if or .Values.backup.enabled .Values.restore.enabled -}}
 {{- if not .Values.persistence.enabled -}}{{ fail "backup and restore require persistence.enabled=true" }}{{- end -}}

@@ -85,7 +85,7 @@ exclusive lock also serializes manually instantiated Jobs with scheduled runs.
 
 The CronJob mounts the application PVC and is pinned to the application Pod's
 node by default so `ReadWriteOnce` volumes work. `ReadWriteOncePod` cannot be used
-while cron is enabled. Inspect executions with `kubectl get jobs -l
+while cron or backup is enabled. Inspect executions with `kubectl get jobs -l
 app.kubernetes.io/component=cron` and `kubectl logs job/<job-name> -c cron`.
 Set `cron.suspend: true` to retain manual Job support without scheduling runs.
 

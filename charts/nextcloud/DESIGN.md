@@ -92,24 +92,27 @@ exclusive lock also serializes manually instantiated Jobs, which are outside
 the Kubernetes CronJob controller's concurrency policy.
 
 Default required Pod affinity keeps the Job on the application node for RWO
-volumes. `ReadWriteOncePod` is incompatible because two Pods must mount the
-claim.
+volumes. `ReadWriteOncePod` is incompatible while cron or backup is enabled
+because each Job mounts the application claim from a separate Pod.
 
 ### Backup and restore coordination
 
-The backup CronJob checks object storage, acquires the volume lock, suspends
-background scheduling, waits for active cron Jobs, scales the application to
-zero, dumps PostgreSQL, archives files, resumes the application and cron
-schedule, and uploads the backup set. A directory created atomically on the
-application volume serializes manual and scheduled jobs. Application
-initialization refuses to start while this lock exists, including during an
-unsolicited concurrent rollout.
+The backup CronJob checks object storage, acquires the volume lock, records and
+suspends background scheduling, waits for active cron Jobs, scales the
+application to zero, dumps PostgreSQL, archives files, resumes the application,
+restores the recorded cron suspension state, and uploads the backup set. A
+directory created atomically on the application volume serializes manual and
+scheduled jobs. Application initialization refuses to start while this lock
+exists, including during an unsolicited concurrent rollout.
 
 The Apache supervisor records evidence only after the upstream Apache process
 finishes a graceful stop. The coordinator requires that record for the exact
-source Pod UID and terminal Kubernetes status for every cron Job. An OOM,
-forced kill, or exceeded termination deadline therefore fails closed instead
-of treating Pod disappearance as a consistent checkpoint.
+application Pod UID. It separately waits for every listed cron Job to report a
+`Complete` or `Failed` condition; a Job object removed before a terminal
+condition is observed is no longer listed and is treated as settled. An OOM,
+forced application kill, or exceeded termination deadline therefore fails
+closed instead of treating application Pod disappearance as a consistent
+checkpoint.
 
 Restore mode holds the application at zero replicas. A Job downloads a
 completed set, verifies checksums and application version, requires an empty
