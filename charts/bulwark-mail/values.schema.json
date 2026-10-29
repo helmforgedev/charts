@@ -4,7 +4,7 @@
   "description": "Configuration contract for the HelmForge Bulwark Mail chart",
   "type": "object",
   "additionalProperties": false,
-  "required": ["image", "replicaCount", "config", "branding", "secrets", "persistence", "serviceAccount", "service", "ingress", "gatewayAPI", "externalSecrets", "probes", "resources", "podSecurityContext", "securityContext", "pdb", "autoscaling", "networkPolicy"],
+  "required": ["image", "replicaCount", "config", "branding", "secrets", "persistence", "serviceAccount", "containerPorts", "service", "ingress", "gatewayAPI", "externalSecrets", "probes", "resources", "podSecurityContext", "securityContext", "pdb", "autoscaling", "networkPolicy"],
   "properties": {
     "global": {
       "type": "object",
@@ -187,6 +187,19 @@
         "automountServiceAccountToken": { "type": "boolean" }
       }
     },
+    "containerPorts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["http"],
+      "properties": {
+        "http": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "Bulwark HTTP application listener. Ports below 1024 require the runtime to permit non-root binds."
+        }
+      }
+    },
     "service": {
       "type": "object",
       "additionalProperties": false,
@@ -289,14 +302,109 @@
       "additionalProperties": false,
       "required": ["startup", "liveness", "readiness"],
       "properties": {
-        "startup": { "$ref": "#/definitions/probe" },
-        "liveness": { "$ref": "#/definitions/probe" },
-        "readiness": { "$ref": "#/definitions/probe" }
+        "startup": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "initialDelaySeconds", "periodSeconds", "timeoutSeconds", "failureThreshold"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+            "periodSeconds": { "type": "integer", "minimum": 1 },
+            "timeoutSeconds": { "type": "integer", "minimum": 1 },
+            "failureThreshold": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "liveness": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "initialDelaySeconds", "periodSeconds", "timeoutSeconds", "failureThreshold"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+            "periodSeconds": { "type": "integer", "minimum": 1 },
+            "timeoutSeconds": { "type": "integer", "minimum": 1 },
+            "failureThreshold": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "readiness": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "initialDelaySeconds", "periodSeconds", "timeoutSeconds", "failureThreshold"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+            "periodSeconds": { "type": "integer", "minimum": 1 },
+            "timeoutSeconds": { "type": "integer", "minimum": 1 },
+            "failureThreshold": { "type": "integer", "minimum": 1 }
+          }
+        }
       }
     },
-    "resources": { "type": "object" },
-    "podSecurityContext": { "type": "object" },
-    "securityContext": { "type": "object" },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requests": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "cpu": { "type": ["string", "number"] },
+            "memory": { "type": ["string", "number"] }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "cpu": { "type": ["string", "number"] },
+            "memory": { "type": ["string", "number"] }
+          }
+        }
+      }
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "runAsNonRoot": { "type": "boolean" },
+        "runAsUser": { "type": "integer", "minimum": 0 },
+        "runAsGroup": { "type": "integer", "minimum": 0 },
+        "fsGroup": { "type": "integer", "minimum": 0 },
+        "fsGroupChangePolicy": { "type": "string", "enum": ["Always", "OnRootMismatch"] },
+        "seccompProfile": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "type": { "type": "string", "enum": ["RuntimeDefault", "Localhost", "Unconfined"] }
+          }
+        }
+      }
+    },
+    "securityContext": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "allowPrivilegeEscalation": { "type": "boolean" },
+        "capabilities": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "drop": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+          }
+        },
+        "readOnlyRootFilesystem": { "type": "boolean" },
+        "runAsNonRoot": { "type": "boolean" },
+        "runAsUser": { "type": "integer", "minimum": 0 },
+        "runAsGroup": { "type": "integer", "minimum": 0 },
+        "seccompProfile": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "type": { "type": "string", "enum": ["RuntimeDefault", "Localhost", "Unconfined"] }
+          }
+        }
+      }
+    },
     "pdb": {
       "type": "object",
       "additionalProperties": false,
@@ -364,18 +472,6 @@
       "type": "string",
       "minLength": 1,
       "pattern": "^[A-Za-z0-9._-]+$"
-    },
-    "probe": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["enabled", "initialDelaySeconds", "periodSeconds", "timeoutSeconds", "failureThreshold"],
-      "properties": {
-        "enabled": { "type": "boolean" },
-        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
-        "periodSeconds": { "type": "integer", "minimum": 1 },
-        "timeoutSeconds": { "type": "integer", "minimum": 1 },
-        "failureThreshold": { "type": "integer", "minimum": 1 }
-      }
     },
     "envVar": {
       "type": "object",

@@ -2,7 +2,7 @@
 
 ## Priority 1: functional deployment
 
-- Pin the official deterministic 1.14.2 image.
+- Pin the official deterministic 1.15.0 image.
 - Deploy one hardened pod with Recreate strategy.
 - Persist `/app/data` and expose port 3000.
 - Implement health probes and wizard mode.

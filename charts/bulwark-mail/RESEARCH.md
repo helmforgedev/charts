@@ -6,7 +6,7 @@
 
 - Issue: https://github.com/helmforgedev/charts/issues/1358
 - Upstream: https://github.com/bulwarkmail/webmail
-- Target: Bulwark 1.14.2
+- Target: Bulwark 1.15.0
 
 ## Runtime findings
 
@@ -22,9 +22,9 @@ Stalwart has several community charts. WrenIX was active but explicitly alpha, l
 
 ## Image evidence
 
-`ghcr.io/bulwarkmail/webmail:1.14.2-always` resolves for linux/amd64 and linux/arm64. The verified index digest is `sha256:8660154ea9fbeec4234fc9952fe4cfd32817c323d2a0ebfeb7258f58f9267b77`.
+`ghcr.io/bulwarkmail/webmail:1.15.0-always` resolves for linux/amd64 and linux/arm64. The verified index digest is `sha256:6345944b2cba4f4ec6691e709176b2826df23338747ed236a6eaa640bac70ede`.
 
-The deterministic `1.14.2-always` index was selected deliberately.
+The deterministic `1.15.0-always` index was selected deliberately. The pinned image was also started with `PORT=18080`; `/api/health` returned HTTP 200 on that listener, proving that the upstream runtime supports a configurable application port.
 
 ## HelmForge differentiation
 
