@@ -38,8 +38,10 @@ flowchart LR
 
 Standalone mode uses a `Recreate` Deployment with one replica so SQLite and
 local objects have a single writer. Distributed mode uses `RollingUpdate`, an
-`api-server` Deployment, one garbage-collector Deployment, and a Helm
-pre-install/pre-upgrade database migration Job.
+`api-server` Deployment, a Helm pre-install/pre-upgrade database migration Job,
+and one garbage-collector Deployment when
+`config.garbageCollection.enabled=true`. Disabling that component removes
+automatic cleanup and requires an external garbage-collection procedure.
 
 ## Main Design Choices
 
@@ -55,18 +57,22 @@ pre-install/pre-upgrade database migration Job.
   operators can provide HS256 or RS256 material through a Secret.
 - Render non-secret Attic configuration in a ConfigMap and run upstream
   `check-config` before the application starts.
-- Model the application listener with `containerPorts.http`; the same value is
-  written to Attic configuration and the Pod container port while
-  `service.port` remains an independent Kubernetes Service contract.
+- By default, derive the application listener from `config.listenAddress` and
+  `containerPorts.http`; the same port is written to Attic configuration and
+  the Pod while `service.port` remains an independent Kubernetes Service
+  contract. A non-empty, deprecated `config.listen` overrides the derived
+  socket only when its port matches `containerPorts.http`.
 - Use TCP probes because the pinned upstream build has no dedicated health
   endpoint.
 
 ## Production Boundary
 
-Standalone mode provides durable single-node operation, not high
-availability. Its PVC contains both SQLite metadata and local cache objects,
-so backup and restore must capture the complete volume consistently. The
-`Recreate` strategy prevents overlapping application Pods during rollouts.
+Standalone mode provides durable single-node operation when
+`persistence.enabled=true`, not high availability. Its PVC contains both
+SQLite metadata and local cache objects, so backup and restore must capture the
+complete volume consistently. When persistence is disabled, `/data` uses
+`emptyDir` and all metadata and objects are lost with the Pod. The `Recreate`
+strategy prevents overlapping application Pods during rollouts.
 
 Distributed mode makes the API tier replaceable, but PostgreSQL, object
 storage, and the signing keys remain stateful production dependencies. The
