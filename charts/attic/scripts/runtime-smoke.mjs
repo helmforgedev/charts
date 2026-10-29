@@ -16,6 +16,8 @@ assert.ok(pod, 'Ready Attic API pod required');
 
 const container = pod.spec.containers.find(item => item.name === 'attic');
 assert.ok(container, 'Attic application container required');
+const httpPort = container.ports?.find(item => item.name === 'http')?.containerPort;
+assert.ok(Number.isInteger(httpPort), 'Attic HTTP container port required');
 assert.equal(container.image, 'ghcr.io/zhaofengli/attic:9eda345a743f50999de04f59a170806c3e029eea');
 assert.equal(container.securityContext.runAsNonRoot, undefined);
 assert.equal(pod.spec.securityContext.runAsNonRoot, true);
@@ -25,10 +27,11 @@ const configMaps = JSON.parse(run(['get', 'configmaps', '-l', `app.kubernetes.io
 const serverConfig = configMaps.find(item => item.data?.['server.toml'])?.data['server.toml'];
 const allowedHost = serverConfig?.match(/allowed-hosts\s*=\s*\["([^"]+)"/)?.[1];
 assert.ok(allowedHost, 'Attic allowed host required in rendered server configuration');
+assert.match(serverConfig, new RegExp(`listen\\s*=\\s*"[^"]*:${httpPort}"`), 'Attic listener must match the container port');
 
 const response = run([
   'exec', pod.metadata.name, '-c', 'attic', '--',
-  '/bin/busybox', 'wget', '-qO-', '--header', `Host: ${allowedHost}`, 'http://127.0.0.1:8080/',
+  '/bin/busybox', 'wget', '-qO-', '--header', `Host: ${allowedHost}`, `http://127.0.0.1:${httpPort}/`,
 ]);
 assert.match(response, /Attic/i, 'Attic root endpoint should identify the server');
 

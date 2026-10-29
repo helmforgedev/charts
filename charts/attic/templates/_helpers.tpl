@@ -81,7 +81,7 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 
 {{- define "attic.config" -}}
-listen = {{ .Values.config.listen | quote }}
+listen = {{ default (printf "%s:%d" .Values.config.listenAddress (int .Values.containerPorts.http)) .Values.config.listen | quote }}
 allowed-hosts = {{ .Values.config.allowedHosts | toJson }}
 api-endpoint = {{ .Values.config.apiEndpoint | quote }}
 {{- with .Values.config.substituterEndpoint }}
@@ -208,6 +208,9 @@ token-bound-audiences = {{ . | toJson }}
 {{- end -}}
 {{- if not (hasSuffix "/" .Values.config.apiEndpoint) -}}
 {{- fail "config.apiEndpoint must end with /" -}}
+{{- end -}}
+{{- if and .Values.config.listen (not (hasSuffix (printf ":%d" (int .Values.containerPorts.http)) .Values.config.listen)) -}}
+{{- fail "config.listen is deprecated and its port must match containerPorts.http; prefer config.listenAddress with containerPorts.http" -}}
 {{- end -}}
 {{- if and (or .Values.ingress.enabled .Values.gatewayAPI.enabled) (empty .Values.config.allowedHosts) -}}
 {{- fail "config.allowedHosts must contain the public hostname when Ingress or Gateway API is enabled" -}}
