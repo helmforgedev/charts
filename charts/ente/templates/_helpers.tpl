@@ -314,9 +314,10 @@ containers:
     {{- end }}
     ports:
       - name: http
-        containerPort: 8080
+        containerPort: {{ $root.Values.museum.containerPorts.http }}
         protocol: TCP
       - name: metrics
+        # helmforge: fixed-protocol-port
         containerPort: 2112
         protocol: TCP
     env:
@@ -402,7 +403,7 @@ containers:
           --set=ON_ERROR_STOP=1 <<'SQL'
         \i /tmp/acquire-migration-lock.sql
         \! touch /migration-gate/start
-        \! until bash -c 'echo > /dev/tcp/127.0.0.1/8080' >/dev/null 2>&1; do sleep 1; done
+        \! until bash -c 'echo > /dev/tcp/127.0.0.1/{{ $root.Values.museum.containerPorts.http }}' >/dev/null 2>&1; do sleep 1; done
         SELECT pg_advisory_unlock({{ printf "%d" (int64 $root.Values.museum.migrationGate.advisoryLockId) }});
         SQL
         exec sleep infinity

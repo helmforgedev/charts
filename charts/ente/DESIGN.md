@@ -4,27 +4,35 @@ This chart packages Ente's Museum API and official web applications with a
 HelmForge PostgreSQL dependency or an external PostgreSQL service. Object data
 is always stored in an external S3-compatible service.
 
+## Scope
+
+The supported product boundary is Ente Photos: Museum, the Photos supporting
+web applications, PostgreSQL metadata, and externally managed S3-compatible
+object storage. The chart owns Kubernetes resources and safe runtime wiring; it
+does not provision object storage, DNS, certificates, or external databases.
+
 ## Architecture
 
-```text
-Web and mobile clients
-  |
-  +-- Ingress or Gateway API
-        |
-        +-- Museum Service
-        |     |
-        |     +-- Museum API Deployment
-        |     +-- PostgreSQL subchart or external PostgreSQL
-        |     +-- External S3-compatible object storage
-        |
-        +-- Web Services
-              |
-              +-- One hardened web Deployment
-                    +-- Photos, Accounts, Albums, and optional Ente apps
+```mermaid
+flowchart LR
+    clients[Web and mobile clients]
+    edge[Ingress or Gateway API]
+    museumService[Museum Service]
+    museumApi[Museum API Deployment]
+    museumWorker[Optional singleton Museum worker]
+    webServices[Per-application web Services]
+    web[Hardened web Deployment]
+    database[(HelmForge or external PostgreSQL)]
+    objects[(External S3-compatible storage)]
 
-Optional application HA topology
-  +-- Museum API replicas with background jobs disabled
-  +-- One Museum worker replica with background jobs enabled
+    clients --> edge
+    edge --> museumService --> museumApi
+    edge --> webServices --> web
+    museumApi --> database
+    museumApi --> objects
+    clients -->|presigned URLs| objects
+    museumWorker -. background jobs .-> database
+    museumWorker -. object maintenance .-> objects
 ```
 
 ## Design Choices
@@ -46,16 +54,31 @@ Optional application HA topology
 - PostgreSQL can be installed through the HelmForge dependency or supplied by
   a managed service or operator. Museum performs database migrations during
   startup. HA pods use a PostgreSQL advisory-lock sidecar that polls without an
-  active transaction and releases the next Museum only after port 8080 opens.
+  active transaction and releases the next Museum only after the configured
+  HTTP listener opens.
+  The sidecar follows `museum.containerPorts.http` when the listener changes.
   This is required because concurrent upstream startup can leave migrations
   dirty, including migrations that create indexes concurrently.
+- `museum.containerPorts.http` configures the real Museum `http.port` listener.
+  `museum.service.port` is an independent Kubernetes Service contract and the
+  Service targets the named `http` port. Upstream Museum hard-codes its
+  Prometheus listener on port 2112; only the metrics Service port is
+  configurable, and its named target continues to reach that fixed listener.
 - Encryption, hash, and JWT keys are generated only on first installation and
   retained with Helm `lookup`, or supplied through an existing Secret. They are
   never intentionally regenerated during an upgrade.
 - External Secrets support follows the generic `items[]` contract. It creates
   Secrets but does not bypass the chart's explicit `existingSecret` wiring.
 
-## Security And Operations
+## Production Boundary
+
+Production operators must supply durable S3, PostgreSQL, cryptographic Secret,
+TLS, DNS, SMTP, monitoring, and backup policies appropriate to their
+environment. The bundled PostgreSQL mode is durable when persistence remains
+enabled, but it is not automatic database failover. Application HA requires API
+replicas with background jobs disabled and exactly one worker with jobs enabled.
+
+## Security Boundary
 
 Museum runs as an arbitrary non-root user with a read-only root filesystem.
 The web image requires a writable copy of its static output for upstream
@@ -74,6 +97,14 @@ PrometheusRule, Ingress, Gateway API, dual-stack Services, backup, and
 scheduling controls are opt-in. Their defaults do not assume cluster CRDs or a
 specific network environment.
 
+## Observability Boundary
+
+Museum exposes `/metrics` on the upstream-fixed port 2112. The chart can expose
+that endpoint through a Service and ServiceMonitor and can create baseline
+Prometheus rules. `/ping` verifies PostgreSQL but not S3, so readiness is not an
+end-to-end availability signal. Operators must monitor real object upload and
+download flows and collect Museum and PostgreSQL logs outside the chart.
+
 ## Durability Model
 
 An Ente recovery set consists of the Museum keys and configuration, PostgreSQL
@@ -86,6 +117,16 @@ Ente's object replication feature is disabled by default. Replication is not a
 backup and its workers can run in every Museum process. This chart does not
 claim a safe general-purpose replication topology until upstream exposes a
 dedicated worker lifecycle.
+
+## Known Gaps And Limitations
+
+- Museum has no semantic server releases; HelmForge pins the immutable commit
+  published by Ente's official production-image workflow.
+- The Prometheus listener is fixed at 2112 in the upstream binary.
+- `/ping` cannot detect object-storage or client-side CORS failures.
+- The backup CronJob covers PostgreSQL only, not live objects or Secrets.
+- Application-level replication is intentionally outside the supported HA
+  contract because its workers are not independently lifecycle-managed.
 
 ## Non-Goals
 

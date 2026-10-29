@@ -33,6 +33,14 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].livenessProbe.tcpSocket.port
           value: http
+  - it: configures the Museum application listener independently from the Service port
+    set:
+      museum.containerPorts.http: 18080
+      museum.service.port: 18081
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 18080
   - it: disables service account token mounting
     asserts:
       - equal:
@@ -88,3 +96,13 @@ tests:
           content:
             name: migration-gate
             emptyDir: {}
+  - it: makes the migration gate wait on the configured Museum listener
+    set:
+      museum.containerPorts.http: 18080
+      museum.api.replicaCount: 2
+      museum.api.skipBackgroundJobs: true
+      museum.worker.enabled: true
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[1].args[0]
+          pattern: /tcp/127[.]0[.]0[.]1/18080

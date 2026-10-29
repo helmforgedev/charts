@@ -34,7 +34,9 @@ variables. Dots and hyphens in Museum keys become underscores.
 ## Health model
 
 Startup and readiness call `/ping`, which runs `SELECT 1` against PostgreSQL.
-Liveness uses TCP port 8080 so a database outage does not trigger restart loops.
+Liveness uses the named `http` port backed by `museum.containerPorts.http`, so a
+database outage does not trigger restart loops and listener overrides remain
+consistent.
 S3 needs a separate functional check because `/ping` does not contact it.
 
 ## Durable state
