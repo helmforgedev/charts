@@ -55,7 +55,10 @@ then set `database.mysqlSchemaInitialized: true` while increasing the replica
 count. Use the same two-step values transition in GitOps. An existing initialized
 schema may set the confirmation to `true` on its first chart deployment.
 Bundled PostgreSQL supports a fresh multi-replica installation with its
-pre-created bookkeeping tables.
+pre-created bookkeeping tables when Keycloak uses the default `public` schema.
+If `database.external.schema` selects another schema, pre-create both
+bookkeeping tables in that schema or initialize Keycloak with one replica before
+scaling out.
 
 ## About `jdbc-ping`
 

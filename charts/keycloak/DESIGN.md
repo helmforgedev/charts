@@ -440,10 +440,12 @@ Bundled PostgreSQL or MySQL is useful for a self-contained installation, but an
 externally operated database is the recommended production boundary. Realm
 import is a startup mechanism and must not be treated as continuous desired
 state reconciliation. The bundled database defaults pre-create Liquibase's
-bookkeeping tables. Bundled PostgreSQL can therefore acquire the schema
-migration lock during fresh multi-replica startup. Empty external PostgreSQL
-databases must be bootstrapped with one replica or prepared equivalently before
-scaling out. Bundled and external MySQL require an explicit two-step transition:
+bookkeeping tables in the default `public` schema. Bundled PostgreSQL can
+therefore acquire the schema migration lock during fresh multi-replica startup
+when Keycloak uses that schema. A custom PostgreSQL schema must contain the same
+tables or be initialized with one replica before scaling out. Empty external
+PostgreSQL databases have the same bootstrap requirement. Bundled and external
+MySQL require an explicit two-step transition:
 initialize with one replica, then set `database.mysqlSchemaInitialized: true`
 while scaling out. This render-time confirmation works with both Helm and GitOps
 and prevents concurrent first-start migrations from deadlocking on MySQL's

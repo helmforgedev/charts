@@ -113,7 +113,7 @@ This chart exposes common Keycloak production options as first-class values:
 - `features.enabled` and `features.disabled` map to `KC_FEATURES` and `KC_FEATURES_DISABLED`
 - `optimized.enabled` adds `--optimized` for custom pre-built production images
 - `metrics.userEvents`, `metrics.cacheHistograms`, `telemetry.*`, `tracing.*`, and `logging.*` map to Keycloak observability settings
-- `deployment.strategy.*` controls Kubernetes rollout behavior
+- `deployment.progressDeadlineSeconds` and `deployment.strategy.*` control Kubernetes rollout behavior
 - `serviceAccount.automountServiceAccountToken` controls whether Kubernetes mounts the service account token and cluster CA files
 - `truststore.kubernetes.enabled` maps to `KC_TRUSTSTORE_KUBERNETES_ENABLED`
 - `capacity.profile` can render conservative `small`, `medium`, or `large` resource presets when `resources` is not set
@@ -254,6 +254,7 @@ postgresql:
 | `http.managementPort` | Management port for health and metrics | `9000` |
 | `http.relativePath` | Relative HTTP path | `/` |
 | `management.relativePath` | Optional management relative path | `""` |
+| `deployment.progressDeadlineSeconds` | Deployment progress deadline for startup and migrations | `600` |
 | `deployment.strategy.type` | Deployment strategy | `RollingUpdate` |
 | `deployment.strategy.rollingUpdate.maxUnavailable` | Max unavailable pods during rollout | `0` |
 | `deployment.strategy.rollingUpdate.maxSurge` | Max surge pods during rollout | `1` |
@@ -285,7 +286,7 @@ postgresql:
 | `postgresql.auth.database` | Subchart database name | `keycloak` |
 | `postgresql.auth.username` | Subchart database username | `keycloak` |
 | `postgresql.auth.password` | Subchart database password | `""` |
-| `postgresql.initdb.scripts` | First-boot scripts, including Liquibase bookkeeping table bootstrap for safe multi-replica startup | built-in |
+| `postgresql.initdb.scripts` | First-boot scripts that prepare Liquibase bookkeeping tables in the default `public` schema | built-in |
 | `mysql.enabled` | Enable MySQL subchart; use the explicit staged-bootstrap confirmation before scaling out | `false` |
 | `mysql.auth.database` | Subchart database name | `keycloak` |
 | `mysql.auth.username` | Subchart database username | `keycloak` |
