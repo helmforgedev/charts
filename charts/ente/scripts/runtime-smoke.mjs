@@ -11,6 +11,17 @@ const kubectl = args => execFileSync(
   ['--context', context, '-n', namespace, ...args],
   { encoding: 'utf8', timeout: 60_000, stdio: ['ignore', 'pipe', 'pipe'] },
 );
+const helm = args => execFileSync(
+  'helm',
+  ['--kube-context', context, '-n', namespace, ...args],
+  { encoding: 'utf8', timeout: 60_000, stdio: ['ignore', 'pipe', 'pipe'] },
+);
+
+const deployedValues = JSON.parse(helm(['get', 'values', release, '--all', '-o', 'json']));
+const expectedHttpPort = deployedValues.museum?.containerPorts?.http;
+const expectedServicePort = deployedValues.museum?.service?.port;
+assert.ok(Number.isInteger(expectedHttpPort), 'Museum HTTP listener value is required');
+assert.ok(Number.isInteger(expectedServicePort), 'Museum Service port value is required');
 
 const pods = JSON.parse(kubectl([
   'get', 'pods',
@@ -34,6 +45,7 @@ for (const pod of museumPods) {
   assert.ok(Number.isInteger(podHttpPort), 'Named Museum HTTP container port is required');
   httpPort ??= podHttpPort;
   assert.equal(podHttpPort, httpPort, 'All Museum processes must use the same HTTP listener');
+  assert.equal(podHttpPort, expectedHttpPort, 'Museum container port must match the deployed listener value');
   assert.equal(museum.ports?.find(port => port.name === 'metrics')?.containerPort, 2112);
   assert.equal(museum.image, 'ghcr.io/ente/server:0472c929b6070e61fecaf2013d47efce2dcda462');
   assert.equal(museum.securityContext.runAsNonRoot, true);
@@ -60,6 +72,7 @@ const service = services.find(item => item.spec.ports?.some(port => port.name ==
 assert.ok(service, 'Museum HTTP Service is required');
 const serviceHttp = service.spec.ports.find(port => port.name === 'http');
 assert.ok(serviceHttp, 'Museum HTTP Service port is required');
+assert.equal(serviceHttp.port, expectedServicePort, 'Museum Service must expose the deployed Service port value');
 assert.equal(serviceHttp.targetPort, 'http');
 
 const forward = spawn(
