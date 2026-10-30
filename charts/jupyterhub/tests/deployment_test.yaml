@@ -135,6 +135,56 @@ tests:
           path: spec.template.spec.containers[0].args
           content: --error-target=http://test-jupyterhub-hub:8081/notebooks/hub/error
 
+  - it: should wire custom listener and Service ports into both processes
+    set:
+      containerPorts.hub: 18081
+      containerPorts.proxy: 18000
+      containerPorts.proxyApi: 18001
+      service.hubPort: 28081
+      service.proxyApiPort: 28001
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 18081
+        template: deployment-hub.yaml
+      - matchRegex:
+          path: data["jupyterhub_config.py"]
+          pattern: 'c\.JupyterHub\.hub_bind_url = "http://:18081"'
+        template: configmap.yaml
+      - matchRegex:
+          path: data["jupyterhub_config.py"]
+          pattern: 'c\.JupyterHub\.hub_connect_url = "http://test-jupyterhub-hub:28081"'
+        template: configmap.yaml
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --port=18000
+        template: deployment-proxy.yaml
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --api-port=18001
+        template: deployment-proxy.yaml
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --default-target=http://test-jupyterhub-hub:28081
+        template: deployment-proxy.yaml
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 18000
+        template: deployment-proxy.yaml
+      - equal:
+          path: spec.template.spec.containers[0].ports[1].containerPort
+          value: 18001
+        template: deployment-proxy.yaml
+
+  - it: should reject colliding proxy listener ports
+    set:
+      containerPorts.proxy: 18000
+      containerPorts.proxyApi: 18000
+    asserts:
+      - failedTemplate:
+          errorMessage: containerPorts.proxy and containerPorts.proxyApi must be different because both listeners share the proxy pod
+        template: deployment-proxy.yaml
+
   - it: should render hub data PVC by default
     template: pvc-hub.yaml
     asserts:
