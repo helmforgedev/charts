@@ -45,8 +45,11 @@ cron mode. The one-shot Job mounts the application PVC, uses PHP CLI and retains
 success/failure status plus logs. A PVC lock serializes scheduled and manually
 instantiated Jobs. Default affinity schedules it on the application
 node for ReadWriteOnce storage; ReadWriteOncePod is unsupported while cron is
-enabled. Disable cron only when replacing it with a deliberately managed external
-scheduler. Inspect `kubectl get jobs -l app.kubernetes.io/component=cron` and
+or backup is enabled. When reusing a platform-managed PVC, set
+`persistence.existingClaimAccessModes` to its actual access modes; the chart
+requires that declaration for either multi-Pod path. Disable cron only when
+replacing it with a deliberately managed external scheduler. Inspect
+`kubectl get jobs -l app.kubernetes.io/component=cron` and
 `kubectl logs job/<job-name> -c cron` if the administration timestamp becomes stale.
 
 SMTP supports STARTTLS or implicit TLS, an explicit sender address/domain and an

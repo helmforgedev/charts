@@ -33,7 +33,9 @@ Chart 2.0 replaces the continuously running cron sidecar with a native Kubernete
 CronJob. Remove `cron.interval` and `cron.initialDelay` from retained values and
 configure `cron.schedule` instead. The default remains every five minutes. Review
 the Job history/deadline settings and ensure the application PVC supports a second
-Pod on the same node; `ReadWriteOncePod` is not compatible with enabled cron.
+Pod on the same node; `ReadWriteOncePod` is not compatible with enabled cron or
+backup. Existing claims must declare their real modes through
+`persistence.existingClaimAccessModes` before either path can render.
 
 After upgrading, confirm `<fullname>-cron` exists, create a manual Job with
 `kubectl create job --from=cronjob/<fullname>-cron <name>`, wait for completion,

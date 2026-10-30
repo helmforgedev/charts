@@ -65,7 +65,9 @@ email delivery before relying on password recovery or sharing notifications.
 
 Helm uninstall deletes the chart-created application PVC. Use
 `persistence.existingClaim` when the volume lifecycle is managed independently,
-and retain tested backups before removing a release or namespace.
+set `persistence.existingClaimAccessModes` to the claim's actual access modes
+when cron or backup is enabled, and retain tested backups before removing a
+release or namespace.
 
 PostgreSQL and Redis are enabled by default. To use managed private endpoints,
 disable the corresponding subchart and provide `externalDatabase` or
@@ -85,7 +87,9 @@ exclusive lock also serializes manually instantiated Jobs with scheduled runs.
 
 The CronJob mounts the application PVC and is pinned to the application Pod's
 node by default so `ReadWriteOnce` volumes work. `ReadWriteOncePod` cannot be used
-while cron is enabled. Inspect executions with `kubectl get jobs -l
+while cron or backup is enabled. Existing claims must declare their actual modes
+through `persistence.existingClaimAccessModes`; rendering fails when the value is
+missing for these multi-Pod paths. Inspect executions with `kubectl get jobs -l
 app.kubernetes.io/component=cron` and `kubectl logs job/<job-name> -c cron`.
 Set `cron.suspend: true` to retain manual Job support without scheduling runs.
 
@@ -99,6 +103,20 @@ Nextcloud app plus the upstream setup test.
 
 See [setup, verification and lifecycle instructions](docs/integrations.md) before enabling them.
 
+## Architecture
+
+The chart deliberately runs a single Nextcloud Apache replica with `Recreate`
+updates. The application Pod, background CronJob, bundled or external
+PostgreSQL, and standalone Redis share one consistency boundary. The complete
+application PVC and PostgreSQL database must be backed up and restored
+together; Redis is runtime state, not a backup substitute.
+
+Optional Imaginary and Client Push containers share the application Pod
+lifecycle. Backup and restore Jobs coordinate the application, background cron,
+PVC, PostgreSQL, and S3-compatible backup storage. See [DESIGN.md](DESIGN.md)
+for the topology, security boundary, production responsibilities, and explicit
+non-goals.
+
 ## Backup and restore
 
 Integrated backups stop the application and cron, capture PostgreSQL and the
@@ -110,6 +128,24 @@ administrator credentials, fresh PVC and empty database.
 See [backup and restore](docs/backup-restore.md) before enabling the schedule.
 Retain external Secrets separately. Practice restoration and verify non-admin
 login, file contents/identities, shares, settings and new writes.
+
+## Troubleshooting
+
+Start with Kubernetes state and the application logs:
+
+```bash
+kubectl -n nextcloud get pods,jobs,cronjobs,pvc
+kubectl -n nextcloud logs deployment/nextcloud -c nextcloud --tail=200
+kubectl -n nextcloud describe pod -l app.kubernetes.io/instance=nextcloud
+```
+
+For background processing, inspect the latest cron Job and its `cron`
+container. For backup or restore failures, do not remove a retained coordination
+lock or scale the application manually until the failure boundary is understood;
+follow the recovery procedure in [backup and restore](docs/backup-restore.md).
+When optional Client Push setup cannot reach the App Store, distinguish network
+policy or upstream availability from application compatibility before retrying;
+see [integrations](docs/integrations.md).
 
 ## Examples and operational guides
 
@@ -227,6 +263,7 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md).
 | `securityContext.capabilities.drop` | capabilities drop | `["ALL"]` |
 | `persistence.enabled` | Enable the complete /var/www/html PVC. | `true` |
 | `persistence.existingClaim` | Reuse a PVC, including a restored instance. | `""` |
+| `persistence.existingClaimAccessModes` | Actual access modes of existingClaim; required when cron or backup is enabled. | `[]` |
 | `persistence.storageClass` | Storage class; empty uses the cluster default. | `""` |
 | `persistence.accessModes` | Access modes for the single application writer. | `["ReadWriteOnce"]` |
 | `persistence.size` | Requested volume size. | `"10Gi"` |

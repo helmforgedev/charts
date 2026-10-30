@@ -43,6 +43,36 @@ tests:
       - failedTemplate:
           errorMessage: cron.enabled is incompatible with ReadWriteOncePod because the application and CronJob must mount the PVC from separate Pods
   - template: templates/secret.yaml
+    it: rejects exclusive single-Pod storage when backup is enabled
+    set:
+      cron.enabled: false
+      backup.enabled: true
+      backup.s3.bucket: test
+      backup.s3.existingSecret: s3
+      persistence.accessModes: [ReadWriteOncePod]
+    asserts:
+      - failedTemplate:
+          errorMessage: backup.enabled is incompatible with ReadWriteOncePod because the application and backup Job must mount the PVC from separate Pods
+  - template: templates/secret.yaml
+    it: requires verified access modes for an existing claim used by another Pod
+    set:
+      persistence.existingClaim: shared-nextcloud
+    asserts:
+      - failedTemplate:
+          errorMessage: persistence.existingClaimAccessModes must declare the existing PVC access modes when cron.enabled or backup.enabled is true
+  - template: templates/secret.yaml
+    it: rejects an existing exclusive single-Pod claim when backup is enabled
+    set:
+      cron.enabled: false
+      backup.enabled: true
+      backup.s3.bucket: test
+      backup.s3.existingSecret: s3
+      persistence.existingClaim: shared-nextcloud
+      persistence.existingClaimAccessModes: [ReadWriteOncePod]
+    asserts:
+      - failedTemplate:
+          errorMessage: backup.enabled is incompatible with ReadWriteOncePod because the application and backup Job must mount the PVC from separate Pods
+  - template: templates/secret.yaml
     it: requires S3 credentials and a bucket
     set:
       backup.enabled: true
