@@ -51,6 +51,15 @@ kubectl port-forward svc/<release>-changedetection 5000:80
 # Open http://localhost:5000
 ```
 
+## Architecture
+
+The chart runs one changedetection.io container behind a ClusterIP Service and
+mounts `/datastore` from a PVC by default. Ingress or Gateway API can publish
+the Service. When browser rendering is enabled, Sockpuppet runs as a sidecar
+and accepts WebSocket connections only inside the pod; no Service exposes its
+listener. See [DESIGN.md](DESIGN.md) for the complete trust and production
+boundaries.
+
 ## JavaScript Rendering
 
 Enable the Playwright browser sidecar for monitoring JavaScript-heavy sites:
@@ -58,11 +67,16 @@ Enable the Playwright browser sidecar for monitoring JavaScript-heavy sites:
 ```yaml
 browser:
   enabled: true
+  port: 3000
 ```
 
 The sidecar runs the upstream-recommended `docker.io/dgtlmoon/sockpuppetbrowser` and the main container receives
 `PLAYWRIGHT_DRIVER_URL` automatically. Keep browser resources sized separately
-from the application container when JavaScript rendering is used heavily.
+from the application container when JavaScript rendering is used heavily. The
+chart passes `browser.port` to the Sockpuppet process with `--port`, binds its
+WebSocket listener to `127.0.0.1`, and does not publish it through the Service.
+When the browser is enabled, neither application listener may use Sockpuppet's
+fixed statistics port `8080`.
 
 ## Persistence
 
@@ -255,6 +269,7 @@ probes:
 | `changedetection.extraEnv` | `[]` | Extra environment variables |
 | `changedetection.envFrom` | `[]` | Extra envFrom sources |
 | `browser.enabled` | `false` | Enable Playwright browser sidecar |
+| `browser.port` | `3000` | Loopback Sockpuppet WebSocket listener; when enabled it must differ from `changedetection.port` and Sockpuppet statistics port `8080` |
 | `browser.image.repository` | `docker.io/dgtlmoon/sockpuppetbrowser` | Browser sidecar image repository |
 | `browser.image.tag` | `0.0.3` | Browser sidecar image tag |
 | `browser.image.digest` | `sha256:1d8f72d2ce2085faed4232e5ae1e65c02efe5b831a18e127829b267c260b4fb2` | Immutable browser sidecar image index digest |
@@ -266,6 +281,7 @@ probes:
 | `service.port` | `80` | HTTP Service port |
 | `service.ipFamilyPolicy` | unset | Optional Service IP family policy |
 | `service.ipFamilies` | `[]` | Optional Service IP families |
+| `serviceAccount.automountServiceAccountToken` | `false` | Mount the Kubernetes API token into the pod |
 | `ingress.enabled` | `false` | Enable ingress |
 | `gateway.enabled` | `false` | Enable Gateway API HTTPRoute |
 | `externalSecrets.enabled` | `false` | Render ExternalSecret resources |
@@ -318,6 +334,19 @@ is controlled. The chart keeps the upstream restriction enabled by default.
 - **Storage grows** — each snapshot consumes disk space; plan PVC size accordingly
 - **Browser rendering costs more** — enabling the browser sidecar increases CPU
   and memory consumption
+
+## Troubleshooting
+
+- If probes fail after changing `changedetection.port`, confirm the rendered
+  `PORT` environment variable and named `http` container port match.
+- If JavaScript watches fail while plain HTTP watches work, inspect the
+  `browser` container logs and confirm `PLAYWRIGHT_DRIVER_URL` uses
+  `browser.port`.
+- If watches disappear after rescheduling, verify that the pod mounts the
+  intended PVC at `/datastore` and that the StorageClass retained its volume.
+- If internal targets are blocked, keep the default restriction unless the
+  deployment is access-controlled and explicitly requires
+  `ALLOW_IANA_RESTRICTED_ADDRESSES=true`.
 
 ## Security Scan
 
