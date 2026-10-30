@@ -26,12 +26,21 @@
     },
     "imagePullSecrets": { "type": "array", "items": { "type": "object" } },
     "replicaCount": { "type": "integer", "minimum": 1 },
+    "containerPorts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["http"],
+      "properties": {
+        "http": { "type": "integer", "minimum": 1, "maximum": 65535 }
+      }
+    },
     "config": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["listen", "apiEndpoint", "allowedHosts", "requireProofOfPossession", "chunking", "compression", "garbageCollection", "jwt"],
+      "required": ["listenAddress", "listen", "apiEndpoint", "allowedHosts", "requireProofOfPossession", "chunking", "compression", "garbageCollection", "jwt"],
       "properties": {
-        "listen": { "type": "string", "minLength": 1 },
+        "listenAddress": { "type": "string", "minLength": 1 },
+        "listen": { "type": "string" },
         "apiEndpoint": { "type": "string", "pattern": "^https?://.+/$" },
         "substituterEndpoint": { "type": "string", "pattern": "^$|^https?://.+/$" },
         "allowedHosts": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
@@ -245,15 +254,123 @@
       "additionalProperties": false,
       "required": ["startup", "liveness", "readiness"],
       "properties": {
-        "startup": { "$ref": "#/definitions/probe" },
-        "liveness": { "$ref": "#/definitions/probe" },
-        "readiness": { "$ref": "#/definitions/probe" }
+        "startup": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "periodSeconds", "timeoutSeconds", "failureThreshold"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "periodSeconds": { "type": "integer", "minimum": 1 },
+            "timeoutSeconds": { "type": "integer", "minimum": 1 },
+            "failureThreshold": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "liveness": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "periodSeconds", "timeoutSeconds", "failureThreshold"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "periodSeconds": { "type": "integer", "minimum": 1 },
+            "timeoutSeconds": { "type": "integer", "minimum": 1 },
+            "failureThreshold": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "readiness": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "periodSeconds", "timeoutSeconds", "failureThreshold"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "periodSeconds": { "type": "integer", "minimum": 1 },
+            "timeoutSeconds": { "type": "integer", "minimum": 1 },
+            "failureThreshold": { "type": "integer", "minimum": 1 }
+          }
+        }
       }
     },
-    "resources": { "$ref": "#/definitions/resources" },
-    "garbageCollectorResources": { "$ref": "#/definitions/resources" },
-    "podSecurityContext": { "type": "object" },
-    "securityContext": { "type": "object" },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requests": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "number"] },
+          "properties": {
+            "cpu": { "type": ["string", "number"] },
+            "memory": { "type": ["string", "number"] }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "number"] },
+          "properties": {
+            "cpu": { "type": ["string", "number"] },
+            "memory": { "type": ["string", "number"] }
+          }
+        }
+      }
+    },
+    "garbageCollectorResources": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requests": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "number"] },
+          "properties": {
+            "cpu": { "type": ["string", "number"] },
+            "memory": { "type": ["string", "number"] }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "number"] },
+          "properties": {
+            "cpu": { "type": ["string", "number"] },
+            "memory": { "type": ["string", "number"] }
+          }
+        }
+      }
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "additionalProperties": {},
+      "required": ["runAsNonRoot", "seccompProfile"],
+      "properties": {
+        "runAsNonRoot": { "type": "boolean" },
+        "runAsUser": { "type": "integer", "minimum": 1 },
+        "runAsGroup": { "type": "integer", "minimum": 1 },
+        "fsGroup": { "type": "integer", "minimum": 1 },
+        "seccompProfile": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {
+            "type": { "type": "string", "enum": ["RuntimeDefault", "Localhost", "Unconfined"] },
+            "localhostProfile": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "securityContext": {
+      "type": "object",
+      "additionalProperties": {},
+      "required": ["allowPrivilegeEscalation", "readOnlyRootFilesystem", "capabilities"],
+      "properties": {
+        "allowPrivilegeEscalation": { "type": "boolean" },
+        "readOnlyRootFilesystem": { "type": "boolean" },
+        "capabilities": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["drop"],
+          "properties": {
+            "add": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+            "drop": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+          }
+        }
+      }
+    },
     "podAnnotations": { "type": "object", "additionalProperties": { "type": "string" } },
     "podLabels": { "type": "object", "additionalProperties": { "type": "string" } },
     "terminationGracePeriodSeconds": { "type": "integer", "minimum": 1 },
@@ -265,25 +382,5 @@
     "extraVolumes": { "type": "array", "items": { "type": "object" } },
     "extraVolumeMounts": { "type": "array", "items": { "type": "object" } },
     "extraManifests": { "type": "array", "items": { "type": "object" } }
-  },
-  "definitions": {
-    "probe": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["enabled", "periodSeconds", "timeoutSeconds", "failureThreshold"],
-      "properties": {
-        "enabled": { "type": "boolean" },
-        "periodSeconds": { "type": "integer", "minimum": 1 },
-        "timeoutSeconds": { "type": "integer", "minimum": 1 },
-        "failureThreshold": { "type": "integer", "minimum": 1 }
-      }
-    },
-    "resources": {
-      "type": "object",
-      "properties": {
-        "requests": { "type": "object" },
-        "limits": { "type": "object" }
-      }
-    }
   }
 }

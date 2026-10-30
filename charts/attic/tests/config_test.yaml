@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Attic server configuration
+templates:
+  - templates/configmap.yaml
+tests:
+  - it: renders an Attic ConfigMap
+    asserts:
+      - isKind: { of: ConfigMap }
+  - it: wires a custom HTTP port to the Attic listener
+    set:
+      containerPorts.http: 18080
+      config.listenAddress: 0.0.0.0
+    asserts:
+      - matchRegex:
+          path: 'data["server.toml"]'
+          pattern: 'listen = "0\.0\.0\.0:18080"'
+  - it: preserves the deprecated complete listener override
+    set:
+      config.listen: 127.0.0.1:8080
+    asserts:
+      - matchRegex:
+          path: 'data["server.toml"]'
+          pattern: 'listen = "127\.0\.0\.1:8080"'

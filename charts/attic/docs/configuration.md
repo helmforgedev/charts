@@ -17,6 +17,22 @@ networking and TLS are otherwise correct.
 `config.substituterEndpoint` is optional. Set it only when Nix clients download
 from a different public address than the API endpoint.
 
+## Listener and Service ports
+
+`containerPorts.http` controls both the Attic process listener and the named
+container port used by probes and the Service target. `config.listenAddress`
+selects the bind address and defaults to the IPv4/IPv6 wildcard `[::]`.
+
+The deprecated `config.listen` value remains available for upgrades from the
+initial chart release. When set, its port must match `containerPorts.http`.
+Migrate by moving only the address portion to `config.listenAddress` and
+letting the chart append the application port.
+
+`service.port` is independent and controls only the Kubernetes Service port.
+For example, the Service may expose port `80` while Attic listens on `8080` in
+the Pod. Changing `containerPorts.http` does not require the Service port to
+match because the Service routes to the named `http` target port.
+
 ## Chunking and compression
 
 Attic splits large NAR archives into chunks for global deduplication. The

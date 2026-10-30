@@ -134,10 +134,12 @@ Attic writes structured Rust tracing logs to stdout/stderr. Set
 Prometheus endpoint, so this chart intentionally does not render a
 ServiceMonitor.
 
-Startup, liveness and readiness probes use TCP 8080. They verify the process
-listener only and do not prove PostgreSQL or S3 health. Validate production
-readiness with a real cache create/push/pull workflow and monitor proxy, DB,
-bucket and Kubernetes metrics externally.
+Startup, liveness and readiness probes use the named HTTP port configured by
+`containerPorts.http`. This value also controls the real Attic listener;
+`service.port` remains independently configurable. The probes verify the
+process listener only and do not prove PostgreSQL or S3 health. Validate
+production readiness with a real cache create/push/pull workflow and monitor
+proxy, DB, bucket and Kubernetes metrics externally.
 
 ## Garbage collection
 
@@ -157,6 +159,7 @@ validated by [values.schema.json](values.schema.json). Major groups are:
 | Group | Purpose |
 | --- | --- |
 | `mode`, `replicaCount` | Standalone or distributed lifecycle |
+| `containerPorts` | Attic process and container listeners |
 | `config` | Endpoints, hosts, chunking, compression, GC and JWT claims |
 | `database` | SQLite path or PostgreSQL Secret mapping |
 | `storage` | Local path or S3 bucket/endpoint mapping |

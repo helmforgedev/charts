@@ -23,9 +23,16 @@ tests:
           path: spec.template.spec.containers[0].args
           content: monolithic
   - it: exposes the HTTP container port
+    template: templates/deployment.yaml
     asserts:
       - equal: { path: "spec.template.spec.containers[0].ports[0].name", value: http }
       - equal: { path: "spec.template.spec.containers[0].ports[0].containerPort", value: 8080 }
+  - it: wires a custom HTTP port to the container
+    template: templates/deployment.yaml
+    set:
+      containerPorts.http: 18080
+    asserts:
+      - equal: { path: "spec.template.spec.containers[0].ports[0].containerPort", value: 18080 }
   - it: disables service account token mounting
     asserts:
       - equal: { path: spec.template.spec.automountServiceAccountToken, value: false }
@@ -34,6 +41,14 @@ tests:
       - equal: { path: spec.template.spec.securityContext.runAsNonRoot, value: true }
       - equal: { path: spec.template.spec.securityContext.runAsUser, value: 10001 }
       - equal: { path: spec.template.spec.securityContext.seccompProfile.type, value: RuntimeDefault }
+  - it: permits platform-assigned user and group IDs without resource limits
+    values: [arbitrary-uid-values.yaml]
+    asserts:
+      - notExists: { path: spec.template.spec.securityContext.runAsUser }
+      - notExists: { path: spec.template.spec.securityContext.runAsGroup }
+      - notExists: { path: spec.template.spec.securityContext.fsGroup }
+      - notExists: { path: "spec.template.spec.containers[0].resources.limits.cpu" }
+      - notExists: { path: "spec.template.spec.containers[0].resources.limits.memory" }
   - it: hardens the application container
     asserts:
       - equal: { path: "spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation", value: false }
