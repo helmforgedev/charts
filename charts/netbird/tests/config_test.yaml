@@ -3,6 +3,25 @@ suite: netbird server config
 templates:
   - templates/secret-config.yaml
 tests:
+  - it: wires custom server container ports into the upstream configuration
+    set:
+      server.containerPorts.http: 8080
+      server.containerPorts.stun: 3479
+      server.containerPorts.metrics: 9191
+      server.containerPorts.health: 9091
+    asserts:
+      - matchRegex:
+          path: stringData["config.yaml"]
+          pattern: 'listenAddress: ":8080"'
+      - matchRegex:
+          path: stringData["config.yaml"]
+          pattern: 'stunPorts:\n\s+- 3479'
+      - matchRegex:
+          path: stringData["config.yaml"]
+          pattern: 'metricsPort: 9191'
+      - matchRegex:
+          path: stringData["config.yaml"]
+          pattern: 'healthcheckAddress: ":9091"'
   - it: renders dashboard redirect URIs from the default public URL
     asserts:
       - matchRegex:

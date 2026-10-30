@@ -93,16 +93,16 @@ spec:
           {{- end }}
           ports:
             - name: http
-              containerPort: 80
+              containerPort: {{ .Values.server.containerPorts.http }}
               protocol: TCP
             - name: stun-udp
-              containerPort: 3478
+              containerPort: {{ .Values.server.containerPorts.stun }}
               protocol: UDP
             - name: metrics
-              containerPort: 9090
+              containerPort: {{ .Values.server.containerPorts.metrics }}
               protocol: TCP
             - name: health
-              containerPort: 9000
+              containerPort: {{ .Values.server.containerPorts.health }}
               protocol: TCP
           {{- $storeEnv := include "netbird.storeEnv" . }}
           {{- if or $storeEnv .Values.server.env }}
@@ -177,7 +177,8 @@ spec:
           persistentVolumeClaim:
             claimName: {{ include "netbird.fullname" . }}
           {{- else }}
-          emptyDir: {}
+          emptyDir:
+            sizeLimit: {{ .Values.persistence.emptyDirSizeLimit }}
           {{- end }}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
@@ -239,13 +240,25 @@ spec:
         - name: dashboard
           image: "{{ .Values.dashboard.image.repository }}:{{ .Values.dashboard.image.tag }}"
           imagePullPolicy: {{ .Values.dashboard.image.pullPolicy }}
+          {{- if ne (int .Values.dashboard.containerPorts.http) 80 }}
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - |
+              sed -i \
+                -e 's/listen 80 default_server;/listen {{ .Values.dashboard.containerPorts.http }} default_server;/' \
+                -e 's/listen \[::\]:80 default_server;/listen [::]:{{ .Values.dashboard.containerPorts.http }} default_server;/' \
+                /etc/nginx/http.d/default.conf
+              exec /usr/bin/supervisord -c /etc/supervisord.conf
+          {{- end }}
           {{- with .Values.dashboard.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           ports:
             - name: http
-              containerPort: 80
+              containerPort: {{ .Values.dashboard.containerPorts.http }}
               protocol: TCP
           env:
             - name: NETBIRD_MGMT_API_ENDPOINT
@@ -329,13 +342,17 @@ spec:
           {{- end }}
       volumes:
         - name: nginx-var
-          emptyDir: {}
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeStorage.nginxVarSizeLimit }}
         - name: nginx-logs
-          emptyDir: {}
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeStorage.nginxLogsSizeLimit }}
         - name: nginx-tmp
-          emptyDir: {}
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeStorage.nginxTmpSizeLimit }}
         - name: nginx-run
-          emptyDir: {}
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeStorage.nginxRunSizeLimit }}
       {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
       {{- end }}

@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: netbird operations
+templates:
+  - templates/pdb.yaml
+tests:
+  - it: renders disruption budgets for both workloads
+    set:
+      pdb.enabled: true
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget
+        documentIndex: 0
+      - equal:
+          path: spec.minAvailable
+          value: 1
+        documentIndex: 0
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/component"]
+          value: server
+        documentIndex: 0
+      - isKind:
+          of: PodDisruptionBudget
+        documentIndex: 1
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/component"]
+          value: dashboard
+        documentIndex: 1
+  - it: supports maxUnavailable instead of minAvailable
+    set:
+      pdb.enabled: true
+      pdb.minAvailable: null
+      pdb.maxUnavailable: 1
+    asserts:
+      - notExists:
+          path: spec.minAvailable
+        documentIndex: 0
+      - equal:
+          path: spec.maxUnavailable
+          value: 1
+        documentIndex: 0

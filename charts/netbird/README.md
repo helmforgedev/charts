@@ -43,6 +43,70 @@ postgresql:
   enabled: false
 ```
 
+## Configuration
+
+The values contract is validated by `values.schema.json`. Application listeners and Kubernetes Service ports are
+separate: change `server.containerPorts.*` or `dashboard.containerPorts.http` to move the actual process listener, and
+change the corresponding `*.service.*Port` only to change the Service-facing port. Services use named target ports so
+both contracts remain synchronized.
+
+| Parameter | Default | Purpose |
+|---|---:|---|
+| `server.replicaCount` | `1` | Combined server replicas; SQLite is restricted to one. |
+| `server.publicUrl` | `https://netbird.example.com` | Stable public URL advertised to peers and the dashboard. |
+| `server.authSecret` | `change-me-in-production` | Relay authentication secret; replace before production. |
+| `server.containerPorts.http` | `80` | Real combined HTTP/gRPC process listener. |
+| `server.containerPorts.stun` | `3478` | Real UDP STUN process listener. |
+| `server.containerPorts.metrics` | `9090` | Real Prometheus metrics listener. |
+| `server.containerPorts.health` | `9000` | Real server health listener. |
+| `server.service.httpPort` | `80` | Server Service HTTP/gRPC port. |
+| `server.service.stunPort` | `3478` | Server Service UDP STUN port. |
+| `server.probes.enabled` | `false` | Enable server startup, liveness, and readiness probes. |
+| `server.config.existingSecret` | `""` | Mount an operator-owned upstream `config.yaml`. |
+| `server.store.encryptionKey` | `""` | Stable base64 32-byte key; generated and preserved when empty. |
+| `dashboard.enabled` | `true` | Deploy the NetBird dashboard. |
+| `dashboard.containerPorts.http` | `80` | Real dashboard nginx listener. |
+| `dashboard.service.port` | `80` | Dashboard Service port. |
+| `database.mode` | `auto` | Select `auto`, `sqlite`, `postgresql`, or `external`. |
+| `database.external.engine` | `postgres` | External database engine: PostgreSQL or MySQL. |
+| `postgresql.enabled` | `true` | Deploy the HelmForge PostgreSQL dependency. |
+| `persistence.enabled` | `true` | Persist `/var/lib/netbird`. |
+| `persistence.emptyDirSizeLimit` | `1Gi` | Bound disposable server data when persistence is off. |
+| `resources.requests.cpu` | `50m` | Default request for both application containers. |
+| `resources.requests.memory` | `64Mi` | Default memory request for both application containers. |
+| `resources.limits.cpu` | `500m` | Default CPU limit for both application containers. |
+| `resources.limits.memory` | `256Mi` | Default memory limit for both application containers. |
+| `serviceAccount.automountServiceAccountToken` | `false` | Keep Kubernetes API credentials out of pods. |
+| `networkPolicy.enabled` | `false` | Isolate inbound traffic; egress activates with extra rules. |
+| `networkPolicy.stunIngressFrom` | `[]` | Optional UDP STUN peers, separate from HTTP-facing ingress peers. |
+| `pdb.enabled` | `false` | Render disruption budgets for server and dashboard. |
+| `externalSecrets.enabled` | `false` | Render External Secrets Operator resources. |
+
+Inspect the complete contract before changing advanced values:
+
+```bash
+helm show values helmforge/netbird
+```
+
+## Architecture
+
+The chart runs the upstream combined server and dashboard as separate Deployments. The server configuration is Secret
+backed, PostgreSQL is the production data store by default, and HTTP/gRPC plus dashboard routes can be exposed through
+Ingress or Gateway API. UDP STUN is always a separate Service concern. See [DESIGN.md](DESIGN.md) for boundaries and
+decisions.
+
+## Examples and guides
+
+- [Production values](examples/production.yaml)
+- [Simple installation](examples/simple.yaml)
+- [Ingress exposure](examples/ingress.yaml)
+- [Gateway API exposure](examples/gateway-api.yaml)
+- [Secure existing-Secret setup](examples/secured.yaml)
+- [Exposure guide](docs/exposure.md)
+- [Storage and database guide](docs/storage.md)
+- [Operations and recovery guide](docs/operations.md)
+- [Security guide](docs/security.md)
+
 ## Production notes
 
 NetBird peers need a stable public endpoint. Expose:
@@ -195,6 +259,20 @@ installation even while the multiplexed API and relay are serving requests.
 Use API authentication, OIDC discovery, relay connectivity and metrics for local
 smoke checks; validate public relay reachability separately in the deployed
 network. The chart's existing TCP probe policy is unchanged.
+
+## Troubleshooting
+
+If a rollout does not become ready, inspect both Deployments and the generated config before changing probe budgets:
+
+```bash
+kubectl get pods,svc -n netbird
+kubectl logs deploy/netbird-server -n netbird
+kubectl get secret netbird-config -n netbird -o jsonpath='{.data.config\.yaml}' | base64 -d
+```
+
+For browser login loops, compare the public origin with the generated dashboard redirect URIs. For peer connectivity,
+verify HTTP/2 or gRPC proxying and test UDP STUN reachability independently. See the
+[operations guide](docs/operations.md) for database, metrics, backup, restore, and node-drain procedures.
 
 ## Validation
 

@@ -309,6 +309,19 @@ Validate chart values.
 {{- if and .Values.externalSecrets.enabled (empty .Values.externalSecrets.items) -}}
 {{- fail "externalSecrets.items must contain at least one item when externalSecrets.enabled=true" -}}
 {{- end -}}
+{{- $serverPorts := list (int .Values.server.containerPorts.http) (int .Values.server.containerPorts.stun) (int .Values.server.containerPorts.metrics) (int .Values.server.containerPorts.health) -}}
+{{- if ne (len (uniq $serverPorts)) (len $serverPorts) -}}
+{{- fail "server.containerPorts.http, stun, metrics, and health must use distinct ports" -}}
+{{- end -}}
+{{- if ne (int .Values.server.containerPorts.stun) (int .Values.server.service.stunPort) -}}
+{{- fail "server.containerPorts.stun must equal server.service.stunPort because NetBird advertises the STUN listener port" -}}
+{{- end -}}
+{{- if and .Values.pdb.enabled (ne .Values.pdb.minAvailable nil) (ne .Values.pdb.maxUnavailable nil) -}}
+{{- fail "pdb.minAvailable and pdb.maxUnavailable are mutually exclusive" -}}
+{{- end -}}
+{{- if and .Values.pdb.enabled (eq .Values.pdb.minAvailable nil) (eq .Values.pdb.maxUnavailable nil) -}}
+{{- fail "pdb.minAvailable or pdb.maxUnavailable is required when pdb.enabled=true" -}}
+{{- end -}}
 {{- $podLabels := .Values.podLabels | default dict -}}
 {{- range $key := (list "app.kubernetes.io/name" "app.kubernetes.io/instance") -}}
 {{- if hasKey $podLabels $key -}}
