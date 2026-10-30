@@ -22,12 +22,22 @@ Memos has been deployed.
 
 - Database driver: {{ .Values.database.driver }}
 - Data directory: {{ .Values.persistence.mountPath }}
-- Public instance URL: {{ default "not set" .Values.memos.instanceUrl }}
-- Anonymous access mode: {{ ternary "public" "private" (ne .Values.memos.instanceUrl "") }}
+- Canonical instance URL: {{ default "not set" .Values.memos.instanceUrl }}
+- Anonymous access policy: managed independently by the Memos ACCESS instance setting
+{{- if .Values.memos.instanceUrl }}
+- First-start fallback: without an existing ACCESS setting, Memos 0.31 initializes ACCESS to PUBLIC.
+- Private deployments must provision memos-instance-setting-access.json before first startup.
+{{- else }}
+- First-start fallback: without an existing ACCESS setting, Memos 0.31 initializes ACCESS to PRIVATE.
+{{- end }}
 - Private webhooks: {{ .Values.memos.allowPrivateWebhooks }}
 - Log level: {{ .Values.memos.logLevel }}
 {{- if .Values.provisioning.existingSecret }}
 - Deployment configuration: Secret {{ .Values.provisioning.existingSecret }} mounted at /etc/secrets
+- This Secret source replaces, rather than merges with, the chart-generated Secret.
+- Omitted setting groups remain database-managed; supplied files replace their complete group.
+- Include complete GENERAL and ACCESS files to guarantee closed registration and private access.
+- Preserve disallowPasswordAuth and every other intended GENERAL value.
 {{- else if .Values.provisioning.manageGeneralSettings }}
 - Deployment configuration: generated GENERAL policy, registration closed: {{ .Values.provisioning.disallowUserRegistration }}
 - GENERAL settings are file-owned. Disable provisioning.manageGeneralSettings to retain database-managed settings.

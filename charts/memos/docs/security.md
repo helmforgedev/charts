@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Memos Security
 
 ## Container Identity
@@ -54,12 +56,28 @@ ranges. Only use it when the targets are trusted internal services and egress is
 ## Deployment Configuration Secrets
 
 Use `provisioning.existingSecret` for OAuth2 client secrets, SMTP credentials, S3 credentials, and AI provider keys that
-Memos 0.30 loads from `/etc/secrets`. The chart mounts the Secret read-only with group-readable mode `0440` for the
+Memos 0.31 loads from `/etc/secrets`. The chart mounts the Secret read-only with group-readable mode `0440` for the
 non-root container.
 
 Treat every matching JSON file as sensitive plaintext. Do not place provisioning JSON directly in Helm values, logs, or
 ConfigMaps. Memos rejects invalid files before serving traffic, redacts secret fields from APIs, and keeps file-backed
 resources immutable until the file is removed and the pod restarts.
+
+Public access is controlled by the Memos `ACCESS` setting, not by later changes to `memos.instanceUrl`. On the first
+Memos 0.31 startup, if no `ACCESS` setting exists, Memos initializes it to `PUBLIC` when `memos.instanceUrl` is nonempty
+and to `PRIVATE` otherwise. The initialized setting is persisted. A deployment that requires private access with a
+canonical instance URL must include `memos-instance-setting-access.json` with `INSTANCE_ACCESS_MODE_PRIVATE` in the
+provisioning Secret before first startup. Because `provisioning.existingSecret` replaces the generated provisioning
+Secret source, the generated `GENERAL` file is not mounted. Omitting that file retains the database `GENERAL` policy;
+supplying it replaces the complete group. Include a complete `memos-instance-setting-general.json` with
+`disallowUserRegistration: true` when the deployment must guarantee closed registration, and preserve the intended
+`disallowPasswordAuth` value and every other field.
+
+Treat `ACCESS` and `GENERAL` updates as security-policy transitions. Drain external traffic and scale the StatefulSet
+to zero before updating the Secret, regardless of `replicaCount`. Memos reads the files only during startup, and external
+Secret data is not part of the pod-template checksum. Restore replicas and traffic only after every pod is Ready and
+startup logs confirm the new files loaded. With multiple replicas, a rolling restart can leave old and new replicas
+enforcing different policies during the rollout.
 
 ## NetworkPolicy
 

@@ -1,11 +1,22 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Memos Helm Chart
 
 Deploy [Memos](https://github.com/usememos/memos), a lightweight self-hosted note-taking service, with
 production-oriented Kubernetes defaults.
 
 This chart packages the official `docker.io/neosmemo/memos:0.31.0` image and exposes the runtime settings that matter
-for Kubernetes: persistent data, SQLite or external database configuration, public instance URL, ingress/Gateway API
+for Kubernetes: persistent data, SQLite or external database configuration, canonical instance URL, ingress/Gateway API
 exposure, network policy, pod disruption budgets, file-backed deployment configuration, and non-root security context.
+
+## Features
+
+- Official pinned Memos image with a non-root, read-only runtime
+- Protected first-administrator bootstrap without replacing the upstream binary
+- SQLite, external SQL, or maintained HelmForge PostgreSQL and MySQL dependencies
+- Native OAuth2 and instance-setting provisioning from a read-only Secret
+- Ingress, Gateway API, dual-stack Service, NetworkPolicy, and External Secrets support
+- Behavioral validation of persistence, recovery, SQL, OAuth2, S3, MCP, and access policy
 
 ## Architecture
 
@@ -98,14 +109,13 @@ networkPolicy:
           app.kubernetes.io/name: traefik
 ```
 
-Set `memos.instanceUrl` only when public-mode behavior is intended. A nonempty value enables anonymous access to public
-content and RSS; it is not merely reverse-proxy metadata. Leave it empty for private instances, even behind HTTPS
-Ingress. The production example above deliberately enables public mode; private memos remain subject to application
-authorization.
+`memos.instanceUrl` is the canonical external HTTP(S) URL used by Memos and is never inferred from Ingress or Gateway
+hostnames. In Memos 0.31 it does not select public or private behavior. Manage anonymous access independently through
+the administrator UI or a file-backed `ACCESS` instance setting. RSS was removed upstream in 0.31.
 
 ## Deployment Configuration
 
-Memos 0.30 can load OAuth2 identity providers and instance settings from JSON files under `/etc/secrets`. Keep the JSON
+Memos 0.31 can load OAuth2 identity providers and instance settings from JSON files under `/etc/secrets`. Keep the JSON
 in a Kubernetes Secret and let the chart mount it read-only:
 
 ```yaml
@@ -113,16 +123,26 @@ provisioning:
   existingSecret: memos-provisioning
 ```
 
+This Secret replaces the chart-generated provisioning Secret; the two Secret sources are not merged. Memos still
+applies precedence by setting group: a group without a file remains database-managed, while a supplied file replaces
+that complete group. To guarantee the chart's closed-registration policy while also owning private access, include both
+a complete `memos-instance-setting-general.json` with `disallowUserRegistration: true` and
+`memos-instance-setting-access.json` with `INSTANCE_ACCESS_MODE_PRIVATE`. Preserve the intended
+`disallowPasswordAuth` value and every other `GENERAL` field; omit the `GENERAL` file instead when the database must
+remain authoritative for that group.
+
 The Secret keys become filenames and must use Memos' supported names:
 
 - `memos-idp-<label>.json`
+- `memos-instance-setting-access.json`
 - `memos-instance-setting-general.json`
 - `memos-instance-setting-storage.json`
 - `memos-instance-setting-memo-related.json`
 - `memos-instance-setting-notification.json`
 - `memos-instance-setting-ai.json`
 
-Unsupported instance-setting suffixes are ignored.
+Only supported filenames are loaded. Files beginning with `memos-` but not matching a supported pattern produce a
+startup warning; invalid matching files fail startup.
 
 For example:
 
@@ -133,13 +153,29 @@ metadata:
   name: memos-provisioning
 type: Opaque
 stringData:
+  memos-instance-setting-access.json: |
+    {
+      "key": "ACCESS",
+      "accessSetting": {
+        "accessMode": "INSTANCE_ACCESS_MODE_PRIVATE"
+      }
+    }
   memos-instance-setting-general.json: |
     {
       "key": "GENERAL",
       "generalSetting": {
         "disallowUserRegistration": true,
         "disallowPasswordAuth": false,
-        "weekStartDayOffset": 1
+        "additionalScript": "",
+        "additionalStyle": "",
+        "customProfile": {
+          "title": "",
+          "description": "",
+          "logoUrl": ""
+        },
+        "weekStartDayOffset": 1,
+        "disallowChangeUsername": false,
+        "disallowChangeNickname": false
       }
     }
 ```
@@ -147,8 +183,30 @@ stringData:
 Files are validated atomically during startup and remain authoritative for the process lifetime. Each setting file
 replaces its complete database-backed group; omitted scalar fields reset to defaults, so include every required field.
 Every replica must mount identical files, and Secret changes require an orderly restart of every replica. Supported
-instance setting keys are `GENERAL`, `STORAGE`, `MEMO_RELATED`, `NOTIFICATION`, and `AI`; Memos rejects `BASIC`, `TAGS`,
+instance setting keys are `ACCESS`, `GENERAL`, `STORAGE`, `MEMO_RELATED`, `NOTIFICATION`, and `AI`; Memos rejects `BASIC`, `TAGS`,
 unknown fields, duplicate stable keys, and invalid cross-resource authentication configuration.
+
+## Configuration
+
+| Parameter | Description | Default |
+| --- | --- | --- |
+| `image.repository` | Official Memos image repository | `docker.io/neosmemo/memos` |
+| `image.tag` | Pinned Memos release | `0.31.0` |
+| `app.port` | Native Memos HTTP listener port | `5230` |
+| `memos.instanceUrl` | Canonical external HTTP(S) URL, independent from access policy | `""` |
+| `database.driver` | Database backend: `sqlite`, `mysql`, or `postgres` | `sqlite` |
+| `database.existingSecret` | Secret containing a complete external SQL DSN | `""` |
+| `postgresql.enabled` | Deploy the maintained HelmForge PostgreSQL dependency | `false` |
+| `mysql.enabled` | Deploy the maintained HelmForge MySQL dependency | `false` |
+| `provisioning.existingSecret` | Secret containing native provisioning files | `""` |
+| `bootstrap.existingSecret` | Secret containing the first-administrator password | `""` |
+| `persistence.size` | Generated data claim capacity | `5Gi` |
+| `service.port` | Kubernetes Service port | `5230` |
+| `ingress.enabled` | Render an Ingress | `false` |
+| `gatewayAPI.enabled` | Render Gateway API HTTPRoutes | `false` |
+| `networkPolicy.enabled` | Render the default restrictive NetworkPolicy | `true` |
+
+Every supported value is documented inline in `values.yaml` and validated by `values.schema.json`.
 
 ## External Database
 
@@ -222,7 +280,9 @@ The chart blocks unsafe topologies:
 - MySQL/PostgreSQL without a bundled database, external components or complete DSN source
 - external database with no persistent data volume
 
-## Upgrading To Memos 0.30
+## Upgrade Notes
+
+### Upgrading to Memos 0.30
 
 This chart revision also changes deployment defaults: protected initial setup, closed registration through a complete
 GENERAL provisioning file, a read-only root filesystem, and default network isolation. Existing users and passwords are
@@ -231,7 +291,6 @@ Configure ingress-controller and external-service peers before applying network 
 
 Back up the data volume and external database before upgrading. Review these upstream compatibility changes:
 
-- an unset `memos.instanceUrl` now creates a private instance; set it to retain anonymous public access and RSS
 - the shared-memo endpoint is now `GET /api/v1/shares/{share_token}/memo`
 - saved filters use CEL timestamp fields and `now` instead of `now()`; for example,
   `created_ts >= now - duration("24h")`
@@ -240,10 +299,22 @@ Back up the data volume and external database before upgrading. Review these ups
 The release also adds the Web Clipper, a rebuilt Markdown editor, multi-column feeds, signed webhooks, file-backed
 settings, and a rebuilt MCP toolset.
 
+### Upgrading to Memos 0.31
+
 Memos 0.31 adds collaborative Spaces, Calendar and Map views, portable ZIP
 exports, multiple attachment backends and request hardening. Before upgrading,
 review the administrator access expansion, Shortcut-to-View API migration and
 RSS removal in the [official release notes](https://github.com/usememos/memos/releases/tag/v0.31.0).
+
+On the first 0.31 startup, if no `ACCESS` setting exists, Memos initializes it to `PUBLIC` when
+`memos.instanceUrl` is nonempty and to `PRIVATE` otherwise. The initialized setting is persisted, so later changes to
+`memos.instanceUrl` do not change access policy. Deployments that require private access with a canonical instance URL
+must provision `memos-instance-setting-access.json` with `INSTANCE_ACCESS_MODE_PRIVATE` before first startup. When
+`provisioning.existingSecret` is used, the generated `GENERAL` file is not mounted. Omitting `GENERAL` keeps the
+database policy; supplying it replaces the complete group. Include a complete `memos-instance-setting-general.json`
+when the deployment must guarantee closed registration, preserving `disallowPasswordAuth` and the other current
+policy values. Drain older replicas before changing the policy during a mixed-version rollout because 0.30 still uses
+the legacy instance-URL rule.
 
 ## Backups
 
@@ -278,6 +349,26 @@ private or reserved IP ranges.
 - [Security](docs/security.md)
 - [Backup and restore](docs/backup.md)
 - [OAuth2 and MCP](docs/integrations.md)
+
+## Examples
+
+- [Production baseline](examples/production.yaml)
+- [External database](examples/external-database.yaml)
+- [Bundled PostgreSQL](examples/postgresql.yaml)
+- [Bundled MySQL](examples/mysql.yaml)
+- [Minimal installation](examples/simple.yaml)
+
+## Troubleshooting
+
+| Symptom | Check |
+| --- | --- |
+| Pod fails before readiness | Inspect startup logs for invalid provisioning JSON or database migration errors. |
+| Database connection fails | Verify the selected driver, Secret key, DNS, TLS mode, and NetworkPolicy peers. |
+| Anonymous access is unexpected | Inspect the Memos 0.31 `ACCESS` setting; `memos.instanceUrl` is not the policy switch. |
+| Attachments disappear after SQL migration | Restore the complete `MEMOS_DATA` volume as well as the database. |
+| Secret changes have no effect | Restart every replica because provisioning is loaded only at process startup. |
+
+See [Operations](docs/operations.md) for rollout commands and detailed failure handling.
 
 ## Security Scan: `memos`
 

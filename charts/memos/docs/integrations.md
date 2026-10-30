@@ -1,8 +1,10 @@
-# Memos identity, MCP and object storage
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+# Memos Identity, MCP and Object Storage
 
 ## Native OAuth2
 
-Memos 0.30 uses generic OAuth2 authorization-code exchange and a configured HTTPS UserInfo endpoint. It does not perform
+Memos uses generic OAuth2 authorization-code exchange and a configured HTTPS UserInfo endpoint. It does not perform
 OIDC issuer/JWKS/ID-token validation merely because `openid` is included in scopes. Configure only a trusted provider,
 exact callback URLs and stable subject mapping; keep client credentials in `provisioning.existingSecret`.
 
