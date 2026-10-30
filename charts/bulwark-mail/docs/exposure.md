@@ -8,7 +8,7 @@ The published Bulwark image bakes the base path during its build. This chart acc
 
 ## Ingress
 
-Use `ingress.ingressClassName`; the chart does not assume a controller. Terminate TLS at the ingress and route the root path to service port 3000.
+Use `ingress.ingressClassName`; the chart does not assume a controller. Terminate TLS at the ingress and route the root path to `service.port`. The Service targets the named `http` port, whose real Next.js listener is configured independently through `containerPorts.http`.
 
 ## Gateway API
 

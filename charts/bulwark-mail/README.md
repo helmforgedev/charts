@@ -59,7 +59,7 @@ The single-writer contract is enforced:
 
 ## Image and security
 
-The chart uses `ghcr.io/bulwarkmail/webmail:1.15.0-always`. The `-always` tag is the deterministic upstream index for 1.14.2. The image supports linux/amd64 and linux/arm64.
+The chart uses `ghcr.io/bulwarkmail/webmail:1.15.0-always`. The `-always` tag is the deterministic upstream index for 1.15.0. The image supports linux/amd64 and linux/arm64.
 
 Defaults match the upstream image user:
 
@@ -96,6 +96,8 @@ The browser communicates with the configured JMAP server directly. Consequently:
 Ingress and Gateway API are mutually exclusive. The published upstream image supports the root path `/` only. Non-root paths require a custom Bulwark image rebuilt with `NEXT_PUBLIC_BASE_PATH` and are rejected by this chart.
 
 Ingress uses `ingress.ingressClassName`. Gateway API follows the canonical `gatewayAPI.httpRoutes[]` contract and injects the chart Service backend only for route items that omit `rules`.
+
+`containerPorts.http` configures the real Next.js listener through the upstream `PORT` environment variable. `service.port` is independent and the Service targets the named `http` container port. Ports below `1024` require the container runtime to permit non-root binds for UID `1001`.
 
 ## Secrets
 
@@ -147,6 +149,7 @@ Set `service.ipFamilyPolicy` to `SingleStack`, `PreferDualStack`, or `RequireDua
 Startup, liveness, and readiness probes call `/api/health`. The chart-owned runtime smoke additionally verifies:
 
 - the exact deterministic image;
+- the configured application listener and independent Service port;
 - health JSON reports `healthy`;
 - `/api/config` exposes the expected JMAP, remember-me, and settings-sync contract;
 - wizard mode reports bootstrap state and redirects `/` to `/setup`;
@@ -179,7 +182,8 @@ Startup, liveness, and readiness probes call `/api/health`. The chart-owned runt
 | `replicaCount` | `1` | Enforced single-writer topology |
 | `persistence.size` | `5Gi` | Single `/app/data` PVC |
 | `persistence.retain` | `true` | Keep generated PVC on uninstall |
-| `service.port` | `3000` | HTTP Service port |
+| `containerPorts.http` | `3000` | Next.js application listener configured through `PORT` |
+| `service.port` | `3000` | Independent Kubernetes Service port targeting the named listener |
 | `networkPolicy.enabled` | `false` | Opt-in traffic restrictions |
 
 The complete, validated contract is documented inline in [values.yaml](values.yaml) and enforced by [values.schema.json](values.schema.json).

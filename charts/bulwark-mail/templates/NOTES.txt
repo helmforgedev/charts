@@ -13,7 +13,8 @@ Bulwark Mail has been installed.
 - Replicas: {{ .Values.replicaCount }}
 - Update strategy: Recreate
 - ServiceAccount: {{ include "bulwark-mail.serviceAccountName" . }}
-- Service: {{ include "bulwark-mail.fullname" . }}:{{ .Values.service.port }}
+- Application listener: {{ .Values.containerPorts.http }}
+- Service: {{ include "bulwark-mail.fullname" . }}:{{ .Values.service.port }} -> http
 - Persistence: {{ ternary "enabled" "disabled" .Values.persistence.enabled }}
 - External Stalwart/JMAP dependency: required for normal mail operation
 
@@ -130,6 +131,8 @@ committed values file; use an existing Secret or External Secrets.
 - Gateway API: {{ .Values.gatewayAPI.enabled }}
 - NetworkPolicy: {{ .Values.networkPolicy.enabled }}
 - External Secrets: {{ .Values.externalSecrets.enabled }}
+- Application listener: {{ .Values.containerPorts.http }}
+- Service port: {{ .Values.service.port }}
 - PVC retention: {{ .Values.persistence.retain }}
 {{- with .Values.service.ipFamilyPolicy }}
 - Service IP family policy: {{ . }}{{ with $.Values.service.ipFamilies }} ({{ join ", " . }}){{ end }}
@@ -159,16 +162,16 @@ Check Service endpoints:
 
 Check the health contract from the pod:
 
-  kubectl -n {{ .Release.Namespace }} exec deployment/{{ include "bulwark-mail.fullname" . }} -- wget -qO- http://127.0.0.1:3000/api/health
+  kubectl -n {{ .Release.Namespace }} exec deployment/{{ include "bulwark-mail.fullname" . }} -- wget -qO- http://127.0.0.1:{{ .Values.containerPorts.http }}/api/health
 
 {{- if eq .Values.config.mode "declarative" }}
 Check the public configuration contract:
 
-  kubectl -n {{ .Release.Namespace }} exec deployment/{{ include "bulwark-mail.fullname" . }} -- wget -qO- http://127.0.0.1:3000/api/config
+  kubectl -n {{ .Release.Namespace }} exec deployment/{{ include "bulwark-mail.fullname" . }} -- wget -qO- http://127.0.0.1:{{ .Values.containerPorts.http }}/api/config
 {{- else }}
 Check the wizard setup contract:
 
-  kubectl -n {{ .Release.Namespace }} exec deployment/{{ include "bulwark-mail.fullname" . }} -- wget -qO- http://127.0.0.1:3000/api/setup/status
+  kubectl -n {{ .Release.Namespace }} exec deployment/{{ include "bulwark-mail.fullname" . }} -- wget -qO- http://127.0.0.1:{{ .Values.containerPorts.http }}/api/setup/status
 {{- end }}
 
 7. Troubleshooting
