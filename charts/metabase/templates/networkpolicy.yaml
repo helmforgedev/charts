@@ -1,0 +1,67 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.networkPolicy.enabled }}
+{{- $extraFrom := .Values.networkPolicy.ingress.extraFrom | default list }}
+{{- $extraEgress := .Values.networkPolicy.egress.extraEgress | default list }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "metabase.fullname" . }}
+  labels:
+    {{- include "metabase.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "metabase.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    {{- if .Values.networkPolicy.egress.enabled }}
+    - Egress
+    {{- end }}
+  {{- if or .Values.networkPolicy.ingress.allowSameNamespace (gt (len $extraFrom) 0) }}
+  ingress:
+    - from:
+        {{- if .Values.networkPolicy.ingress.allowSameNamespace }}
+        - podSelector: {}
+        {{- end }}
+        {{- with $extraFrom }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: http
+  {{- else }}
+  ingress: []
+  {{- end }}
+  {{- if .Values.networkPolicy.egress.enabled }}
+  egress:
+    {{- if .Values.networkPolicy.egress.allowDNS }}
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- end }}
+    {{- if .Values.postgresql.enabled }}
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ default "postgresql" .Values.postgresql.nameOverride | trunc 63 | trimSuffix "-" }}
+              app.kubernetes.io/instance: {{ .Release.Name }}
+      ports:
+        - protocol: TCP
+          port: 5432
+    {{- else if .Values.database.external.networkPolicyPeers }}
+    - to:
+        {{- toYaml .Values.database.external.networkPolicyPeers | nindent 8 }}
+      ports:
+        - protocol: TCP
+          port: {{ include "metabase.dbPort" . }}
+    {{- end }}
+    {{- with $extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if and (not .Values.networkPolicy.egress.allowDNS) (not .Values.postgresql.enabled) (not $.Values.database.external.networkPolicyPeers) (eq (len $extraEgress) 0) }}
+    []
+    {{- end }}
+  {{- end }}
+{{- end }}

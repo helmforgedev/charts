@@ -1,4 +1,16 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- $userMountPaths := dict -}}
+{{- range .Values.extraVolumeMounts -}}
+  {{- if hasKey . "mountPath" -}}
+    {{- $_ := set $userMountPaths (toString .mountPath) true -}}
+  {{- end -}}
+{{- end -}}
+{{- $userVolumeNames := dict -}}
+{{- range .Values.extraVolumes -}}
+  {{- if hasKey . "name" -}}
+    {{- $_ := set $userVolumeNames (toString .name) true -}}
+  {{- end -}}
+{{- end -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -24,13 +36,12 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "metabase.serviceAccountName" . }}
-      {{- end }}
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . }}
       {{- end }}
@@ -43,6 +54,10 @@ spec:
         - name: wait-for-db
           image: "{{ .Values.waitForDatabase.image.repository }}:{{ .Values.waitForDatabase.image.tag }}"
           imagePullPolicy: {{ .Values.waitForDatabase.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           command:
             - sh
             - -c
@@ -65,6 +80,10 @@ spec:
               containerPort: {{ .Values.metabase.port }}
               protocol: TCP
           env:
+            - name: HOME
+              value: /tmp
+            - name: MB_PLUGINS_DIR
+              value: /plugins
             - name: MB_DB_TYPE
               value: postgres
             - name: MB_DB_HOST
@@ -140,12 +159,39 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.extraVolumeMounts }}
           volumeMounts:
+            {{- if not (hasKey $userMountPaths "/plugins") }}
+            - name: runtime-plugins
+              mountPath: /plugins
+            {{- end }}
+            {{- if not (hasKey $userMountPaths "/tmp") }}
+            - name: runtime-tmp
+              mountPath: /tmp
+            {{- end }}
+            {{- if not (hasKey $userMountPaths "/target") }}
+            - name: runtime-target
+              mountPath: /target
+            {{- end }}
+          {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
-      {{- with .Values.extraVolumes }}
       volumes:
+        {{- if not (hasKey $userVolumeNames "runtime-plugins") }}
+        - name: runtime-plugins
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeStorage.pluginsSizeLimit }}
+        {{- end }}
+        {{- if not (hasKey $userVolumeNames "runtime-tmp") }}
+        - name: runtime-tmp
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeStorage.tmpSizeLimit }}
+        {{- end }}
+        {{- if not (hasKey $userVolumeNames "runtime-target") }}
+        - name: runtime-target
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeStorage.targetSizeLimit }}
+        {{- end }}
+      {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- with .Values.nodeSelector }}

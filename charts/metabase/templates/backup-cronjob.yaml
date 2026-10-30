@@ -18,9 +18,13 @@ spec:
       template:
         metadata:
           labels:
-            {{- include "metabase.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/name: {{ printf "%s-backup" (include "metabase.name" .) | trunc 63 | trimSuffix "-" }}
+            app.kubernetes.io/instance: {{ .Release.Name }}
         spec:
           restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            {{- toYaml .Values.backup.podSecurityContext | nindent 12 }}
           {{- with .Values.imagePullSecrets }}
           imagePullSecrets:
             {{- toYaml . | nindent 12 }}
@@ -61,6 +65,8 @@ spec:
                       key: {{ include "metabase.backupDbPasswordSecretKey" . }}
               resources:
                 {{- toYaml .Values.backup.resources | nindent 16 }}
+              securityContext:
+                {{- toYaml .Values.backup.securityContext | nindent 16 }}
               volumeMounts:
                 - name: scripts
                   mountPath: /scripts
@@ -71,6 +77,8 @@ spec:
               image: {{ .Values.backup.images.uploader | quote }}
               command: ["/bin/sh", "/scripts/upload-backup.sh"]
               env:
+                - name: MC_CONFIG_DIR
+                  value: /backup/out/.mc
                 - name: S3_ENDPOINT
                   value: {{ .Values.backup.s3.endpoint | quote }}
                 - name: S3_BUCKET
@@ -91,6 +99,8 @@ spec:
                       key: {{ .Values.backup.s3.existingSecretSecretKeyKey }}
               resources:
                 {{- toYaml .Values.backup.resources | nindent 16 }}
+              securityContext:
+                {{- toYaml .Values.backup.securityContext | nindent 16 }}
               volumeMounts:
                 - name: scripts
                   mountPath: /scripts

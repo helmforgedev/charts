@@ -1,0 +1,121 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Operations
+templates:
+  - templates/pdb.yaml
+  - templates/networkpolicy.yaml
+release:
+  name: test
+  namespace: analytics
+tests:
+  - it: should not render a PDB by default
+    template: templates/pdb.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render an optional PDB
+    template: templates/pdb.yaml
+    set:
+      pdb.enabled: true
+      pdb.maxUnavailable: 1
+      pdb.unhealthyPodEvictionPolicy: AlwaysAllow
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: spec.maxUnavailable
+          value: 1
+      - equal:
+          path: spec.unhealthyPodEvictionPolicy
+          value: AlwaysAllow
+
+  - it: should not render a NetworkPolicy by default
+    template: templates/networkpolicy.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should restrict ingress to the release namespace when enabled
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - contains:
+          path: spec.policyTypes
+          content: Ingress
+      - contains:
+          path: spec.ingress[0].from
+          content:
+            podSelector: {}
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: http
+
+  - it: should render database and custom egress rules
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+      networkPolicy.egress.extraEgress:
+        - to:
+            - ipBlock:
+                cidr: 10.80.0.0/16
+          ports:
+            - protocol: TCP
+              port: 443
+    asserts:
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - contains:
+          path: spec.egress[1].to
+          content:
+            podSelector:
+              matchLabels:
+                app.kubernetes.io/name: postgresql
+                app.kubernetes.io/instance: test
+      - equal:
+          path: spec.egress[1].ports[0].port
+          value: 5432
+      - equal:
+          path: spec.egress[2].to[0].ipBlock.cidr
+          value: 10.80.0.0/16
+
+  - it: should honor the postgresql name override in the database egress rule
+    template: templates/networkpolicy.yaml
+    set:
+      postgresql.nameOverride: metadata-db
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+    asserts:
+      - equal:
+          path: spec.egress[1].to[0].podSelector.matchLabels["app.kubernetes.io/name"]
+          value: metadata-db
+
+  - it: should render deny-all ingress when no peers are allowed
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.ingress.allowSameNamespace: false
+      networkPolicy.ingress.extraFrom: []
+    asserts:
+      - equal:
+          path: spec.ingress
+          value: []
+
+  - it: should render deny-all egress when no egress rules are allowed
+    template: templates/networkpolicy.yaml
+    set:
+      postgresql.enabled: false
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+      networkPolicy.egress.allowDNS: false
+      networkPolicy.egress.extraEgress: []
+      database.external.host: metabase.example.com
+      database.external.password: password
+    asserts:
+      - equal:
+          path: spec.egress
+          value: []

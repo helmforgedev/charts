@@ -3,6 +3,7 @@
   "title": "Metabase Helm Chart Values",
   "description": "Values for the Metabase Helm chart — open-source BI platform with PostgreSQL metadata store",
   "type": "object",
+  "required": ["global"],
   "additionalProperties": true,
   "properties": {
     "global": {
@@ -70,7 +71,8 @@
             "username": { "type": "string", "default": "metabase" },
             "password": { "type": "string", "default": "" },
             "existingSecret": { "type": "string", "default": "" },
-            "existingSecretPasswordKey": { "type": "string", "default": "password" }
+            "existingSecretPasswordKey": { "type": "string", "default": "password" },
+            "networkPolicyPeers": { "type": "array", "items": { "type": "object" } }
           }
         }
       }
@@ -80,7 +82,8 @@
       "properties": {
         "create": { "type": "boolean", "default": false },
         "name": { "type": "string", "default": "" },
-        "annotations": { "type": "object" }
+        "annotations": { "type": "object" },
+        "automountServiceAccountToken": { "type": "boolean", "default": false }
       }
     },
     "service": {
@@ -119,14 +122,127 @@
       "type": "object",
       "description": "Health probe configuration",
       "properties": {
-        "startup": { "type": "object" },
-        "liveness": { "type": "object" },
-        "readiness": { "type": "object" }
+        "startup": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "path": { "type": "string", "pattern": "^/" },
+            "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+            "periodSeconds": { "type": "integer", "minimum": 1 },
+            "timeoutSeconds": { "type": "integer", "minimum": 1 },
+            "failureThreshold": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "liveness": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "path": { "type": "string", "pattern": "^/" },
+            "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+            "periodSeconds": { "type": "integer", "minimum": 1 },
+            "timeoutSeconds": { "type": "integer", "minimum": 1 },
+            "failureThreshold": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "readiness": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "path": { "type": "string", "pattern": "^/" },
+            "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+            "periodSeconds": { "type": "integer", "minimum": 1 },
+            "timeoutSeconds": { "type": "integer", "minimum": 1 },
+            "failureThreshold": { "type": "integer", "minimum": 1 }
+          }
+        }
       }
     },
-    "resources": { "type": "object" },
-    "podSecurityContext": { "type": "object" },
-    "securityContext": { "type": "object" },
+    "resources": {
+      "type": "object",
+      "properties": {
+        "requests": {
+          "type": "object",
+          "properties": {
+            "cpu": { "type": ["string", "number"] },
+            "memory": { "type": ["string", "number"] }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "cpu": { "type": ["string", "number"] },
+            "memory": { "type": ["string", "number"] }
+          }
+        }
+      }
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "properties": {
+        "runAsNonRoot": { "type": "boolean" },
+        "runAsUser": { "type": "integer", "minimum": 1 },
+        "runAsGroup": { "type": "integer", "minimum": 1 },
+        "fsGroup": { "type": "integer", "minimum": 1 },
+        "fsGroupChangePolicy": { "type": "string", "enum": ["Always", "OnRootMismatch"] },
+        "seccompProfile": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string", "enum": ["RuntimeDefault", "Localhost", "Unconfined"] }
+          }
+        }
+      }
+    },
+    "securityContext": {
+      "type": "object",
+      "properties": {
+        "allowPrivilegeEscalation": { "type": "boolean" },
+        "readOnlyRootFilesystem": { "type": "boolean" },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "drop": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+    "runtimeStorage": {
+      "type": "object",
+      "properties": {
+        "pluginsSizeLimit": { "type": "string", "minLength": 1 },
+        "tmpSizeLimit": { "type": "string", "minLength": 1 },
+        "targetSizeLimit": { "type": "string", "minLength": 1 }
+      }
+    },
+    "pdb": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "minAvailable": { "type": ["string", "integer"] },
+        "maxUnavailable": { "type": ["string", "integer"] },
+        "unhealthyPodEvictionPolicy": { "type": "string", "enum": ["", "IfHealthyBudget", "AlwaysAllow"] }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "ingress": {
+          "type": "object",
+          "properties": {
+            "allowSameNamespace": { "type": "boolean" },
+            "extraFrom": { "type": "array", "items": { "type": "object" } }
+          }
+        },
+        "egress": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "allowDNS": { "type": "boolean" },
+            "extraEgress": { "type": "array", "items": { "type": "object" } }
+          }
+        }
+      }
+    },
     "nodeSelector": { "type": "object" },
     "tolerations": { "type": "array", "items": { "type": "object" } },
     "affinity": { "type": "object" },
@@ -147,10 +263,71 @@
         "schedule": { "type": "string", "description": "Cron schedule for backups", "default": "0 3 * * *" },
         "suspend": { "type": "boolean", "description": "Suspend the CronJob", "default": false },
         "archivePrefix": { "type": "string", "description": "Prefix for backup archive filenames", "default": "metabase" },
-        "images": { "type": "object", "description": "Container images used for backup jobs" },
+        "concurrencyPolicy": { "type": "string", "enum": ["Allow", "Forbid", "Replace"] },
+        "successfulJobsHistoryLimit": { "type": "integer", "minimum": 0 },
+        "failedJobsHistoryLimit": { "type": "integer", "minimum": 0 },
+        "backoffLimit": { "type": "integer", "minimum": 0 },
+        "images": {
+          "type": "object",
+          "description": "Container images used for backup jobs",
+          "properties": {
+            "postgresql": { "type": "string", "minLength": 1 },
+            "uploader": { "type": "string", "minLength": 1 }
+          }
+        },
         "resources": { "type": "object", "description": "CPU and memory for backup containers" },
-        "s3": { "type": "object", "description": "S3-compatible storage configuration" },
-        "database": { "type": "object", "description": "Override database credentials for backup" }
+        "podSecurityContext": {
+          "type": "object",
+          "properties": {
+            "seccompProfile": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string", "enum": ["RuntimeDefault", "Localhost", "Unconfined"] }
+              }
+            }
+          }
+        },
+        "securityContext": {
+          "type": "object",
+          "properties": {
+            "allowPrivilegeEscalation": { "type": "boolean" },
+            "capabilities": {
+              "type": "object",
+              "properties": {
+                "drop": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
+        },
+        "s3": {
+          "type": "object",
+          "description": "S3-compatible storage configuration",
+          "properties": {
+            "endpoint": { "type": "string" },
+            "bucket": { "type": "string" },
+            "prefix": { "type": "string" },
+            "createBucketIfNotExists": { "type": "boolean" },
+            "existingSecret": { "type": "string" },
+            "existingSecretAccessKeyKey": { "type": "string" },
+            "existingSecretSecretKeyKey": { "type": "string" },
+            "accessKey": { "type": "string" },
+            "secretKey": { "type": "string" }
+          }
+        },
+        "database": {
+          "type": "object",
+          "description": "Override database credentials for backup",
+          "properties": {
+            "host": { "type": "string" },
+            "port": { "type": ["string", "integer"] },
+            "name": { "type": "string" },
+            "username": { "type": "string" },
+            "password": { "type": "string" },
+            "existingSecret": { "type": "string" },
+            "existingSecretPasswordKey": { "type": "string" },
+            "postgresDumpArgs": { "type": "string" }
+          }
+        }
       }
     },
     "postgresql": {
@@ -167,11 +344,46 @@
             "password": { "type": "string", "default": "" }
           }
         },
+        "initdb": {
+          "type": "object",
+          "properties": {
+            "scripts": {
+              "type": "object",
+              "properties": {
+                "02-extensions.sql": { "type": "string" }
+              }
+            }
+          }
+        },
         "standalone": {
           "type": "object",
           "properties": {
-            "persistence": { "type": "object" },
-            "resources": { "type": "object" }
+            "persistence": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "size": { "type": "string" }
+              }
+            },
+            "resources": {
+              "type": "object",
+              "properties": {
+                "requests": {
+                  "type": "object",
+                  "properties": {
+                    "cpu": { "type": ["string", "number"] },
+                    "memory": { "type": ["string", "number"] }
+                  }
+                },
+                "limits": {
+                  "type": "object",
+                  "properties": {
+                    "cpu": { "type": ["string", "number"] },
+                    "memory": { "type": ["string", "number"] }
+                  }
+                }
+              }
+            }
           }
         }
       }
