@@ -455,6 +455,9 @@ Liquibase row lock.
 
 - The Keycloak container runs non-root with dropped capabilities and a
   read-only root filesystem by default.
+- The built-in database wait init container inherits the same container
+  security context, including non-root execution, disabled privilege
+  escalation, and dropped capabilities.
 - Bootstrap, database, truststore, backup, and integration credentials belong
   in Kubernetes Secrets or External Secrets; inline values are conveniences,
   not the preferred production path.

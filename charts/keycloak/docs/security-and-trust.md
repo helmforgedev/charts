@@ -18,6 +18,11 @@ The chart separates two concerns:
 
 This keeps database CA handling explicit without pretending every outbound TLS integration is the same as database connectivity.
 
+When a database is configured, the built-in `wait-for-db` init container uses
+the same `securityContext` as the Keycloak container. The defaults run it as a
+non-root user, disable privilege escalation, and drop all Linux capabilities so
+the chart-managed containers satisfy restricted container requirements.
+
 ## Database TLS
 
 The current automatic TLS wiring is production-ready for PostgreSQL.
@@ -66,7 +71,10 @@ truststore:
 
 This chart mounts the referenced files and exposes them through `KC_TRUSTSTORE_PATHS`.
 
-Keycloak 26.6.x includes upstream improvements around automatic truststore initialization on Kubernetes and OpenShift. Keep chart-managed `truststore` values explicit when the deployment needs deterministic private CA material, database CA bundles, or provider/theme integration trust paths.
+Keycloak 26.6.x includes upstream improvements around automatic truststore
+initialization on Kubernetes and OpenShift. Keep chart-managed `truststore`
+values explicit when the deployment needs deterministic private CA material,
+database CA bundles, or provider/theme integration trust paths.
 
 The upstream Kubernetes/OpenShift CA auto-discovery is controlled by:
 
@@ -76,9 +84,15 @@ truststore:
     enabled: true
 ```
 
-This renders `KC_TRUSTSTORE_KUBERNETES_ENABLED`. If `serviceAccount.automountServiceAccountToken=false`, Kubernetes service account CA files are not mounted, so Keycloak cannot discover them even if the truststore option remains enabled.
+This renders `KC_TRUSTSTORE_KUBERNETES_ENABLED`. If
+`serviceAccount.automountServiceAccountToken=false`, Kubernetes service account
+CA files are not mounted, so Keycloak cannot discover them even if the
+truststore option remains enabled.
 
-Disable service account token automount only after confirming the deployment does not need the implicit Kubernetes CA files, Kubernetes service account identity provider behavior, external Infinispan integrations, or custom provider code that talks to the Kubernetes API.
+Disable service account token automount only after confirming the deployment
+does not need the implicit Kubernetes CA files, Kubernetes service account
+identity provider behavior, external Infinispan integrations, or custom
+provider code that talks to the Kubernetes API.
 
 Accepted formats follow the official Keycloak guidance:
 
@@ -131,7 +145,9 @@ externalSecrets:
       property: password
 ```
 
-Use this only when the platform team already operates https://github.com/external-secrets/external-secrets and the referenced store exists before the Helm release is installed.
+Use this only when the platform team already operates
+[External Secrets Operator](https://github.com/external-secrets/external-secrets)
+and the referenced store exists before the Helm release is installed.
 
 ## Rollout checklist for trust changes
 
@@ -143,10 +159,10 @@ Use this only when the platform team already operates https://github.com/externa
 
 ## Official product references
 
-- Keycloak trusted certificates: https://www.keycloak.org/server/keycloak-truststore
-- Keycloak production configuration: https://www.keycloak.org/server/configuration-production
-- Keycloak release notes: https://www.keycloak.org/docs/latest/release_notes/index.html
-- External Secrets Operator: https://external-secrets.io/latest/
+- [Keycloak trusted certificates](https://www.keycloak.org/server/keycloak-truststore)
+- [Keycloak production configuration](https://www.keycloak.org/server/configuration-production)
+- [Keycloak release notes](https://www.keycloak.org/docs/latest/release_notes/index.html)
+- [External Secrets Operator](https://external-secrets.io/latest/)
 
 <!-- @AI-METADATA
 type: chart-docs
