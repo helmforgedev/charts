@@ -7,10 +7,22 @@ It has no chart dependencies. RustFS is pinned to `1.0.3`, verified against the
 [official release](https://github.com/rustfs/rustfs/releases/tag/1.0.3) and
 [official image tag](https://hub.docker.com/r/rustfs/rustfs/tags?name=1.0.3).
 
+## Features
+
+- Standalone or distributed StatefulSet topology with retained per-Pod storage.
+- Configurable S3 API and console listeners wired to the real RustFS process.
+- Generated or existing S3 credentials and a separate distributed RPC Secret.
+- Default ingress isolation, named-port Services, and independent TLS Ingresses.
+- Product-aware health probes and authenticated S3 content validation on k3d.
+- Bucket and site replication setup through the pinned official RustFS CLI.
+
 ## Install
 
 ```bash
-helm install storage ./charts/rustfs --namespace rustfs --create-namespace
+helm install storage oci://ghcr.io/helmforgedev/helm/rustfs \
+  --version 1.1.1 \
+  --namespace rustfs \
+  --create-namespace
 kubectl -n rustfs port-forward svc/storage-rustfs-console 9001:9001
 ```
 
@@ -34,6 +46,14 @@ When the chart generates a secret key, it reuses that key from the live Secret o
 upgrade. Offline `helm template` cannot look up live Secrets and generates a new
 key each time. Use an existing Secret for GitOps. Restart pods after changing
 credentials; Secret environment variables are read at container startup.
+
+## Architecture
+
+One StatefulSet implements both storage topologies. The API Service selects all
+ready members, the console Service selects ordinal zero in distributed mode, and
+a headless Service provides peer discovery. Per-Pod PVCs preserve storage
+identity. See [DESIGN.md](DESIGN.md) for trust boundaries, topology decisions,
+replication ownership, and production limitations.
 
 ## Storage topologies
 
@@ -80,10 +100,17 @@ Upstream release notes: [1.0.3](https://github.com/rustfs/rustfs/releases/tag/1.
 
 ## Networking
 
-API and console listen on container ports 9000 and 9001. `service.port` and
+API and console default to container ports 9000 and 9001. `containerPorts.api`
+and `containerPorts.console` configure the real RustFS listeners through
+`RUSTFS_ADDRESS` and `RUSTFS_CONSOLE_ADDRESS`. `service.port` and
 `consoleService.port` change the client-facing Service ports only. The console
 Service selects pod zero in distributed mode. Console access is unavailable while pod zero is down; API traffic uses all
 ready pods. `config.consoleEnabled: false` removes the console Service and port.
+
+NetworkPolicy is enabled by default. Empty API and console peer lists allow only
+Pods in the release namespace; set `networkPolicy.apiIngressFrom` and
+`networkPolicy.consoleIngressFrom` before admitting clients or ingress
+controllers from other namespaces. Internode RPC shares the named API port.
 
 `ingress` and `consoleIngress` have independent `enabled`, `ingressClassName`,
 `annotations`, `hosts`, and `tls` values. Both are disabled by default. See
@@ -165,6 +192,18 @@ not continuously reconciled.
 See the official [CLI reference](https://github.com/rustfs/cli/tree/v0.1.36/docs/reference/rc)
 and [site replication guide](https://github.com/rustfs/docs.rustfs.com/blob/main/content/en/operations/high-availability/site-replication.md).
 
+## Examples
+
+- [Standalone](examples/standalone/values.yaml) for one durable node.
+- [Distributed](examples/distributed/values.yaml) for four or more storage members.
+- [Cluster alias](examples/cluster/values.yaml) for the equivalent cluster topology.
+- [Bucket replication](examples/replication-bucket/values.yaml) for directional rules.
+- [Site replication](examples/replication-site/values.yaml) for whole-site relationships.
+
+Every example is a starting point. Replace credentials, storage classes,
+endpoints, TLS settings, failure-domain scheduling, and NetworkPolicy peers for
+the target environment.
+
 ## Configuration
 
 See [values.yaml](values.yaml) for all defaults and [values.schema.json](values.schema.json)
@@ -176,9 +215,12 @@ for constraints. Important settings:
 | `replicaCount` | `1` | Must be one for standalone, at least four for distributed |
 | `image.repository` / `image.tag` | `docker.io/rustfs/rustfs` / `1.0.3` | Server image |
 | `image.digest` | empty | Overrides tag when supplied |
+| `containerPorts.api` | `9000` | Real S3 API and internode RPC listener |
+| `containerPorts.console` | `9001` | Real console listener |
 | `persistence.size` | `10Gi` | Capacity per pod |
 | `persistence.storageClass` | empty | Cluster default; `-` disables dynamic provisioning |
 | `config.logLevel` | `info` | RustFS observability logger level |
+| `networkPolicy.enabled` | `true` | Restrict API, peer, and console ingress |
 | `pdb.enabled` | `false` | Optional disruption budget |
 | `resources` | `{}` | Explicit workload requests and limits |
 | `extraEnv` / `extraEnvFrom` | `[]` | Additional application configuration |
@@ -190,6 +232,22 @@ and `/tmp` use temporary volumes. Ship logs externally if retention is required.
 Liveness/startup probes use `/health`; readiness uses `/health/ready`. The optional PDB limits voluntary disruptions only;
 it does not guarantee storage quorum. User/policy provisioning, Gateway API, and application TLS are outside this chart's scope.
 Bucket creation and versioning can be enabled through replication setup.
+
+## Troubleshooting
+
+Start with workload state, storage binding, application logs, and recent events:
+
+```bash
+kubectl -n rustfs get statefulset,pod,svc,pvc
+kubectl -n rustfs logs statefulset/storage-rustfs --tail=200
+kubectl -n rustfs get events --sort-by=.lastTimestamp
+helm test storage -n rustfs --logs
+```
+
+For distributed startup failures, verify that every Pod resolves the headless
+Service and reaches `containerPorts.api`, that PVCs are bound and writable by
+UID/GID 10001, and that every member receives the same RPC Secret. If the console
+alone is unavailable, inspect ordinal zero and its NetworkPolicy peers.
 
 ## Security Scan
 

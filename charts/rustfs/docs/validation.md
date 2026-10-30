@@ -88,7 +88,7 @@ collection. Raw logs and resource snapshots were saved locally under
 These tests use one local Kubernetes node and the local-path driver. They do not
 validate multi-node scheduling, production CSI drivers, node loss, capacity
 expansion, ingress traffic, backup/restore, or production durability. The chart
-remains experimental pending broader environment coverage.
+remains alpha pending broader environment coverage.
 
 ## Design consistency review
 

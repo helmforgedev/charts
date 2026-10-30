@@ -13,14 +13,33 @@ function kubectl(args, input) {
   });
 }
 const get = (...args) => JSON.parse(kubectl(['get', ...args, '-o', 'json']));
+const values = JSON.parse(execFileSync('helm', [
+  'get', 'values', release, '-n', namespace, '--kube-context', context, '-a', '-o', 'json',
+], { encoding: 'utf8', timeout: 30000 }));
 const sets = get('statefulsets', '-l', `app.kubernetes.io/instance=${release}`).items;
 assert.equal(sets.length, 1, 'one storage StatefulSet required');
 const set = sets[0];
 assert.equal(set.status.readyReplicas, set.spec.replicas, 'all storage pods must be Ready');
 const container = set.spec.template.spec.containers.find(c => c.name === 'rustfs');
+const apiContainerPort = container.ports?.find(port => port.name === 'api')?.containerPort;
+const consoleContainerPort = container.ports?.find(port => port.name === 'console')?.containerPort;
+assert.ok(Number.isInteger(apiContainerPort), 'named RustFS API container port required');
 const service = get('service', set.metadata.name);
 const endpoint = `http://${service.metadata.name}:${service.spec.ports.find(p => p.name === 'api').port}`;
 const configMaps = get('configmaps', '-l', `app.kubernetes.io/instance=${release}`).items;
+const runtimeConfig = configMaps.find(c => c.data?.RUSTFS_ADDRESS);
+assert.equal(runtimeConfig?.data.RUSTFS_ADDRESS, `0.0.0.0:${apiContainerPort}`,
+  'RUSTFS_ADDRESS must match the named API container port');
+const expectedExternalAddress = values.config.externalAddress || `:${apiContainerPort}`;
+assert.equal(runtimeConfig?.data.RUSTFS_EXTERNAL_ADDRESS, expectedExternalAddress,
+  'external address must match the configured or derived value');
+let consoleEndpoint;
+if (Number.isInteger(consoleContainerPort)) {
+  assert.equal(runtimeConfig?.data.RUSTFS_CONSOLE_ADDRESS, `0.0.0.0:${consoleContainerPort}`,
+    'RUSTFS_CONSOLE_ADDRESS must match the named console container port');
+  const consoleService = get('service', `${set.metadata.name}-console`);
+  consoleEndpoint = `http://${consoleService.metadata.name}:${consoleService.spec.ports.find(p => p.name === 'console').port}`;
+}
 const config = configMaps.find(c => c.data?.['config.json']);
 const replication = config ? JSON.parse(config.data['config.json']) : null;
 const nonce = randomBytes(6).toString('hex');
@@ -79,6 +98,12 @@ const pod = {
     restartPolicy: 'Never', automountServiceAccountToken: false, activeDeadlineSeconds: 210,
     imagePullSecrets: set.spec.template.spec.imagePullSecrets,
     securityContext: set.spec.template.spec.securityContext,
+    initContainers: consoleEndpoint ? [{
+      name: 'console-health', image: 'docker.io/busybox:1.37.0',
+      command: ['sh', '-ec',
+        `n=0; until wget -q -O /dev/null ${q(`${consoleEndpoint}/rustfs/console/health`)}; do n=$((n+1)); [ "$n" -lt 30 ] || exit 1; sleep 1; done`],
+      securityContext: container.securityContext,
+    }] : undefined,
     containers: [{ name: 'cli', image: 'docker.io/rustfs/rc:v0.1.36', env,
       command: ['/bin/sh', '-c', script.join('\n')], securityContext: container.securityContext,
       volumeMounts: [{ name: 'tmp', mountPath: '/tmp' }],
@@ -92,7 +117,13 @@ try {
   for (let i = 0; i < 220; i++) {
     const status = get('pod', podName).status;
     if (['Succeeded', 'Failed'].includes(status.phase)) {
-      process.stdout.write(kubectl(['logs', podName]));
+      for (const initStatus of status.initContainerStatuses ?? []) {
+        if (initStatus.state?.terminated?.exitCode !== 0) {
+          process.stderr.write(kubectl(['logs', podName, '-c', initStatus.name]));
+        }
+      }
+      const cliStatus = status.containerStatuses?.find(item => item.name === 'cli');
+      if (cliStatus?.state?.terminated) process.stdout.write(kubectl(['logs', podName, '-c', 'cli']));
       assert.equal(status.phase, 'Succeeded', 'native S3/replication smoke test must succeed');
       break;
     }
@@ -100,5 +131,12 @@ try {
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
 } finally {
-  if (created) kubectl(['delete', 'pod', podName, '--wait=false']);
+  if (created) {
+    try {
+      kubectl(['delete', 'pod', podName, '--wait=false']);
+    } catch (error) {
+      const detail = String(error.stderr || error.message).trim();
+      process.stderr.write(`Smoke pod cleanup deferred to namespace teardown: ${detail}\n`);
+    }
+  }
 }

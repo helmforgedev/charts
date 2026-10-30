@@ -58,15 +58,42 @@ tests:
             name: data
             persistentVolumeClaim:
               claimName: precreated
-  - it: keeps container ports fixed when service ports change
+  - it: configures real listeners independently from Service ports
     template: templates/statefulset.yaml
     set:
+      containerPorts.api: 9100
+      containerPorts.console: 9101
       service.port: 80
       consoleService.port: 8080
     asserts:
       - equal:
           path: spec.template.spec.containers[0].ports[0].containerPort
-          value: 9000
+          value: 9100
+      - equal:
+          path: spec.template.spec.containers[0].ports[1].containerPort
+          value: 9101
+      - equal:
+          path: spec.template.spec.containers[0].env[3].value
+          value: "$(RUSTFS_POD_IP):9100"
+  - it: passes listener overrides to RustFS
+    template: templates/configmap.yaml
+    set:
+      containerPorts.api: 9100
+      containerPorts.console: 9101
+    asserts:
+      - equal: {path: data.RUSTFS_ADDRESS, value: "0.0.0.0:9100"}
+      - equal: {path: data.RUSTFS_CONSOLE_ADDRESS, value: "0.0.0.0:9101"}
+      - equal: {path: data.RUSTFS_EXTERNAL_ADDRESS, value: ":9100"}
+  - it: uses the API listener for distributed peer endpoints
+    template: templates/configmap.yaml
+    set:
+      architecture: distributed
+      replicaCount: 4
+      containerPorts.api: 9100
+    asserts:
+      - matchRegex:
+          path: data.RUSTFS_VOLUMES
+          pattern: ':9100/data$'
   - it: rejects selector label overrides
     template: templates/statefulset.yaml
     set:

@@ -63,16 +63,23 @@ auth:
 # Application Configuration
 # =============================================================================
 config:
-  # -- Enable the web console on container port 9001 and create its Service.
+  # -- Enable the web console and create its Service.
   consoleEnabled: true
-  # -- Externally advertised API address; set to match the address exposed to clients.
-  externalAddress: ":9000"
+  # -- Externally advertised API address. Empty derives :<containerPorts.api>.
+  externalAddress: ""
   # -- Allowed API CORS origins. Restrict the wildcard for production clients.
   corsAllowedOrigins: "*"
   # -- Allowed console CORS origins. Restrict the wildcard for production clients.
   consoleCorsAllowedOrigins: "*"
   # -- RustFS observability logger level: trace | debug | info | warn | error.
   logLevel: info
+
+# -- Application listener ports. These configure the real RustFS processes.
+containerPorts:
+  # -- S3 API and internode RPC listener configured through RUSTFS_ADDRESS.
+  api: 9000
+  # -- Web console listener configured through RUSTFS_CONSOLE_ADDRESS.
+  console: 9001
 
 # =============================================================================
 # Persistent Storage
@@ -99,7 +106,7 @@ persistence:
 service:
   # -- API Service type: ClusterIP | NodePort | LoadBalancer.
   type: ClusterIP
-  # -- Client-facing API Service port. The container and peer port remains 9000.
+  # -- Client-facing API Service port, independent from containerPorts.api.
   port: 9000
   # -- Annotations added to the API Service.
   annotations: {}
@@ -107,7 +114,7 @@ consoleService:
   # -- Console Service type: ClusterIP | NodePort | LoadBalancer.
   # Created only when config.consoleEnabled=true; selects pod zero in distributed mode.
   type: ClusterIP
-  # -- Client-facing console Service port. The container port remains 9001.
+  # -- Client-facing console Service port, independent from containerPorts.console.
   port: 9001
   # -- Annotations added to the console Service.
   annotations: {}
@@ -211,7 +218,7 @@ terminationGracePeriodSeconds: 60
 # Health Probes
 # =============================================================================
 # Each probe accepts a Kubernetes probe object; set it to {} to omit that probe.
-# Named port api always targets container port 9000, regardless of service.port.
+# Named probe ports follow containerPorts regardless of Service ports.
 # -- Liveness probe to detect an unresponsive RustFS process.
 livenessProbe:
   # -- HTTP endpoint used for the liveness check.
@@ -260,6 +267,14 @@ pdb:
   # -- Maximum unavailable storage pods during voluntary disruptions; integer or percentage.
   # With one replica, 1 allows downtime. Use 0 to block voluntary eviction of that pod.
   maxUnavailable: 1
+
+networkPolicy:
+  # -- Restrict API, internode RPC, and console ingress to selected peers.
+  enabled: true
+  # -- Peers allowed to reach the S3 API and internode RPC. Empty allows release-namespace Pods.
+  apiIngressFrom: []
+  # -- Peers allowed to reach the console. Empty allows release-namespace Pods.
+  consoleIngressFrom: []
 # -- Additional Kubernetes env entries for the RustFS container, including valueFrom references.
 extraEnv: []
 # -- Additional envFrom sources, such as configMapRef or secretRef, for the RustFS container.

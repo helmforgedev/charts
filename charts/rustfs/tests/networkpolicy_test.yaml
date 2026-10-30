@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: RustFS network policy
+templates:
+  - templates/networkpolicy.yaml
+tests:
+  - it: isolates API and console ingress by default
+    asserts:
+      - isKind: {of: NetworkPolicy}
+      - contains: {path: spec.policyTypes, content: Ingress}
+      - lengthEqual: {path: spec.ingress, count: 2}
+      - equal: {path: "spec.ingress[0].ports[0].port", value: api}
+      - equal: {path: "spec.ingress[1].ports[0].port", value: console}
+  - it: allows explicit API and console peers
+    set:
+      networkPolicy.apiIngressFrom[0].namespaceSelector.matchLabels.team: applications
+      networkPolicy.consoleIngressFrom[0].namespaceSelector.matchLabels.team: platform
+    asserts:
+      - equal:
+          path: spec.ingress[0].from[0].namespaceSelector.matchLabels.team
+          value: applications
+      - equal:
+          path: spec.ingress[1].from[0].namespaceSelector.matchLabels.team
+          value: platform
+  - it: omits the console rule when the console is disabled
+    set:
+      config.consoleEnabled: false
+    asserts:
+      - lengthEqual: {path: spec.ingress, count: 1}
+  - it: can be disabled explicitly
+    set:
+      networkPolicy.enabled: false
+    asserts:
+      - hasDocuments: {count: 0}
