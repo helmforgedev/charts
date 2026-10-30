@@ -4,7 +4,7 @@ Deploy [NetBird](https://github.com/netbirdio/netbird), a self-hosted WireGuard 
 
 This chart packages the current upstream combined architecture:
 
-- `netbirdio/netbird-server:0.81.3` for the management API, gRPC endpoint, signal, relay, metrics, health, and UDP STUN service
+- `netbirdio/netbird-server:0.81.5` for the management API, gRPC endpoint, signal, relay, metrics, health, and UDP STUN service
 - `netbirdio/dashboard:v2.90.10` for the web UI
 - a generated or externally supplied `config.yaml`
 - HelmForge PostgreSQL subchart as the default production store
@@ -190,7 +190,7 @@ Use `externalSecrets.items[]` to synchronize sensitive values such as `config.ya
 
 | Framework | Score |
 |---|---|
-| MITRE + NSA + SOC2 | **86.87%** |
+| MITRE + NSA + SOC2 | **89.898994%** |
 
 Rendered-manifest scan using Kubescape 4.0.13.
 
@@ -199,11 +199,16 @@ repository security gate. Remaining findings are tracked as hardening trade-offs
 for optional NetworkPolicy enablement, upstream dashboard startup model, and
 operator-owned resource limit tuning across the database-backed topology.
 
-## Upgrade to 0.81.3
+## Upgrade to 0.81.5
 
-NetBird `0.81.3` is an upstream release containing new features, bug fixes, and stability improvements.
-No breaking configuration or schema changes are introduced in this release.
-Review the [0.81.3 release notes](https://github.com/netbirdio/netbird/releases/tag/v0.81.3).
+NetBird `0.81.5` includes the `0.81.4` security update that distrusts
+compromised eMudhra CA keys across management, signal, relay, proxy, and client
+components. The `0.81.5` release also includes client SSH session hardening;
+this chart deploys the server components only, so upgrade peer clients
+separately to receive those client fixes. No chart configuration or schema
+changes are required. Review the
+[0.81.4 release notes](https://github.com/netbirdio/netbird/releases/tag/v0.81.4)
+and [0.81.5 release notes](https://github.com/netbirdio/netbird/releases/tag/v0.81.5).
 
 ## Upgrade to 0.80.0
 
@@ -251,7 +256,7 @@ helm upgrade netbird helmforge/netbird \
 ```
 
 Using `--reuse-values` alone retains the previous default image tag. Remove any
-explicit `server.image.tag` override if you want the chart default `0.81.3`.
+explicit `server.image.tag` override if you want the chart default `0.81.5`.
 
 The combined server's port-9000 `/health` endpoint checks the advertised public
 relay address and standalone listener list. It can return 503 in a private
