@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import { execFileSync } from 'node:child_process';
 
 const [context, namespace, release] = process.argv.slice(2);
@@ -25,4 +26,4 @@ const secretName = kubectl(['get', 'deployment', deployment, '-o', 'jsonpath={.s
 const secret = kubectl(['get', 'secret', secretName, '-o', 'jsonpath={.data.nextauth-secret}']);
 if (!secret) throw new Error('application identity secret is empty');
 
-console.log(`health ok; uid=${uid}; identity secret retained`);
+console.log(`health ok; uid=${uid}; identity secret present`);

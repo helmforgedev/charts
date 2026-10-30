@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # External services
 
 Disable `postgresql.enabled`, enable `database.external.enabled`, and provide
