@@ -184,6 +184,40 @@ tests:
       - equal:
           path: spec.template.spec.initContainers[0].name
           value: wait-for-db
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.capabilities.drop[0]
+          value: ALL
+
+  - it: should apply custom container security context to external database wait
+    template: deployment.yaml
+    set:
+      database.external.host: pg-host
+      database.external.password: testpass
+      securityContext.runAsUser: 2000
+      securityContext.runAsGroup: 2000
+      securityContext.readOnlyRootFilesystem: true
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-db
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsUser
+          value: 2000
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsGroup
+          value: 2000
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.readOnlyRootFilesystem
+          value: true
 
   - it: should not inject database env in dev mode without database
     template: deployment.yaml

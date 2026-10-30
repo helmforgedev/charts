@@ -192,6 +192,8 @@ postgresql:
 
 - use `mode: production` for all real environments
 - prefer `admin.existingSecret` and `database.external.existingSecret`
+- the built-in database wait init container inherits `securityContext` and is
+  non-root with dropped capabilities by default
 - keep the management service internal
 - restrict admin exposure at the reverse proxy layer when using a dedicated admin hostname
 - use [Security and Trust](docs/security-and-trust.md) when database TLS or custom internal CAs are involved
