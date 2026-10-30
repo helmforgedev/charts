@@ -203,8 +203,10 @@ operator-owned resource limit tuning across the database-backed topology.
 
 NetBird `0.81.5` includes the `0.81.4` security update that distrusts
 compromised eMudhra CA keys across management, signal, relay, proxy, and client
-components. It also includes client SSH session hardening from `0.81.5`. No
-chart configuration or schema changes are required. Review the
+components. The `0.81.5` release also includes client SSH session hardening;
+this chart deploys the server components only, so upgrade peer clients
+separately to receive those client fixes. No chart configuration or schema
+changes are required. Review the
 [0.81.4 release notes](https://github.com/netbirdio/netbird/releases/tag/v0.81.4)
 and [0.81.5 release notes](https://github.com/netbirdio/netbird/releases/tag/v0.81.5).
 
