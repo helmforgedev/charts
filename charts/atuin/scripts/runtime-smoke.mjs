@@ -18,8 +18,11 @@ assert.ok(container, 'Atuin application container required');
 assert.equal(container.image, 'ghcr.io/atuinsh/atuin:18.23.0');
 assert.equal(pod.spec.securityContext.runAsNonRoot, true);
 assert.equal(container.securityContext.readOnlyRootFilesystem, true);
+const httpPort = Number(container.env.find(item => item.name === 'ATUIN_PORT')?.value);
+assert.ok(Number.isInteger(httpPort) && httpPort >= 1024, 'Atuin unprivileged HTTP listener port required');
+assert.equal(container.ports.find(item => item.name === 'http')?.containerPort, httpPort);
 
-const health = run(['exec', pod.metadata.name, '-c', 'atuin', '--', 'curl', '--fail', '--silent', 'http://127.0.0.1:8888/healthz']);
+const health = run(['exec', pod.metadata.name, '-c', 'atuin', '--', 'curl', '--fail', '--silent', `http://127.0.0.1:${httpPort}/healthz`]);
 assert.match(health, /healthy/, 'Atuin health endpoint must respond');
 const configVolume = pod.spec.volumes.find(volume => volume.name === 'config');
 assert.ok(configVolume, 'Atuin config volume required');
