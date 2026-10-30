@@ -51,7 +51,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- else if and .Values.gateway.enabled .Values.gateway.hostnames -}}
 {{- printf "https://%s" (index .Values.gateway.hostnames 0) -}}
 {{- else -}}
-http://localhost:80
+{{- printf "http://localhost:%v" .Values.service.port -}}
 {{- end -}}
 {{- end -}}
 
@@ -342,6 +342,14 @@ database-password
 {{- end -}}
 {{- if hasKey .Values.podLabels "app.kubernetes.io/instance" -}}
 {{- fail "podLabels must not override the selector label app.kubernetes.io/instance" -}}
+{{- end -}}
+{{- if hasKey .Values.podLabels "app.kubernetes.io/component" -}}
+{{- fail "podLabels must not override the NetworkPolicy selector label app.kubernetes.io/component" -}}
+{{- end -}}
+{{- end -}}
+{{- range .Values.answer.extraEnv -}}
+{{- if has .name (list "INSTALL_PORT" "SITE_ADDR" "SWAGGER_ADDRESS_PORT") -}}
+{{- fail (printf "answer.extraEnv must not override chart-managed listener variable %s; use containerPorts.http" .name) -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}

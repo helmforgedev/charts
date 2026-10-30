@@ -4,6 +4,7 @@
   "description": "Open-source Q&A platform for teams and communities. Supports SQLite, MySQL, and PostgreSQL.",
   "type": "object",
   "additionalProperties": true,
+  "required": ["global"],
   "properties": {
     "global": {
       "type": "object",
@@ -342,14 +343,14 @@
         "requests": {
           "type": "object",
           "properties": {
-            "cpu": { "type": "string" },
+            "cpu": { "type": ["string", "number"] },
             "memory": { "type": "string" }
           }
         },
         "limits": {
           "type": "object",
           "properties": {
-            "cpu": { "type": "string" },
+            "cpu": { "type": ["string", "number"] },
             "memory": { "type": "string" }
           }
         }
@@ -359,6 +360,14 @@
       "type": "object",
       "description": "Pod-level security context.",
       "properties": {
+        "runAsNonRoot": { "type": "boolean" },
+        "runAsUser": { "type": "integer", "minimum": 1 },
+        "runAsGroup": { "type": "integer", "minimum": 1 },
+        "fsGroup": { "type": "integer", "minimum": 1 },
+        "fsGroupChangePolicy": {
+          "type": "string",
+          "enum": ["Always", "OnRootMismatch"]
+        },
         "seccompProfile": {
           "type": "object",
           "properties": {
@@ -375,6 +384,10 @@
           "type": "boolean",
           "default": false
         },
+        "readOnlyRootFilesystem": {
+          "type": "boolean",
+          "default": true
+        },
         "capabilities": {
           "type": "object",
           "properties": {
@@ -389,6 +402,20 @@
               "default": ["NET_BIND_SERVICE"]
             }
           }
+        }
+      }
+    },
+    "containerPorts": {
+      "type": "object",
+      "description": "Ports opened by the Apache Answer process.",
+      "additionalProperties": false,
+      "required": ["http"],
+      "properties": {
+        "http": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "HTTP port opened by the Apache Answer process."
         }
       }
     },
@@ -439,6 +466,8 @@
         },
         "port": {
           "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
           "description": "HTTP port."
         },
         "annotations": {
@@ -456,6 +485,30 @@
           "items": {
             "type": "string",
             "enum": ["IPv4", "IPv6"]
+          }
+        }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "description": "Ingress NetworkPolicy configuration for the Answer server pod.",
+      "additionalProperties": false,
+      "required": ["enabled", "extraIngress"],
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Restrict inbound traffic to the Answer HTTP listener."
+        },
+        "extraIngress": {
+          "type": "array",
+          "description": "Optional ingress peers allowed to reach the HTTP listener.",
+          "items": {
+            "type": "object",
+            "anyOf": [
+              { "required": ["podSelector"] },
+              { "required": ["namespaceSelector"] },
+              { "required": ["ipBlock"] }
+            ]
           }
         }
       }
@@ -503,6 +556,10 @@
         "annotations": {
           "type": "object",
           "description": "Annotations for the ServiceAccount."
+        },
+        "automountServiceAccountToken": {
+          "type": "boolean",
+          "description": "Mount the Kubernetes API token into the Answer pod."
         }
       }
     },

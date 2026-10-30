@@ -5,6 +5,7 @@ metadata:
   name: {{ include "answer.fullname" . }}
   labels:
     {{- include "answer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
 spec:
   replicas: 1
   selector:
@@ -14,6 +15,7 @@ spec:
     metadata:
       labels:
         {{- include "answer.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: server
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -27,9 +29,8 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "answer.serviceAccountName" . }}
-      {{- end }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . }}
       {{- end }}
@@ -78,9 +79,15 @@ spec:
           {{- end }}
           ports:
             - name: http
-              containerPort: 80
+              containerPort: {{ .Values.containerPorts.http }}
               protocol: TCP
           env:
+            - name: INSTALL_PORT
+              value: {{ .Values.containerPorts.http | quote }}
+            - name: SITE_ADDR
+              value: {{ printf "0.0.0.0:%v" .Values.containerPorts.http | quote }}
+            - name: SWAGGER_ADDRESS_PORT
+              value: {{ printf ":%v" .Values.containerPorts.http | quote }}
             {{- if .Values.answer.autoInstall }}
             - name: AUTO_INSTALL
               value: "true"
@@ -168,10 +175,14 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data
+            - name: tmp
+              mountPath: /tmp
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
       volumes:
+        - name: tmp
+          emptyDir: {}
         - name: data
           {{- if .Values.persistence.enabled }}
           persistentVolumeClaim:

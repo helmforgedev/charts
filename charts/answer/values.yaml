@@ -7,6 +7,9 @@
 # https://answer.apache.org/
 # =============================================================================
 
+# -- Global values passed through to dependencies
+global: {}
+
 # -- Override the chart name used in resource names
 nameOverride: ""
 
@@ -233,16 +236,30 @@ resources:
 # =============================================================================
 
 podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
   seccompProfile:
     type: RuntimeDefault
 
 securityContext:
   allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
   capabilities:
     drop:
       - ALL
     add:
       - NET_BIND_SERVICE
+
+# =============================================================================
+# Container Ports
+# =============================================================================
+
+containerPorts:
+  # -- HTTP port opened by the Apache Answer process
+  http: 80
 
 # =============================================================================
 # Probes
@@ -297,6 +314,16 @@ service:
 
   # -- Service IP families override. Empty uses cluster default.
   ipFamilies: []
+
+# =============================================================================
+# Network Policy
+# =============================================================================
+
+networkPolicy:
+  # -- Restrict inbound traffic to the Answer HTTP listener
+  enabled: true
+  # -- Additional ingress peers allowed to reach the HTTP listener
+  extraIngress: []
 
 # =============================================================================
 # Ingress
@@ -364,6 +391,9 @@ serviceAccount:
 
   # -- Annotations for the ServiceAccount
   annotations: {}
+
+  # -- Mount the Kubernetes API token into the Answer pod
+  automountServiceAccountToken: false
 
 # =============================================================================
 # Backup (CronJob + S3)

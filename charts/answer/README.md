@@ -1,24 +1,42 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Apache Answer Helm Chart
 
-Deploy [Apache Answer](https://answer.apache.org/) on Kubernetes — an open-source Q&A platform for teams and communities.
+Deploy [Apache Answer](https://answer.apache.org/) on Kubernetes with an official,
+pinned image, persistent storage, explicit listener configuration, optional SQL
+databases, secure defaults, and database-aware backups.
 
 ## Features
 
-- **SQLite by default** — zero database configuration needed
-- **PostgreSQL subchart** — bundled via HelmForge dependency (`2.0.4`)
-- **MySQL subchart** — bundled via HelmForge dependency (`2.1.0`)
-- **External database** — connect to existing PostgreSQL or MySQL
-- **Auto-install** — unattended setup via environment variables
-- **Scheduled backups** — database-aware CronJob with S3 upload
-- **Ingress support** — TLS with cert-manager
-- **Gateway API support** — optional HTTPRoute for clusters using Gateway API
-- **External Secrets support** — optional ExternalSecret resources for admin, database, and backup credentials
-- **Dual-stack service support** — optional `ipFamilyPolicy` and `ipFamilies`
-- **Persistence** — PVC for `/data` (uploads, config, SQLite)
+- SQLite by default for a small, zero-dependency installation.
+- Optional HelmForge PostgreSQL and MySQL `2.1.1` subcharts.
+- External PostgreSQL or MySQL with passwords sourced from an existing Secret.
+- Unattended initial setup using the environment variables supported upstream.
+- A configurable application listener independent from the Kubernetes Service port.
+- Startup, liveness, and readiness probes against the named HTTP port.
+- A default ingress NetworkPolicy that exposes only the Answer HTTP listener.
+- RuntimeDefault seccomp, non-root execution, a read-only root filesystem, dropped
+  capabilities, and disabled service-account-token mounting.
+- Ingress and Gateway API routing, dual-stack Services, External Secrets, and
+  database-aware S3-compatible backups.
+- Scheduling controls, extra volumes, pod metadata, and extra manifests.
+
+## Architecture
+
+The chart always deploys one Answer server and one Service. The Service forwards
+its client-facing `service.port` to the named `http` container port. Answer receives
+`INSTALL_PORT`, `SITE_ADDR`, and `SWAGGER_ADDRESS_PORT` from
+`containerPorts.http`, so changing the value changes the process listener instead
+of only changing Kubernetes metadata.
+
+SQLite stores the database, uploads, generated configuration, and plugins under
+`/data`. PostgreSQL and MySQL modes retain the Answer data volume for uploads and
+application state while placing relational data in the selected database. See
+[DESIGN.md](DESIGN.md) for trust boundaries and lifecycle decisions.
 
 ## Installation
 
-**HTTPS repository:**
+Install from the HTTPS repository:
 
 ```bash
 helm repo add helmforge https://repo.helmforge.dev
@@ -26,143 +44,209 @@ helm repo update
 helm install answer helmforge/answer
 ```
 
-**OCI registry:**
+Or install from OCI:
 
 ```bash
 helm install answer oci://ghcr.io/helmforgedev/helm/answer
 ```
 
-## Basic Example (SQLite)
+Inspect every supported value before production use:
+
+```bash
+helm show values helmforge/answer
+```
+
+## Usage Examples
+
+### SQLite
+
+SQLite is suitable for evaluation and small installations with a single Answer
+pod. Keep persistence enabled because `/data` contains both the database and
+uploaded content.
 
 ```yaml
-# values.yaml
 answer:
-  siteName: "My Q&A"
+  siteName: My Q&A
+  siteUrl: https://qa.example.com
 
 admin:
-  name: admin
-  password: "change-me"
+  existingSecret: answer-admin
+  existingSecretPasswordKey: admin-password
 
 persistence:
   enabled: true
-  size: 5Gi
+  size: 10Gi
 ```
 
-## PostgreSQL Example
+### Bundled PostgreSQL
 
 ```yaml
+database:
+  mode: postgresql
+
 postgresql:
   enabled: true
   auth:
     database: answer
     username: answer
-    password: "strong-password"
-
-ingress:
-  enabled: true
-  ingressClassName: traefik
-  hosts:
-    - host: qa.example.com
-      paths:
-        - path: /
-          pathType: Prefix
-  tls:
-    - secretName: answer-tls
-      hosts:
-        - qa.example.com
+    password: replace-me
+  standalone:
+    persistence:
+      enabled: true
+      size: 20Gi
 ```
 
-## External Database Example
+For GitOps with an external database, provide credentials through
+`database.external.existingSecret` and `externalSecrets.database`. Bundled
+PostgreSQL mode rejects `database.external.existingSecret`, so this flow does
+not apply to the bundled database.
+
+### External database
 
 ```yaml
 database:
+  mode: external
   external:
     vendor: postgres
-    host: db.example.com
+    host: postgres.database.svc.cluster.local
+    port: "5432"
     name: answer
     username: answer
-    existingSecret: answer-db-credentials
+    existingSecret: answer-database
+    existingSecretPasswordKey: database-password
 ```
 
-## Key Values
+The chart rejects ambiguous combinations, such as enabling a bundled database
+while also configuring an external host.
+
+### Independent listener and Service ports
+
+```yaml
+containerPorts:
+  http: 8080
+
+service:
+  port: 9080
+```
+
+This makes Answer listen on `8080` inside the pod while clients use port `9080`
+on the Service. Probes and the named Service target continue to follow the real
+listener. Do not add `INSTALL_PORT`, `SITE_ADDR`, or `SWAGGER_ADDRESS_PORT` to
+`answer.extraEnv`; the chart rejects those overrides to prevent split-brain port
+configuration.
+
+## Configuration
 
 | Key | Default | Description |
-|-----|---------|-------------|
-| `answer.siteName` | `Apache Answer` | Site name |
-| `answer.siteUrl` | `""` | Full external URL (auto-detected from Ingress or Gateway hostname) |
-| `answer.language` | `en-US` | Default UI language |
-| `answer.externalContentDisplay` | `ask_before_display` | External content display policy used by auto-install |
-| `answer.autoInstall` | `true` | Enable unattended setup |
-| `answer.logLevel` | `INFO` | Log level (DEBUG, INFO, WARN, ERROR) |
-| `answer.notifications.newQuestionEmail.queueSize` | `1024` | Maximum buffered new-question email tasks |
-| `answer.notifications.newQuestionEmail.sendIntervalSeconds` | `0` | Delay between new-question email attempts; 0 disables throttling |
-| `admin.name` | `admin` | Admin username |
-| `admin.password` | `""` | Admin password (auto-generated) |
-| `admin.email` | `admin@example.com` | Admin email |
-| `database.mode` | `auto` | Database mode (auto, sqlite, external, postgresql, mysql) |
-| `database.sqlite.file` | `/data/answer.db` | SQLite file path |
-| `database.external.vendor` | `postgres` | External DB vendor (postgres, mysql) |
-| `database.external.host` | `""` | External DB host |
-| `postgresql.enabled` | `false` | Deploy PostgreSQL subchart |
-| `mysql.enabled` | `false` | Deploy MySQL subchart |
-| `persistence.enabled` | `true` | Enable persistent storage |
-| `persistence.size` | `5Gi` | PVC size |
-| `service.ipFamilyPolicy` | `~` | Service IP family policy |
-| `service.ipFamilies` | `[]` | Service IP families override |
-| `ingress.enabled` | `false` | Enable ingress |
-| `gateway.enabled` | `false` | Enable Gateway API HTTPRoute |
-| `externalSecrets.enabled` | `false` | Enable External Secrets Operator resources |
-| `backup.enabled` | `false` | Enable S3 backups |
-| `backup.schedule` | `0 3 * * *` | Backup cron schedule |
+| --- | --- | --- |
+| `global` | `{}` | Values shared with chart dependencies. |
+| `image.repository` | `docker.io/apache/answer` | Official Apache Answer image repository. |
+| `image.tag` | `2.0.3` | Pinned Answer image tag. |
+| `answer.siteName` | `Apache Answer` | Site name used during unattended installation. |
+| `answer.siteUrl` | `""` | Public URL; inferred from routing when empty. |
+| `answer.autoInstall` | `true` | Run the supported unattended installation flow. |
+| `answer.logLevel` | `INFO` | Application log level. |
+| `answer.extraEnv` | `[]` | Additional non-listener environment variables. |
+| `containerPorts.http` | `80` | Port opened by the Answer process. |
+| `service.port` | `80` | Client-facing Kubernetes Service port. |
+| `database.mode` | `auto` | `auto`, `sqlite`, `external`, `postgresql`, or `mysql`. |
+| `postgresql.enabled` | `false` | Deploy the PostgreSQL subchart. |
+| `mysql.enabled` | `false` | Deploy the MySQL subchart. |
+| `persistence.enabled` | `true` | Persist `/data`. |
+| `persistence.size` | `5Gi` | Answer data PVC size. |
+| `networkPolicy.enabled` | `true` | Limit inbound traffic to the named HTTP listener. |
+| `networkPolicy.extraIngress` | `[]` | Optional peers that may reach the listener. |
+| `serviceAccount.automountServiceAccountToken` | `false` | Mount Kubernetes API credentials. |
+| `ingress.enabled` | `false` | Render an Ingress. |
+| `gateway.enabled` | `false` | Render an HTTPRoute. |
+| `externalSecrets.enabled` | `false` | Render ExternalSecret resources. |
+| `backup.enabled` | `false` | Render the database-aware backup CronJob. |
+
+The JSON schema validates the full values contract. Database, backup, routing,
+and External Secrets examples are also available under `examples/` and `docs/`.
+
+## Security
+
+The default pod runs as UID/GID `1000`, uses RuntimeDefault seccomp, prevents
+privilege escalation, drops all Linux capabilities, and adds only
+`NET_BIND_SERVICE` because the official default listener is port `80`. The root
+filesystem is read-only; writable state is limited to `/data` and an ephemeral
+`/tmp`. The application does not need Kubernetes API access, so token automounting
+is disabled.
+
+The default NetworkPolicy selects only the Answer server component. It accepts
+traffic solely on the named HTTP port and does not impose egress restrictions,
+because Answer may need SMTP, identity-provider, plugin, and embedded-content
+connections. With an empty `networkPolicy.extraIngress`, any source can reach the
+HTTP listener. Populate the list with namespace or pod selectors to restrict the
+allowed sources to your ingress controller or gateway.
+
+Secrets generated by the chart are intended for initial setup. For production,
+use `admin.existingSecret`, database existing-Secret settings, or the optional
+External Secrets integration. Never store real credentials in a committed values
+file.
+
+## Operations and Troubleshooting
+
+Check rollout and application health:
+
+```bash
+kubectl rollout status deployment/RELEASE-answer -n NAMESPACE
+kubectl get pods,svc,pvc -n NAMESPACE -l app.kubernetes.io/instance=RELEASE
+kubectl logs deployment/RELEASE-answer -n NAMESPACE -c answer --tail=200
+```
+
+If probes fail after changing ports, compare `containerPorts.http` with the
+rendered `SITE_ADDR`; `service.port` may differ, but `targetPort` must remain the
+named `http` port. Confirm the process endpoint through the Service:
+
+```bash
+kubectl run answer-health -n NAMESPACE --rm -i --restart=Never \
+  --image=docker.io/library/busybox:1.37 -- \
+  wget -qO- http://RELEASE-answer:SERVICE_PORT/healthz
+```
+
+For database startup failures, inspect the `wait-for-db` init container and verify
+DNS, port, credentials, and the selected `database.mode`:
+
+```bash
+kubectl logs deployment/RELEASE-answer -n NAMESPACE -c wait-for-db
+```
+
+Back up `/data` and the selected database before changing database mode, storage
+classes, or major application versions. The chart does not migrate data between
+SQLite, PostgreSQL, and MySQL. See [database operations](docs/database.md),
+[backup and restore](docs/backup.md), [routing](docs/routing.md), and
+[External Secrets](docs/external-secrets.md). The [security guide](docs/security.md)
+explains hardening overrides and policy behavior.
 
 ## Resources Generated
 
 | Resource | Condition |
-|----------|-----------|
-| Deployment | Always |
-| Service | Always |
-| Secret (admin) | `admin.existingSecret` is empty |
-| Secret (database) | Database mode is not sqlite and no existing secret |
-| Secret (backup) | `backup.enabled` and no `backup.s3.existingSecret` |
-| PVC | `persistence.enabled` and no `persistence.existingClaim` |
-| Ingress | `ingress.enabled` |
-| HTTPRoute | `gateway.enabled` |
-| ExternalSecret | `externalSecrets.enabled` with an enabled child secret type |
+| --- | --- |
+| Deployment, Service, NetworkPolicy | Always, except NetworkPolicy when disabled |
 | ServiceAccount | `serviceAccount.create` |
-| CronJob (backup) | `backup.enabled` |
-| ConfigMap (backup scripts) | `backup.enabled` |
+| Admin or database Secret | No corresponding existing Secret is configured |
+| PVC | Persistence enabled without an existing claim |
+| Ingress or HTTPRoute | Corresponding routing option enabled |
+| ExternalSecret | External Secrets and the specific secret type enabled |
+| Backup ConfigMap, Secret, and CronJob | Backup enabled |
 
 ## More Information
 
+- [Apache Answer documentation](https://answer.apache.org/docs/)
+- [Chart design](DESIGN.md)
 - [Database configuration](docs/database.md)
 - [Backup and restore](docs/backup.md)
 - [Routing](docs/routing.md)
 - [External Secrets](docs/external-secrets.md)
-- [Source code](https://github.com/helmforgedev/charts/tree/main/charts/answer)
+- [Security and network policy](docs/security.md)
+- [HelmForge chart source](https://github.com/helmforgedev/charts/tree/main/charts/answer)
 
-### 🟢 Security Scan: `answer`
+### Security Scan: answer
 
 | Framework | Score |
-|---|---|
+| --- | --- |
 | MITRE + NSA + SOC2 | **86.580086%** |
 
-> ✅ Security posture acceptable.
-
-<!-- @AI-METADATA
-type: chart-readme
-title: Apache Answer Helm Chart
-description: Helm chart for deploying Apache Answer Q&A platform on Kubernetes
-
-keywords: answer, apache-answer, qa, forum, knowledge-base, helm, kubernetes
-
-purpose: User-facing chart documentation with install, features, examples, and values reference
-scope: Chart
-
-relations:
-  - charts/answer/values.yaml
-  - charts/answer/docs/database.md
-  - charts/answer/docs/backup.md
-path: charts/answer/README.md
-version: 1.0
-date: 2026-03-23
--->
+Security posture: acceptable.

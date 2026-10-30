@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Database Configuration
 
 Apache Answer supports three database backends: **SQLite** (default), **PostgreSQL**, and **MySQL**.

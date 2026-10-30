@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Routing
 
 Apache Answer can be exposed with Kubernetes Ingress or Gateway API.

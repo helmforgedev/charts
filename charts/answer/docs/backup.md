@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Backup and Restore
 
 The chart includes a CronJob-based backup system that uploads archives to S3-compatible storage.
