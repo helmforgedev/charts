@@ -55,3 +55,46 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
+
+  - it: should render numeric resources, root-group access, and seccomp overrides
+    set:
+      postgresqlExtensionsJob:
+        requireExistingResources: false
+        podSecurityContext:
+          fsGroup: 0
+          seccompProfile:
+            type: Localhost
+            localhostProfile: profiles/hoppscotch-pod.json
+        securityContext:
+          seccompProfile:
+            type: Localhost
+            localhostProfile: profiles/hoppscotch-container.json
+        resources:
+          requests:
+            cpu: 1
+            ephemeral-storage: 64Mi
+          limits:
+            example.com/gpu: 1
+            ephemeral-storage: 128Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 0
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.localhostProfile
+          value: profiles/hoppscotch-pod.json
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.seccompProfile.localhostProfile
+          value: profiles/hoppscotch-container.json
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.ephemeral-storage
+          value: 64Mi
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits["example.com/gpu"]
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.ephemeral-storage
+          value: 128Mi

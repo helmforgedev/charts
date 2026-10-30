@@ -56,17 +56,17 @@ tests:
           value: docker.io/hoppscotch/hoppscotch:2026.9.0
         template: deployment.yaml
 
-  - it: should prepare writable runtime files for non-root startup
+  - it: should prepare only writable site files for non-root startup
     asserts:
       - equal:
           path: spec.template.spec.initContainers[3].name
-          value: prepare-runtime-files
+          value: prepare-site-files
         template: deployment.yaml
       - equal:
           path: spec.template.spec.initContainers[3].resources.limits.memory
           value: 512Mi
         template: deployment.yaml
-      - contains:
+      - notContains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
             name: backend-runtime
@@ -253,6 +253,54 @@ tests:
         template: deployment.yaml
       - isNotNull:
           path: spec.template.spec.containers[0].resources.requests.memory
+        template: deployment.yaml
+
+  - it: should render numeric resources, root-group access, and seccomp overrides
+    set:
+      podSecurityContext:
+        fsGroup: 0
+        seccompProfile:
+          type: Localhost
+          localhostProfile: profiles/hoppscotch-pod.json
+      containerSecurityContext:
+        seccompProfile:
+          type: Localhost
+          localhostProfile: profiles/hoppscotch-container.json
+      resources:
+        requests:
+          cpu: 1
+          ephemeral-storage: 128Mi
+        limits:
+          example.com/gpu: 1
+          ephemeral-storage: 256Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 0
+        template: deployment.yaml
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.localhostProfile
+          value: profiles/hoppscotch-pod.json
+        template: deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.seccompProfile.localhostProfile
+          value: profiles/hoppscotch-container.json
+        template: deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 1
+        template: deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.ephemeral-storage
+          value: 128Mi
+        template: deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits["example.com/gpu"]
+          value: 1
+        template: deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.ephemeral-storage
+          value: 256Mi
         template: deployment.yaml
 
   - it: should have checksum annotations

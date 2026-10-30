@@ -50,6 +50,38 @@ For production, operators should define:
 - SMTP settings for magic links and invitations
 - resource requests, limits, PDB, and NetworkPolicy settings
 
+## Security Boundary
+
+The chart protects the workload boundary by running the application and database extension hook as non-root users,
+dropping Linux capabilities, disabling privilege escalation, and disabling Kubernetes API credential automounting by
+default. NetworkPolicy can restrict application ingress. Its baseline egress rules allow DNS and PostgreSQL ports but
+do not select destination peers; operators must add destination selectors when isolation requires them. TLS
+termination, OAuth application registration, SecretStore policy, and authorization within external PostgreSQL remain
+operator or platform responsibilities.
+
+Sensitive values may come from chart-managed Secrets, explicitly named existing Secrets, or External Secrets. The
+chart never provisions the external secret backend. Operators must preserve `DATA_ENCRYPTION_KEY` and
+`WEBAPP_SERVER_SIGNING_KEY` across upgrades and must avoid placing production credentials directly in values files.
+
+## Observability Boundary
+
+Kubernetes readiness and liveness probes verify the AIO HTTP endpoint. When both metrics switches are enabled, the
+chart creates a ServiceMonitor that scrapes `/backend/health` through the named `http` Service port. The chart does not
+deploy Prometheus, collect application logs, define alerting rules, or guarantee that the health response exposes
+Prometheus metrics; operators must verify the endpoint contract for their pinned Hoppscotch release and provide the
+monitoring stack, log aggregation, dashboards, and alerts.
+
+## Known Gaps and Limitations
+
+- The official AIO image keeps frontend, backend, admin, and proxy processes in one Deployment; this chart does not
+  model the split upstream topology or independent component scaling.
+- Prisma migrations run in every new pod's init sequence. Operators should coordinate disruptive upgrades and back up
+  PostgreSQL before rollout because the chart does not serialize migrations across independent Helm releases.
+- The bundled PostgreSQL dependency is suitable for straightforward installations, but the chart does not manage
+  database backup policy or external high-availability services.
+- `readOnlyRootFilesystem` remains disabled for the AIO container because the upstream runtime writes temporary files.
+- ServiceMonitor creation only wires discovery; the monitoring stack and endpoint compatibility remain external.
+
 ## Explicit Non-Goals
 
 - deploying Hoppscotch's split frontend/backend/admin image topology

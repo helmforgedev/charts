@@ -3,6 +3,13 @@
   "title": "Hoppscotch Chart Values",
   "type": "object",
   "additionalProperties": false,
+  "definitions": {
+    "resourceQuantity": {
+      "type": ["string", "number"],
+      "minimum": 0,
+      "pattern": "^(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+|[numkKMGTPE]|[KMGTPE]i)?$"
+    }
+  },
   "properties": {
     "global": {
       "type": "object",
@@ -107,14 +114,40 @@
             "password": {"type": "string"}
           }
         },
-        "primary": {
+        "standalone": {
           "type": "object",
+          "additionalProperties": true,
           "properties": {
             "persistence": {
               "type": "object",
+              "additionalProperties": true,
               "properties": {
                 "enabled": {"type": "boolean"},
                 "size": {"type": "string"}
+              }
+            },
+            "resources": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "requests": {
+                  "type": "object",
+                  "additionalProperties": {"type": "string"},
+                  "properties": {
+                    "cpu": {"type": "string"},
+                    "memory": {"type": "string"},
+                    "ephemeral-storage": {"type": "string"}
+                  }
+                },
+                "limits": {
+                  "type": "object",
+                  "additionalProperties": {"type": "string"},
+                  "properties": {
+                    "cpu": {"type": "string"},
+                    "memory": {"type": "string"},
+                    "ephemeral-storage": {"type": "string"}
+                  }
+                }
               }
             }
           }
@@ -122,7 +155,13 @@
         "initdb": {
           "type": "object",
           "properties": {
-            "scripts": {"type": "object"}
+            "scripts": {
+              "type": "object",
+              "additionalProperties": {"type": "string"},
+              "properties": {
+                "02-hoppscotch-extensions.sh": {"type": "string"}
+              }
+            }
           }
         }
       }
@@ -145,9 +184,72 @@
         "backoffLimit": {"type": "integer", "minimum": 0},
         "activeDeadlineSeconds": {"type": "integer", "minimum": 1},
         "podAnnotations": {"type": "object"},
-        "podSecurityContext": {"type": "object"},
-        "securityContext": {"type": "object"},
-        "resources": {"type": "object"}
+        "podSecurityContext": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "runAsNonRoot": {"type": "boolean"},
+            "runAsUser": {"type": "integer", "minimum": 1},
+            "fsGroup": {"type": "integer", "minimum": 0},
+            "seccompProfile": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "type": {"type": "string", "enum": ["RuntimeDefault", "Localhost", "Unconfined"]},
+                "localhostProfile": {"type": "string"}
+              }
+            }
+          }
+        },
+        "securityContext": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "allowPrivilegeEscalation": {"type": "boolean"},
+            "capabilities": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "drop": {"type": "array", "items": {"type": "string"}}
+              }
+            },
+            "readOnlyRootFilesystem": {"type": "boolean"},
+            "runAsNonRoot": {"type": "boolean"},
+            "runAsUser": {"type": "integer", "minimum": 1},
+            "seccompProfile": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "type": {"type": "string", "enum": ["RuntimeDefault", "Localhost", "Unconfined"]},
+                "localhostProfile": {"type": "string"}
+              }
+            }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requests": {
+              "type": "object",
+              "additionalProperties": {"$ref": "#/definitions/resourceQuantity"},
+              "properties": {
+                "cpu": {"$ref": "#/definitions/resourceQuantity"},
+                "memory": {"$ref": "#/definitions/resourceQuantity"},
+                "ephemeral-storage": {"$ref": "#/definitions/resourceQuantity"}
+              }
+            },
+            "limits": {
+              "type": "object",
+              "additionalProperties": {"$ref": "#/definitions/resourceQuantity"},
+              "properties": {
+                "cpu": {"$ref": "#/definitions/resourceQuantity"},
+                "memory": {"$ref": "#/definitions/resourceQuantity"},
+                "ephemeral-storage": {"$ref": "#/definitions/resourceQuantity"}
+              }
+            }
+          }
+        }
       }
     },
     "database": {
@@ -292,10 +394,45 @@
       }
     },
     "podSecurityContext": {
-      "type": "object"
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "fsGroup": {"type": "integer", "minimum": 0},
+        "runAsNonRoot": {"type": "boolean"},
+        "seccompProfile": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {"type": "string", "enum": ["RuntimeDefault", "Localhost", "Unconfined"]},
+            "localhostProfile": {"type": "string"}
+          }
+        }
+      }
     },
     "containerSecurityContext": {
-      "type": "object"
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "allowPrivilegeEscalation": {"type": "boolean"},
+        "capabilities": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "drop": {"type": "array", "items": {"type": "string"}}
+          }
+        },
+        "readOnlyRootFilesystem": {"type": "boolean"},
+        "runAsNonRoot": {"type": "boolean"},
+        "runAsUser": {"type": "integer", "minimum": 1},
+        "seccompProfile": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {"type": "string", "enum": ["RuntimeDefault", "Localhost", "Unconfined"]},
+            "localhostProfile": {"type": "string"}
+          }
+        }
+      }
     },
     "resources": {
       "type": "object",
@@ -303,28 +440,20 @@
       "properties": {
         "requests": {
           "type": "object",
+          "additionalProperties": {"$ref": "#/definitions/resourceQuantity"},
           "properties": {
-            "cpu": {
-              "type": "string",
-              "pattern": "^[0-9]+(m|[0-9]*)$"
-            },
-            "memory": {
-              "type": "string",
-              "pattern": "^[0-9]+(Ki|Mi|Gi|Ti|Pi|Ei|k|M|G|T|P|E)?$"
-            }
+            "cpu": {"$ref": "#/definitions/resourceQuantity"},
+            "memory": {"$ref": "#/definitions/resourceQuantity"},
+            "ephemeral-storage": {"$ref": "#/definitions/resourceQuantity"}
           }
         },
         "limits": {
           "type": "object",
+          "additionalProperties": {"$ref": "#/definitions/resourceQuantity"},
           "properties": {
-            "cpu": {
-              "type": "string",
-              "pattern": "^[0-9]+(m|[0-9]*)$"
-            },
-            "memory": {
-              "type": "string",
-              "pattern": "^[0-9]+(Ki|Mi|Gi|Ti|Pi|Ei|k|M|G|T|P|E)?$"
-            }
+            "cpu": {"$ref": "#/definitions/resourceQuantity"},
+            "memory": {"$ref": "#/definitions/resourceQuantity"},
+            "ephemeral-storage": {"$ref": "#/definitions/resourceQuantity"}
           }
         }
       }
