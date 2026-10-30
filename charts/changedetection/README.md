@@ -78,6 +78,10 @@ WebSocket listener to `127.0.0.1`, and does not publish it through the Service.
 When the browser is enabled, neither application listener may use Sockpuppet's
 fixed statistics port `8080`.
 
+The browser sidecar runs as the pinned image's non-root `chrome` user, disables
+privilege escalation, and drops all Linux capabilities by default. Override
+`browser.securityContext` only for a verified image or runtime requirement.
+
 ## Persistence
 
 changedetection.io stores its JSON settings and watch files, snapshots, and watch history in
@@ -296,6 +300,11 @@ probes:
 | `securityContext.runAsNonRoot` | `true` | Run the main container without root privileges |
 | `securityContext.allowPrivilegeEscalation` | `false` | Prevent privilege escalation |
 | `securityContext.capabilities.drop` | `[ALL]` | Drop Linux capabilities by default |
+| `browser.securityContext.runAsUser` | `1000` | Run the browser as the image's `chrome` UID |
+| `browser.securityContext.runAsGroup` | `1000` | Run the browser as the image's `chrome` GID |
+| `browser.securityContext.runAsNonRoot` | `true` | Require the browser image's non-root user |
+| `browser.securityContext.allowPrivilegeEscalation` | `false` | Prevent browser-sidecar privilege escalation |
+| `browser.securityContext.capabilities.drop` | `[ALL]` | Drop browser-sidecar Linux capabilities |
 | `extraManifests` | `[]` | Additional manifests rendered with the release |
 
 ## Upgrade Notes

@@ -88,6 +88,14 @@ Enable the browser sidecar only when watches need JavaScript rendering:
 browser:
   enabled: true
   port: 3000
+  securityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
   resources:
     requests:
       cpu: 250m
@@ -100,6 +108,10 @@ process, its declared container port, and `PLAYWRIGHT_DRIVER_URL` together. The
 chart also passes `--host 127.0.0.1`, so the WebSocket listener remains on
 loopback and should not be exposed through a Service. Reserve port `8080` for
 Sockpuppet's fixed statistics listener whenever the sidecar is enabled.
+
+The pinned Sockpuppet image declares the non-root `chrome` user. The browser
+security context is independent from the main container, so it can be hardened
+or overridden without changing the changedetection.io runtime identity.
 
 ## Extra Python Packages
 
