@@ -26,7 +26,7 @@ tests:
           path: spec.template.spec.containers[0].image
           value: "docker.io/cybrarist/discount-bandit:v4.0.5"
 
-  - it: should expose port 80
+  - it: should configure the default FrankenPHP listener
     asserts:
       - contains:
           path: spec.template.spec.containers[0].ports
@@ -34,6 +34,31 @@ tests:
             name: http
             containerPort: 80
             protocol: TCP
+
+  - it: should expose a custom FrankenPHP listener
+    set:
+      containerPorts.http: 18080
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 18080
+
+  - it: should reject SERVER_NAME in extraEnv
+    set:
+      discountBandit.extraEnv:
+        - name: SERVER_NAME
+          value: ":18080"
+    asserts:
+      - failedTemplate:
+          errorMessage: "discountBandit.extraEnv must not override SERVER_NAME; use containerPorts.http"
+
+  - it: should reject a custom listener without the Supervisor ConfigMap
+    set:
+      containerPorts.http: 18080
+      supervisor.configMap.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "custom containerPorts.http requires supervisor.configMap.enabled=true"
 
   - it: should mount data volume at /app/database/sqlite
     set:

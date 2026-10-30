@@ -1,173 +1,155 @@
 # Discount Bandit Chart Design
 
-## Purpose
+## Scope
 
-This chart packages Discount Bandit for Kubernetes while exposing the operational choices that matter in production:
-database ownership, public routing, outbound crawler access, secrets, storage, and pod hardening.
+This chart packages Discount Bandit for Kubernetes and owns the application
+Deployment, Service, optional routing, Secrets, SQLite storage, NetworkPolicy,
+PodDisruptionBudget, and External Secrets resources. It can deploy the
+HelmForge MySQL subchart or connect the application to an external MySQL or
+MariaDB service.
 
-## Application Model
+Discount Bandit is a Laravel application running on FrankenPHP. The upstream
+container starts Supervisor, which manages the web UI, Laravel scheduler,
+queue worker, and Chromium/Xvfb crawler processes.
 
-Discount Bandit is a Laravel application running on FrankenPHP. The upstream container starts Supervisor, which runs:
+## Architecture
 
-- FrankenPHP/Octane for the web UI
-- Laravel scheduler for recurring crawls and maintenance
-- Laravel queue worker for background jobs
-- Chromium/Xvfb for stores that require browser-based crawling
+### Primary MySQL topology
 
-The application stores data in SQLite by default upstream, but it also supports MySQL/MariaDB through Laravel database
-environment variables. For Kubernetes production, this chart makes MySQL the primary path.
-
-## Architecture: Primary MySQL
-
-```text
-Users
-  |
-  v
-Gateway API / Ingress
-  |
-  v
-Service discount-bandit
-  |
-  v
-Deployment discount-bandit
-  |-- FrankenPHP web UI
-  |-- Laravel scheduler
-  |-- Laravel queue worker
-  |-- Chromium crawler runtime
-  |
-  v
-Service <release>-mysql
-  |
-  v
-StatefulSet mysql
-  |
-  v
-PVC MySQL data
+```mermaid
+flowchart TB
+  users[Users] --> edge[Gateway API or Ingress]
+  edge --> service[Discount Bandit Service]
+  service --> app[Discount Bandit Deployment]
+  app --> web[FrankenPHP web UI]
+  app --> scheduler[Laravel scheduler]
+  app --> worker[Laravel queue worker]
+  app --> crawler[Chromium crawler runtime]
+  app --> mysqlService[MySQL Service]
+  mysqlService --> mysql[MySQL StatefulSet]
+  mysql --> mysqlPvc[(MySQL data PVC)]
 ```
 
-Use this for most installations. The MySQL subchart owns database lifecycle, credentials, persistence, and future production
-controls from the HelmForge MySQL chart.
+This is the default topology. The MySQL subchart owns database credentials,
+persistence, and lifecycle controls.
 
-## Architecture: External MySQL
+### External database topology
 
-```text
-Users -> Gateway/Ingress -> Discount Bandit Deployment
-                                  |
-                                  v
-                       External MySQL or MariaDB
-                                  |
-                                  v
-                    Secret or ExternalSecret with password
+```mermaid
+flowchart LR
+  users[Users] --> edge[Gateway API or Ingress]
+  edge --> app[Discount Bandit Deployment]
+  secret[Secret or ExternalSecret] --> app
+  app --> database[(External MySQL or MariaDB)]
 ```
 
-Use this when a platform team already operates MySQL/MariaDB. This mode disables the MySQL subchart and requires an external
-database host plus password Secret.
+This topology is intended for a database operated by a platform team. The
+MySQL subchart is disabled and the chart requires an external host and a
+password source.
 
-## Architecture: SQLite Dev Mode
+### SQLite development topology
 
-```text
-Users -> Port-forward/Ingress -> Discount Bandit Deployment
-                                  |
-                                  v
-                         PVC /app/database/sqlite
+```mermaid
+flowchart LR
+  users[Users] --> service[Service or public route]
+  service --> app[Single Discount Bandit Pod]
+  app --> sqlite[(SQLite PVC or emptyDir)]
 ```
 
-SQLite is kept for development and small personal installs. It must remain single replica because SQLite is single-writer and
-the PVC normally uses `ReadWriteOnce`.
+SQLite is limited to development and small personal installations. It remains
+single replica because SQLite is single-writer and its PVC normally uses
+`ReadWriteOnce`.
 
-## Routing
+### Supervisor configuration flow
 
-The chart supports two public HTTP options:
-
-- Ingress for classic ingress controllers.
-- Gateway API `HTTPRoute` for clusters using the Kubernetes Gateway API.
-
-Gateway API is appropriate here because Discount Bandit is an HTTP web application. The chart does not create Gateway objects;
-it attaches to a platform-owned Gateway through `gatewayAPI.parentRefs`.
-
-## Secrets
-
-The chart manages these sensitive values:
-
-- `APP_KEY`
-- external database password
-- optional `EXCHANGE_RATE_API_KEY`
-
-Native Kubernetes Secrets are supported for simple installs. External Secrets Operator v1 is supported for production clusters
-that source secrets from Vault, cloud secret managers, or other external stores.
-
-## Supervisor Runtime
-
-The upstream image generates Supervisor configuration from `docker/base_supervisord.conf`. That upstream file enables an
-unauthenticated loopback `inet_http_server`, which creates a critical log entry even though it is not exposed through the
-Service. This chart mounts a sanitized base config at the same path by default:
-
-```text
-ConfigMap discount-bandit-supervisor
-  |
-  v
-/app/docker/base_supervisord.conf
-  |
-  v
-php artisan discount:fill-supervisor-workers
-  |
-  v
-/etc/supervisor/conf.d/supervisord.conf
+```mermaid
+flowchart LR
+  config[Supervisor ConfigMap] --> base[/app/docker/base_supervisord.conf]
+  base --> generator[Laravel worker config generator]
+  generator --> runtime[/etc/supervisor/conf.d/supervisord.conf]
+  runtime --> processes[Web, scheduler, queue, and crawler processes]
 ```
 
-The generated runtime config still keeps the web, scheduler, and queue programs, but avoids the unauthenticated Supervisor
-HTTP endpoint.
+The mounted base configuration removes the upstream unauthenticated
+Supervisor HTTP endpoint without changing the required worker topology.
 
-## Networking
+## Design Decisions
 
-Discount Bandit has broader egress needs than a typical internal web app:
+- MySQL is the default database path; SQLite is an explicit development mode.
+- `containerPorts.http` configures Laravel Octane's real FrankenPHP `--port`
+  option in the Supervisor configuration. `service.port` is independent and
+  targets the named `http` container port.
+- `discountBandit.extraEnv` cannot set `SERVER_NAME`; Laravel Octane's CLI
+  option is authoritative, so accepting that environment variable would imply
+  a listener override that the upstream entrypoint does not honor.
+- The Deployment uses `Recreate` because SQLite and log volumes may be
+  `ReadWriteOnce` and must not be mounted by overlapping pods.
+- Ingress and Gateway API attach to platform-owned controllers and Gateways.
+- NetworkPolicy is opt-in because crawlers and notification integrations have
+  deployment-specific internet destinations.
+- The chart mounts a sanitized Supervisor base configuration by default.
+- A custom listener requires that Supervisor ConfigMap; disabling it retains
+  the upstream fixed port 80 command.
 
-- DNS for name resolution
-- HTTPS/HTTP egress to product stores for crawling
-- HTTPS egress to notification providers and exchange-rate API
-- MySQL egress to the same namespace or an external database
+## Storage and Database Model
 
-`networkPolicy.enabled=false` by default so development installs work without tuning. Production examples enable NetworkPolicy
-and document the crawler egress tradeoff.
+MySQL data is owned by the dependency chart. SQLite data uses
+`persistence.database` and mounts only `/app/database/sqlite`, preserving
+upstream migrations and seeders under `/app/database`. Application logs use
+`persistence.logs`; the default is container-local storage because Kubernetes
+log collection should consume stdout and stderr first.
 
-## Storage
+## Production Boundary
 
-The chart separates storage concerns:
+For production, use the bundled MySQL subchart or an external MySQL/MariaDB
+service, persistent database storage, stable application secrets, TLS at the
+edge, and explicit resource sizing. Operators own database backups, restore
+testing, database upgrades, ingress or Gateway controllers, DNS, certificates,
+and the availability of External Secrets infrastructure.
 
-- MySQL data is owned by the MySQL subchart.
-- SQLite data uses `persistence.database` only in SQLite mode and is mounted at `/app/database/sqlite` so upstream
-  migrations and seeders under `/app/database` remain visible.
-- Application logs use `persistence.logs`, defaulting to `emptyDir` because Kubernetes-native log collection should read
-  container stdout/stderr first.
+The chart does not make SQLite highly available and does not turn the bundled
+standalone MySQL profile into a multi-node database service.
 
-## Security
+## Security Boundary
 
-Defaults avoid mounting the Kubernetes API token and apply conservative controls that are compatible with the current
-upstream image:
+The chart disables service account token mounting, applies RuntimeDefault
+seccomp, disables privilege escalation, supports Kubernetes Secrets and
+External Secrets, and removes the unauthenticated Supervisor HTTP endpoint.
 
-```yaml
-serviceAccount:
-  automountServiceAccountToken: false
-podSecurityContext:
-  seccompProfile:
-    type: RuntimeDefault
-securityContext:
-  allowPrivilegeEscalation: false
-```
+The upstream image currently runs Supervisor and worker processes as root and
+requires a writable application filesystem. The chart therefore does not force
+`runAsNonRoot`, `readOnlyRootFilesystem`, or dropped capabilities. Operators
+must protect application and database Secrets, terminate TLS at a trusted edge,
+and restrict ingress and egress for their environment.
 
-The upstream image currently runs Supervisor and worker processes as root and listens on port 80. For that reason the chart
-does not force `runAsNonRoot`, `readOnlyRootFilesystem`, or dropped capabilities by default; those require upstream image
-changes or dedicated runtime validation for FrankenPHP, Supervisor, and Chromium crawlers.
+## Observability Boundary
 
-The chart also sets resource requests and limits for both Discount Bandit and the bundled MySQL subchart so the default
-install has explicit scheduler and quota behavior.
+Startup, readiness, and liveness probes verify the configured FrankenPHP TCP
+listener. The chart-specific runtime smoke test performs an HTTP request
+through the Service and verifies that Discount Bandit returns HTML. Application
+logs expose scheduler, queue, crawler, and web failures.
 
-## Production Checklist
+The chart does not install a metrics exporter, dashboards, alert rules, or a
+log collector. Operators own those integrations and should monitor database
+health, queue progress, crawler failures, notification delivery, pod restarts,
+and storage consumption.
 
-- Use `mysql.enabled=true` or `database.mode=external`.
-- Set `discountBandit.appUrl` and `discountBandit.assetUrl`.
-- Store `APP_KEY`, database password, and exchange-rate key in Secrets or External Secrets.
-- Enable Gateway API or Ingress with TLS.
-- Set resource requests and memory limits.
-- Validate crawler and notification egress before enabling restrictive NetworkPolicy.
-- Review pod logs after adding real product URLs because store-specific crawling may depend on Chromium behavior.
+## Known Gaps and Limitations
+
+- SQLite is not suitable for multiple replicas or high write concurrency.
+- The upstream root runtime limits default pod hardening.
+- TCP probes prove listener availability but not database-backed application
+  behavior; the runtime smoke provides the HTTP-level deployment check.
+- Store-specific crawling can require Chromium and outbound HTTP or HTTPS
+  destinations that cannot be predicted by the chart.
+- The chart does not provide application-aware backup or restore jobs.
+
+## Explicit Non-Goals
+
+- Operating a highly available MySQL or MariaDB cluster.
+- Managing Gateway, Ingress controller, DNS, or certificate lifecycles.
+- Discovering crawler destinations and generating environment-specific egress
+  allowlists.
+- Managing Discount Bandit users, products, notification providers, or
+  application migrations outside the upstream container lifecycle.
+- Rebuilding or patching the official upstream application image.

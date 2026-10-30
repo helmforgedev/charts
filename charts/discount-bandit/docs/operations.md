@@ -6,8 +6,11 @@ Discount Bandit runs a Laravel application with FrankenPHP, a scheduler, queue w
 single upstream container. The chart keeps one Deployment with `Recreate` strategy so SQLite development mode and log
 volumes are not mounted concurrently by multiple pods.
 
-The upstream image currently runs as root and listens on port 80. The chart therefore applies conservative hardening by
-default:
+The upstream image currently runs as root and listens on port 80 by default.
+The chart configures the real FrankenPHP listener with
+`containerPorts.http` through Laravel Octane's `--port` option in the mounted
+Supervisor configuration; `service.port` remains an independent
+Kubernetes-facing port. The chart applies conservative hardening by default:
 
 - service account token automount disabled
 - RuntimeDefault seccomp profile
@@ -43,6 +46,10 @@ kubectl describe networkpolicy -n discount-bandit
 
 Set `discountBandit.appUrl` and `discountBandit.assetUrl` before exposing the application. Use Gateway API when the
 cluster has a platform-owned Gateway. Use classic Ingress for clusters that still standardize on an Ingress controller.
+When changing the internal listener, set `containerPorts.http`; do not attempt
+to override it with `SERVER_NAME` through `discountBandit.extraEnv`.
+Custom listener ports require `supervisor.configMap.enabled=true` so the chart
+can update the command used by the upstream entrypoint.
 
 ## Validation Checklist
 

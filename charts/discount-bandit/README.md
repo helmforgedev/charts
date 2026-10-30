@@ -50,6 +50,27 @@ kubectl port-forward -n discount-bandit svc/discount-bandit 8080:80
 
 Open `http://localhost:8080` and create the first admin account.
 
+## Application Listener
+
+The FrankenPHP listener and Kubernetes Service port are independent:
+
+| Purpose | Process listener | Service port |
+| --- | --- | --- |
+| Discount Bandit HTTP | `containerPorts.http` (default `80`) | `service.port` (default `80`) |
+
+Changing `containerPorts.http` sets Laravel Octane's FrankenPHP `--port`
+option in the Supervisor configuration, updates the container port and
+NetworkPolicy, and keeps probes on the named `http` port. The Service targets
+that named port, so its public port can be changed separately. Custom listener
+ports require `supervisor.configMap.enabled=true`.
+
+```yaml
+containerPorts:
+  http: 18080
+service:
+  port: 18081
+```
+
 ## Production Example
 
 ```yaml
@@ -227,6 +248,8 @@ networkPolicy:
 | `discountBandit.cron` | `*/5 * * * *` | Product crawl schedule. |
 | `discountBandit.themeColor` | `Stone` | UI theme color. |
 | `discountBandit.exchangeRateApiKey` | `""` | ExchangeRate API key; prefer Secret/ExternalSecret. |
+| `containerPorts.http` | `80` | FrankenPHP HTTP application listener. |
+| `service.port` | `80` | Kubernetes Service port targeting the named HTTP listener. |
 | `service.ipFamilyPolicy` | `""` | Optional dual-stack Service policy. |
 | `service.ipFamilies` | `[]` | Optional Service IP families. |
 | `gatewayAPI.enabled` | `false` | Render Gateway API HTTPRoute. |
@@ -266,7 +289,8 @@ NetworkPolicy/firewall decisions that depend on crawler and notification destina
 - SQLite is suitable for development and small personal installs only.
 - Production deployments should use the MySQL subchart or external MySQL/MariaDB.
 - Enable NetworkPolicy carefully because product crawling and notifications need outbound internet access.
-- See `docs/operations.md` for runtime, database, crawler egress, routing, and validation guidance.
+- See the [operations guide](docs/operations.md) for runtime, database, crawler
+  egress, routing, and validation guidance.
 
 ## More Information
 

@@ -36,3 +36,46 @@ tests:
       - equal:
           path: spec.ingressClassName
           value: nginx
+
+  - it: should preserve a hostless ingress rule
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - isKind:
+          of: Ingress
+      - notExists:
+          path: spec.rules[0].host
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.port.name
+          value: http
+
+  - it: should use the default path when paths are omitted
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: deals.example.com
+    asserts:
+      - equal:
+          path: spec.rules[0].http.paths[0].path
+          value: /
+      - equal:
+          path: spec.rules[0].http.paths[0].pathType
+          value: Prefix
+
+  - it: should use the default path when paths are empty
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: deals.example.com
+          paths: []
+    asserts:
+      - equal:
+          path: spec.rules[0].http.paths[0].path
+          value: /
+      - equal:
+          path: spec.rules[0].http.paths[0].pathType
+          value: Prefix
