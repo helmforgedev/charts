@@ -146,6 +146,13 @@ Upstream DNS value. When unbound is enabled, override to local sidecar.
 {{- end }}
 
 {{/*
+Complete Pi-hole FTL webserver.port value.
+*/}}
+{{- define "pihole.webserverPort" -}}
+{{- .Values.pihole.webserverPort | default (printf "%v" .Values.containerPorts.http) -}}
+{{- end }}
+
+{{/*
 ConfigMap name for custom DNS and dnsmasq config.
 */}}
 {{- define "pihole.configMapName" -}}
@@ -323,6 +330,11 @@ Compile all validation warnings and errors into a single message.
 */}}
 {{- define "pihole.validate" -}}
 {{- $messages := list -}}
+{{- $webserverPort := include "pihole.webserverPort" . -}}
+{{- $primaryHttpPattern := printf "(^|,[[:space:]]*)(\\+|0\\.0\\.0\\.0:)?%v(o)?[[:space:]]*(,|$)" .Values.containerPorts.http -}}
+{{- if not (regexMatch $primaryHttpPattern $webserverPort) -}}
+  {{- $messages = append $messages (printf "pihole.webserverPort must include containerPorts.http (%v) as a directly served HTTP listener bound to all pod interfaces." .Values.containerPorts.http) -}}
+{{- end -}}
 {{- if .Values.backup.enabled -}}
   {{- if not .Values.backup.s3.bucket -}}
     {{- $messages = append $messages "When backup.enabled is true, backup.s3.bucket must be specified." -}}

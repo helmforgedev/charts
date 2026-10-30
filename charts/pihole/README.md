@@ -148,10 +148,11 @@ metrics:
 | `image.digest` | pinned SHA-256 | Immutable Pi-hole image digest |
 | `image.pullPolicy` | `IfNotPresent` | Pi-hole image pull policy |
 | `containerPorts.dns` | `53` | Pi-hole FTL DNS listener port (TCP and UDP) |
-| `containerPorts.http` | `80` | Pi-hole FTL web listener port |
+| `containerPorts.http` | `80` | Primary Pi-hole FTL HTTP listener used by the Service, probes, and metrics |
 | `pihole.timezone` | `UTC` | Timezone for logs and scheduled tasks |
 | `pihole.upstreamDns` | `8.8.8.8;8.8.4.4` | Upstream DNS servers (semicolon-delimited) |
 | `pihole.listeningMode` | `ALL` | DNS listening mode (LOCAL, ALL, SINGLE, BIND) |
+| `pihole.webserverPort` | `""` | Full FTL `webserver.port` value; empty derives from `containerPorts.http` |
 | `pihole.dnssec` | `false` | Enable DNSSEC validation |
 | `pihole.ftl.rateLimit` | `1000` | Rate limiting query count per client; set to `0` to disable |
 | `pihole.ftl.rateLimitInterval` | `60` | Rate limiting interval in seconds |
@@ -214,8 +215,31 @@ resolves the digest as the deployed image identity.
 | `serviceWeb.port` | `80` | Web admin port |
 
 `serviceDns.port` and `serviceWeb.port` are client-facing Service ports.
-`containerPorts.dns` and `containerPorts.http` change the actual Pi-hole FTL
-listeners. DHCP remains on protocol-defined UDP port 67.
+`containerPorts.dns` changes the Pi-hole FTL DNS listener.
+`containerPorts.http` is the primary unencrypted web listener targeted by the
+Web Service, HTTP probes, and metrics exporter. For multiple IPv4, IPv6, HTTP,
+or HTTPS listeners, set `pihole.webserverPort` to the complete FTL value and
+include `containerPorts.http` as a directly served HTTP listener bound to all
+pod interfaces. Do not add `r` or `s` to that primary listener or bind it to a
+specific address; Service probes and the metrics exporter require direct HTTP.
+Redirect, TLS, and address-specific listeners may be added separately. For
+example:
+
+```yaml
+containerPorts:
+  http: 9090
+pihole:
+  webserverPort: "9090o,[::]:9090o,9091os,[::]:9091os"
+```
+
+The chart Web Service and default NetworkPolicy expose only
+`containerPorts.http`; additional FTL listeners such as HTTPS 9091 are not
+routed through that Service. With `hostNetwork`, reach them directly through
+the node and enforce access with the node firewall. For ordinary pod
+networking, terminate TLS at an Ingress or Gateway that targets the primary
+HTTP listener.
+
+DHCP remains on protocol-defined UDP port 67.
 
 ### Security and Resources
 
@@ -333,6 +357,17 @@ Pi-hole 2026.10.0 includes FTL 6.8, Web 6.6.1, Core 6.5, and fixes for
 web passwords from appearing in shell traces and makes FTL and release downloads
 fail closed. Back up the persistent data and verify DNS, admin login, gravity
 updates, and any enabled Unbound or DHCP workflow after rollout.
+
+Chart 2.2.0 changed `securityContext.capabilities` to drop all capabilities
+before adding the complete set required by the official image. Helm replaces
+custom arrays during an upgrade, so a `securityContext.capabilities.add`
+override copied from chart 2.1.x removes the new required defaults and prevents
+Pi-hole from starting. Inspect stored overrides with `helm get values <release>
+-n <namespace>`, remove the old capability override, then upgrade with
+`--reset-values` and pass the other intended overrides again. Do not use
+`--reuse-values` or `--reset-then-reuse-values` for this migration because both
+retain the stored capability override. When `dhcp.enabled` is true, the chart
+now adds `NET_ADMIN` automatically.
 
 Upstream release notes: [Pi-hole 2026.10.0](https://github.com/pi-hole/docker-pi-hole/releases/tag/2026.10.0).
 

@@ -15,10 +15,26 @@ semantics so one instance owns `/etc/pihole` and `/etc/dnsmasq.d` at a time.
 
 ## Architecture
 
+```mermaid
+flowchart LR
+  dnsClients[DNS clients] --> dnsService[DNS Service]
+  webClients[Web clients] --> webService[Web Service or Ingress]
+  dnsService --> pihole[Pi-hole FTL]
+  webService --> pihole
+  pihole --> upstream[Upstream DNS or Unbound]
+  pihole --> data[(Persistent configuration)]
+```
+
 The chart renders a Deployment with one replica. The main container exposes DNS
-over TCP and UDP through `containerPorts.dns` plus the web admin interface
-through `containerPorts.http`. Both values configure Pi-hole FTL itself through
-`FTLCONF_dns_port` and `FTLCONF_webserver_port`; Service ports remain separate.
+over TCP and UDP through `containerPorts.dns` plus the primary web admin
+interface through `containerPorts.http`. The DNS value configures
+`FTLCONF_dns_port`. The HTTP value configures `FTLCONF_webserver_port` by
+default, while `pihole.webserverPort` can define Pi-hole's complete IPv4, IPv6,
+HTTP, and HTTPS listener string. The complete string must retain
+`containerPorts.http` as an unencrypted listener because the Service, probes,
+and metrics exporter target that named port. The primary listener must serve
+HTTP directly on all pod interfaces; redirects, TLS, and address-specific binds
+are supported only as additional listeners. Service ports remain separate.
 DHCP port 67 is fixed by the protocol and explicitly documented as such. DHCP can be
 enabled for advanced home-network deployments, but it requires host networking
 because DHCP broadcasts do not cross Kubernetes service boundaries.
