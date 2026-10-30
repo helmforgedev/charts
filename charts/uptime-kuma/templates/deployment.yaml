@@ -1,4 +1,16 @@
-# SPDX-License-Identifier: Apache-2.0
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- $userMountPaths := dict -}}
+{{- range .Values.extraVolumeMounts -}}
+  {{- if hasKey . "mountPath" -}}
+    {{- $_ := set $userMountPaths (toString .mountPath) true -}}
+  {{- end -}}
+{{- end -}}
+{{- $userVolumeNames := dict -}}
+{{- range .Values.extraVolumes -}}
+  {{- if hasKey . "name" -}}
+    {{- $_ := set $userVolumeNames (toString .name) true -}}
+  {{- end -}}
+{{- end -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -19,18 +31,18 @@ spec:
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.podAnnotations }}
       annotations:
+        checksum/secret: {{ printf "%s|%s|%s|%s|%s" .Values.database.type .Values.database.external.password .Values.database.external.existingSecret .Values.database.external.existingSecretPasswordKey .Values.mysql.auth.password | sha256sum }}
+        {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- end }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "uptime-kuma.serviceAccountName" . }}
-      {{- end }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . }}
       {{- end }}
@@ -43,6 +55,8 @@ spec:
       initContainers:
         - name: wait-for-db
           image: docker.io/library/busybox:1.37
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
           command:
             - sh
             - -c
@@ -67,6 +81,10 @@ spec:
               value: {{ .Values.uptimeKuma.port | quote }}
             - name: DATA_DIR
               value: /app/data
+            - name: HOME
+              value: /tmp
+            - name: TMPDIR
+              value: /tmp
             {{- if .Values.uptimeKuma.disableFrameSameOrigin }}
             - name: UPTIME_KUMA_DISABLE_FRAME_SAMEORIGIN
               value: "true"
@@ -136,6 +154,10 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /app/data
+            {{- if not (hasKey $userMountPaths "/tmp") }}
+            - name: runtime-tmp
+              mountPath: /tmp
+            {{- end }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -147,6 +169,11 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
+        {{- if not (hasKey $userVolumeNames "runtime-tmp") }}
+        - name: runtime-tmp
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeStorage.tmpSizeLimit }}
+        {{- end }}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

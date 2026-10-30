@@ -1,0 +1,152 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Configuration validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: should accept the default SQLite configuration
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should reject floating image tags
+    set:
+      image.tag: latest
+    asserts:
+      - failedTemplate:
+          errorMessage: image.tag must be an immutable release tag
+
+  - it: should require an external host for MariaDB without the subchart
+    set:
+      database.type: mariadb
+      mysql.enabled: false
+      database.external.host: ""
+      database.external.password: secret
+    asserts:
+      - failedTemplate:
+          errorMessage: database.external.host is required when database.type=mariadb and mysql.enabled=false
+
+  - it: should require an external database credential without the subchart
+    set:
+      database.type: mariadb
+      mysql.enabled: false
+      database.external.host: mariadb.example.internal
+    asserts:
+      - failedTemplate:
+          errorMessage: database.external.password or database.external.existingSecret is required when database.type=mariadb and mysql.enabled=false
+
+  - it: should accept an existing Secret for an external database
+    set:
+      database.type: mariadb
+      mysql.enabled: false
+      database.external.host: mariadb.example.internal
+      database.external.existingSecret: uptime-kuma-db
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should reject the MySQL subchart in SQLite mode
+    set:
+      database.type: sqlite
+      mysql.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: mysql.enabled=true requires database.type=mariadb
+
+  - it: should reject both PodDisruptionBudget availability fields
+    set:
+      podDisruptionBudget.enabled: true
+      podDisruptionBudget.minAvailable: 1
+      podDisruptionBudget.maxUnavailable: 1
+    asserts:
+      - failedTemplate:
+          errorMessage: set only one of podDisruptionBudget.minAvailable or podDisruptionBudget.maxUnavailable
+
+  - it: should reject both PodDisruptionBudget fields when minAvailable is zero
+    set:
+      podDisruptionBudget.enabled: true
+      podDisruptionBudget.minAvailable: 0
+      podDisruptionBudget.maxUnavailable: 1
+    asserts:
+      - failedTemplate:
+          errorMessage: set only one of podDisruptionBudget.minAvailable or podDisruptionBudget.maxUnavailable
+
+  - it: should require persistent SQLite data when backup is enabled
+    set:
+      persistence.enabled: false
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.example.com
+      backup.s3.bucket: backups
+      backup.s3.existingSecret: uptime-kuma-backup
+    asserts:
+      - failedTemplate:
+          errorMessage: backup.enabled=true in SQLite mode requires persistence.enabled=true
+
+  - it: should require an S3 endpoint when backup is enabled
+    set:
+      backup.enabled: true
+      backup.s3.bucket: backups
+      backup.s3.existingSecret: uptime-kuma-backup
+    asserts:
+      - failedTemplate:
+          errorMessage: backup.s3.endpoint is required when backup.enabled=true
+
+  - it: should require an S3 bucket when backup is enabled
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.example.com
+      backup.s3.existingSecret: uptime-kuma-backup
+    asserts:
+      - failedTemplate:
+          errorMessage: backup.s3.bucket is required when backup.enabled=true
+
+  - it: should require complete inline S3 credentials
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.example.com
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access-key
+    asserts:
+      - failedTemplate:
+          errorMessage: backup.s3.accessKey and backup.s3.secretKey are both required when backup.s3.existingSecret is empty
+
+  - it: should accept an existing Secret for backup credentials
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.example.com
+      backup.s3.bucket: backups
+      backup.s3.existingSecret: uptime-kuma-backup
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should require ingress hosts when Ingress is enabled
+    set:
+      ingress.enabled: true
+      ingress.hosts: []
+    asserts:
+      - failedTemplate:
+          errorMessage: ingress.hosts must contain at least one host when ingress.enabled=true
+
+  - it: should require HTTPRoutes when Gateway API is enabled
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes: []
+    asserts:
+      - failedTemplate:
+          errorMessage: gatewayAPI.httpRoutes must contain at least one route when gatewayAPI.enabled=true
+
+  - it: should require ExternalSecret items when integration is enabled
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items: []
+    asserts:
+      - failedTemplate:
+          errorMessage: externalSecrets.items must contain at least one item when externalSecrets.enabled=true
+
+  - it: should reject selector labels in podLabels
+    set:
+      podLabels:
+        app.kubernetes.io/name: custom
+    asserts:
+      - failedTemplate:
+          errorMessage: podLabels must not override app.kubernetes.io/name or app.kubernetes.io/instance

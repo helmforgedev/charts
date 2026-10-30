@@ -4,6 +4,7 @@
   "description": "Values for the Uptime Kuma Helm chart — self-hosted monitoring with SQLite or MariaDB, status pages, notifications",
   "type": "object",
   "additionalProperties": true,
+  "required": ["global"],
   "properties": {
     "global": {
       "type": "object",
@@ -185,6 +186,11 @@
         "annotations": {
           "type": "object",
           "description": "Annotations for the ServiceAccount"
+        },
+        "automountServiceAccountToken": {
+          "type": "boolean",
+          "description": "Mount the Kubernetes API token into application and backup pods",
+          "default": false
         }
       }
     },
@@ -379,15 +385,74 @@
     },
     "podSecurityContext": {
       "type": "object",
-      "description": "Pod-level security context"
+      "description": "Pod-level security context",
+      "properties": {
+        "seccompProfile": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string"
+            }
+          }
+        }
+      }
     },
     "securityContext": {
       "type": "object",
-      "description": "Container-level security context"
+      "description": "Container-level security context",
+      "properties": {
+        "allowPrivilegeEscalation": {
+          "type": "boolean"
+        },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "drop": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "readOnlyRootFilesystem": {
+          "type": "boolean"
+        }
+      }
+    },
+    "runtimeStorage": {
+      "type": "object",
+      "description": "Bounded writable runtime storage",
+      "additionalProperties": false,
+      "properties": {
+        "tmpSizeLimit": {
+          "type": "string",
+          "description": "Maximum writable temporary storage for Uptime Kuma",
+          "default": "256Mi"
+        }
+      }
     },
     "lifecycle": {
       "type": "object",
-      "description": "Container lifecycle hooks"
+      "description": "Container lifecycle hooks",
+      "properties": {
+        "preStop": {
+          "type": "object",
+          "properties": {
+            "exec": {
+              "type": "object",
+              "properties": {
+                "command": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     },
     "nodeSelector": {
       "type": "object",
@@ -478,6 +543,48 @@
         "resources": {
           "type": "object",
           "description": "Resources for backup containers"
+        },
+        "podSecurityContext": {
+          "type": "object",
+          "description": "Pod-level security context for backup Jobs",
+          "properties": {
+            "seccompProfile": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "securityContext": {
+          "type": "object",
+          "description": "Container-level security context for backup containers",
+          "properties": {
+            "allowPrivilegeEscalation": {
+              "type": "boolean"
+            },
+            "capabilities": {
+              "type": "object",
+              "properties": {
+                "drop": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "readOnlyRootFilesystem": {
+              "type": "boolean"
+            }
+          }
+        },
+        "tmpSizeLimit": {
+          "type": "string",
+          "description": "Maximum writable temporary storage shared by backup containers",
+          "default": "64Mi"
         },
         "images": {
           "type": "object",
@@ -592,6 +699,50 @@
       "description": "Extra Kubernetes manifests to deploy alongside the chart",
       "items": {
         "type": "object"
+      }
+    },
+    "podDisruptionBudget": {
+      "type": "object",
+      "description": "PodDisruptionBudget configuration",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Render a PodDisruptionBudget",
+          "default": false
+        },
+        "minAvailable": {
+          "type": ["integer", "string", "null"],
+          "description": "Minimum available pods during voluntary disruptions",
+          "default": 1
+        },
+        "maxUnavailable": {
+          "type": ["integer", "string", "null"],
+          "description": "Maximum unavailable pods during voluntary disruptions",
+          "default": null
+        }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "description": "NetworkPolicy configuration",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Render a NetworkPolicy",
+          "default": false
+        },
+        "ingress": {
+          "type": "array",
+          "description": "Ingress rules; an empty array denies all ingress",
+          "items": { "type": "object" }
+        },
+        "egress": {
+          "type": "array",
+          "description": "Egress rules; an empty array denies all egress",
+          "items": { "type": "object" }
+        }
       }
     },
     "gatewayAPI": {

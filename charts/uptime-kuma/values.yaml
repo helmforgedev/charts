@@ -4,6 +4,8 @@
 # =============================================================================
 # Focus: self-hosted monitoring with SQLite or MariaDB, status pages, notifications
 
+global: {}
+
 nameOverride: ""
 fullnameOverride: ""
 commonLabels: {}
@@ -83,6 +85,8 @@ serviceAccount:
   name: ""
   # -- Annotations for the ServiceAccount
   annotations: {}
+  # -- Mount the Kubernetes API token into application and backup pods
+  automountServiceAccountToken: false
 
 # =============================================================================
 # Service
@@ -160,9 +164,20 @@ probes:
 
 resources: {}
 
-podSecurityContext: {}
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
 
-securityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+
+runtimeStorage:
+  # -- Maximum writable temporary storage available to Uptime Kuma
+  tmpSizeLimit: 256Mi
 
 # -- Container lifecycle hooks. The default preStop gives Kubernetes time to
 # drain the terminating pod before Uptime Kuma exits, avoiding transient
@@ -212,6 +227,17 @@ backup:
   archivePrefix: uptime-kuma
   # -- Resources for backup containers
   resources: {}
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+  # -- Maximum writable temporary storage shared by backup containers
+  tmpSizeLimit: 64Mi
   images:
     uploader:
       repository: docker.io/helmforge/mc
@@ -248,6 +274,26 @@ extraVolumeMounts: []
 
 # -- Extra manifests to deploy alongside the chart
 extraManifests: []
+
+# =============================================================================
+# Availability and Network Isolation
+# =============================================================================
+
+podDisruptionBudget:
+  # -- Render a PodDisruptionBudget for the single Uptime Kuma pod
+  enabled: false
+  # -- Minimum available pods during voluntary disruptions
+  minAvailable: 1
+  # -- Maximum unavailable pods; omit when minAvailable is used
+  maxUnavailable: null
+
+networkPolicy:
+  # -- Render a NetworkPolicy for the Uptime Kuma application pod
+  enabled: false
+  # -- NetworkPolicy ingress rules. Empty denies all ingress.
+  ingress: []
+  # -- NetworkPolicy egress rules. Empty denies all egress.
+  egress: []
 
 # =============================================================================
 # Gateway API

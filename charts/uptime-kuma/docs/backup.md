@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Backup
 
 The chart includes an optional CronJob that creates database backups and uploads them to S3-compatible storage.
@@ -70,6 +72,22 @@ externalSecrets:
               key: uptime-kuma/s3
               property: secret-key
 ```
+
+## Runtime and Restore Validation
+
+Backup pods use the same restrictive runtime posture as the application: no
+Kubernetes API token, runtime-default seccomp, no privilege escalation, dropped
+capabilities, and a read-only image filesystem. Scratch output and client state
+use bounded writable `emptyDir` volumes.
+
+SQLite backup requires persistent `/app/data`; the chart rejects backup with
+ephemeral SQLite storage. Any enabled backup also requires an S3 endpoint,
+bucket, and either an existing Secret or both inline credential values.
+
+A successful upload is not sufficient recovery evidence. Regularly restore the
+newest object into a disposable namespace, start Uptime Kuma against the
+restored data, and confirm monitor history, status pages, and notification
+configuration before relying on the backup for production recovery.
 
 <!-- @AI-METADATA
 @description: Backup configuration guide for the Uptime Kuma Helm chart

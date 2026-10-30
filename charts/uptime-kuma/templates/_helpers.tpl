@@ -157,4 +157,40 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if has .Values.image.tag (list "latest" "stable" "main" "master" "edge") -}}
 {{- fail "image.tag must be an immutable release tag" -}}
 {{- end -}}
+{{- if and .Values.mysql.enabled (ne .Values.database.type "mariadb") -}}
+{{- fail "mysql.enabled=true requires database.type=mariadb" -}}
+{{- end -}}
+{{- if and (eq .Values.database.type "mariadb") (not .Values.mysql.enabled) (empty .Values.database.external.host) -}}
+{{- fail "database.external.host is required when database.type=mariadb and mysql.enabled=false" -}}
+{{- end -}}
+{{- if and (eq .Values.database.type "mariadb") (not .Values.mysql.enabled) (empty .Values.database.external.password) (empty .Values.database.external.existingSecret) -}}
+{{- fail "database.external.password or database.external.existingSecret is required when database.type=mariadb and mysql.enabled=false" -}}
+{{- end -}}
+{{- if and .Values.podDisruptionBudget.enabled (ne .Values.podDisruptionBudget.minAvailable nil) (ne .Values.podDisruptionBudget.maxUnavailable nil) -}}
+{{- fail "set only one of podDisruptionBudget.minAvailable or podDisruptionBudget.maxUnavailable" -}}
+{{- end -}}
+{{- if and .Values.backup.enabled (eq .Values.database.type "sqlite") (not .Values.persistence.enabled) -}}
+{{- fail "backup.enabled=true in SQLite mode requires persistence.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.backup.enabled (empty .Values.backup.s3.endpoint) -}}
+{{- fail "backup.s3.endpoint is required when backup.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.backup.enabled (empty .Values.backup.s3.bucket) -}}
+{{- fail "backup.s3.bucket is required when backup.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.backup.enabled (empty .Values.backup.s3.existingSecret) (or (empty .Values.backup.s3.accessKey) (empty .Values.backup.s3.secretKey)) -}}
+{{- fail "backup.s3.accessKey and backup.s3.secretKey are both required when backup.s3.existingSecret is empty" -}}
+{{- end -}}
+{{- if and .Values.ingress.enabled (empty .Values.ingress.hosts) -}}
+{{- fail "ingress.hosts must contain at least one host when ingress.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.gatewayAPI.enabled (empty .Values.gatewayAPI.httpRoutes) -}}
+{{- fail "gatewayAPI.httpRoutes must contain at least one route when gatewayAPI.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.externalSecrets.enabled (empty .Values.externalSecrets.items) -}}
+{{- fail "externalSecrets.items must contain at least one item when externalSecrets.enabled=true" -}}
+{{- end -}}
+{{- if or (hasKey .Values.podLabels "app.kubernetes.io/name") (hasKey .Values.podLabels "app.kubernetes.io/instance") -}}
+{{- fail "podLabels must not override app.kubernetes.io/name or app.kubernetes.io/instance" -}}
+{{- end -}}
 {{- end -}}
