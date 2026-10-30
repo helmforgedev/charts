@@ -17,6 +17,8 @@ image:
   repository: docker.io/guacamole/guacamole
   # -- Image tag
   tag: "1.6.0"
+  # -- Immutable digest for the official Guacamole 1.6.0 multi-architecture image
+  digest: "sha256:f344085e618bb05e22b964b0208dbd06d3468275bac70206f93805245e067b40"
   pullPolicy: IfNotPresent
 
 guacd:
@@ -25,6 +27,8 @@ guacd:
     repository: docker.io/guacamole/guacd
     # -- guacd image tag
     tag: "1.6.0"
+    # -- Immutable digest for the official guacd 1.6.0 multi-architecture image
+    digest: "sha256:8974eaa9ba32f713daf311e7cc8cd7e4cdfba1edea39eed75524e78ef4b08f4f"
     pullPolicy: IfNotPresent
   # -- guacd daemon port
   port: 4822
@@ -32,8 +36,24 @@ guacd:
   logLevel: info
   # -- Resources for the guacd container
   resources: {}
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    runAsNonRoot: true
+    runAsUser: 1000
+    readOnlyRootFilesystem: true
 
 imagePullSecrets: []
+
+# =============================================================================
+# Application Ports
+# =============================================================================
+
+containerPorts:
+  # -- Actual Tomcat HTTP listener port. Independent from service.port.
+  http: 8080
 
 # =============================================================================
 # Guacamole Configuration
@@ -163,11 +183,13 @@ initDb:
 
 serviceAccount:
   # -- Create a ServiceAccount
-  create: false
+  create: true
   # -- ServiceAccount name
   name: ""
   # -- Annotations for the ServiceAccount
   annotations: {}
+  # -- Mount the Kubernetes API token into application and job pods
+  automountServiceAccountToken: false
 
 # =============================================================================
 # Service
@@ -237,9 +259,28 @@ probes:
 
 resources: {}
 
-podSecurityContext: {}
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
 
-securityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  runAsNonRoot: true
+  runAsUser: 1001
+  readOnlyRootFilesystem: true
+
+# =============================================================================
+# Network Policy
+# =============================================================================
+
+networkPolicy:
+  # -- Isolate inbound application traffic. Egress remains open for remote desktops and identity providers.
+  enabled: true
+  # -- Additional peers allowed to reach the HTTP listener.
+  ingressFrom: []
 
 # =============================================================================
 # Scheduling
