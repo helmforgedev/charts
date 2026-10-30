@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: WebODM processing Service
+templates:
+  - templates/processing-service.yaml
+tests:
+  - it: keeps the processor private and routes through its named target
+    set:
+      processing.containerPort: 3100
+      processingService.port: 3200
+    asserts:
+      - isKind: {of: Service}
+      - equal: {path: spec.type, value: ClusterIP}
+      - equal: {path: "spec.ports[0].port", value: 3200}
+      - equal: {path: "spec.ports[0].targetPort", value: http}
+  - it: disappears with the bundled processor
+    set: {processing.enabled: false}
+    asserts:
+      - hasDocuments: {count: 0}
+

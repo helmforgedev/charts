@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # OpenID Connect
 
 Register `https://YOUR_HOST/oidc/callback/` as the provider callback. Create a

@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: WebODM workload security
+templates:
+  - templates/deployment.yaml
+  - templates/worker-deployment.yaml
+  - templates/processing-deployment.yaml
+tests:
+  - it: applies the documented restricted controls to the web container
+    template: templates/deployment.yaml
+    asserts:
+      - equal: {path: spec.template.spec.automountServiceAccountToken, value: false}
+      - equal: {path: spec.template.spec.securityContext.seccompProfile.type, value: RuntimeDefault}
+      - equal: {path: "spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation", value: false}
+      - contains: {path: "spec.template.spec.containers[0].securityContext.capabilities.drop", content: ALL}
+      - exists: {path: 'spec.template.metadata.annotations["checksum/config"]'}
+  - it: wires a custom WebODM listener into the process and container
+    template: templates/deployment.yaml
+    set: {web.containerPort: 9080}
+    asserts:
+      - equal: {path: "spec.template.spec.containers[0].ports[0].containerPort", value: 9080}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: WO_PORT, value: "9080"}
+  - it: wires a custom NodeODM listener into the command and container
+    template: templates/processing-deployment.yaml
+    set: {processing.containerPort: 3100}
+    asserts:
+      - equal: {path: "spec.template.spec.containers[0].ports[0].containerPort", value: 3100}
+      - matchRegex: {path: "spec.template.spec.containers[0].args[0]", pattern: '--port 3100'}
