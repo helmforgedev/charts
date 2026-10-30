@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: IB Gateway disruption budget
+templates:
+  - poddisruptionbudget.yaml
+tests:
+  - it: is disabled by default
+    asserts:
+      - hasDocuments: {count: 0}
+  - it: protects the singleton from voluntary eviction when enabled
+    set:
+      podDisruptionBudget.enabled: true
+    asserts:
+      - isKind: {of: PodDisruptionBudget}
+      - equal: {path: spec.minAvailable, value: 1}
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/name"]
+          value: ib-gateway
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/instance"]
+          value: RELEASE-NAME

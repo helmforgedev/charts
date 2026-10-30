@@ -6,6 +6,11 @@ The Service exposes live API port 4001 and paper API port 4002. These target the
 container's `socat` listeners on 4003 and 4004. Only the ports active for
 `gateway.tradingMode` are added to the Service.
 
+The upstream image fixes the proxy listeners at 4003 and 4004 and fixes x11vnc
+at 5900. They are not values because changing Kubernetes metadata would not
+reconfigure the upstream processes. The client-facing Service ports remain
+independently configurable and target the named container ports.
+
 The protocol is raw TCP without chart-provided authentication or encryption.
 Keep `service.type: ClusterIP`, run clients inside a trusted private network, and
 do not place the Service directly on the internet.

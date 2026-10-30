@@ -103,6 +103,14 @@
         "annotations": { "type": "object", "additionalProperties": { "type": "string" } }
       }
     },
+    "podDisruptionBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled"],
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
     "serviceAccount": {
       "type": "object",
       "properties": {
@@ -156,33 +164,23 @@
     },
     "probes": {
       "type": "object",
+      "additionalProperties": false,
+      "required": ["startup", "readiness", "liveness"],
       "properties": {
-        "startup": { "$ref": "#/$defs/probe" },
-        "readiness": { "$ref": "#/$defs/probe" },
-        "liveness": { "$ref": "#/$defs/probe" }
+        "startup": { "type": "object", "additionalProperties": false, "required": ["enabled", "command", "periodSeconds", "timeoutSeconds", "failureThreshold"], "properties": { "enabled": { "type": "boolean" }, "command": { "type": "array", "items": { "type": "string" } }, "periodSeconds": { "type": "integer", "minimum": 1 }, "timeoutSeconds": { "type": "integer", "minimum": 1 }, "failureThreshold": { "type": "integer", "minimum": 1 } } },
+        "readiness": { "type": "object", "additionalProperties": false, "required": ["enabled", "command", "periodSeconds", "timeoutSeconds", "failureThreshold"], "properties": { "enabled": { "type": "boolean" }, "command": { "type": "array", "items": { "type": "string" } }, "periodSeconds": { "type": "integer", "minimum": 1 }, "timeoutSeconds": { "type": "integer", "minimum": 1 }, "failureThreshold": { "type": "integer", "minimum": 1 } } },
+        "liveness": { "type": "object", "additionalProperties": false, "required": ["enabled", "command", "periodSeconds", "timeoutSeconds", "failureThreshold"], "properties": { "enabled": { "type": "boolean" }, "command": { "type": "array", "items": { "type": "string" } }, "periodSeconds": { "type": "integer", "minimum": 1 }, "timeoutSeconds": { "type": "integer", "minimum": 1 }, "failureThreshold": { "type": "integer", "minimum": 1 } } }
       }
     },
     "terminationGracePeriodSeconds": { "type": "integer", "minimum": 1 },
-    "resources": { "type": "object" },
-    "podSecurityContext": { "type": "object" },
-    "securityContext": { "type": "object" },
+    "resources": { "type": "object", "additionalProperties": false, "required": ["requests", "limits"], "properties": { "requests": { "type": "object", "additionalProperties": false, "required": ["cpu", "memory"], "properties": { "cpu": { "type": ["string", "number"] }, "memory": { "type": ["string", "number"] }, "ephemeral-storage": { "type": ["string", "number"] } } }, "limits": { "type": "object", "additionalProperties": false, "required": ["cpu", "memory"], "properties": { "cpu": { "type": ["string", "number"] }, "memory": { "type": ["string", "number"] }, "ephemeral-storage": { "type": ["string", "number"] } } } } },
+    "podSecurityContext": { "type": "object", "additionalProperties": false, "required": ["runAsNonRoot", "runAsUser", "runAsGroup", "fsGroup", "fsGroupChangePolicy", "seccompProfile"], "properties": { "runAsNonRoot": { "const": true }, "runAsUser": { "type": "integer", "minimum": 1 }, "runAsGroup": { "type": "integer", "minimum": 1 }, "fsGroup": { "type": "integer", "minimum": 1 }, "fsGroupChangePolicy": { "enum": ["Always", "OnRootMismatch"] }, "seccompProfile": { "type": "object", "additionalProperties": false, "required": ["type"], "properties": { "type": { "const": "RuntimeDefault" } } } } },
+    "securityContext": { "type": "object", "additionalProperties": false, "required": ["allowPrivilegeEscalation", "readOnlyRootFilesystem", "capabilities"], "properties": { "allowPrivilegeEscalation": { "const": false }, "readOnlyRootFilesystem": { "type": "boolean" }, "capabilities": { "type": "object", "additionalProperties": false, "required": ["drop"], "properties": { "drop": { "type": "array", "contains": { "const": "ALL" } } } } } },
     "nodeSelector": { "type": "object" },
     "tolerations": { "type": "array", "items": { "type": "object" } },
     "affinity": { "type": "object" },
     "priorityClassName": { "type": "string" },
     "topologySpreadConstraints": { "type": "array", "items": { "type": "object" } },
     "extraManifests": { "type": "array", "items": { "type": "object" } }
-  },
-  "$defs": {
-    "probe": {
-      "type": "object",
-      "properties": {
-        "enabled": { "type": "boolean" },
-        "command": { "type": "array", "items": { "type": "string" } },
-        "periodSeconds": { "type": "integer", "minimum": 1 },
-        "timeoutSeconds": { "type": "integer", "minimum": 1 },
-        "failureThreshold": { "type": "integer", "minimum": 1 }
-      }
-    }
   }
 }
