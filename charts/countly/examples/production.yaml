@@ -1,0 +1,67 @@
+# SPDX-License-Identifier: Apache-2.0
+# Production baseline: replace hosts, Secret names, peers, and resource sizing.
+mongodb:
+  enabled: false
+
+externalMongodb:
+  enabled: true
+  existingSecret: countly-mongodb
+  existingSecretUriKey: mongodb-uri
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: "2"
+    memory: 4Gi
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  hosts:
+    - host: countly.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: countly-tls
+      hosts:
+        - countly.example.com
+
+networkPolicy:
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.20.30.40/32
+      ports:
+        - protocol: TCP
+          port: 27017
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            # Replace with the object-store endpoint CIDR.
+            cidr: 203.0.113.10/32
+      ports:
+        - protocol: TCP
+          port: 443
+
+backup:
+  enabled: true
+  schedule: "0 3 * * *"
+  s3:
+    endpoint: https://s3.example.com
+    bucket: countly-backups
+    existingSecret: countly-backup-s3

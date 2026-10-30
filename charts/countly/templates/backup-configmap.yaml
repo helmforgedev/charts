@@ -10,13 +10,41 @@ data:
   mongodb-backup.sh: |
     #!/bin/sh
     set -eu
+    config_file="/run/mongodump-config/mongodump.yaml"
+    umask 077
+    trap 'rm -f "${config_file}"' EXIT HUP INT TERM
+
+    write_config() {
+      key="$1"
+      {
+        printf '%s: |-\n' "${key}"
+        sed 's/^/  /'
+      } > "${config_file}"
+      chmod 0600 "${config_file}"
+    }
+
     timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
     archive="/backup/out/${BACKUP_ARCHIVE_PREFIX}-mongodb-${timestamp}.gz"
     mkdir -p /backup/out
-    mongodump ${MONGODUMP_EXTRA_ARGS:-} \
-      --uri="${MONGODB_URI}" \
-      --archive="${archive}" \
-      --gzip
+
+    if [ -f /run/secrets/mongodb-uri/uri ]; then
+      write_config uri < /run/secrets/mongodb-uri/uri
+      mongodump --config="${config_file}" --archive="${archive}" --gzip "$@"
+    elif [ -n "${MONGODB_URI:-}" ]; then
+      printf '%s\n' "${MONGODB_URI}" | write_config uri
+      mongodump --config="${config_file}" --archive="${archive}" --gzip "$@"
+    else
+      write_config password < /run/secrets/mongodb-root-password/password
+      mongodump \
+        --config="${config_file}" \
+        --host="${MONGODB_HOST}" \
+        --username="${MONGODB_USERNAME}" \
+        --authenticationDatabase="${MONGODB_AUTHENTICATION_DATABASE}" \
+        --db="${MONGODB_DATABASE}" \
+        --archive="${archive}" \
+        --gzip \
+        "$@"
+    fi
     printf "%s" "${archive}" > /backup/out/backup-file
   upload-backup.sh: |
     #!/bin/sh
@@ -26,9 +54,9 @@ data:
     if [ -n "${S3_PREFIX:-}" ]; then
       target="${target}/${S3_PREFIX}"
     fi
-    mc alias set backup "${S3_ENDPOINT}" "${S3_ACCESS_KEY}" "${S3_SECRET_KEY}"
+    mc --config-dir "${MC_CONFIG_DIR}" alias set backup "${S3_ENDPOINT}" "${S3_ACCESS_KEY}" "${S3_SECRET_KEY}"
     if [ "${S3_CREATE_BUCKET_IF_NOT_EXISTS}" = "true" ]; then
-      mc mb --ignore-existing "backup/${S3_BUCKET}"
+      mc --config-dir "${MC_CONFIG_DIR}" mb --ignore-existing "backup/${S3_BUCKET}"
     fi
-    mc cp "${archive}" "${target}/"
+    mc --config-dir "${MC_CONFIG_DIR}" cp "${archive}" "${target}/"
 {{- end }}
