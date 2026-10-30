@@ -81,7 +81,7 @@ if (containers.has('meilisearch')) {
     (meilisearch.env ?? []).map((entry) => [entry.name, entry.value]),
   );
 
-  if (meilisearchEnv.get('MEILI_ENV') !== 'development') {
+  if (!['development', 'production'].includes(meilisearchEnv.get('MEILI_ENV'))) {
     throw new Error(`unexpected MEILI_ENV: ${meilisearchEnv.get('MEILI_ENV')}`);
   }
   if (meilisearchEnv.get('MEILI_UPGRADE_DB') !== 'true') {
