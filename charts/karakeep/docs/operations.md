@@ -76,6 +76,29 @@ If restoring into a new release name, either restore the Secret keys with the PV
 or set `karakeep.existingSecret` to a Secret that contains the original
 `nextauth-secret` and `meili-master-key` values.
 
+## Meilisearch Database Upgrades
+
+The default `meilisearch.upgradeDb: true` allows the pinned Meilisearch image to
+upgrade an older database stored on the PVC. Meilisearch migrations are not
+atomic. Take a volume snapshot or an application-consistent backup before a
+chart upgrade that changes `meilisearch.image.tag`.
+
+After the upgraded release has started successfully, confirm that the
+Meilisearch `UpgradeDatabase` task reached the `succeeded` status and verify a
+search. Only then may `meilisearch.upgradeDb` be set to `false`. Keep it enabled
+when task success has not been confirmed or a restored PVC may contain a
+database created by an older Meilisearch release.
+
+The default `meilisearch.environment: development` preserves compatibility
+with existing secrets that may contain a master key shorter than 16 bytes.
+Before opting into `production`, rotate any shorter key to at least 16 bytes and
+update the Secret used by both containers.
+
+Use `meilisearch.extraEnv` only for additional settings such as log levels. The
+chart rejects overrides of credentials, listener, runtime environment, and the
+database-upgrade switch because those variables are controlled by dedicated
+values.
+
 ## Common Issues
 
 ### Login redirects fail
@@ -126,6 +149,15 @@ Confirm Chromium is enabled and listening on its upstream-fixed port 9222:
 kubectl get deploy karakeep-karakeep -o jsonpath='{.spec.template.spec.containers[*].name}'
 kubectl logs deploy/karakeep-karakeep -c chromium --tail=100
 ```
+
+Karakeep reaches the sidecar proxy through the IPv4 loopback address
+`http://127.0.0.1:9222`. Do not replace it with `localhost`; the proxy does not
+listen on IPv6. Port 9222 is unauthenticated and binds all pod IPv4 interfaces,
+so keep the NetworkPolicy enabled or provide another access boundary.
+
+Remove any `BROWSER_WEB_URL` or `BROWSER_CONNECT_ONDEMAND` entry from
+`karakeep.extraEnv` when the Chromium sidecar is enabled. Dedicated chart values
+manage those variables and duplicate definitions are rejected.
 
 ### Custom port rollout fails
 

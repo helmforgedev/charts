@@ -123,7 +123,7 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: BROWSER_WEB_URL
-            value: "http://localhost:9222"
+            value: "http://127.0.0.1:9222"
       - contains:
           path: spec.template.spec.containers[0].env
           content:
@@ -145,7 +145,62 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: BROWSER_WEB_URL
-            value: "http://localhost:9222"
+            value: "http://127.0.0.1:9222"
+
+  - it: should reject a duplicate browser URL while Chromium is enabled
+    template: templates/deployment.yaml
+    set:
+      karakeep.extraEnv:
+        - name: BROWSER_WEB_URL
+          value: "http://localhost:9222"
+    asserts:
+      - failedTemplate:
+          errorMessage: karakeep.extraEnv must not override chart-managed variable BROWSER_WEB_URL while chromium.enabled is true
+
+  - it: should enable production database upgrades and append custom Meilisearch environment
+    template: templates/deployment.yaml
+    set:
+      meilisearch:
+        environment: production
+        upgradeDb: false
+        extraEnv:
+          - name: MEILI_LOG_LEVEL
+            value: WARN
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[1].env
+          content:
+            name: MEILI_ENV
+            value: production
+      - contains:
+          path: spec.template.spec.containers[1].env
+          content:
+            name: MEILI_UPGRADE_DB
+            value: "false"
+      - contains:
+          path: spec.template.spec.containers[1].env
+          content:
+            name: MEILI_LOG_LEVEL
+            value: WARN
+
+  - it: should reject overrides of chart-managed Meilisearch environment
+    template: templates/deployment.yaml
+    set:
+      meilisearch.extraEnv:
+        - name: MEILI_UPGRADE_DB
+          value: "false"
+    asserts:
+      - failedTemplate:
+          errorMessage: meilisearch.extraEnv must not override chart-managed variable MEILI_UPGRADE_DB
+
+  - it: should preserve the upstream development environment by default
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[1].env
+          content:
+            name: MEILI_ENV
+            value: development
 
   - it: should mount data volume
     template: templates/deployment.yaml
