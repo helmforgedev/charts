@@ -69,6 +69,8 @@ superset:
 web:
   # -- Number of web server replicas
   replicaCount: 1
+  # -- Container listener port used by Gunicorn
+  containerPort: 8088
   # -- Gunicorn workers
   workers: 2
   # -- Gunicorn timeout in seconds
@@ -155,6 +157,8 @@ database:
     existingSecret: ""
     # -- Key in existingSecret for password
     existingSecretPasswordKey: password
+    # -- PostgreSQL SSL mode
+    sslMode: require
 
 # =============================================================================
 # Redis
@@ -172,6 +176,8 @@ redisConfig:
     password: ""
     # -- External Redis database number
     db: 0
+    # -- Use TLS for the external Redis connection
+    tls: false
     # -- Existing secret with external Redis password
     existingSecret: ""
     # -- Key in existingSecret for password
@@ -254,12 +260,31 @@ probes:
 # =============================================================================
 
 serviceAccount:
-  # -- Create a ServiceAccount
-  create: false
+  # -- Create a dedicated ServiceAccount
+  create: true
   # -- ServiceAccount name. Uses fullname if empty.
   name: ""
   # -- ServiceAccount annotations
   annotations: {}
+  # -- Mount an API token into application pods while init.enabled is true so
+  # the wait-for-init container can read the namespaced initialization Job.
+  automountServiceAccountToken: true
+
+# =============================================================================
+# Network Policy
+# =============================================================================
+
+networkPolicy:
+  # -- Create a NetworkPolicy for Superset pods
+  enabled: true
+  # -- Additional ingress peers allowed to reach the web listener. Empty allows
+  # the listener from every cluster source while still blocking other ports.
+  ingressFrom: []
+  # -- Egress rules. The default permits DNS, datastores, the Kubernetes API
+  # while init.enabled=true, package indexes, and user-configured data sources;
+  # replace with environment-specific rules.
+  egress:
+    - {}
 
 # =============================================================================
 # =============================================================================
@@ -285,7 +310,7 @@ backup:
   archivePrefix: superset
   images:
     # -- Image used for PostgreSQL backup (must have pg_dump)
-    postgresql: docker.io/library/postgres:18-alpine
+    postgresql: docker.io/library/postgres:18.0-alpine3.22
     # -- Image used for S3 upload (MinIO client)
     uploader: docker.io/helmforge/mc:1.0.0
   # -- Resources for backup containers
@@ -324,10 +349,22 @@ backup:
 # =============================================================================
 
 # -- Pod-level security context
-podSecurityContext: {}
+podSecurityContext:
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
 
 # -- Container-level security context
-securityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
 
 # -- Resource requests and limits (global default, overridden per component)
 resources: {}
@@ -372,6 +409,8 @@ extraManifests: []
 postgresql:
   # -- Enable PostgreSQL subchart
   enabled: true
+  # -- PostgreSQL deployment mode
+  architecture: standalone
   auth:
     # -- PostgreSQL database name
     database: superset
@@ -398,7 +437,11 @@ postgresql:
 redis:
   # -- Enable Redis subchart
   enabled: true
+  # -- Redis deployment mode
+  architecture: standalone
   auth:
+    # -- Enable Redis authentication
+    enabled: true
     # -- Redis password. Auto-generated if empty.
     password: ""
   standalone:

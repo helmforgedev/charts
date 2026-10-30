@@ -1,0 +1,80 @@
+# SPDX-License-Identifier: Apache-2.0
+# Production-oriented bundled deployment. Create superset-credentials with
+# admin-password and secret-key before installing this example.
+
+superset:
+  existingSecret: superset-credentials
+  installPythonPackages: false
+
+image:
+  repository: registry.example.com/analytics/superset
+  tag: 6.1.0-postgresql-redis
+
+web:
+  replicaCount: 2
+  workers: 4
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+
+worker:
+  replicaCount: 2
+  concurrency: 4
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 2Gi
+
+beat:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+
+postgresql:
+  enabled: true
+  auth:
+    existingSecret: superset-postgresql
+    existingSecretUserPasswordKey: user-password
+  standalone:
+    persistence:
+      enabled: true
+      size: 20Gi
+
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    existingSecret: superset-redis
+    existingSecretPasswordKey: redis-password
+  standalone:
+    persistence:
+      enabled: true
+      size: 8Gi
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  hosts:
+    - host: superset.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: superset-tls
+      hosts:
+        - superset.example.com
+
+networkPolicy:
+  enabled: true
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx

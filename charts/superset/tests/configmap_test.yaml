@@ -24,3 +24,36 @@ tests:
       - matchRegex:
           path: data["superset_config.py"]
           pattern: "CeleryConfig"
+
+  - it: should URL-encode credentials and configure Redis-backed caches
+    asserts:
+      - matchRegex:
+          path: data["superset_config.py"]
+          pattern: "quote_plus\\(os\\.environ\\[\"DB_PASSWORD\"\\]\\)"
+      - matchRegex:
+          path: data["superset_config.py"]
+          pattern: "CACHE_CONFIG"
+      - matchRegex:
+          path: data["superset_config.py"]
+          pattern: "DATA_CACHE_CONFIG"
+      - matchRegex:
+          path: data["superset_config.py"]
+          pattern: "RATELIMIT_STORAGE_URI = REDIS_URL"
+      - matchRegex:
+          path: data["superset_config.py"]
+          pattern: "superset.tasks.scheduler"
+
+  - it: should require certificate verification for Celery over Redis TLS
+    set:
+      redisConfig.mode: external
+      redisConfig.external.host: redis.example.com
+      redisConfig.external.password: secret
+      redisConfig.external.tls: true
+      redis.enabled: false
+    asserts:
+      - matchRegex:
+          path: data["superset_config.py"]
+          pattern: 'broker_use_ssl = \{"ssl_cert_reqs": ssl\.CERT_REQUIRED\}'
+      - matchRegex:
+          path: data["superset_config.py"]
+          pattern: 'redis_backend_use_ssl = \{"ssl_cert_reqs": ssl\.CERT_REQUIRED\}'

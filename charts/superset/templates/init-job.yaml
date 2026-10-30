@@ -26,6 +26,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "superset.serviceAccountName" . }}
+      automountServiceAccountToken: false
       {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -56,7 +57,7 @@ spec:
                 --firstname {{ .Values.superset.adminFirstName | quote }} \
                 --lastname {{ .Values.superset.adminLastName | quote }} \
                 --email {{ .Values.superset.adminEmail | quote }} \
-                --password "$ADMIN_PASSWORD" || true
+                --password "$ADMIN_PASSWORD"
               {{- if .Values.superset.loadExamples }}
               echo "Loading examples..."
               superset load_examples
@@ -72,10 +73,15 @@ spec:
             {{- with .Values.init.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           volumeMounts:
             - name: superset-config
               mountPath: /app/pythonpath/superset_config.py
               subPath: superset_config.py
+            {{- include "superset.runtimeVolumeMounts" . | nindent 12 }}
           {{- with .Values.init.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -84,4 +90,5 @@ spec:
         - name: superset-config
           configMap:
             name: {{ include "superset.fullname" . }}-config
+        {{- include "superset.runtimeVolumes" . | nindent 8 }}
 {{- end }}

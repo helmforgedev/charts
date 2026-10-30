@@ -1,72 +1,157 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# Apache Superset — Configuration
+# Apache Superset configuration
 
-Superset is a BI / data-exploration platform (SQL Lab, dashboards, charts). This
-chart runs three tiers — **web** (Service on port 80), **worker** (Celery) and
-**beat** (Celery scheduler) — plus a one-shot **init Job**, backed by PostgreSQL
-and Redis.
+Superset runs a Gunicorn web Deployment, optional Celery worker Deployment,
+optional single-replica Celery Beat Deployment, and a managed initialization
+Job. PostgreSQL stores durable metadata. Redis provides caches and the Celery
+broker and result backend.
 
-## Key values
+## Application and image
 
 | Value | Default | Purpose |
 |---|---|---|
-| `postgresql.enabled` | `true` | Bundle the HelmForge PostgreSQL subchart (metadata DB). |
-| `database.external.*` | — | Managed PostgreSQL (`database.mode: external`). |
-| `redisConfig.*` / `redis.enabled` | `true` | Celery broker/result backend + cache. |
-| `worker.*` / `beat.*` | enabled | Celery worker/scheduler tiers. |
-| `init.enabled` / `init.waitImage` | `true` | Init Job (db upgrade + FAB init + admin) and the kubectl image its waiter uses. |
-| `superset.adminUsername` / `adminPassword` | `admin` / generated | First admin user. |
-| `superset.installPythonPackages` | `true` | Install Python dependencies when each Superset process starts. |
-| `superset.extraPythonPackages` | `[]` | Optional Python packages installed in every Superset process. |
-| `ingress.*` | disabled | Expose the web UI. |
+| `image.repository` | `docker.io/apache/superset` | Official or derived image repository. |
+| `image.tag` | `6.1.0` | Immutable image tag. |
+| `superset.existingSecret` | empty | Secret containing the administrator password and `SECRET_KEY`. |
+| `superset.installPythonPackages` | `true` | Install PostgreSQL, Redis, and extra Python packages at startup. |
+| `superset.extraPythonPackages` | `[]` | Shell-safe package specifications added to every Superset process. |
+| `superset.extraConfig` | empty | Trusted Python appended to `superset_config.py`. |
 
-## Init ordering (why there is a wait-for-init)
+The official 6.1.0 release image is lean. The compatibility path installs
+`psycopg2-binary`, `redis`, and configured extras into an ephemeral directory.
+For production, build those packages into a derived image and set
+`superset.installPythonPackages=false`.
 
-The init Job runs `superset db upgrade` (Alembic) + `superset init` (Flask-AppBuilder
-roles/permissions) + admin creation. It is a **managed Job** (not a post-install
-hook), and the web/worker/beat pods carry a `wait-for-init` initContainer that
-blocks until it completes. This prevents the three tiers from racing each other on
-Flask-AppBuilder schema creation, which otherwise **deadlocks in PostgreSQL**.
-When `init.enabled=false`, the wait initContainer is omitted too. See
-[../DESIGN.md](../DESIGN.md).
+The chart preserves an auto-generated administrator password and `SECRET_KEY`
+across upgrades by reading the existing release Secret. Production deployments
+should use an operator-managed `superset.existingSecret` with the configured
+`existingSecretPasswordKey` and `existingSecretSecretKeyKey`.
 
-## Datastores
+## Web, worker, and scheduler
 
-- **PostgreSQL** — Superset metadata (dashboards, charts, users). Source of truth.
-- **Redis** — Celery broker/result backend and cache.
+| Value | Default | Purpose |
+|---|---|---|
+| `web.replicaCount` | `1` | Web pod count. |
+| `web.containerPort` | `8088` | Actual Gunicorn listener. |
+| `web.workers` | `2` | Gunicorn processes per web pod. |
+| `web.timeout` | `120` | Gunicorn worker timeout in seconds. |
+| `worker.enabled` | `true` | Create Celery workers. |
+| `worker.replicaCount` | `1` | Celery worker pod count. |
+| `worker.concurrency` | `2` | Concurrent tasks per worker. |
+| `beat.enabled` | `true` | Create one Celery Beat scheduler. |
 
-Use bundled subcharts or managed datastores (`database.mode: external`,
-`redisConfig.mode: external`). The SQLAlchemy URI and Redis URL are assembled at
-runtime with `$(DB_PASSWORD)`/`$(REDIS_PASSWORD)` from secrets, never templated
-into a ConfigMap.
+`service.port` is independent of `web.containerPort`. The Service uses the
+named `http` target port, and the probes follow the container listener. Keep
+Celery Beat at one replica to prevent duplicate scheduling.
 
-## Optional Python dependencies
+## Initialization
 
-`superset.extraPythonPackages` adds database drivers and extensions to the
-existing runtime dependency installation for web, worker, beat, and init. Each
-entry must be a package name with an optional version constraint; direct URLs
-and environment markers are not accepted. Pin tested versions:
+`init.enabled=true` creates a revisioned Job that runs migrations, creates the
+administrator, initializes roles and permissions, and optionally loads example
+data. The web, worker, and Beat pods use a minimal namespaced Role to wait for
+that Job. When initialization is disabled, every web pod start performs
+migrations and role initialization before Gunicorn. Keep one web replica while
+that fallback remains enabled, or enable the init Job before scaling.
+
+The API token is mounted into application pods only when managed initialization
+is enabled. The initialization Job never receives a token.
+
+## PostgreSQL
+
+For the bundled database, keep the modes aligned:
 
 ```yaml
-superset:
-  extraPythonPackages:
-    - clickhouse-connect==0.13.0
+database:
+  mode: subchart
+
+postgresql:
+  enabled: true
+  architecture: standalone
 ```
 
-Runtime installation is convenient but makes pod startup depend on the package
-index. Production deployments should derive an immutable image from the pinned
-Superset image, preinstall `psycopg2-binary`, `redis`, and all additional
-packages, select it with `image.repository` and `image.tag`, and set
-`superset.installPythonPackages: false`.
+For an external database, disable the subchart and provide an existing Secret:
 
-## Access
+```yaml
+database:
+  mode: external
+  external:
+    host: postgres.example.com
+    port: 5432
+    name: superset
+    username: superset
+    existingSecret: superset-database
+    existingSecretPasswordKey: password
+    sslMode: verify-full
 
-```bash
-kubectl port-forward svc/<release>-superset 8088:80
-# open http://localhost:8088/  (login with the admin user above)
+postgresql:
+  enabled: false
 ```
 
-## Scaling
+Supported SSL modes are `disable`, `allow`, `prefer`, `require`, `verify-ca`,
+and `verify-full`. Credential values are URL-encoded inside Python before the
+SQLAlchemy URI is built.
 
-web/worker scale horizontally; keep beat at a single replica (one scheduler).
-State is in PostgreSQL/Redis — scale those for resilience.
+## Redis
+
+Bundled Redis must keep authentication enabled. Standalone and replication
+architectures are supported; replication mode uses the writable primary.
+
+```yaml
+redisConfig:
+  mode: subchart
+
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: true
+```
+
+External Redis requires a password or existing Secret. Enable TLS for a
+`rediss://` connection:
+
+```yaml
+redisConfig:
+  mode: external
+  external:
+    host: redis.example.com
+    port: 6379
+    db: 0
+    tls: true
+    existingSecret: superset-redis
+    existingSecretPasswordKey: password
+
+redis:
+  enabled: false
+```
+
+## Security and network policy
+
+The default security contexts use UID/GID 1000, a read-only root filesystem,
+`RuntimeDefault` seccomp, no privilege escalation, and no Linux capabilities.
+Do not weaken them without validating the exact image requirement.
+
+The default NetworkPolicy permits the web listener from any source and allows
+all egress. Restrict ingress to the ingress-controller namespace:
+
+```yaml
+networkPolicy:
+  enabled: true
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+```
+
+Replace `networkPolicy.egress` with environment-specific rules only after
+including DNS, PostgreSQL, Redis, the Kubernetes API server while
+`init.enabled=true`, package-index access when runtime installs are enabled,
+and every external data source queried by Superset.
+
+## Related guides
+
+- [Chart design](../DESIGN.md)
+- [Operations](operations.md)
+- [Security](security.md)
+- [External datastore example](../examples/external-datastores.yaml)
+- [Production example](../examples/production.yaml)
