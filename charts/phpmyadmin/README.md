@@ -55,6 +55,24 @@ Open `http://localhost:8080/`.
 - Optional configuration storage/control user variables.
 - Optional custom themes mounted at `/www/themes`.
 
+## Application Listener
+
+`containerPorts.http` configures the real Apache listener through the official
+image's `APACHE_PORT` environment variable. It also controls the container
+port, probes, and NetworkPolicy ingress rule. `service.port` is the independent
+Kubernetes Service port and routes to the named `http` target.
+
+```yaml
+containerPorts:
+  http: 8088
+
+service:
+  port: 80
+```
+
+Changing only `service.port` does not change Apache. Use
+`containerPorts.http` when the process must listen on a different port.
+
 ## Development vs Production
 
 The default values are intentionally simple for development: one replica, no Ingress/Gateway, no NetworkPolicy, no ExternalSecret, and access through port-forward. This keeps a local install easy.
@@ -287,6 +305,7 @@ See [examples/production.yaml](examples/production.yaml).
 
 | Key | Default | Description |
 | --- | --- | --- |
+| `containerPorts.http` | `80` | Actual Apache HTTP listener |
 | `phpmyadmin.host` | `""` | Single MySQL/MariaDB host |
 | `phpmyadmin.hosts` | `""` | Comma-separated multi-server hosts |
 | `phpmyadmin.ports` | `""` | Comma-separated multi-server ports |
