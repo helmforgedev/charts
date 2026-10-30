@@ -30,6 +30,13 @@ image:
   tag: "11.4.10-php8.5-apache-bookworm"
   # -- Image pull policy
   pullPolicy: IfNotPresent
+  # -- Prepare the official Apache configuration when containerPorts.http is not 80.
+  # Null auto-detects the official Drupal image; custom images must opt in explicitly.
+  configureApachePort: null
+
+containerPorts:
+  # -- HTTP listener port used by the Drupal Apache process
+  http: 80
 
 # -- Image pull secrets for private registries
 imagePullSecrets: []
@@ -306,7 +313,11 @@ backup:
 podSecurityContext:
   fsGroup: 33
   fsGroupChangePolicy: OnRootMismatch
-securityContext: {}
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  # -- Prevent the Drupal container from gaining additional privileges
+  allowPrivilegeEscalation: false
 
 serviceAccount:
   # -- Create a dedicated ServiceAccount
@@ -315,6 +326,40 @@ serviceAccount:
   name: ""
   # -- Annotations for the ServiceAccount
   annotations: {}
+  # -- Mount the Kubernetes API token into Drupal pods
+  automountServiceAccountToken: false
+
+# =============================================================================
+# Network Policy
+# =============================================================================
+
+networkPolicy:
+  # -- Create a NetworkPolicy for Drupal pods
+  enabled: false
+  ingress:
+    # -- Allow ingress from pods in the same namespace
+    allowSameNamespace: true
+    # -- Additional ingress "from" rules
+    extraFrom: []
+  egress:
+    # -- Add egress rules. Disabled keeps CNI default egress behavior.
+    enabled: false
+    # -- Allow DNS egress to kube-dns/CoreDNS
+    allowDNS: true
+    # -- Allow TCP egress to database pods in the same namespace
+    allowSameNamespaceDatabase: true
+    # -- Database port allowed when allowSameNamespaceDatabase=true
+    databasePort: 3306
+    # -- Allow HTTPS egress for Drupal updates and external integrations
+    allowHTTPS: false
+    # -- Allow SMTP egress for mail delivery
+    allowSMTP: false
+    # -- SMTP port allowed when allowSMTP=true
+    smtpPort: 587
+    # -- Additional egress "to" rules
+    extraTo: []
+    # -- Additional complete NetworkPolicy egress rules, including optional ports
+    extraEgress: []
 
 nodeSelector: {}
 tolerations: []

@@ -31,6 +31,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -50,6 +51,8 @@ spec:
         - name: seed-sites
           image: {{ include "drupal.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
           command:
             - sh
             - -c
@@ -63,6 +66,30 @@ spec:
           volumeMounts:
             - name: sites-data
               mountPath: /seed-sites
+        {{- if eq (include "drupal.apachePortConfigEnabled" . | trim) "true" }}
+        - name: configure-apache-port
+          image: {{ include "drupal.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - |
+              cp -a /etc/apache2/. /work/apache2/
+              sed -ri 's|^Listen 80$|Listen {{ .Values.containerPorts.http }}|' /work/apache2/ports.conf
+              sed -ri 's!<VirtualHost \*:80>!<VirtualHost *:{{ .Values.containerPorts.http }}>!' /work/apache2/sites-available/000-default.conf
+              grep -Fqx 'Listen {{ .Values.containerPorts.http }}' /work/apache2/ports.conf
+              grep -Fq '<VirtualHost *:{{ .Values.containerPorts.http }}>' /work/apache2/sites-available/000-default.conf
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: false
+            runAsUser: 0
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: apache-config
+              mountPath: /work/apache2
+        {{- end }}
       containers:
         - name: drupal
           image: {{ include "drupal.image" . | quote }}
@@ -77,7 +104,7 @@ spec:
           {{- end }}
           ports:
             - name: http
-              containerPort: 80
+              containerPort: {{ .Values.containerPorts.http }}
               protocol: TCP
           {{- if .Values.startupProbe.enabled }}
           startupProbe:
@@ -116,6 +143,11 @@ spec:
           volumeMounts:
             - name: sites-data
               mountPath: /var/www/html/sites
+            {{- if eq (include "drupal.apachePortConfigEnabled" . | trim) "true" }}
+            - name: apache-config
+              mountPath: /etc/apache2
+              readOnly: true
+            {{- end }}
             {{- if .Values.php.ini }}
             - name: php-config
               mountPath: /usr/local/etc/php/conf.d/custom.ini
@@ -140,6 +172,10 @@ spec:
             items:
               - key: custom.ini
                 path: custom.ini
+        {{- end }}
+        {{- if eq (include "drupal.apachePortConfigEnabled" . | trim) "true" }}
+        - name: apache-config
+          emptyDir: {}
         {{- end }}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}

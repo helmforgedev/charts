@@ -10,7 +10,7 @@ Release:    {{ .Release.Name }}
 Namespace:  {{ .Release.Namespace }}
 
 ====================================================================
-  ACCESS INFORMATION
+1. ACCESS INFORMATION
 ====================================================================
 
 {{- if .Values.ingress.enabled }}
@@ -42,7 +42,7 @@ INTERNAL URL: http://{{ include "drupal.fullname" . }}.{{ .Release.Namespace }}.
 HEALTH:       http://{{ include "drupal.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}/
 
 ====================================================================
-  DATABASE INSTALLER VALUES
+2. DATABASE INSTALLER VALUES
 ====================================================================
 
 {{- $dbMode := include "drupal.databaseMode" . }}
@@ -83,7 +83,7 @@ Use this path in the installer:
 {{- end }}
 
 ====================================================================
-  CONFIGURATION
+3. CONFIGURATION
 ====================================================================
 
 Deployment:
@@ -91,6 +91,7 @@ Deployment:
   Image:                 {{ .Values.image.repository }}:{{ .Values.image.tag }}
   Service Type:          {{ .Values.service.type }}
   Service Port:          {{ .Values.service.port }}
+  Container HTTP Port:   {{ .Values.containerPorts.http }}
 
 Drupal:
   Suggested site name:   {{ .Values.drupal.siteName }}
@@ -142,8 +143,15 @@ Backups:
   Prefix:                {{ .Values.backup.s3.prefix }}
   {{- end }}
 
+Security:
+  API token automount:   {{ .Values.serviceAccount.automountServiceAccountToken }}
+  NetworkPolicy:         {{ .Values.networkPolicy.enabled }}
+  {{- if .Values.networkPolicy.enabled }}
+  Egress restrictions:  {{ .Values.networkPolicy.egress.enabled }}
+  {{- end }}
+
 ====================================================================
-  GETTING STARTED
+4. GETTING STARTED
 ====================================================================
 
 1. Wait for the Drupal pod to be ready:
@@ -185,7 +193,7 @@ Backups:
 {{- end }}
 
 ====================================================================
-  PERSISTENCE MODEL
+5. PERSISTENCE MODEL
 ====================================================================
 
 This chart persists only:
@@ -199,7 +207,7 @@ The chart seeds the initial sites directory through an init container before
 the main Drupal container starts.
 
 ====================================================================
-  TROUBLESHOOTING
+6. TROUBLESHOOTING
 ====================================================================
 
 Check pod status:
@@ -213,6 +221,11 @@ View Drupal logs:
 
 View init container logs:
   kubectl logs -l app.kubernetes.io/name={{ include "drupal.name" . }} -n {{ .Release.Namespace }} -c seed-sites
+
+{{- if eq (include "drupal.apachePortConfigEnabled" . | trim) "true" }}
+View Apache port configuration logs:
+  kubectl logs -l app.kubernetes.io/name={{ include "drupal.name" . }} -n {{ .Release.Namespace }} -c configure-apache-port
+{{- end }}
 
 Check the service:
   kubectl get svc {{ include "drupal.fullname" . }} -n {{ .Release.Namespace }}
@@ -232,7 +245,7 @@ View MySQL logs:
 {{- end }}
 
 ====================================================================
-  WARNINGS
+7. WARNINGS
 ====================================================================
 
 {{- if gt $replicas 1 }}
@@ -272,7 +285,7 @@ Each backup job archives:
 {{- end }}
 
 ====================================================================
-  ADDITIONAL RESOURCES
+8. ADDITIONAL RESOURCES
 ====================================================================
 
 HelmForge docs:     https://helmforge.dev/docs/charts/drupal

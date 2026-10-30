@@ -71,6 +71,29 @@ Image string.
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag }}
 {{- end }}
 
+{{/* Recognize equivalent references that Docker normalizes to the official Drupal image. */}}
+{{- define "drupal.isOfficialImageRepository" -}}
+{{- $officialRepositories := list "drupal" "library/drupal" "docker.io/drupal" "docker.io/library/drupal" "index.docker.io/drupal" "index.docker.io/library/drupal" -}}
+{{- if has . $officialRepositories -}}true{{- else -}}false{{- end -}}
+{{- end }}
+
+{{/*
+Whether the chart should prepare Apache configuration for a non-default port.
+Null auto-enables the behavior only for the official Drupal image. Custom
+images retain their own startup contract unless they explicitly opt in.
+*/}}
+{{- define "drupal.apachePortConfigEnabled" -}}
+{{- if eq (int .Values.containerPorts.http) 80 -}}
+false
+{{- else if kindIs "bool" .Values.image.configureApachePort -}}
+{{- .Values.image.configureApachePort -}}
+{{- else if eq (include "drupal.isOfficialImageRepository" .Values.image.repository) "true" -}}
+true
+{{- else -}}
+false
+{{- end -}}
+{{- end }}
+
 {{/*
 Desired replica count before validations.
 */}}
@@ -382,6 +405,9 @@ Central fail-fast validation entrypoint.
 {{- $_ := include "drupal.autoscalingEnabled" . -}}
 {{- if and .Values.ingress.enabled (not .Values.ingress.hosts) -}}
 {{- fail "ingress.hosts must contain at least one rule when ingress.enabled=true" -}}
+{{- end -}}
+{{- if and (ne (int .Values.containerPorts.http) 80) (ne (include "drupal.apachePortConfigEnabled" . | trim) "true") -}}
+{{- fail "containerPorts.http differs from 80, but Apache port configuration is disabled. Set image.configureApachePort=true only when the custom image uses the official Drupal Apache layout." -}}
 {{- end -}}
 {{- $podLabels := .Values.podLabels | default dict -}}
 {{- range list "app.kubernetes.io/name" "app.kubernetes.io/instance" "app.kubernetes.io/component" -}}

@@ -1,0 +1,89 @@
+# SPDX-License-Identifier: Apache-2.0
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "drupal.fullname" . }}
+  labels:
+    {{- include "drupal.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "drupal.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: drupal
+  policyTypes:
+    - Ingress
+    {{- if .Values.networkPolicy.egress.enabled }}
+    - Egress
+    {{- end }}
+  ingress:
+    {{- if or .Values.networkPolicy.ingress.allowSameNamespace .Values.networkPolicy.ingress.extraFrom }}
+    - from:
+        {{- if .Values.networkPolicy.ingress.allowSameNamespace }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+          podSelector: {}
+        {{- end }}
+        {{- with .Values.networkPolicy.ingress.extraFrom }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.containerPorts.http }}
+    {{- else }}
+    []
+    {{- end }}
+  {{- if .Values.networkPolicy.egress.enabled }}
+  {{- $allowEgress := or .Values.networkPolicy.egress.allowDNS .Values.networkPolicy.egress.allowSameNamespaceDatabase .Values.networkPolicy.egress.allowHTTPS .Values.networkPolicy.egress.allowSMTP .Values.networkPolicy.egress.extraTo .Values.networkPolicy.egress.extraEgress }}
+  egress:
+    {{- if $allowEgress }}
+    {{- if .Values.networkPolicy.egress.allowDNS }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- end }}
+    {{- if .Values.networkPolicy.egress.allowSameNamespaceDatabase }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+          podSelector: {}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.networkPolicy.egress.databasePort }}
+    {{- end }}
+    {{- if .Values.networkPolicy.egress.allowHTTPS }}
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+    {{- end }}
+    {{- if .Values.networkPolicy.egress.allowSMTP }}
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: {{ .Values.networkPolicy.egress.smtpPort }}
+    {{- end }}
+    {{- with .Values.networkPolicy.egress.extraTo }}
+    - to:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.networkPolicy.egress.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- else }}
+    []
+    {{- end }}
+  {{- end }}
+{{- end }}

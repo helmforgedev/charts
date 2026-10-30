@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Backup
 
 The Drupal chart includes a built-in backup CronJob for production environments.

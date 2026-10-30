@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Scaling
 
 The Drupal chart can scale horizontally, but only when the underlying runtime is safe for shared state.

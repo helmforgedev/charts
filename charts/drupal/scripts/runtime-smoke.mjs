@@ -14,12 +14,15 @@ const pod = pods.find(p => !p.metadata.deletionTimestamp
   && p.status.conditions?.some(c => c.type === 'Ready' && c.status === 'True')
   && p.spec.containers.some(c => c.name === 'drupal'));
 assert.ok(pod, 'Ready Drupal pod required');
+const drupalContainer = pod.spec.containers.find(container => container.name === 'drupal');
+const httpPort = drupalContainer.ports?.find(port => port.name === 'http')?.containerPort;
+assert.ok(Number.isInteger(httpPort), 'Named Drupal HTTP container port required');
 const php = code => kubectl(['exec', pod.metadata.name, '-c', 'drupal', '--', 'php', '-r', code]);
 const runtime = JSON.parse(php('require "/var/www/html/core/lib/Drupal.php"; echo json_encode(["drupal" => Drupal::VERSION, "php" => PHP_VERSION, "drivers" => PDO::getAvailableDrivers()]);'));
 assert.equal(runtime.drupal, '11.4.10');
 assert.match(runtime.php, /^8\.5\./);
 assert.ok(runtime.drivers.includes('mysql'), 'MySQL PDO driver required');
 assert.ok(runtime.drivers.includes('sqlite'), 'SQLite PDO driver required');
-const installer = php('echo file_get_contents("http://127.0.0.1/core/install.php");');
+const installer = php(`echo file_get_contents("http://127.0.0.1:${httpPort}/core/install.php");`);
 assert.match(installer, /Choose language|Select a language/);
 console.log('Drupal 11.4.10 / PHP 8.5: MySQL and SQLite PDO drivers available; Apache served the fresh-site installer.');
