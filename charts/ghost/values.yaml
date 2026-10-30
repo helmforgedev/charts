@@ -4,6 +4,8 @@
 # =============================================================================
 # Focus: modern publishing platform and headless CMS with MySQL backend
 
+global: {}
+
 nameOverride: ""
 fullnameOverride: ""
 commonLabels: {}
@@ -20,6 +22,10 @@ image:
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
+
+containerPorts:
+  # -- Port on which the Ghost process listens inside the container.
+  http: 2368
 
 # =============================================================================
 # Ghost Configuration
@@ -69,6 +75,8 @@ persistence:
     - ReadWriteOnce
   # -- Use an existing PVC
   existingClaim: ""
+  # -- Maximum content storage when persistence is disabled.
+  emptyDirSizeLimit: 1Gi
 
 # =============================================================================
 # S3 Backup
@@ -98,6 +106,8 @@ backup:
     uploader: docker.io/helmforge/mc:1.0.0
   # -- Resources for backup containers
   resources: {}
+  # -- Maximum ephemeral archive size used by each backup Job.
+  scratchSizeLimit: 2Gi
   s3:
     # -- S3-compatible endpoint URL
     endpoint: ""
@@ -129,6 +139,8 @@ serviceAccount:
   name: ""
   # -- Annotations for the ServiceAccount
   annotations: {}
+  # -- Mount the Kubernetes API token into Ghost and backup pods.
+  automountServiceAccountToken: false
 
 # =============================================================================
 # Service
@@ -209,14 +221,34 @@ resources:
     memory: 768Mi
 
 podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
   seccompProfile:
     type: RuntimeDefault
 
 securityContext:
   allowPrivilegeEscalation: false
   privileged: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+
+runtimeStorage:
+  # -- Maximum writable temporary storage for the Ghost container.
+  tmpSizeLimit: 256Mi
 
 waitForDatabase:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: [ALL]
   resources:
     requests:
       cpu: 10m
@@ -238,6 +270,29 @@ terminationGracePeriodSeconds: 30
 
 podLabels: {}
 podAnnotations: {}
+
+podDisruptionBudget:
+  # -- Protect the singleton Ghost pod from voluntary disruption.
+  enabled: false
+  # -- Minimum available Ghost pods during voluntary disruption.
+  minAvailable: 1
+  # -- Alternative maximum unavailable value; set minAvailable to null when used.
+  maxUnavailable: null
+
+networkPolicy:
+  # -- Restrict traffic to the Ghost pod.
+  enabled: false
+  # -- Sources allowed to reach the Ghost HTTP port. Empty allows all sources.
+  ingressFrom: []
+  egress:
+    # -- Apply egress isolation in addition to ingress isolation.
+    enabled: false
+    # -- Allow DNS queries when egress isolation is enabled.
+    allowDNS: true
+    # -- CIDR of an external MySQL service; required for isolated external database mode.
+    externalDatabaseCIDR: ""
+    # -- Additional complete egress rules.
+    extraEgress: []
 
 # =============================================================================
 # Extra

@@ -122,3 +122,40 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
+
+  - it: rejects a duplicate listener override
+    set:
+      ghost.extraEnv:
+        - name: server__port
+          value: "9999"
+    asserts:
+      - failedTemplate:
+          errorMessage: ghost.extraEnv[0].name must not override reserved server__port; use containerPorts.http
+
+  - it: rejects selector label overrides
+    set:
+      podLabels:
+        app.kubernetes.io/component: backup
+    asserts:
+      - failedTemplate:
+          errorMessage: podLabels must not override chart selector labels
+
+  - it: rejects both PodDisruptionBudget availability fields
+    set:
+      podDisruptionBudget.enabled: true
+      podDisruptionBudget.minAvailable: 0
+      podDisruptionBudget.maxUnavailable: 1
+    asserts:
+      - failedTemplate:
+          errorMessage: set only one of podDisruptionBudget.minAvailable or podDisruptionBudget.maxUnavailable
+
+  - it: requires an external database CIDR under egress isolation
+    set:
+      mysql.enabled: false
+      database.external.host: mysql.example.com
+      database.external.password: test-password
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: networkPolicy.egress.externalDatabaseCIDR is required for isolated external database mode

@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Ghost Chart Design
 
 ## Scope
@@ -51,7 +53,7 @@ flowchart LR
 External database mode is recommended when the platform already provides backup, restore, replication, patching, and
 failover for MySQL.
 
-## Main Design Choices
+## Design Decisions
 
 - Use the official Ghost image.
 - Use the HelmForge MySQL subchart by default.
@@ -63,6 +65,9 @@ failover for MySQL.
 - Keep database credentials in Secrets and allow External Secrets for platform-managed credentials.
 - Provide S3-compatible content backups through an optional CronJob.
 - Render Ingress and Gateway API only when explicitly enabled.
+- Treat `containerPorts.http` as the single listener contract. It configures Ghost through `server__port` and drives
+  the container port, probes, Service target, and NetworkPolicy port.
+- Isolate the long-running server selector from CronJobs so disruption policies never select backup pods.
 
 ## Production Boundary
 
@@ -76,7 +81,33 @@ For production, operators should define:
 - content backup and database backup runbooks
 - staging validation for themes, custom integrations, newsletters, comments, and member signup flows
 
-## Explicit Non-Goals
+The chart provides Kubernetes resources and safe defaults. Operators retain responsibility for capacity planning,
+database availability, encryption and retention policies, SMTP delivery, payment providers, and disaster recovery.
+
+## Security Boundary
+
+The Ghost container is non-root, uses a read-only root filesystem and `RuntimeDefault` seccomp, drops all capabilities,
+and has no Kubernetes API token by default. Writable paths are limited to content storage and bounded temporary storage.
+Credentials enter the pod through Kubernetes Secrets; External Secrets may materialize them but remains an independently
+installed controller. Optional NetworkPolicy restricts ingress and can isolate egress to DNS, bundled MySQL or an
+operator-provided external database CIDR. TLS termination and network encryption beyond the pod are platform concerns.
+
+## Observability Boundary
+
+Startup, readiness and liveness probes cover application health through the Ghost Admin endpoint. Kubernetes events,
+pod logs, resource metrics, MySQL health and backup Job status are the primary operational signals. The chart does not
+install a metrics exporter, log collector, tracing agent or alert rules; platforms should integrate those components
+through their standard observability stack.
+
+## Known Gaps and Limitations
+
+- Ghost remains a singleton; the PodDisruptionBudget protects voluntary disruption but cannot provide high availability.
+- The backup CronJob protects `/var/lib/ghost/content`, not the MySQL database.
+- NetworkPolicy enforcement depends on the cluster CNI.
+- The chart does not validate custom themes, adapters, SMTP providers, newsletters or payment-provider configuration.
+- Inline credentials remain supported for compatibility, but existing Secrets or External Secrets are preferred.
+
+## Non-Goals
 
 - horizontal scaling by default
 - managed database failover
@@ -84,6 +115,12 @@ For production, operators should define:
 - newsletter provider provisioning
 - Stripe or payment provider configuration
 - automatic major-version migration beyond the official Ghost entrypoint behavior
+
+## Validation
+
+Every chart change must pass Helm linting, schema validation, unit tests, kubeconform, HelmForge policy checks and the
+behavioral k3d suite. The runtime suite verifies the default deployment and every `ci/*.yaml` profile, including a
+non-default Ghost listener.
 
 <!-- @AI-METADATA
 type: design
@@ -98,6 +135,8 @@ scope: Chart Design
 relations:
   - charts/ghost/README.md
   - charts/ghost/docs/database.md
+  - charts/ghost/docs/operations.md
+  - charts/ghost/docs/security.md
 path: charts/ghost/DESIGN.md
 version: 1.0
 date: 2026-06-02

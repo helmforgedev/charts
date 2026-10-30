@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Operational resources
+templates:
+  - templates/pdb.yaml
+  - templates/networkpolicy.yaml
+tests:
+  - it: should keep operational policies disabled by default
+    template: templates/pdb.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: should select only the Ghost server in the disruption budget
+    template: templates/pdb.yaml
+    set:
+      podDisruptionBudget.enabled: true
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: spec.minAvailable
+          value: 1
+      - equal:
+          path: 'spec.selector.matchLabels["app.kubernetes.io/component"]'
+          value: server
+  - it: should restrict ingress to the named HTTP port
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - contains:
+          path: spec.policyTypes
+          content: Ingress
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: http
+  - it: should allow DNS and bundled MySQL under egress isolation
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+    asserts:
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 53
+      - equal:
+          path: spec.egress[1].ports[0].port
+          value: 3306
+      - equal:
+          path: 'spec.egress[1].to[0].podSelector.matchLabels["app.kubernetes.io/name"]'
+          value: mysql

@@ -15,22 +15,22 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "ghost.selectorLabels" . | nindent 8 }}
+        {{- include "ghost.appSelectorLabels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.podAnnotations }}
       annotations:
+        checksum/secret: {{ toJson (dict "database" .Values.database "mysqlAuth" .Values.mysql.auth "externalSecrets" .Values.externalSecrets) | sha256sum }}
+        {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- end }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "ghost.serviceAccountName" . }}
-      {{- end }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . }}
       {{- end }}
@@ -42,6 +42,8 @@ spec:
       initContainers:
         - name: wait-for-db
           image: docker.io/library/busybox:1.37
+          securityContext:
+            {{- toYaml .Values.waitForDatabase.securityContext | nindent 12 }}
           command:
             - sh
             - -c
@@ -62,11 +64,13 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
-              containerPort: 2368
+              containerPort: {{ .Values.containerPorts.http }}
               protocol: TCP
           env:
             - name: NODE_ENV
               value: production
+            - name: server__port
+              value: {{ .Values.containerPorts.http | quote }}
             {{- with .Values.ghost.url }}
             - name: url
               value: {{ . | quote }}
@@ -130,6 +134,8 @@ spec:
           volumeMounts:
             - name: content
               mountPath: /var/lib/ghost/content
+            - name: tmp
+              mountPath: /tmp
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -139,8 +145,12 @@ spec:
           persistentVolumeClaim:
             claimName: {{ include "ghost.contentClaimName" . }}
           {{- else }}
-          emptyDir: {}
+          emptyDir:
+            sizeLimit: {{ .Values.persistence.emptyDirSizeLimit }}
           {{- end }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeStorage.tmpSizeLimit }}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

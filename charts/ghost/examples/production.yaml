@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: Apache-2.0
+ghost:
+  url: https://blog.example.com
+
+mysql:
+  enabled: false
+
+database:
+  external:
+    host: mysql.database.svc
+    port: "3306"
+    name: ghost
+    username: ghost
+    existingSecret: ghost-database
+
+persistence:
+  size: 50Gi
+  storageClass: fast-retain
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+podDisruptionBudget:
+  enabled: true
+
+networkPolicy:
+  enabled: true
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-system
+  egress:
+    enabled: true
+    externalDatabaseCIDR: 10.20.30.0/24
+    extraEgress:
+      - to:
+          - ipBlock:
+              cidr: 10.40.0.0/16
+        ports:
+          - protocol: TCP
+            port: 443
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  hosts:
+    - host: blog.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - blog.example.com
+      secretName: blog-example-com-tls

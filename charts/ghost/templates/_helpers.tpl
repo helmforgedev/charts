@@ -44,6 +44,11 @@ app.kubernetes.io/name: {{ include "ghost.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
+{{- define "ghost.appSelectorLabels" -}}
+{{ include "ghost.selectorLabels" . }}
+app.kubernetes.io/component: server
+{{- end -}}
+
 {{- define "ghost.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
 {{- default (include "ghost.fullname" .) .Values.serviceAccount.name -}}
@@ -83,6 +88,22 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- if and .Values.externalSecrets.enabled (not (or .Values.externalSecrets.items .Values.externalSecrets.data)) -}}
 {{- fail "externalSecrets.items or externalSecrets.data is required when externalSecrets.enabled=true" -}}
+{{- end -}}
+{{- range $index, $entry := .Values.ghost.extraEnv -}}
+{{- if eq $entry.name "server__port" -}}
+{{- fail (printf "ghost.extraEnv[%d].name must not override reserved server__port; use containerPorts.http" $index) -}}
+{{- end -}}
+{{- end -}}
+{{- range $key, $_ := .Values.podLabels -}}
+{{- if has $key (list "app.kubernetes.io/name" "app.kubernetes.io/instance" "app.kubernetes.io/component") -}}
+{{- fail "podLabels must not override chart selector labels" -}}
+{{- end -}}
+{{- end -}}
+{{- if and .Values.podDisruptionBudget.enabled (ne .Values.podDisruptionBudget.minAvailable nil) (ne .Values.podDisruptionBudget.maxUnavailable nil) -}}
+{{- fail "set only one of podDisruptionBudget.minAvailable or podDisruptionBudget.maxUnavailable" -}}
+{{- end -}}
+{{- if and .Values.networkPolicy.enabled .Values.networkPolicy.egress.enabled (not .Values.mysql.enabled) (not .Values.networkPolicy.egress.externalDatabaseCIDR) -}}
+{{- fail "networkPolicy.egress.externalDatabaseCIDR is required for isolated external database mode" -}}
 {{- end -}}
 {{- end -}}
 
