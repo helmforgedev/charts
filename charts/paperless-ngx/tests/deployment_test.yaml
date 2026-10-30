@@ -21,6 +21,11 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].ports[0].containerPort
           value: 8000
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_PORT
+            value: "8000"
       - equal:
           path: spec.selector.matchLabels["app.kubernetes.io/component"]
           value: webserver
@@ -189,6 +194,34 @@ tests:
           content:
             name: PAPERLESS_TIKA_GOTENBERG_ENDPOINT
             value: http://RELEASE-NAME-paperless-ngx-gotenberg:3000
+
+  - it: should wire custom listener ports into Paperless and conversion endpoints
+    template: templates/deployment.yaml
+    set:
+      containerPorts.http: 8080
+      tika.enabled: true
+      tika.containerPorts.http: 10098
+      gotenberg.enabled: true
+      gotenberg.containerPorts.http: 3100
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8080
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_PORT
+            value: "8080"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_TIKA_ENDPOINT
+            value: http://RELEASE-NAME-paperless-ngx-tika:10098
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_TIKA_GOTENBERG_ENDPOINT
+            value: http://RELEASE-NAME-paperless-ngx-gotenberg:3100
 
   - it: should enable consumer polling for network filesystems
     template: templates/deployment.yaml

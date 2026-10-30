@@ -52,6 +52,13 @@ services and sets `PAPERLESS_TIKA_ENABLED`, `PAPERLESS_TIKA_ENDPOINT`, and
 and only local files allowed, matching the upstream compose files, so tracking
 pixels and scripts in emails are not fetched.
 
+The application listener is controlled by `containerPorts.http` through
+`PAPERLESS_PORT`. Tika receives `tika.containerPorts.http` through its `--port`
+argument, and Gotenberg receives `gotenberg.containerPorts.http` through
+`API_PORT`. Each Kubernetes Service targets its workload by the named `http`
+port so a listener override changes the actual process and the Service endpoint
+together.
+
 ## Security
 
 - Paperless-ngx runs as UID/GID `1000` with `runAsNonRoot`, `fsGroup`,

@@ -33,6 +33,16 @@ tests:
           value: 35002
         documentIndex: 0
       - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - --host=0.0.0.0
+            - --port=9998
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 9998
+        documentIndex: 0
+      - equal:
           path: spec.ports[0].port
           value: 9998
         documentIndex: 1
@@ -58,7 +68,49 @@ tests:
           path: spec.template.spec.containers[0].readinessProbe.httpGet.path
           value: /health
         documentIndex: 0
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: API_PORT
+            value: "3000"
+        documentIndex: 0
       - equal:
           path: spec.template.spec.securityContext.runAsUser
           value: 1001
         documentIndex: 0
+
+  - it: should configure a custom Tika listener port
+    template: templates/tika.yaml
+    set:
+      tika.enabled: true
+      tika.containerPorts.http: 10098
+      gotenberg.enabled: true
+      gotenberg.containerPorts.http: 3100
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args[1]
+          value: --port=10098
+        documentIndex: 0
+      - equal:
+          path: spec.ports[0].port
+          value: 10098
+        documentIndex: 1
+
+  - it: should configure a custom Gotenberg listener port
+    template: templates/gotenberg.yaml
+    set:
+      tika.enabled: true
+      tika.containerPorts.http: 10098
+      gotenberg.enabled: true
+      gotenberg.containerPorts.http: 3100
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: API_PORT
+            value: "3100"
+        documentIndex: 0
+      - equal:
+          path: spec.ports[0].port
+          value: 3100
+        documentIndex: 1
