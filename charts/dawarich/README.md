@@ -5,6 +5,25 @@ authenticated Redis. Rails, Sidekiq and the public NGINX proxy run together in a
 single Recreate Pod so local attachments and watched imports have consistent
 storage ownership and scheduling.
 
+## Features
+
+- Native Rails web and Sidekiq worker processes with an unprivileged NGINX proxy.
+- Bundled PostGIS and authenticated Redis, or verified-TLS external services.
+- Durable local storage, retained Rails/OTP identity, and native S3 support.
+- Closed public registration with native administrator bootstrap.
+- Ingress, Gateway API, NetworkPolicy, External Secrets, dual-stack Services,
+  authenticated metrics, and Prometheus Operator resources.
+- Behavioral validation of login, queued imports, 2FA, recovery, storage, and
+  dependency replacement.
+
+## Architecture
+
+The singleton Recreate Pod co-locates Rails, Sidekiq, and NGINX so ReadWriteOnce
+storage, watched imports, and identity state cannot be scheduled independently.
+PostGIS stores location data and Redis separates Rails cache from Sidekiq queues
+through distinct logical databases. See [DESIGN.md](DESIGN.md) for the topology,
+trust boundaries, recovery model, and explicit non-goals.
+
 ## Installation
 
 Create an administrator password Secret through the cluster's approved secret
@@ -58,8 +77,41 @@ geocoding deduplication, GPX exports, queued test email and archived Immich
 photo filtering. Back up PostGIS and persistent files, and preserve encryption
 secrets before upgrading. See the
 [official release notes](https://github.com/Freika/dawarich/releases/tag/1.16.0).
-Redis dependency 3.0.0 retains its image, storage and authentication defaults
-and fixes TLS/custom-port health probes.
+HelmForge PostgreSQL `2.1.1` and Redis `3.1.0` retain the documented image,
+storage, authentication, and TLS contracts.
+
+## Examples
+
+- [Production Ingress](examples/production-ingress.yaml)
+- [Gateway API](examples/gateway-api.yaml)
+- [External PostGIS and Redis with verified TLS](examples/external-tls.yaml)
+- [Authenticated monitoring](examples/monitoring.yaml)
+- [Native S3 storage](examples/s3.yaml)
+
+## Configuration
+
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `replicaCount` | `1` | Singleton Rails, Sidekiq, and proxy Pod; other values are rejected. |
+| `server.port` | `3000` | Public NGINX listener exposed by the named Service target. |
+| `server.publicUrl` | `""` | Stable browser-visible origin required for production. |
+| `bootstrap.email` | `admin@example.test` | Initial native administrator email. |
+| `bootstrap.existingSecret` | `""` | Secret containing the initial administrator password. |
+| `persistence.size` | `20Gi` | Shared local files, imports, assets, and identity fingerprint capacity. |
+| `runtime.threads` | `5` | Rails thread and database-pool limit. |
+| `worker.concurrency` | `3` | Native Sidekiq concurrency; must not exceed runtime threads. |
+| `postgresql.enabled` | `true` | Deploy bundled HelmForge PostgreSQL with official PostGIS. |
+| `database.host` | `""` | External PostGIS host when the subchart is disabled. |
+| `database.tls.enabled` | `true` | Require verified external PostGIS TLS. |
+| `redis.enabled` | `true` | Deploy bundled authenticated Redis. |
+| `cache.host` | `""` | External Redis host when the subchart is disabled. |
+| `cache.tls.enabled` | `true` | Require verified external Redis TLS. |
+| `networkPolicy.enabled` | `true` | Isolate application, metrics, and bundled dependencies. |
+| `metrics.enabled` | `false` | Expose authenticated native web and worker metrics. |
+| `storage.driver` | `local` | ActiveStorage backend: `local` or `s3`. |
+
+Use `helm show values helmforge/dawarich` for the complete contract. Subchart
+overrides remain validated by both the parent and dependency schemas.
 
 ## Administrator and registration policy
 
@@ -206,6 +258,17 @@ Pod does not explicitly disable service-account token mounting. The production
 example configures Redis to reuse the chart-created tokenless ServiceAccount.
 Rails, Sidekiq and PostgreSQL already disable token mounting. The scan covers
 manifests; it does not replace image vulnerability management or application review.
+
+## Troubleshooting
+
+- Check the `bootstrap` init container first when migrations, identity checks,
+  extension checks, or administrator provisioning fail.
+- A ready HTTP endpoint does not prove worker progress; inspect the `worker`
+  container and confirm queued imports reach a completed state.
+- For external dependencies, verify CA Secrets, certificate hostnames, PostGIS
+  extensions, distinct Redis logical databases, and matching NetworkPolicy egress.
+- An identity fingerprint mismatch is a restore-safety failure. Restore the
+  matching Rails/OTP identity Secret instead of generating replacement keys.
 
 ## Sources
 
