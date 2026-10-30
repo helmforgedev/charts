@@ -4,8 +4,8 @@
 {{- if and (not $gatewayAPI.enabled) .Values.gatewayApi.enabled -}}
 {{- $gatewayAPI = .Values.gatewayApi -}}
 {{- end -}}
-1. Statistics for Strava has been installed
-===========================================
+1. Dreeve has been installed
+============================
   Release:   {{ .Release.Name }}
   Namespace: {{ $namespace }}
   Version:   {{ .Chart.AppVersion }}
@@ -40,6 +40,8 @@
   Ingress:            {{- if .Values.ingress.enabled }} enabled{{- else }} disabled{{- end }}
   Gateway API:        {{- if $gatewayAPI.enabled }} enabled{{- else }} disabled{{- end }}
   External Secrets:   {{- if .Values.externalSecrets.enabled }} enabled{{- else }} disabled{{- end }}
+  Import mode:        {{ .Values.dreeve.importMode }}
+  Daemon:             {{- if .Values.daemon.enabled }} enabled{{- else }} disabled (not supported upstream){{- end }}
   Service dual-stack: {{- if .Values.service.ipFamilyPolicy }} {{ .Values.service.ipFamilyPolicy }}{{- else }} cluster default{{- end }}
 
 4. Getting Started
@@ -48,9 +50,13 @@
     kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=strava-statistics -n {{ $namespace }} --timeout=300s
 
   Step 2: Confirm the configured public URL:
-    strava.config.general.appUrl must match the URL registered in the Strava OAuth application.
+{{ if eq .Values.dreeve.importMode "stravaApi" }}
+    dreeve.appUrl must match the URL registered in the Strava OAuth application.
+{{ else }}
+    dreeve.appUrl must match the public URL used to access Dreeve.
+{{ end }}
 
-  Step 3: Open the UI and authorize the application with your Strava account.
+  Step 3: Open the UI, configure the admin panel, and authorize Strava when using stravaApi mode.
 
 Upgrade reminder:
   The chart stores SQLite data and generated files on the PVC and mounts it on
@@ -73,9 +79,9 @@ Upgrade reminder:
 6. Troubleshooting
 ==================
   Pod is not ready:
-    -> Check Strava credential Secret keys
+    -> Check Dreeve and Strava Secret keys
     -> Verify SQLite PVC mount and permissions
-    -> Inspect application logs for config parsing issues
+    -> Inspect web migration and daemon logs
 
   OAuth flow fails:
     -> Confirm strava.config.general.appUrl matches the public URL
@@ -94,7 +100,16 @@ Upgrade reminder:
 ================
   HelmForge docs: https://helmforge.dev/docs/charts/strava-statistics
   Chart design:   https://github.com/helmforgedev/charts/tree/main/charts/strava-statistics/DESIGN.md
-  Upstream docs:  https://github.com/robiningelbrecht/statistics-for-strava
+  Upstream docs:  https://docs.dreeve.app
   GitHub source:  https://github.com/helmforgedev/charts/tree/main/charts/strava-statistics
+
+8. Security Checklist
+=====================
+  - Replace all mock credentials and APP_SECRET before production use.
+  - Store the bcrypt admin password hash in a Secret or ExternalSecret.
+  - Set dreeve.appUrl to the TLS-protected public root URL.
+  - Keep one replica with Recreate because SQLite is single-writer.
+  - Back up the PVC and verify restore procedures before upgrades.
+  - Review NetworkPolicy egress for Strava and every enabled integration.
 
 Happy Helmforging :)

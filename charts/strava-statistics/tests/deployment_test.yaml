@@ -24,7 +24,21 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "docker.io/robiningelbrecht/strava-statistics:v5.0.0"
+          value: "docker.io/robiningelbrecht/dreeve:v5.6.2"
+
+  - it: should run the mandatory Dreeve daemon beside the web application
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: daemon
+      - equal:
+          path: spec.template.spec.containers[1].image
+          value: "docker.io/robiningelbrecht/dreeve:v5.6.2"
+      - equal:
+          path: spec.template.spec.containers[1].args
+          value:
+            - bin/console
+            - app:daemon:run
 
   - it: should allow custom image tag
     set:
@@ -32,7 +46,36 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "docker.io/robiningelbrecht/strava-statistics:v4.0.0"
+          value: "docker.io/robiningelbrecht/dreeve:v4.0.0"
+
+  - it: should apply hardened pod and container security defaults
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+      - equal:
+          path: spec.template.spec.containers[1].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
 
   - it: should set Strava env vars from secret
     asserts:
@@ -93,6 +136,35 @@ tests:
             name: TZ
             value: "UTC"
 
+  - it: should configure the Dreeve v5 runtime contract
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: APP_URL
+            value: "http://localhost:8080"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: IMPORT_MODE
+            value: stravaApi
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: APP_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: test-strava-statistics-dreeve
+                key: app-secret
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ADMIN_PASSWORD_HASH
+            valueFrom:
+              secretKeyRef:
+                name: test-strava-statistics-dreeve
+                key: admin-password-hash
+
   - it: should mount data volume
     asserts:
       - contains:
@@ -112,6 +184,23 @@ tests:
           content:
             name: data
             mountPath: /var/www/storage
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /var/www/build
+            subPath: build
+      - contains:
+          path: spec.template.spec.containers[1].volumeMounts
+          content:
+            name: data
+            mountPath: /var/www/watch
+            subPath: watch
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: app-runtime-var
+            mountPath: /var/www/var
 
   - it: should roll pods when config changes
     asserts:
@@ -146,14 +235,23 @@ tests:
   - it: should use TCP probes
     asserts:
       - equal:
-          path: spec.template.spec.containers[0].startupProbe.tcpSocket.port
-          value: http
+          path: spec.template.spec.containers[0].startupProbe.exec.command
+          value:
+            - curl
+            - -f
+            - http://localhost:2019/metrics
       - equal:
-          path: spec.template.spec.containers[0].livenessProbe.tcpSocket.port
-          value: http
+          path: spec.template.spec.containers[0].livenessProbe.exec.command
+          value:
+            - curl
+            - -f
+            - http://localhost:2019/metrics
       - equal:
-          path: spec.template.spec.containers[0].readinessProbe.tcpSocket.port
-          value: http
+          path: spec.template.spec.containers[0].readinessProbe.exec.command
+          value:
+            - curl
+            - -f
+            - http://localhost:2019/metrics
 
   - it: should set container port
     asserts:
@@ -177,6 +275,9 @@ tests:
           content:
             name: data
             mountPath: /work
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "mkdir -p /work/build /work/database /work/files /work/gear-maintenance /work/watch"
 
   - it: should bootstrap storage when persistence is disabled
     set:

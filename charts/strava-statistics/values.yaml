@@ -7,19 +7,50 @@
 nameOverride: ""
 fullnameOverride: ""
 commonLabels: {}
+global: {}
 
 # =============================================================================
 # Image
 # =============================================================================
 
 image:
-  # -- Statistics for Strava container image
-  repository: docker.io/robiningelbrecht/strava-statistics
+  # -- Official Dreeve container image
+  repository: docker.io/robiningelbrecht/dreeve
   # -- Image tag
-  tag: "v5.0.0"
+  tag: "v5.6.2"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
+
+# =============================================================================
+# Dreeve Runtime
+# =============================================================================
+
+dreeve:
+  # -- Public root URL used for redirects and the admin session
+  appUrl: http://localhost:8080
+  # -- Import mode. Existing Statistics for Strava installations should keep stravaApi.
+  importMode: stravaApi
+  # -- Secret used to sign the admin session cookie. Generated and preserved automatically when empty.
+  appSecret: ""
+  # -- Admin panel username
+  adminUsername: admin
+  # -- Bcrypt password hash for the admin panel. Generate it with bin/console security:hash-password.
+  adminPasswordHash: ""
+  # -- Optional API key for activity uploads. Empty keeps the API closed.
+  apiKey: ""
+  # -- Existing Secret containing Dreeve runtime secrets
+  existingSecret: ""
+  # -- Key in the existing Secret for APP_SECRET
+  existingSecretAppSecretKey: app-secret
+  # -- Key in the existing Secret for ADMIN_PASSWORD_HASH
+  existingSecretAdminPasswordHashKey: admin-password-hash
+  # -- Key in the existing Secret for DREEVE_API_KEY
+  existingSecretApiKeyKey: api-key
+  # -- Optional comma-separated admin IP or CIDR allowlist
+  adminAllowedIps: ""
+  # -- Trusted reverse proxy peers understood by FrankenPHP/Caddy
+  trustedProxies: private_ranges
 
 # =============================================================================
 # Strava Configuration
@@ -44,7 +75,7 @@ strava:
   existingSecretRefreshTokenKey: refresh-token
   # -- Timezone
   timezone: UTC
-  # -- Application config mounted at /var/www/config/app/config.yaml
+  # -- Legacy v4 config mounted for the one-time v5 migration. New settings are managed in the admin panel.
   config: |
     general:
       appUrl: "http://localhost:8080/"
@@ -162,6 +193,42 @@ strava:
   # -- @default -- `[]`
   extraEnv: []
 
+# The Dreeve daemon is mandatory in v5 and shares the application database.
+daemon:
+  enabled: true
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "2"
+      memory: 5Gi
+  probes:
+    startup:
+      enabled: true
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 60
+    liveness:
+      enabled: true
+      initialDelaySeconds: 0
+      periodSeconds: 30
+      timeoutSeconds: 3
+      failureThreshold: 3
+    readiness:
+      enabled: true
+      initialDelaySeconds: 0
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
+
 # =============================================================================
 # Persistence
 # =============================================================================
@@ -197,6 +264,8 @@ serviceAccount:
   name: ""
   # -- Annotations for the ServiceAccount
   annotations: {}
+  # -- Mount a Kubernetes API token into the pod
+  automountServiceAccountToken: false
 
 # =============================================================================
 # Service
@@ -248,14 +317,14 @@ ingress:
 probes:
   startup:
     enabled: true
-    initialDelaySeconds: 10
+    initialDelaySeconds: 15
     periodSeconds: 5
-    timeoutSeconds: 3
-    failureThreshold: 30
+    timeoutSeconds: 5
+    failureThreshold: 60
   liveness:
     enabled: true
-    initialDelaySeconds: 0
-    periodSeconds: 15
+    initialDelaySeconds: 60
+    periodSeconds: 30
     timeoutSeconds: 5
     failureThreshold: 3
   readiness:
@@ -269,11 +338,38 @@ probes:
 # Resources and Security
 # =============================================================================
 
-resources: {}
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "2"
+    memory: 5Gi
 
-podSecurityContext: {}
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 82
+  runAsGroup: 82
+  fsGroup: 82
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
 
-securityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+    # FrankenPHP carries this file capability upstream; Restricted PSS permits only this addition.
+    add:
+      - NET_BIND_SERVICE
+
+runtimeVolumes:
+  varSizeLimit: 2Gi
+  caddyConfigSizeLimit: 64Mi
+  caddyDataSizeLimit: 256Mi
+  tmpSizeLimit: 1Gi
 
 # =============================================================================
 # Scheduling
@@ -298,6 +394,17 @@ extraVolumeMounts: []
 
 # -- Extra manifests to deploy alongside the chart
 extraManifests: []
+
+networkPolicy:
+  # -- Render a NetworkPolicy. Empty rule lists deny that traffic direction.
+  enabled: false
+  ingress: []
+  egress: []
+
+podDisruptionBudget:
+  # -- Render a PodDisruptionBudget for the single-replica SQLite workload
+  enabled: false
+  minAvailable: 1
 
 gatewayAPI:
   # -- Render Gateway API HTTPRoute resources

@@ -46,6 +46,97 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "strava-statistics.configData" -}}
 config.yaml: |
 {{ .Values.strava.config | indent 2 }}
+memory-limit.ini: |
+  memory_limit = 4G
+{{- end -}}
+
+{{/* Dreeve runtime secret name and keys */}}
+{{- define "strava-statistics.dreeveSecretName" -}}
+{{- if .Values.dreeve.existingSecret -}}
+{{- .Values.dreeve.existingSecret -}}
+{{- else -}}
+{{- printf "%s-dreeve" (include "strava-statistics.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "strava-statistics.dreeveAppSecretKey" -}}
+{{- if .Values.dreeve.existingSecret -}}
+{{- .Values.dreeve.existingSecretAppSecretKey | default "app-secret" -}}
+{{- else -}}
+{{- "app-secret" -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "strava-statistics.dreeveAdminPasswordHashKey" -}}
+{{- if .Values.dreeve.existingSecret -}}
+{{- .Values.dreeve.existingSecretAdminPasswordHashKey | default "admin-password-hash" -}}
+{{- else -}}
+{{- "admin-password-hash" -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "strava-statistics.dreeveApiKeyKey" -}}
+{{- if .Values.dreeve.existingSecret -}}
+{{- .Values.dreeve.existingSecretApiKeyKey | default "api-key" -}}
+{{- else -}}
+{{- "api-key" -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Shared Dreeve environment for the web and daemon containers. */}}
+{{- define "strava-statistics.env" -}}
+- name: APP_URL
+  value: {{ .Values.dreeve.appUrl | quote }}
+- name: IMPORT_MODE
+  value: {{ .Values.dreeve.importMode | quote }}
+- name: APP_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "strava-statistics.dreeveSecretName" . }}
+      key: {{ include "strava-statistics.dreeveAppSecretKey" . }}
+- name: ADMIN_USERNAME
+  value: {{ .Values.dreeve.adminUsername | quote }}
+- name: ADMIN_PASSWORD_HASH
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "strava-statistics.dreeveSecretName" . }}
+      key: {{ include "strava-statistics.dreeveAdminPasswordHashKey" . }}
+- name: DREEVE_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "strava-statistics.dreeveSecretName" . }}
+      key: {{ include "strava-statistics.dreeveApiKeyKey" . }}
+      optional: true
+{{- if .Values.dreeve.adminAllowedIps }}
+- name: ADMIN_ALLOWED_IPS
+  value: {{ .Values.dreeve.adminAllowedIps | quote }}
+{{- end }}
+{{- if .Values.dreeve.trustedProxies }}
+- name: TRUSTED_PROXIES
+  value: {{ .Values.dreeve.trustedProxies | quote }}
+{{- end }}
+{{- if eq .Values.dreeve.importMode "stravaApi" }}
+- name: STRAVA_CLIENT_ID
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "strava-statistics.secretName" . }}
+      key: {{ include "strava-statistics.clientIdKey" . }}
+- name: STRAVA_CLIENT_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "strava-statistics.secretName" . }}
+      key: {{ include "strava-statistics.clientSecretKey" . }}
+- name: STRAVA_REFRESH_TOKEN
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "strava-statistics.secretName" . }}
+      key: {{ include "strava-statistics.refreshTokenKey" . }}
+{{- end }}
+- name: TZ
+  value: {{ .Values.strava.timezone | quote }}
+{{- with .Values.strava.extraEnv }}
+{{ toYaml . }}
+{{- end }}
 {{- end -}}
 
 {{/* Strava secret name */}}
@@ -95,7 +186,7 @@ config.yaml: |
 Validation helper
 */}}
 {{- define "strava-statistics.validate" -}}
-{{- if not .Values.strava.existingSecret -}}
+{{- if and (eq .Values.dreeve.importMode "stravaApi") (not .Values.strava.existingSecret) -}}
   {{- if or (not .Values.strava.clientId) (not .Values.strava.clientSecret) (not .Values.strava.refreshToken) -}}
     {{- fail "strava-statistics: strava.existingSecret must be set or strava.clientId, strava.clientSecret, and strava.refreshToken must be provided" -}}
   {{- end -}}
