@@ -57,7 +57,19 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "chiefonboarding.image" -}}
+{{- if .Values.image.digest -}}
+{{- printf "%s:%s@%s" .Values.image.repository .Values.image.tag .Values.image.digest -}}
+{{- else -}}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "chiefonboarding.probeHost" -}}
+{{- if has "*" .Values.chiefonboarding.allowedHosts -}}
+{{- "localhost" -}}
+{{- else -}}
+{{- first .Values.chiefonboarding.allowedHosts -}}
+{{- end -}}
 {{- end -}}
 
 {{/* Database host */}}
@@ -99,7 +111,11 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{/* Database secret name for password */}}
 {{- define "chiefonboarding.dbSecretName" -}}
 {{- if .Values.postgresql.enabled -}}
+{{- if .Values.postgresql.auth.existingSecret -}}
+{{- .Values.postgresql.auth.existingSecret -}}
+{{- else -}}
 {{- printf "%s-postgresql-auth" .Release.Name -}}
+{{- end -}}
 {{- else if .Values.database.external.existingSecret -}}
 {{- .Values.database.external.existingSecret -}}
 {{- else -}}
@@ -110,7 +126,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{/* Database secret password key */}}
 {{- define "chiefonboarding.dbSecretPasswordKey" -}}
 {{- if .Values.postgresql.enabled -}}
-{{- "user-password" -}}
+{{- .Values.postgresql.auth.existingSecretUserPasswordKey | default "user-password" -}}
 {{- else if .Values.database.external.existingSecret -}}
 {{- .Values.database.external.existingSecretPasswordKey | default "password" -}}
 {{- else -}}

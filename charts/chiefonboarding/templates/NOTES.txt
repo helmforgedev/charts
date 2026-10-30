@@ -1,78 +1,86 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
---------------------------------------------------------------------
-  ChiefOnboarding has been successfully deployed!
---------------------------------------------------------------------
+ChiefOnboarding has been installed.
 
-Chart:      {{ .Chart.Name }}
-Version:    {{ .Chart.Version }}
-AppVersion: {{ .Chart.AppVersion }}
-Release:    {{ .Release.Name }}
-Namespace:  {{ .Release.Namespace }}
+1. Release summary
+==================
 
---------------------------------------------------------------------
-  ACCESS INFORMATION
---------------------------------------------------------------------
+- Release: {{ .Release.Name }}
+- Namespace: {{ .Release.Namespace }}
+- Application: {{ .Chart.AppVersion }}
+- Application listener: {{ .Values.chiefonboarding.port }}
+- Service port: {{ .Values.service.port }}
+- Database: {{ ternary "bundled PostgreSQL" "external PostgreSQL" .Values.postgresql.enabled }}
+
+2. Access
+=========
 
 {{- if .Values.ingress.enabled }}
 {{- range $host := .Values.ingress.hosts }}
-WEB UI:   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
-ADMIN:    http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/admin/
+- Web: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+- Admin: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/admin/
 {{- end }}
 {{- else }}
-Port-forward to access ChiefOnboarding locally:
+Run:
 
-  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "chiefonboarding.fullname" . }} 8000:{{ .Values.service.port }}
+  kubectl -n {{ .Release.Namespace }} port-forward service/{{ include "chiefonboarding.fullname" . }} 8000:{{ .Values.service.port }}
 
-  WEB UI:   http://localhost:8000/
-  ADMIN:    http://localhost:8000/admin/
+Then open http://localhost:8000/ and http://localhost:8000/admin/.
 {{- end }}
 
---------------------------------------------------------------------
-  GETTING STARTED
---------------------------------------------------------------------
+3. Readiness
+============
 
-1. Wait for the pod to be ready:
-   kubectl wait --for=condition=ready pod \
-     -l app.kubernetes.io/name=chiefonboarding \
-     -n {{ .Release.Namespace }} --timeout=300s
+  kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "chiefonboarding.fullname" . }} --timeout=300s
+  kubectl -n {{ .Release.Namespace }} get pods,service -l app.kubernetes.io/instance={{ .Release.Name }}
 
-2. Check pod status:
-   kubectl get pods -l app.kubernetes.io/name=chiefonboarding -n {{ .Release.Namespace }}
+The init container waits for PostgreSQL. The HTTP probes validate the actual
+Gunicorn listener configured by chiefonboarding.port.
 
-3. View logs:
-   kubectl logs -l app.kubernetes.io/name=chiefonboarding \
-     -n {{ .Release.Namespace }} --all-containers --tail=50 -f
+4. Initial configuration
+========================
 
-4. Log in with your admin credentials to set up onboarding workflows
+Create the first administrator through the setup flow, then configure onboarding
+workflows and integrations in the application. Set chiefonboarding.baseUrl to
+the public HTTPS URL before sending links to employees.
 
---------------------------------------------------------------------
-  TROUBLESHOOTING
---------------------------------------------------------------------
+5. Secrets
+==========
 
-  kubectl describe pod -l app.kubernetes.io/name=chiefonboarding -n {{ .Release.Namespace }}
-  kubectl logs -l app.kubernetes.io/name=chiefonboarding -n {{ .Release.Namespace }} --all-containers --tail=100
-  kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+Use stable existing Secrets for the Django secret key, database password, and
+integration credentials. The generated application Secret is retained across
+upgrades and uninstall; back it up and delete it only when retiring the release.
+{{- if or .Values.chiefonboarding.existingSecret .Values.database.external.existingSecret .Values.postgresql.auth.existingSecret }}
 
-{{- if .Values.postgresql.enabled }}
-View PostgreSQL logs:
-  kubectl logs -l app.kubernetes.io/name=postgresql -n {{ .Release.Namespace }} --all-containers --tail=50
+After rotating an externally managed Secret, restart the application because
+Helm cannot checksum external Secret data:
+
+  kubectl -n {{ .Release.Namespace }} rollout restart deployment/{{ include "chiefonboarding.fullname" . }}
+  kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "chiefonboarding.fullname" . }} --timeout=300s
 {{- end }}
 
---------------------------------------------------------------------
-  WARNINGS
---------------------------------------------------------------------
+6. Backup and upgrade
+=====================
 
-{{- if not .Values.ingress.enabled }}
+Back up PostgreSQL and the retained application Secret together. Test restore
+before upgrades, read upstream release notes, and verify migrations plus a
+representative onboarding workflow after rollout.
 
-NOTE: Ingress is not enabled. Access via port-forward (see above).
-{{- end }}
+7. Troubleshooting
+==================
 
---------------------------------------------------------------------
-  ADDITIONAL RESOURCES
---------------------------------------------------------------------
+  kubectl -n {{ .Release.Namespace }} describe deployment/{{ include "chiefonboarding.fullname" . }}
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "chiefonboarding.fullname" . }} -c wait-for-db --tail=100
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "chiefonboarding.fullname" . }} -c chiefonboarding --tail=200
+  kubectl -n {{ .Release.Namespace }} get events --sort-by=.lastTimestamp
 
-Documentation:     https://helmforge.dev/docs/charts/chiefonboarding
-Chart Repository:  https://github.com/helmforgedev/charts/tree/main/charts/chiefonboarding
-ChiefOnboarding:   https://chiefonboarding.com | https://github.com/chiefonboarding/ChiefOnboarding
+Check database reachability, Secret keys, the configured base URL, NetworkPolicy
+peers, and integration endpoints before restarting the pod.
+
+8. Documentation
+=================
+
+- Chart: https://helmforge.dev/docs/charts/chiefonboarding
+- Upstream: https://docs.chiefonboarding.com
+- Source: https://github.com/chiefonboarding/ChiefOnboarding
 
 Happy Helmforging :)

@@ -30,11 +30,12 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "docker.io/chiefonboarding/chiefonboarding:v2.5.0"
+          value: "docker.io/chiefonboarding/chiefonboarding:v2.5.0@sha256:d0964135ea82f1a2e12633b6b47202a3926053a776f26a53a14c29f00470209f"
 
   - it: should set custom image tag
     set:
       image.tag: "v2.3.0"
+      image.digest: ""
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
@@ -116,6 +117,30 @@ tests:
             name: BASE_URL
             value: "https://onboarding.example.com"
 
+  - it: should configure accepted Django host headers
+    set:
+      chiefonboarding.allowedHosts:
+        - onboarding.example.com
+        - onboarding.internal
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ALLOWED_HOSTS
+            value: "onboarding.example.com,onboarding.internal"
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.httpHeaders[0].value
+          value: onboarding.example.com
+
+  - it: should use localhost for probes when every Host header is accepted
+    set:
+      chiefonboarding.allowedHosts:
+        - "*"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.httpHeaders[0].value
+          value: localhost
+
   - it: should not set BASE_URL when empty
     asserts:
       - notContains:
@@ -124,14 +149,62 @@ tests:
             name: BASE_URL
           any: true
 
-  - it: should use TCP probes
+  - it: should use HTTP probes
     asserts:
-      - isNotNull:
-          path: spec.template.spec.containers[0].startupProbe.tcpSocket.port
-      - isNotNull:
-          path: spec.template.spec.containers[0].livenessProbe.tcpSocket.port
-      - isNotNull:
-          path: spec.template.spec.containers[0].readinessProbe.tcpSocket.port
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.port
+          value: http
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.httpHeaders[0].value
+          value: localhost
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /
+
+  - it: should configure the actual Gunicorn listener
+    set:
+      chiefonboarding.port: 9080
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 9080
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CHIEFONBOARDING_PORT
+            value: "9080"
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: 'CHIEFONBOARDING_PORT'
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: 'manage.py migrate --noinput'
+
+  - it: should apply the default workload security baseline
+    asserts:
+      - equal: {path: "spec.template.spec.automountServiceAccountToken", value: false}
+      - equal: {path: "spec.template.spec.securityContext.seccompProfile.type", value: RuntimeDefault}
+      - equal: {path: "spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation", value: false}
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+
+  - it: should use the bundled PostgreSQL existing Secret
+    set:
+      postgresql.auth.existingSecret: managed-postgresql
+      postgresql.auth.existingSecretUserPasswordKey: app-password
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: managed-postgresql
+                key: app-password
 
   - it: should set extra env vars
     set:

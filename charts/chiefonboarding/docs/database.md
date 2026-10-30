@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # ChiefOnboarding Database Guide
 
 ## Default Database
@@ -14,6 +16,11 @@ postgresql:
 ```
 
 This mode is appropriate for local validation and simple installations.
+
+For a bundled database with credentials managed outside the release, set
+`postgresql.auth.existingSecret` and
+`postgresql.auth.existingSecretUserPasswordKey`. The application and PostgreSQL
+subchart then reference the same stable Secret contract.
 
 ## External Database
 
@@ -75,6 +82,8 @@ Production database recommendations:
 - Use TLS and network policy at the platform layer when required.
 - Monitor connection count, disk usage, and slow queries.
 - Test restore before depending on backups.
+- Restart ChiefOnboarding after an externally managed password Secret rotates;
+  Helm cannot observe data-only changes inside that Secret.
 
 ## Validation
 

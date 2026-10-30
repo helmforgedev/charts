@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # ChiefOnboarding Architecture
 
 ## Overview
@@ -13,6 +15,7 @@ The chart renders:
 - One application Secret unless an existing Secret is provided.
 - An optional Ingress.
 - An optional PostgreSQL subchart.
+- An ingress-only NetworkPolicy by default.
 
 ## Runtime Startup
 
@@ -31,12 +34,23 @@ The chart maps Helm values to environment variables:
 | Value | Environment variable | Purpose |
 | --- | --- | --- |
 | `chiefonboarding.baseUrl` | `BASE_URL` | Public application URL |
+| `chiefonboarding.allowedHosts` | `ALLOWED_HOSTS` | Django Host-header allowlist |
 | `chiefonboarding.secretKey` | `SECRET_KEY` | Django signing secret |
 | database values | `DATABASE_URL` | PostgreSQL connection string |
 | database password Secret | `DATABASE_PASSWORD` | Password injected into URL |
 | `chiefonboarding.extraEnv` | custom | Advanced upstream settings |
 
 `BASE_URL` is only emitted when `chiefonboarding.baseUrl` is set.
+
+## Listener Contract
+
+The official 2.5.0 image packages a Supervisor command with Gunicorn bound to
+port 8000 and starts Django Q concurrently with migrations in the web command.
+The chart applies migrations before Supervisor so a fresh scheduler cannot
+query missing tables, then copies the configuration to `/tmp`, substitutes the
+validated `chiefonboarding.port`, and launches Supervisor from the copy. The
+container port and all HTTP probes use the same named `http` listener. The
+Service exposes an independent `service.port` and routes to that name.
 
 ## Database Topologies
 
@@ -72,6 +86,13 @@ The chart defaults to one application pod. The app is mostly stateless, but the
 chart does not expose replica controls today. Database capacity, email delivery,
 and background workflow behavior should be validated before any future
 horizontal scaling support is introduced.
+
+## Network Boundary
+
+The default NetworkPolicy isolates application ingress and allows same-release
+pods. Add `networkPolicy.ingressFrom` peers for an ingress controller or other
+clients outside the release. Egress is deliberately unrestricted because the
+application may contact SMTP, Slack, OIDC, S3, and custom integration endpoints.
 
 ## Troubleshooting
 
