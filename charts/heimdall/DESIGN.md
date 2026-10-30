@@ -1,92 +1,103 @@
 # Heimdall Chart Design
 
-## Purpose
+## Scope
 
-This chart deploys Heimdall as a lightweight application dashboard for
-self-hosted services. Heimdall stores its application links, settings, and
-SQLite data under `/config`, so the chart is intentionally modeled as a
-single-replica workload with persistent storage and optional S3 backup.
+This chart deploys one Heimdall application dashboard backed by its native
+SQLite database and `/config` filesystem. It owns the Deployment, Service,
+optional Ingress, persistent volume, ingress NetworkPolicy, and optional S3
+backup CronJob needed for a production-oriented single-instance installation.
 
-## Workload Model
+## Architecture
 
-The runtime workload is one Deployment running the official
-`docker.io/linuxserver/heimdall` image. The container exposes HTTP on port 80
-and receives LinuxServer-style environment variables:
+The Deployment runs the pinned official `docker.io/linuxserver/heimdall` image.
+LinuxServer's `/init` process starts NGINX and PHP-FPM, while `PUID`, `PGID`, and
+`TZ` control file ownership and timezone behavior. A named `http` container port
+connects the application listener to the Service, probes, NetworkPolicy, and
+Ingress.
 
-- `PUID` controls the numeric user ID used for file ownership.
-- `PGID` controls the numeric group ID used for file ownership.
-- `TZ` controls the application timezone.
+Heimdall stores its SQLite database, settings, and uploaded assets in `/config`.
+Persistence therefore uses a single PVC and the Deployment switches to a
+`Recreate` strategy when that PVC is enabled. The optional backup CronJob reads
+the same PVC, creates a compressed archive, and uploads it to an S3-compatible
+endpoint.
 
-When persistence is enabled, the Deployment uses `strategy.type: Recreate`.
-This avoids running two pods against the same SQLite-backed `/config` data
-during rolling updates.
+## Design Choices
 
-## Storage Strategy
+- `heimdall.containerPort` changes the actual NGINX plain-HTTP listener. The
+  wrapper patches both the image default and an existing `/config` site file
+  before handing control to `/init`.
+- `service.port` remains an independent cluster-facing port and targets the
+  named `http` port.
+- The workload is fixed at one replica because Heimdall uses SQLite and does not
+  provide a supported multi-writer storage model.
+- The chart defaults to persistent storage and uses `Recreate` to prevent two
+  pods from writing to one `ReadWriteOnce` volume during an update.
+- S3 credentials may come from an existing Secret. Inline credentials exist for
+  disposable tests and are not the production path.
 
-Heimdall stores mutable state in `/config`. The chart creates a PVC by default
-and mounts it at `/config`. Operators can disable persistence for disposable
-tests or provide `persistence.existingClaim` when storage is managed outside the
-release.
+## Production Boundary
 
-Because the application is SQLite-backed, the chart does not expose replica
-configuration. Running multiple replicas against the same PVC is not supported.
+The chart provides the Kubernetes workload, persistence contract, network
+entry points, probes, and backup mechanism. Operators remain responsible for
+the StorageClass, Ingress controller, TLS certificate lifecycle, S3 lifecycle
+and retention policies, restoring and testing backups, capacity planning, and
+availability of the Kubernetes cluster.
 
-## Networking
+Heimdall is intentionally single-replica. The chart does not claim horizontal
+availability or zero-downtime upgrades. Enhanced application tiles contact
+their configured upstream services from the Heimdall pod; their credentials,
+availability, and authorization remain operator responsibilities.
 
-The Service exposes the application HTTP port through `service.port`.
-Ingress is optional and supports Kubernetes networking.k8s.io/v1 hosts, paths,
-class name, annotations, and TLS entries. TLS is modeled as an explicit list so
-operators can use cert-manager, pre-created Secrets, or HTTP-only ingress.
+## Security Boundary
 
-## Backup Strategy
+The main container starts as root because the LinuxServer `/init` contract must
+prepare `/config` and then apply `PUID`/`PGID`. The chart documents this
+exception and still disables privilege escalation, drops all capabilities, adds
+back only the capabilities needed by the init sequence and privileged HTTP
+binding, and applies `RuntimeDefault` seccomp. A read-only root filesystem is
+not enabled because s6-overlay and the upstream image write outside `/config`
+during initialization.
 
-When `backup.enabled` is true, the chart creates a CronJob that mounts the same
-configuration PVC read-only, creates a compressed tar archive of `/config`, and
-uploads the archive to an S3-compatible endpoint with the HelmForge `mc` image.
+ServiceAccount token automount is disabled by default. The NetworkPolicy
+isolates ingress to the named HTTP port for the server pod. It deliberately does
+not isolate egress because enhanced tiles need to call operator-selected URLs;
+deployments with a known destination set should add an egress policy outside
+the chart. Backup containers use read-only root filesystems, no token, and all
+capabilities dropped. The archive init container runs as root so it can read
+root-owned TLS material under `/config`; it receives only `DAC_READ_SEARCH`,
+the PVC is mounted read-only, and privilege escalation remains disabled. The
+uploader remains non-root.
 
-The backup job supports:
+## Observability Boundary
 
-- Inline credentials for test environments.
-- `backup.s3.existingSecret` for production-managed credentials.
-- Optional bucket creation.
-- A configurable archive prefix and S3 object prefix.
+Startup, readiness, and liveness probes verify the root HTTP route. Kubernetes
+events, rollout state, pod restart counts, and container logs are the supported
+operational signals. Heimdall does not expose a native Prometheus metrics
+endpoint, and this chart does not install an exporter or monitoring stack.
 
-Backups capture Heimdall configuration and SQLite state only. They do not back
-up target applications linked from the dashboard.
+## Known Gaps
 
-## Security Posture
+- There is no supported multi-replica or autoscaling mode.
+- Backup archives are created while Heimdall is online; operators requiring a
+  transactional snapshot should stop writers or validate restores against their
+  workload pattern.
+- Default egress remains unrestricted for enhanced application tiles.
+- The chart exposes upstream HTTP only; TLS terminates at an Ingress or another
+  external proxy.
 
-The chart uses a pinned LinuxServer Heimdall image and keeps pod and container
-security contexts operator-configurable. This is important because LinuxServer
-images use PUID/PGID-based file ownership and storage backends vary across
-clusters. Production installs should set resource requests and limits, provide
-an explicit security context compatible with the storage driver, and apply
-NetworkPolicy outside this chart when the cluster supports it.
+## Non-Goals
 
-## Validation Coverage
+- Managing applications linked from the dashboard.
+- Backing up services referenced by Heimdall tiles.
+- Provisioning DNS, certificates, S3 buckets, or storage infrastructure.
+- Adding an external database or unsupported Heimdall clustering layer.
+- Replacing cluster-level monitoring, policy enforcement, or disaster recovery.
 
-The CI values cover:
+## Validation
 
-- Default persistent deployment.
-- Persistence disabled.
-- Ingress with TLS.
-- S3 backup rendering with an existing credentials Secret.
-
-Full validation for chart changes must use `make validate-chart CHART=heimdall`.
-
-<!-- @AI-METADATA
-type: chart-design
-title: Heimdall Chart Design
-description: Architecture and operational design for the Heimdall HelmForge chart
-keywords: heimdall, dashboard, sqlite, persistence, backup, ingress
-purpose: Explain workload, storage, networking, backup, and validation design
-scope: Chart
-relations:
-  - charts/heimdall/Chart.yaml
-  - charts/heimdall/values.yaml
-  - charts/heimdall/templates/deployment.yaml
-  - charts/heimdall/templates/backup-cronjob.yaml
-path: charts/heimdall/DESIGN.md
-version: 1.0
-date: 2026-06-14
--->
+Unit tests cover every rendered resource, listener overrides, identity labels,
+security defaults, validation failures, persistence, ingress, and backup. CI
+scenarios cover default, ephemeral, ingress, backup, and non-default listener
+configurations. `scripts/runtime-smoke.mjs` proves the effective image and NGINX
+listener, Service routing, application response, and `/config` writability in
+k3d. The required complete gate is `make validate-chart CHART=heimdall`.

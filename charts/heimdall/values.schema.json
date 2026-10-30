@@ -3,124 +3,170 @@
   "title": "Heimdall Helm Chart Values",
   "description": "Configuration values for the Heimdall Helm chart",
   "type": "object",
-  "additionalProperties": true,
+  "additionalProperties": false,
   "properties": {
-    "global": {
-      "type": "object",
-      "description": "Global settings shared by the chart.",
-      "additionalProperties": true
-    },
+    "global": { "type": "object", "description": "Global settings shared by a parent chart.", "additionalProperties": true },
     "nameOverride": { "type": "string", "description": "Override the chart name" },
     "fullnameOverride": { "type": "string", "description": "Override the full release name" },
-    "commonLabels": { "type": "object", "description": "Labels to add to all resources" },
+    "commonLabels": { "type": "object", "description": "Labels to add to all resources", "additionalProperties": { "type": "string" } },
     "image": {
       "type": "object",
-      "description": "Container image configuration",
+      "additionalProperties": false,
       "properties": {
         "repository": { "type": "string", "description": "Container image repository" },
-        "tag": { "type": "string", "description": "Image tag (defaults to Chart.appVersion)" },
-        "pullPolicy": { "type": "string", "description": "Image pull policy", "enum": ["Always", "IfNotPresent", "Never"] }
+        "tag": { "type": "string", "description": "Pinned image tag" },
+        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"], "description": "Image pull policy" }
       }
     },
-    "imagePullSecrets": { "type": "array", "description": "Image pull secrets" },
+    "imagePullSecrets": { "type": "array", "description": "Image pull secrets", "items": { "type": "object", "additionalProperties": true } },
     "heimdall": {
       "type": "object",
-      "description": "Heimdall application configuration",
+      "additionalProperties": false,
       "properties": {
-        "puid": { "type": "integer", "description": "User ID for file permissions" },
-        "pgid": { "type": "integer", "description": "Group ID for file permissions" },
-        "timezone": { "type": "string", "description": "Timezone" },
-        "extraEnv": { "type": "array", "description": "Extra environment variables" }
+        "containerPort": { "type": "integer", "minimum": 1, "maximum": 65535, "not": { "const": 443 }, "description": "HTTP port used by the Heimdall NGINX process; port 443 is reserved by the image TLS listener" },
+        "puid": { "type": "integer", "minimum": 0, "description": "User ID for file permissions" },
+        "pgid": { "type": "integer", "minimum": 0, "description": "Group ID for file permissions" },
+        "timezone": { "type": "string", "minLength": 1, "description": "Timezone" },
+        "extraEnv": { "type": "array", "description": "Extra environment variables", "items": { "type": "object", "additionalProperties": true } }
       }
     },
     "persistence": {
       "type": "object",
-      "description": "Persistent storage configuration",
+      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean", "description": "Enable persistent storage" },
         "storageClass": { "type": "string", "description": "Storage class" },
-        "accessMode": { "type": "string", "description": "Access mode" },
-        "size": { "type": "string", "description": "Volume size" },
+        "accessMode": { "type": "string", "enum": ["ReadWriteOnce", "ReadOnlyMany", "ReadWriteMany", "ReadWriteOncePod"], "description": "Access mode" },
+        "size": { "type": "string", "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:Ei|Pi|Ti|Gi|Mi|Ki|E|P|T|G|M|K)$", "description": "Volume size" },
         "existingClaim": { "type": "string", "description": "Use an existing PVC" },
-        "annotations": { "type": "object", "description": "PVC annotations" }
+        "annotations": { "type": "object", "description": "PVC annotations", "additionalProperties": { "type": "string" } }
       }
     },
     "backup": {
       "type": "object",
-      "description": "S3 backup configuration",
+      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean", "description": "Enable S3 backup CronJob" },
-        "schedule": { "type": "string", "description": "Cron schedule" },
+        "schedule": { "type": "string", "minLength": 1, "description": "Cron schedule" },
         "suspend": { "type": "boolean", "description": "Suspend the CronJob" },
-        "concurrencyPolicy": { "type": "string", "description": "Concurrency policy" },
-        "successfulJobsHistoryLimit": { "type": "integer", "description": "Successful job history limit" },
-        "failedJobsHistoryLimit": { "type": "integer", "description": "Failed job history limit" },
-        "backoffLimit": { "type": "integer", "description": "Backoff limit" },
-        "archivePrefix": { "type": "string", "description": "Archive filename prefix" },
-        "images": { "type": "object", "description": "Backup job images" },
-        "resources": { "type": "object", "description": "Backup job resources" },
+        "concurrencyPolicy": { "type": "string", "enum": ["Allow", "Forbid", "Replace"], "description": "Concurrency policy" },
+        "successfulJobsHistoryLimit": { "type": "integer", "minimum": 0, "description": "Successful job history limit" },
+        "failedJobsHistoryLimit": { "type": "integer", "minimum": 0, "description": "Failed job history limit" },
+        "backoffLimit": { "type": "integer", "minimum": 0, "description": "Backoff limit" },
+        "archivePrefix": { "type": "string", "minLength": 1, "description": "Archive filename prefix" },
+        "images": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "archiver": { "type": "string", "minLength": 1, "description": "Pinned image used to create archives" },
+            "uploader": { "type": "string", "minLength": 1, "description": "Pinned image used to upload archives" }
+          }
+        },
+        "resources": { "type": "object", "description": "Backup job resources", "additionalProperties": true },
         "s3": {
           "type": "object",
-          "description": "S3 configuration",
+          "additionalProperties": false,
           "properties": {
             "endpoint": { "type": "string", "description": "S3-compatible endpoint URL" },
             "bucket": { "type": "string", "description": "S3 bucket name" },
             "prefix": { "type": "string", "description": "S3 key prefix" },
             "createBucketIfNotExists": { "type": "boolean", "description": "Create bucket if it does not exist" },
-            "existingSecret": { "type": "string", "description": "Existing secret with S3 credentials" },
-            "existingSecretAccessKeyKey": { "type": "string", "description": "Key for access key" },
-            "existingSecretSecretKeyKey": { "type": "string", "description": "Key for secret key" },
-            "accessKey": { "type": "string", "description": "S3 access key" },
-            "secretKey": { "type": "string", "description": "S3 secret key" }
+            "existingSecret": { "type": "string", "description": "Existing Secret with S3 credentials" },
+            "existingSecretAccessKeyKey": { "type": "string", "minLength": 1, "description": "Key for the access key" },
+            "existingSecretSecretKeyKey": { "type": "string", "minLength": 1, "description": "Key for the secret key" },
+            "accessKey": { "type": "string", "description": "Inline S3 access key for testing" },
+            "secretKey": { "type": "string", "description": "Inline S3 secret key for testing" }
           }
         }
       }
     },
-    "resources": { "type": "object", "description": "Resource requests and limits" },
-    "podSecurityContext": { "type": "object", "description": "Pod security context" },
-    "securityContext": { "type": "object", "description": "Container security context" },
-    "startupProbe": { "type": "object", "description": "Startup probe configuration" },
-    "livenessProbe": { "type": "object", "description": "Liveness probe configuration" },
-    "readinessProbe": { "type": "object", "description": "Readiness probe configuration" },
+    "resources": { "type": "object", "description": "Resource requests and limits", "additionalProperties": true },
+    "podSecurityContext": { "type": "object", "description": "Pod security context", "additionalProperties": true },
+    "securityContext": { "type": "object", "description": "Container security context", "additionalProperties": true },
+    "startupProbe": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Enable the startup probe" },
+        "path": { "type": "string", "pattern": "^/", "description": "HTTP request path" },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0, "description": "Initial delay" },
+        "periodSeconds": { "type": "integer", "minimum": 1, "description": "Probe period" },
+        "timeoutSeconds": { "type": "integer", "minimum": 1, "description": "Probe timeout" },
+        "failureThreshold": { "type": "integer", "minimum": 1, "description": "Failure threshold" }
+      }
+    },
+    "livenessProbe": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Enable the liveness probe" },
+        "path": { "type": "string", "pattern": "^/", "description": "HTTP request path" },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0, "description": "Initial delay" },
+        "periodSeconds": { "type": "integer", "minimum": 1, "description": "Probe period" },
+        "timeoutSeconds": { "type": "integer", "minimum": 1, "description": "Probe timeout" },
+        "failureThreshold": { "type": "integer", "minimum": 1, "description": "Failure threshold" }
+      }
+    },
+    "readinessProbe": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Enable the readiness probe" },
+        "path": { "type": "string", "pattern": "^/", "description": "HTTP request path" },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0, "description": "Initial delay" },
+        "periodSeconds": { "type": "integer", "minimum": 1, "description": "Probe period" },
+        "timeoutSeconds": { "type": "integer", "minimum": 1, "description": "Probe timeout" },
+        "failureThreshold": { "type": "integer", "minimum": 1, "description": "Failure threshold" }
+      }
+    },
     "service": {
       "type": "object",
-      "description": "Service configuration",
+      "additionalProperties": false,
       "properties": {
-        "type": { "type": "string", "description": "Service type", "enum": ["ClusterIP", "NodePort", "LoadBalancer"] },
-        "port": { "type": "integer", "description": "Service port" },
-        "annotations": { "type": "object", "description": "Service annotations" }
+        "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"], "description": "Service type" },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535, "description": "Service port" },
+        "annotations": { "type": "object", "description": "Service annotations", "additionalProperties": { "type": "string" } }
       }
     },
     "ingress": {
       "type": "object",
-      "description": "Ingress configuration",
+      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean", "description": "Enable ingress" },
         "ingressClassName": { "type": "string", "description": "Ingress class name" },
-        "annotations": { "type": "object", "description": "Ingress annotations" },
-        "hosts": { "type": "array", "description": "Ingress hosts" },
-        "tls": { "type": "array", "description": "TLS configuration" }
+        "annotations": { "type": "object", "description": "Ingress annotations", "additionalProperties": { "type": "string" } },
+        "hosts": { "type": "array", "description": "Ingress hosts", "items": { "type": "object", "additionalProperties": true } },
+        "tls": { "type": "array", "description": "TLS configuration", "items": { "type": "object", "additionalProperties": true } }
       }
     },
     "serviceAccount": {
       "type": "object",
-      "description": "Service account configuration",
+      "additionalProperties": false,
       "properties": {
-        "create": { "type": "boolean", "description": "Create a service account" },
-        "name": { "type": "string", "description": "Service account name" },
-        "annotations": { "type": "object", "description": "Service account annotations" }
+        "create": { "type": "boolean", "description": "Create a ServiceAccount" },
+        "name": { "type": "string", "description": "ServiceAccount name" },
+        "annotations": { "type": "object", "description": "ServiceAccount annotations", "additionalProperties": { "type": "string" } },
+        "automountServiceAccountToken": { "type": "boolean", "description": "Mount the Kubernetes API token" }
       }
     },
-    "nodeSelector": { "type": "object", "description": "Node selector" },
-    "tolerations": { "type": "array", "description": "Tolerations" },
-    "affinity": { "type": "object", "description": "Affinity rules" },
-    "topologySpreadConstraints": { "type": "array", "description": "Topology spread constraints" },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Create the server NetworkPolicy" },
+        "extraIngress": { "type": "array", "description": "Additional ingress rules", "items": { "type": "object", "additionalProperties": true } }
+      }
+    },
+    "nodeSelector": { "type": "object", "description": "Node selector", "additionalProperties": { "type": "string" } },
+    "tolerations": { "type": "array", "description": "Tolerations", "items": { "type": "object", "additionalProperties": true } },
+    "affinity": { "type": "object", "description": "Affinity rules", "additionalProperties": true },
+    "topologySpreadConstraints": { "type": "array", "description": "Topology spread constraints", "items": { "type": "object", "additionalProperties": true } },
     "priorityClassName": { "type": "string", "description": "Priority class name" },
-    "terminationGracePeriodSeconds": { "type": "integer", "description": "Termination grace period" },
-    "podLabels": { "type": "object", "description": "Additional pod labels" },
-    "podAnnotations": { "type": "object", "description": "Additional pod annotations" },
-    "extraVolumeMounts": { "type": "array", "description": "Extra volume mounts" },
-    "extraVolumes": { "type": "array", "description": "Extra volumes" },
-    "extraManifests": { "type": "array", "description": "Extra Kubernetes manifests" }
+    "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0, "description": "Termination grace period" },
+    "podLabels": { "type": "object", "description": "Additional pod labels", "additionalProperties": { "type": "string" } },
+    "podAnnotations": { "type": "object", "description": "Additional pod annotations", "additionalProperties": { "type": "string" } },
+    "extraVolumeMounts": { "type": "array", "description": "Extra volume mounts", "items": { "type": "object", "additionalProperties": true } },
+    "extraVolumes": { "type": "array", "description": "Extra volumes", "items": { "type": "object", "additionalProperties": true } },
+    "extraManifests": { "type": "array", "description": "Extra Kubernetes manifests", "items": { "type": "object", "additionalProperties": true } }
   }
 }

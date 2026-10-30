@@ -67,6 +67,29 @@ heimdall:
 If the pod starts but cannot write configuration, confirm the PVC supports the
 configured IDs or set a compatible pod/container security context.
 
+## Listener and Service Ports
+
+The application listener and Service port are independent. This example makes
+NGINX listen on 8080 while the Service remains available on 80:
+
+```yaml
+heimdall:
+  containerPort: 8080
+service:
+  port: 80
+```
+
+The chart patches the upstream NGINX site configuration before `/init` starts.
+The Service, probes, and NetworkPolicy all refer to the named `http` port.
+
+## Network Policy
+
+The default NetworkPolicy admits the named HTTP port and leaves egress
+unrestricted for enhanced tiles. Add complete ingress rules with
+`networkPolicy.extraIngress`, disable the policy only when a cluster-wide policy
+owns the boundary, and use a separate egress policy when all tile destinations
+are known.
+
 ## Upgrade Behavior
 
 When persistence is enabled, the Deployment uses `Recreate` strategy to avoid
@@ -90,6 +113,12 @@ Check PVC binding:
 
 ```bash
 kubectl get pvc -l app.kubernetes.io/instance=<release>
+```
+
+Confirm the effective listener:
+
+```bash
+kubectl exec deploy/<release>-heimdall -c heimdall -- grep 'listen .* default_server' /config/nginx/site-confs/default.conf
 ```
 
 <!-- @AI-METADATA

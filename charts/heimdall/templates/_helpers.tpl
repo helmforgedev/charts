@@ -3,6 +3,14 @@
 {{- if or (not (trim .Values.image.repository)) (not (trim .Values.image.tag)) -}}
 {{- fail "image.repository and image.tag must not be empty" -}}
 {{- end -}}
+{{- if and .Values.ingress.enabled (not .Values.ingress.hosts) -}}
+{{- fail "ingress.hosts must contain at least one host when ingress.enabled is true" -}}
+{{- end -}}
+{{- range $key := list "app.kubernetes.io/name" "app.kubernetes.io/instance" "app.kubernetes.io/component" -}}
+{{- if hasKey $.Values.podLabels $key -}}
+{{- fail (printf "podLabels must not override required label %s" $key) -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}
 
 {{- define "heimdall.name" -}}

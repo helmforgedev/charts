@@ -87,6 +87,43 @@ tests:
             containerPort: 80
             protocol: TCP
 
+  - it: should configure the real NGINX listener on a custom port
+    set:
+      heimdall.containerPort: 8080
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http
+            containerPort: 8080
+            protocol: TCP
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HELMFORGE_HTTP_PORT
+            value: "8080"
+      - equal:
+          path: spec.template.spec.containers[0].command[0]
+          value: /bin/sh
+
+  - it: should apply the hardened LinuxServer-compatible defaults
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/component"]
+          value: server
+
   - it: should include startup probe by default
     asserts:
       - exists:
