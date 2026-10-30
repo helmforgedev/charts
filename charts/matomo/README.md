@@ -16,8 +16,8 @@ helm install matomo oci://ghcr.io/helmforgedev/helm/matomo
 
 ## Features
 
-- Official Matomo Apache image pinned to `5.14.0-apache`.
-- Bundled HelmForge MySQL subchart for simple deployments.
+- Official Matomo Apache image pinned to `5.14.2-apache`.
+- Bundled HelmForge MySQL `2.1.1` subchart for simple deployments.
 - External MySQL/MariaDB mode for production.
 - CronJob-based `core:archive` execution.
 - Persistent Matomo application volume.
@@ -26,10 +26,17 @@ helm install matomo oci://ghcr.io/helmforgedev/helm/matomo
 - NetworkPolicy, ServiceMonitor, dual-stack Service fields.
 - External Secrets integration for database passwords.
 
-Matomo 5.14.0 is the current stable production release. Review the
-[official changelog](https://matomo.org/changelog/matomo-5-14-0/), and back up
+Matomo 5.14.2 is the current stable production release. Review the
+[5.14.1](https://matomo.org/changelog/matomo-5-14-1/) and
+[5.14.2](https://matomo.org/changelog/matomo-5-14-2/) changelogs, and back up
 the database and persistent application volume before production rollout so
-the native updater can be rolled back together with its data.
+the native updater can be rolled back together with its data. Neither patch
+contains a major database upgrade.
+
+Matomo 5.14.2 also carries an upstream security notice for two critical PHP
+vulnerabilities. The pinned image contains PHP 8.4.27, which includes the
+upstream fixes. Deploy the new tag instead of relying on a mutable rebuild of
+an older Matomo tag that a Kubernetes node may already have cached.
 
 ## Quick Start
 
@@ -95,13 +102,20 @@ kubectl exec -n matomo deploy/matomo -- php /var/www/html/console core:update --
 Set `persistence.codeSync.enabled=false` only when application files are managed
 outside the image lifecycle.
 
+The Apache image listens on `containerPorts.http`. For a custom port, the chart
+copies the packaged Apache configuration to a writable temporary directory and
+changes the real listener before startup. FPM images require an HTTP sidecar;
+set `webServer.mode=external` and make that sidecar listen on the named target
+port. See `ci/fpm-sidecar-values.yaml` for the maintained nginx example.
+
 ## Configuration
 
 | Parameter | Description | Default |
 | --- | --- | --- |
 | `replicaCount` | Matomo web replicas | `1` |
 | `image.repository` | Official Matomo image repository | `docker.io/library/matomo` |
-| `image.tag` | Official Matomo image tag | `5.14.0-apache` |
+| `image.tag` | Official Matomo image tag | `5.14.2-apache` |
+| `webServer.mode` | HTTP runtime owner: `apache` or `external` | `apache` |
 | `database.mode` | `auto`, `external`, or `mysql` | `auto` |
 | `mysql.enabled` | Deploy HelmForge MySQL subchart | `true` |
 | `persistence.enabled` | Persist `/var/www/html` | `true` |
@@ -133,13 +147,27 @@ outside the image lifecycle.
 - [Networking](docs/networking.md)
 - [External Secrets](docs/external-secrets.md)
 
+## Troubleshooting
+
+| Symptom | Check | Resolution |
+| --- | --- | --- |
+| Web Pod is not Ready after a port override | Compare listener, target port, and serving mode | Use `apache` for the Apache image; use `external` only with an HTTP sidecar. |
+| Installer cannot connect to the database | Inspect database mode, Secret, and endpoints | Provide `database-password` and verify host/port reachability. |
+| Upgrade still reports an old Matomo version | Inspect the effective Pod image and files on the application PVC | Deploy the new immutable image tag and keep `persistence.codeSync.enabled=true`. |
+| Reports are slow or stale | Inspect the archiver CronJob and recent Jobs | Keep `archiver.enabled=true`, validate job completion, and tune the schedule. |
+| Multiple replicas cannot mount storage | Inspect PVC access mode and Pod scheduling events | Use storage that supports the topology or keep one web replica with ReadWriteOnce. |
+
+Operational procedures are documented in the [production](docs/production.md),
+[networking](docs/networking.md), and
+[External Secrets](docs/external-secrets.md) guides.
+
 ## Security Scan
 
 ### Security Scan: `matomo`
 
 | Framework | Score |
 |---|---|
-| MITRE + NSA + SOC2 | **84.78%** |
+| MITRE + NSA + SOC2 | **84.783554%** |
 
 Security posture acceptable.
 
@@ -147,7 +175,7 @@ Local details:
 
 - Tool: Kubescape v4.0.9
 - Command: `kubescape scan framework mitre,nsa,soc2 .tmp/matomo-render.yaml`
-- Result: 0 critical failed resources, resource summary score 84.78%.
+- Result: 0 critical failed resources, resource summary score 84.783554%.
 
 ## Research Notes
 

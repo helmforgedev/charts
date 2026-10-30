@@ -6,6 +6,12 @@ and generated assets. Back up both before upgrades.
 
 ## Application Upgrades
 
+The default `5.14.2-apache` image contains PHP 8.4.27, including the fixes for
+the critical PHP vulnerabilities referenced by the Matomo 5.14.2 security
+notice. Use the new immutable Matomo tag rather than relying on a rebuilt older
+tag that may remain stale in a node image cache. Verify both the Matomo and PHP
+versions after rollout.
+
 The official container only bootstraps `/var/www/html` when `matomo.php` is
 absent. Because the chart persists that directory, `persistence.codeSync` is
 enabled by default and synchronizes the release files from `/usr/src/matomo`
@@ -74,6 +80,6 @@ scope: Chart
 relations:
   - charts/matomo/values.yaml
 path: charts/matomo/docs/production.md
-version: 1.0
-date: 2026-07-06
+version: 1.1
+date: 2026-10-28
 -->

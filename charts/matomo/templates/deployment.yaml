@@ -105,11 +105,39 @@ spec:
         - name: matomo
           image: {{ include "matomo.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if and (eq .Values.webServer.mode "apache") (ne (int .Values.containerPorts.http) 80) }}
+          command:
+            - sh
+            - -ec
+            - |
+              config_dir=/tmp/helmforge-apache
+              mkdir -p "${config_dir}"
+              cp -R /etc/apache2/. "${config_dir}/"
+              sed -ri 's!^Listen [0-9]+$!Listen {{ .Values.containerPorts.http }}!' "${config_dir}/ports.conf"
+              sed -ri 's!<VirtualHost \*:[0-9]+>!<VirtualHost *:{{ .Values.containerPorts.http }}>!' "${config_dir}/sites-available/000-default.conf"
+              exec apache2-foreground -d "${config_dir}" -f apache2.conf
+          {{- end }}
           {{- with .Values.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           env:
+            {{- if and (eq .Values.webServer.mode "apache") (ne (int .Values.containerPorts.http) 80) }}
+            - name: APACHE_ENVVARS
+              value: /dev/null
+            - name: APACHE_RUN_USER
+              value: www-data
+            - name: APACHE_RUN_GROUP
+              value: www-data
+            - name: APACHE_RUN_DIR
+              value: /tmp/helmforge-apache-run
+            - name: APACHE_LOCK_DIR
+              value: /tmp/helmforge-apache-lock
+            - name: APACHE_LOG_DIR
+              value: /tmp/helmforge-apache-log
+            - name: APACHE_PID_FILE
+              value: /tmp/helmforge-apache-run/apache2.pid
+            {{- end }}
             - name: MATOMO_DATABASE_HOST
               value: {{ printf "%s:%s" (include "matomo.databaseHost" .) (include "matomo.databasePort" .) | quote }}
             - name: MATOMO_DATABASE_USERNAME

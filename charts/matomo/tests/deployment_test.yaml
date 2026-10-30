@@ -15,7 +15,7 @@ tests:
           value: Recreate
       - equal:
           path: spec.template.spec.containers[0].image
-          value: docker.io/library/matomo:5.14.0-apache
+          value: docker.io/library/matomo:5.14.2-apache
   - it: wires Matomo database environment variables
     template: deployment.yaml
     asserts:
@@ -45,7 +45,7 @@ tests:
           value: sync-matomo-code
       - equal:
           path: spec.template.spec.initContainers[1].image
-          value: docker.io/library/matomo:5.14.0-apache
+          value: docker.io/library/matomo:5.14.2-apache
       - equal:
           path: spec.template.spec.initContainers[1].volumeMounts[0].mountPath
           value: /var/www/html
@@ -104,3 +104,21 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].readinessProbe.httpGet.port
           value: http
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'Listen 8080'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'VirtualHost \*:8080'
+  - it: leaves listener management to an external web server in FPM mode
+    template: deployment.yaml
+    set:
+      image:
+        tag: 5.14.2-fpm-alpine
+      webServer:
+        mode: external
+      containerPorts:
+        http: 8080
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].command

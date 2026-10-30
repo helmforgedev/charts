@@ -25,10 +25,14 @@ on single-stack clusters.
 
 ## Container port
 
-`containerPorts.http` sets the web container port. Probes, the Service, and the
-NetworkPolicy use the named `http` port, so they follow it. The value does not
-change the web server configuration; see `ci/fpm-sidecar-values.yaml` for an
-nginx sidecar listening on 8080.
+`containerPorts.http` sets the named web port used by probes, the Service, and
+the NetworkPolicy. With `webServer.mode=apache`, the chart also configures the
+real Apache listener and virtual host on that port. `service.port` remains an
+independent client-facing Service port.
+
+FPM images do not contain an HTTP listener. Set `webServer.mode=external` and
+provide a web-server sidecar that listens on `containerPorts.http`; see
+`ci/fpm-sidecar-values.yaml` for the maintained nginx example.
 
 <!-- @AI-METADATA
 type: chart-docs
@@ -40,6 +44,6 @@ scope: Chart
 relations:
   - charts/matomo/values.yaml
 path: charts/matomo/docs/networking.md
-version: 1.0
-date: 2026-07-06
+version: 1.1
+date: 2026-10-28
 -->
