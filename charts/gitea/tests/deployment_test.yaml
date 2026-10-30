@@ -17,13 +17,21 @@ tests:
           path: spec.template.spec.containers[0].image
           pattern: "gitea/gitea:.*-rootless"
 
-  - it: should use Recreate strategy for SQLite
+  - it: should use Recreate strategy by default
     asserts:
       - equal:
           path: spec.strategy.type
           value: Recreate
 
-  - it: should not use Recreate strategy for PostgreSQL
+  - it: should preserve Recreate when reused legacy values omit strategy
+    set:
+      strategy: null
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+
+  - it: should use Recreate strategy for PostgreSQL with persistent local state
     set:
       postgresql:
         enabled: true
@@ -32,8 +40,36 @@ tests:
           username: gitea
           password: test
     asserts:
-      - isNull:
-          path: spec.strategy
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+
+  - it: should render an explicit RollingUpdate strategy override
+    set:
+      strategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxSurge: 0
+          maxUnavailable: 1
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: RollingUpdate
+      - equal:
+          path: spec.strategy.rollingUpdate.maxSurge
+          value: 0
+      - equal:
+          path: spec.strategy.rollingUpdate.maxUnavailable
+          value: 1
+
+  - it: should render pod annotations
+    set:
+      podAnnotations:
+        reloader.stakater.com/auto: "true"
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["reloader.stakater.com/auto"]
+          value: "true"
 
   - it: should not have initContainers for SQLite by default
     asserts:
@@ -81,6 +117,42 @@ tests:
       - equal:
           path: spec.template.spec.initContainers[0].name
           value: wait-for-db
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.capabilities.drop[0]
+          value: ALL
+
+  - it: should secure wait-for-db independently of volume-permissions ordering
+    set:
+      volumePermissions:
+        enabled: true
+      postgresql:
+        enabled: true
+        auth:
+          database: gitea
+          username: gitea
+          password: test
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: volume-permissions
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: wait-for-db
+      - equal:
+          path: spec.template.spec.initContainers[1].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.initContainers[1].securityContext.capabilities.drop[0]
+          value: ALL
 
   - it: should set DB_TYPE to sqlite3 by default
     asserts:

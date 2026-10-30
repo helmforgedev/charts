@@ -31,6 +31,10 @@ The same PVC is mounted through subPaths:
 Default persistence is enabled because repository data is stateful. Disable it
 only for disposable CI or local smoke checks.
 
+The Deployment uses the `Recreate` strategy by default in every database mode.
+PostgreSQL and MySQL replace only the relational database; repositories, queues,
+indexes, and configuration remain single-writer state on the data volume.
+
 ## Request Flow
 
 HTTP requests reach `svc/<release>-gitea-http`, then the Gitea container on
@@ -52,7 +56,8 @@ Kubernetes Secrets rather than inline environment values in the pod spec.
 ## Security Posture
 
 The main workload runs as UID/GID `1000`, denies privilege escalation, drops all
-Linux capabilities, and uses the runtime default seccomp profile. The root
+Linux capabilities, and uses the runtime default seccomp profile. The built-in
+database wait init container inherits the same container security context. The root
 `volumePermissions` init container is disabled by default and should remain off in
 namespaces enforcing the Kubernetes restricted Pod Security profile.
 

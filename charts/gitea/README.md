@@ -166,6 +166,8 @@ The chart sets `GITEA__server__HTTP_PORT=3100`, exposes that container port as
 | `image.repository` | `gitea/gitea` | Container image repository |
 | `image.tag` | `"28.2.0-rootless"` | Image tag |
 | `replicaCount` | `1` | Number of replicas |
+| `strategy.type` | `Recreate` | Deployment strategy for single-writer local state |
+| `podAnnotations` | `{}` | Additional annotations for the Gitea pod |
 | `gitea.appName` | `"Gitea: Git with a cup of tea"` | Application display name |
 | `gitea.runMode` | `prod` | Run mode (dev, prod, test) |
 | `gitea.rootUrl` | `""` | Root URL for links and clone URLs |
@@ -222,6 +224,14 @@ Only one database source can be active. The chart fails with a clear error if mu
 
 ## Upgrade Notes
 
+The Deployment now defaults to the `Recreate` strategy for every database mode,
+not only SQLite. PostgreSQL and MySQL externalize relational data, but Gitea
+still keeps repositories, queues, indexes, and configuration on the local data
+volume. `Recreate` prevents two Gitea processes from using that single-writer
+state during an upgrade and avoids `ReadWriteOnce` multi-attach failures. Only
+override `strategy.type` after externalizing every shared-state dependency and
+validating the storage access mode.
+
 This update moves the default rootless image to `28.2.0-rootless`. Back up the
 database, repositories, LFS objects, packages, attachments, and the retained
 configuration before upgrading; Gitea runs required database migrations during
@@ -269,6 +279,10 @@ All backups are uploaded to S3-compatible storage using the MinIO client.
 The default install avoids root init containers so it can run in namespaces that enforce the Kubernetes `restricted`
 Pod Security profile. The chart preserves the rootless Gitea config path at `/etc/gitea/app.ini` for upgrade
 compatibility and mounts it from the `config` subPath on the data PVC.
+
+The built-in `wait-for-db` init container uses the same restricted container
+security context as Gitea. It runs as non-root, disables privilege escalation,
+and drops all Linux capabilities by default.
 
 Set `volumePermissions.enabled=true` only when your storage class requires an explicit root `chown` step. That opt-in
 mode renders a root initContainer with `CHOWN`/`FOWNER`; keep it disabled in restricted namespaces unless your policy
