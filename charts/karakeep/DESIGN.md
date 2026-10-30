@@ -13,21 +13,20 @@ PVC, one Service, and optional edge routing.
 
 ## Default Architecture
 
-```text
-Browser or API client
-   |
-   | port-forward, Ingress, or HTTPRoute
-   v
-ClusterIP Service
-   |
-   v
-Karakeep Deployment (1 replica, Recreate)
-   |
-   +--> karakeep container on containerPorts.http (default 3000)
-   +--> optional Meilisearch sidecar on meilisearch.port (default 7700)
-   +--> optional Karakeep Chrome sidecar on fixed localhost:9222
-   +--> Secret for NEXTAUTH_SECRET and MEILI_MASTER_KEY
-   +--> PVC mounted at /data
+```mermaid
+flowchart TD
+    Client[Browser or API client] --> Edge[Port-forward, Ingress, or HTTPRoute]
+    Edge --> Service[ClusterIP Service]
+    Service --> App[Karakeep container<br/>containerPorts.http]
+
+    subgraph Pod[Karakeep Deployment: one replica, Recreate]
+        App --> Search[Optional Meilisearch sidecar<br/>meilisearch.port]
+        App --> Browser[Optional Karakeep Chrome sidecar<br/>127.0.0.1:9222]
+        Secret[Secret] --> App
+        Secret --> Search
+        PVC[PVC mounted at /data] --> App
+        PVC --> Search
+    end
 ```
 
 Default characteristics:
@@ -84,10 +83,16 @@ services through `karakeep.extraEnv` only after validating the upstream
 configuration variables for their target version.
 
 The official `karakeep-chrome` entrypoint owns public port 9222 and its internal
-Chrome debugging port. Those ports must not be overridden, so 9222 is an
-explicit fixed-protocol exception. In contrast, `containerPorts.http` is passed
+Chrome debugging port. Karakeep connects through `127.0.0.1` because the
+sidecar listens on IPv4 loopback and `localhost` can resolve to IPv6 first.
+Those ports must not be overridden, so 9222 is an explicit fixed-protocol
+exception. In contrast, `containerPorts.http` is passed
 to Karakeep through `PORT`, and `meilisearch.port` is passed to Meilisearch
 through `MEILI_HTTP_ADDR`; both overrides change the actual listeners.
+
+Meilisearch receives `MEILI_UPGRADE_DB=true` by default so a PVC created by an
+older supported release can be migrated by the pinned image. Operators own a
+pre-upgrade snapshot because the upstream migration is not atomic.
 
 ## Routing Model
 

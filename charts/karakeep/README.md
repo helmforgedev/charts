@@ -138,6 +138,9 @@ chromium:
 | `karakeep.extraEnv` | `[]` | Extra environment variables for AI and advanced configuration |
 | `meilisearch.enabled` | `true` | Enable the Meilisearch sidecar |
 | `meilisearch.port` | `7700` | Meilisearch process listener port |
+| `meilisearch.environment` | `production` | Meilisearch runtime environment |
+| `meilisearch.upgradeDb` | `true` | Upgrade an older on-disk Meilisearch database at startup |
+| `meilisearch.extraEnv` | `[]` | Extra non-reserved Meilisearch environment variables |
 | `chromium.enabled` | `true` | Enable the Chromium sidecar |
 | `networkPolicy.enabled` | `true` | Restrict ingress to the HTTP port |
 | `persistence.enabled` | `true` | Enable persistence for SQLite, uploads, and Meilisearch data |

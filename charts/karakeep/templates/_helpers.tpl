@@ -115,4 +115,10 @@ Generate MEILI_MASTER_KEY: lookup existing secret or generate a new one.
 {{- if and .Values.externalSecrets.enabled (not .Values.karakeep.existingSecret) -}}
 {{- fail "externalSecrets.enabled requires karakeep.existingSecret to be set to prevent credential drift between the chart-managed Secret and the ExternalSecret." -}}
 {{- end -}}
+{{- $reservedMeilisearchEnv := list "MEILI_MASTER_KEY" "MEILI_NO_ANALYTICS" "MEILI_HTTP_ADDR" "MEILI_ENV" "MEILI_UPGRADE_DB" -}}
+{{- range .Values.meilisearch.extraEnv -}}
+{{- if has .name $reservedMeilisearchEnv -}}
+{{- fail (printf "meilisearch.extraEnv must not override chart-managed variable %s" .name) -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}
