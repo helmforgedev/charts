@@ -214,6 +214,29 @@ tests:
           path: spec.template.spec.containers[0].readinessProbe.httpGet.port
           value: http
 
+  - it: should support the full Pi-hole FTL webserver port syntax
+    template: templates/deployment.yaml
+    set:
+      containerPorts.http: 9090
+      pihole.webserverPort: "9090o,[::]:9090o,9091os,[::]:9091os"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FTLCONF_webserver_port
+            value: "9090o,[::]:9090o,9091os,[::]:9091os"
+      - contains:
+          path: spec.template.spec.initContainers[1].env
+          content:
+            name: FTLCONF_webserver_port
+            value: "9090o,[::]:9090o,9091os,[::]:9091os"
+      - equal:
+          path: spec.template.spec.containers[0].ports[2].containerPort
+          value: 9090
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.port
+          value: http
+
   - it: should expose DHCP port when enabled
     template: templates/deployment.yaml
     set:

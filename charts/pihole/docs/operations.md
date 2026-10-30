@@ -10,10 +10,14 @@ lifetime of the installation. Confirm that TCP and UDP traffic can reach
 ExternalSecret, set resource requests and limits for every enabled sidecar, and
 choose a StorageClass with a tested recovery procedure.
 
-`containerPorts.dns` and `containerPorts.http` configure the Pi-hole FTL
-listeners. They are independent from the cluster-facing DNS and web Service
-ports. DHCP remains on UDP 67 because it is a fixed protocol port and requires
-host networking or equivalent broadcast-aware network integration.
+`containerPorts.dns` configures the Pi-hole FTL DNS listener.
+`containerPorts.http` configures the primary unencrypted FTL web listener used
+by the Web Service, probes, and metrics exporter. They are independent from the
+cluster-facing DNS and web Service ports. Set `pihole.webserverPort` when FTL
+must listen on multiple IPv4, IPv6, HTTP, or HTTPS addresses and include
+`containerPorts.http` in that full value. DHCP remains on UDP 67 because it is
+a fixed protocol port and requires host networking or equivalent
+broadcast-aware network integration.
 
 ## Backup and Restore
 
@@ -51,8 +55,9 @@ kubectl port-forward -n <namespace> svc/<release>-pihole-web 8080:80
 ```
 
 When ports are overridden, substitute the configured Service ports in client
-commands. Inspect the pod environment to confirm that `FTLCONF_dns_port` and
-`FTLCONF_webserver_port` match the declared container ports.
+commands. Inspect the pod environment to confirm that `FTLCONF_dns_port`
+matches `containerPorts.dns` and that `FTLCONF_webserver_port` contains the
+primary `containerPorts.http` listener.
 
 ## Troubleshooting
 
@@ -67,7 +72,9 @@ the actual client source namespaces or pods.
 
 Verify the web Service target, the `http` named container port, and the startup
 and readiness probes. `serviceWeb.port` changes only the Service-facing port;
-use `containerPorts.http` to change the FTL listener.
+use `containerPorts.http` to change the primary FTL listener. When
+`pihole.webserverPort` is set, confirm its full listener list includes that
+primary port as unencrypted HTTP.
 
 ### Gravity Update Fails
 

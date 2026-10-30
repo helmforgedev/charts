@@ -29,7 +29,11 @@ const environment = Object.fromEntries(container.env.filter((entry) => 'value' i
 
 assert.equal(dnsPort, dnsUdpPort, 'DNS TCP and UDP listeners must use the same port');
 assert.equal(environment.FTLCONF_dns_port, String(dnsPort));
-assert.equal(environment.FTLCONF_webserver_port, String(httpPort));
+const primaryHttpListener = new RegExp(`^(?:\\+|.*:)?${httpPort}o?$`);
+assert.ok(
+  environment.FTLCONF_webserver_port.split(',').some((listener) => primaryHttpListener.test(listener)),
+  `FTLCONF_webserver_port must include primary unencrypted HTTP listener ${httpPort}`,
+);
 
 const check = [
   'set -eu',
