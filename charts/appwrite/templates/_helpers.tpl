@@ -233,6 +233,7 @@ redis://:$(REDIS_PASS)@{{ include "appwrite.redisHost" . }}:{{ include "appwrite
 
 {{/* ---- Init containers for backend workloads ---- */}}
 {{- define "appwrite.waitForServicesInitContainers" -}}
+{{- $root := .root -}}
 initContainers:
   - name: wait-for-db
     image: docker.io/library/busybox:1.37
@@ -240,7 +241,7 @@ initContainers:
     command: ["sh", "-c"]
     args:
       - |
-        until nc -z -w2 {{ include "appwrite.databaseHost" . }} {{ include "appwrite.databasePort" . }}; do
+        until nc -z -w2 {{ include "appwrite.databaseHost" $root }} {{ include "appwrite.databasePort" $root }}; do
           echo "waiting for database";
           sleep 2;
         done
@@ -250,10 +251,61 @@ initContainers:
     command: ["sh", "-c"]
     args:
       - |
-        until nc -z -w2 {{ include "appwrite.redisHost" . }} {{ include "appwrite.redisPort" . }}; do
+        until nc -z -w2 {{ include "appwrite.redisHost" $root }} {{ include "appwrite.redisPort" $root }}; do
           echo "waiting for redis";
           sleep 2;
         done
+  {{- if .waitForSchema }}
+  - name: wait-for-appwrite-schema
+    image: {{ include "appwrite.image" $root }}
+    imagePullPolicy: {{ $root.Values.image.pullPolicy }}
+    command: ["php", "-r"]
+    args:
+      - |
+        $deadline = time() + 180;
+        $required = [
+            '_console__metadata',
+            '_console_projects',
+            '_console_messages',
+            '_console_schedules',
+        ];
+        do {
+            try {
+                $dsn = sprintf(
+                    'mysql:host=%s;port=%s;charset=utf8mb4',
+                    getenv('_APP_DB_HOST'),
+                    getenv('_APP_DB_PORT')
+                );
+                $database = new PDO(
+                    $dsn,
+                    getenv('_APP_DB_USER'),
+                    getenv('_APP_DB_PASS'),
+                    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+                );
+                $query = $database->prepare(
+                    'SELECT COUNT(*) FROM information_schema.tables '
+                    . 'WHERE table_schema = ? AND table_name IN (?, ?, ?, ?)'
+                );
+                $query->execute([getenv('_APP_DB_SCHEMA'), ...$required]);
+                if ((int) $query->fetchColumn() === count($required)) {
+                    exit(0);
+                }
+            } catch (Throwable $error) {
+                // The API owns schema creation; retry until it finishes.
+            }
+            sleep(2);
+        } while (time() < $deadline);
+        fwrite(STDERR, "Appwrite database schema was not ready within 180 seconds\n");
+        exit(1);
+    env:
+      {{- include "appwrite.commonEnv" $root | nindent 6 }}
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+          - ALL
+  {{- end }}
 {{- end -}}
 
 {{/* ---- Domain ---- */}}

@@ -6,7 +6,8 @@ $client = curl_init();
 curl_setopt_array($client, [CURLOPT_RETURNTRANSFER => true, CURLOPT_COOKIEFILE => '', CURLOPT_TIMEOUT => 30]);
 function request($route, $method = 'GET', $data = null, $expected = 200) {
     global $client;
-    curl_setopt_array($client, [CURLOPT_URL => 'http://127.0.0.1/v1'.$route, CURLOPT_CUSTOMREQUEST => $method,
+    $port = getenv('PORT') ?: '80';
+    curl_setopt_array($client, [CURLOPT_URL => 'http://127.0.0.1:'.$port.'/v1'.$route, CURLOPT_CUSTOMREQUEST => $method,
         CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'X-Appwrite-Project: console', 'Host: '.getenv('_APP_DOMAIN')]]);
     curl_setopt($client, CURLOPT_POSTFIELDS, $data === null ? null : json_encode($data));
     $body = curl_exec($client);
@@ -46,7 +47,8 @@ if (version_compare($version, '2.1.0', '>=')) {
     ], 201);
     if (version_compare($version, '2.2.0', '>=')) {
         $projectRequest = function ($route, $method = 'GET', $data = null) use ($key) {
-            $curl = curl_init('http://127.0.0.1/v1'.$route);
+            $port = getenv('PORT') ?: '80';
+            $curl = curl_init('http://127.0.0.1:'.$port.'/v1'.$route);
             curl_setopt_array($curl, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 30,
                 CURLOPT_CUSTOMREQUEST => $method,
                 CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Host: '.getenv('_APP_DOMAIN'),
@@ -67,7 +69,8 @@ if (version_compare($version, '2.1.0', '>=')) {
         echo "PASS: Self-hosted email policy update and persisted policy list.\n";
     }
     $signed = function ($path, $method, $body = '', $expected = 200) use ($key) {
-        $curl = curl_init('http://127.0.0.1/v1/s3'.$path);
+        $port = getenv('PORT') ?: '80';
+        $curl = curl_init('http://127.0.0.1:'.$port.'/v1/s3'.$path);
         curl_setopt_array($curl, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 30,
             CURLOPT_CUSTOMREQUEST => $method, CURLOPT_AWS_SIGV4 => 'aws:amz:us-east-1:s3',
             CURLOPT_USERPWD => 'helmforgeproject:'.$key['secret'],
