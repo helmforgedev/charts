@@ -179,7 +179,29 @@
       }
     },
     "service": {
-      "$ref": "#/$defs/service"
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "port", "annotations", "ipFamilyPolicy", "ipFamilies"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["ClusterIP", "NodePort", "LoadBalancer"]
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "annotations": {
+          "$ref": "#/$defs/stringMap"
+        },
+        "ipFamilyPolicy": {
+          "$ref": "#/$defs/ipFamilyPolicy"
+        },
+        "ipFamilies": {
+          "$ref": "#/$defs/ipFamilies"
+        }
+      }
     },
     "matterService": {
       "type": "object",
@@ -290,21 +312,107 @@
     "podSecurityContext": {
       "type": "object",
       "description": "Pod security context for the Matterbridge pod.",
-      "additionalProperties": true
+      "additionalProperties": true,
+      "properties": {
+        "runAsNonRoot": { "type": "boolean" },
+        "runAsUser": { "type": "integer", "minimum": 0 },
+        "runAsGroup": { "type": "integer", "minimum": 0 },
+        "fsGroup": { "type": "integer", "minimum": 0 },
+        "fsGroupChangePolicy": {
+          "type": "string",
+          "enum": ["Always", "OnRootMismatch"]
+        },
+        "seccompProfile": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["RuntimeDefault", "Localhost", "Unconfined"]
+            }
+          }
+        }
+      }
     },
     "securityContext": {
       "type": "object",
       "description": "Container security context for Matterbridge.",
-      "additionalProperties": true
+      "additionalProperties": true,
+      "properties": {
+        "allowPrivilegeEscalation": { "type": "boolean" },
+        "readOnlyRootFilesystem": { "type": "boolean" },
+        "capabilities": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "drop": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": { "type": "string" }
+            }
+          }
+        }
+      }
     },
     "startupProbe": {
-      "$ref": "#/$defs/probe"
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "initialDelaySeconds",
+        "periodSeconds",
+        "timeoutSeconds",
+        "failureThreshold",
+        "successThreshold"
+      ],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 },
+        "successThreshold": { "type": "integer", "minimum": 1 }
+      }
     },
     "readinessProbe": {
-      "$ref": "#/$defs/probe"
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "initialDelaySeconds",
+        "periodSeconds",
+        "timeoutSeconds",
+        "failureThreshold",
+        "successThreshold"
+      ],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 },
+        "successThreshold": { "type": "integer", "minimum": 1 }
+      }
     },
     "livenessProbe": {
-      "$ref": "#/$defs/probe"
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "initialDelaySeconds",
+        "periodSeconds",
+        "timeoutSeconds",
+        "failureThreshold",
+        "successThreshold"
+      ],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 },
+        "successThreshold": { "type": "integer", "minimum": 1 }
+      }
     },
     "ingress": {
       "type": "object",
@@ -493,7 +601,25 @@
     },
     "resources": {
       "type": "object",
-      "additionalProperties": true
+      "additionalProperties": true,
+      "properties": {
+        "requests": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "cpu": { "type": ["string", "number"] },
+            "memory": { "type": ["string", "number"] }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "cpu": { "type": ["string", "number"] },
+            "memory": { "type": ["string", "number"] }
+          }
+        }
+      }
     },
     "terminationGracePeriodSeconds": {
       "type": "integer",
@@ -606,68 +732,6 @@
       "items": {
         "type": "string",
         "enum": ["IPv4", "IPv6"]
-      }
-    },
-    "service": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["type", "port", "annotations", "ipFamilyPolicy", "ipFamilies"],
-      "properties": {
-        "type": {
-          "type": "string",
-          "enum": ["ClusterIP", "NodePort", "LoadBalancer"]
-        },
-        "port": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 65535
-        },
-        "annotations": {
-          "$ref": "#/$defs/stringMap"
-        },
-        "ipFamilyPolicy": {
-          "$ref": "#/$defs/ipFamilyPolicy"
-        },
-        "ipFamilies": {
-          "$ref": "#/$defs/ipFamilies"
-        }
-      }
-    },
-    "probe": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "enabled",
-        "initialDelaySeconds",
-        "periodSeconds",
-        "timeoutSeconds",
-        "failureThreshold",
-        "successThreshold"
-      ],
-      "properties": {
-        "enabled": {
-          "type": "boolean"
-        },
-        "initialDelaySeconds": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "periodSeconds": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "timeoutSeconds": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "failureThreshold": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "successThreshold": {
-          "type": "integer",
-          "minimum": 1
-        }
       }
     }
   }

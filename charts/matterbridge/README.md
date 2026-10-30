@@ -85,6 +85,10 @@ privilege-escalation, seccomp, service-account and resource-limit controls. The
 production host-network option remains a documented networking exception
 required by common Matter LAN deployments.
 
+See [Security and operations](docs/security-operations.md) for the complete
+trust boundaries, credential handling, NetworkPolicy, and incident-response
+guidance.
+
 ## Architecture
 
 Matterbridge is stateful and has no active-active clustering or leader election.
@@ -298,15 +302,14 @@ uncommissioned Matter bridge.
 
 ## Upgrades
 
-Matterbridge 3.10.14 contains upstream stability fixes.
-Review the [official release notes](https://github.com/Luligu/matterbridge/releases/tag/3.10.14).
-
-Matterbridge 3.10.13 updates the frontend and runtime dependencies, improves
-worker-thread shutdown, fixes server-mode bridged endpoint removal, and corrects
-the global module check when switching runtimes. Storage paths, ports and the
-standalone container contract are unchanged. Review the
-[official release notes](https://github.com/Luligu/matterbridge/releases/tag/3.10.13)
-and test installed plugins with a real Matter controller in staging.
+Matterbridge 3.10.14 adds the production camera and webcam plugin generation,
+requires Node.js 22.13 or newer, and updates the WebRTC and runtime dependency
+stack. The pinned official image includes Node.js 24, but does not include
+`ffmpeg`. The chart deliberately prevents root package installation at startup,
+so camera plugins that require `ffmpeg` are outside the hardened default
+runtime contract. Review the
+[official release notes](https://github.com/Luligu/matterbridge/releases/tag/3.10.14)
+and test every installed plugin with a real Matter controller in staging.
 
 The intervening [3.10.12 release](https://github.com/Luligu/matterbridge/releases/tag/3.10.12)
 always advertises the robotic-vacuum `SkipArea` command, even without progress
@@ -314,9 +317,9 @@ reporting. Vacuum plugins must register a `skipArea` handler that stops work in
 the skipped area; otherwise the command can report success while operation
 continues.
 
-Use the standalone `luligu/matterbridge:3.10.13` distribution. Year-based tags such
-as `2026.9.1` in the same repository belong to the Home Assistant add-on and are
-not interchangeable with this chart's runtime.
+Use the standalone `luligu/matterbridge:3.10.14` distribution. Year-based tags
+such as `2026.9.1` in the same repository belong to the Home Assistant add-on
+and are not interchangeable with this chart's runtime.
 
 Before upgrading:
 
@@ -328,6 +331,17 @@ Before upgrading:
 After upgrading, wait for readiness, inspect startup logs and test a bridged
 device. Application migrations may make a chart-only rollback insufficient, so
 restore chart and volume state together when necessary.
+
+## Troubleshooting
+
+- For controller discovery, multicast, IPv6, and host-network diagnostics, see
+  [Networking](docs/networking.md#troubleshooting).
+- For PVC ownership, consistent snapshots, and restore order, see
+  [Persistence and backup](docs/persistence-backup.md).
+- For frontend exposure, credentials, NetworkPolicy, and incident response, see
+  [Security and operations](docs/security-operations.md).
+- For startup failures, inspect the pod, logs, and namespace events before
+  increasing probe budgets.
 
 ## Uninstall
 

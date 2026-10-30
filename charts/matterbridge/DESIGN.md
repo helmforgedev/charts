@@ -1,70 +1,163 @@
 # Matterbridge chart design
 
-## Goals
+## Scope
 
-This chart packages the official Matterbridge image as a stable, single-node
-Kubernetes workload. It prioritizes a safe install, durable Matter identity,
-clear LAN networking choices and direct compatibility with upstream behavior.
+This chart packages the official standalone Matterbridge image as a hardened,
+single-node Kubernetes workload. It manages the frontend, persistent Matter
+identity, plugin storage, optional HTTP exposure, optional Matter port Service,
+and the Kubernetes resources needed to run the application.
 
-## Workload model
+The chart supports two network models. The portable default uses the pod
+network and is compatible with Pod Security baseline. Production deployments
+that need ordinary LAN discovery can opt into host networking on a trusted
+node. The chart keeps that security trade-off explicit because a healthy
+frontend does not prove that mDNS, IPv6, and Matter traffic reach controllers.
 
-Matterbridge stores fabric identity, certificates, plugin packages and runtime
-configuration on disk. It also owns fixed Matter ports and advertises a single
-mDNS identity. The chart therefore uses a StatefulSet with exactly one replica,
-`OrderedReady` pod management and one persistent volume. Horizontal scaling and
-active-active failover are intentionally rejected.
+## Architecture
 
-The official image normally starts through a root-oriented entrypoint. The chart
-calls the `matterbridge` executable directly and places its home under `/data`.
-This permits UID/GID 1000, a read-only image filesystem and a private writable
-npm prefix without modifying or replacing the official image.
+```mermaid
+flowchart LR
+  Operator[Operator browser]
+  Proxy[Ingress or Gateway API]
+  Service[Frontend Service]
+  Controller[Matter controller]
+  Lan[LAN mDNS IPv6 and Matter ports]
+  Pod[StatefulSet matterbridge-0]
+  Platforms[Plugin source platforms]
+  Secrets[Secrets and ExternalSecrets]
+  Data[(Persistent volume at /data)]
 
-## Storage model
+  Operator --> Proxy
+  Operator --> Service
+  Proxy --> Service
+  Service --> Pod
+  Controller <--> Lan
+  Lan <--> Pod
+  Pod <--> Platforms
+  Secrets --> Pod
+  Pod <--> Data
+```
 
-One PVC is mounted at `/data`. The upstream `--homedir /data` option consolidates
-plugins, Matter state and certificates into `/data/Matterbridge`,
-`/data/.matterbridge` and `/data/.mattercert`. A single mount avoids partial
-backups and the shared-PVC deadlocks caused by multiple claims waiting for the
-same `WaitForFirstConsumer` pod.
+Ingress and Gateway API routes terminate only at the management frontend. They
+do not transport Matter or multicast traffic. In host-network mode, the pod
+uses the node interfaces directly. In portable mode, the CNI must provide the
+required multicast and IPv6 behavior, or an external network design must do so.
 
-The PVC has Helm's `keep` annotation by default. Backups are storage-platform
-snapshots or filesystem copies taken while the StatefulSet is stopped. The chart
-does not invent an unsafe live-copy sidecar or application API.
+## Design Decisions
 
-## Network model
+### Singleton StatefulSet
 
-The portable default uses pod networking so it passes Pod Security baseline and
-works in ordinary clusters for frontend evaluation. Matter commissioning on a
-physical LAN generally requires multicast DNS, IPv6 link reachability and direct
-TCP/UDP Matter ports, which commonly requires `network.hostNetwork=true`.
+Matterbridge owns one fabric identity, one mDNS identity, a fixed Matter port
+range, and mutable plugin state. It has no leader election or active-active
+coordination. The chart therefore renders a StatefulSet with exactly one
+replica, uses `OrderedReady`, and rejects every other replica count.
 
-Host networking is opt-in because Kubernetes Pod Security baseline forbids it.
-Operators must schedule the singleton to a trusted LAN-connected node. Advanced
-CNIs may instead transport multicast and use the optional Matter Service port
-range. A Service never substitutes for mDNS.
+### Direct non-root process
 
-Ingress and Gateway API HTTPRoutes target only the management frontend. They do
-not proxy Matter or multicast traffic.
+The official image normally enters through a root-oriented startup script. The
+chart invokes the included `matterbridge` binary directly with
+`--homedir /data`. This keeps the official application distribution while
+allowing UID/GID 1000, a read-only image filesystem, a private npm prefix, and
+all Linux capabilities dropped.
 
-## Security model
+### One durable state boundary
 
-The default pod is non-root, drops every Linux capability, prevents privilege
-escalation, uses RuntimeDefault seccomp, has a read-only root filesystem and does
-not mount a Kubernetes API token. Writable paths are limited to `/data` and
-`/tmp`.
+The complete Matterbridge home is mounted from one PVC at `/data`. Plugins,
+configuration, fabric identity, certificates, logs, and the npm cache remain
+together. This prevents partial backup and restore procedures from separating
+cryptographic identity from the configuration that uses it. The chart-created
+claim is retained by default.
 
-The frontend is private by default. Authentication is delegated to a trusted
-reverse proxy because Matterbridge does not expose a stable chart-manageable
-authentication contract. TLS can be terminated at Ingress/Gateway or supplied
-to Matterbridge through an existing Secret.
+### Explicit network modes
 
-## Deliberate omissions
+Pod networking is the safe portable default. Host networking is an opt-in
+production topology for common home and building LANs where controllers require
+link-local IPv6 and mDNS. The optional Matter Service is for CNIs that already
+transport multicast correctly; it cannot replace UDP 5353 discovery.
 
-- No HPA or replica scaling: upstream is a singleton.
-- No PodDisruptionBudget: it cannot create availability from one replica and can
-  block voluntary maintenance.
-- No ServiceMonitor: upstream has no native Prometheus endpoint.
-- No automated plugin mutation: plugins are managed through the upstream UI/CLI
-  and persisted on the PVC.
-- No live backup CronJob: consistent backup requires a stopped application or a
-  storage-native snapshot.
+### Independent frontend and Service ports
+
+`frontend.port` changes the real Matterbridge listener through `--frontend` and
+drives the named `http` container port and probes. `service.port` controls only
+the Kubernetes frontend Service. The Service targets the named container port,
+so operators can expose a different Service port without changing the process.
+
+### Standalone upstream distribution
+
+The `luligu/matterbridge` registry also contains calendar-versioned Home
+Assistant add-on images. This chart pins the standalone semantic-version tag
+and verifies the installed Matterbridge package at runtime. Add-on tags use a
+different entrypoint and are not compatible substitutes.
+
+## Production Boundary
+
+The chart owns Kubernetes rendering, the singleton lifecycle, health probes,
+frontend and Matter port wiring, PVC mounting, security contexts, and optional
+Ingress, Gateway API, ExternalSecret, and NetworkPolicy resources.
+
+Operators own the physical LAN topology, CNI multicast and IPv6 behavior, node
+placement, plugin compatibility, controller commissioning, proxy
+authentication, certificate lifecycle, NetworkPolicy destinations, capacity,
+and verified backups. A production rollout is incomplete until a real Matter
+controller can discover, commission, and exercise a representative device.
+
+## Security Boundary
+
+The default pod runs as non-root, drops all capabilities, blocks privilege
+escalation, uses RuntimeDefault seccomp, keeps the image filesystem read-only,
+and does not mount a Kubernetes API token. Writable paths are limited to
+`/data` and `/tmp`. Secrets are consumed through existing Secrets or generic
+ExternalSecret resources and are not embedded in chart defaults.
+
+The Matterbridge frontend has no stable chart-managed authentication contract.
+The default ClusterIP is private. Any Ingress or Gateway deployment must add
+authentication, TLS, and client restrictions at a trusted proxy. Host
+networking expands the pod's network reach and must be limited to a trusted,
+dedicated LAN node with tightly controlled release permissions.
+
+## Observability Boundary
+
+Startup, readiness, and liveness probes use the upstream `/health` endpoint.
+The runtime smoke test verifies the installed package version, listener wiring,
+Service target, and a live HTTP response. Kubernetes rollout status, restart
+counts, pod logs, and events are the supported operational signals.
+
+Matterbridge has no native Prometheus endpoint. The chart does not fabricate
+metrics or ship a sidecar scraper. Operators can collect Kubernetes workload
+metrics and application logs, while protecting pairing codes, fabric data, and
+plugin credentials from public log systems.
+
+## Known Gaps
+
+- Most CNIs do not carry mDNS and link-local IPv6 between the pod network and a
+  physical LAN; host networking or a capable network design is usually needed.
+- The official `3.10.14` standalone image does not include `ffmpeg`. The chart's
+  non-root, read-only runtime intentionally prevents package installation at
+  startup, so camera plugins that require `ffmpeg` are outside the default
+  runtime contract.
+- There is no highly available topology. Node maintenance interrupts the
+  singleton and may require Matter controllers to reconnect.
+- Consistent filesystem backup requires the StatefulSet to be stopped or the
+  storage platform to provide an application-consistent snapshot.
+- Plugin-specific ports, credentials, resource needs, and egress destinations
+  cannot be inferred by the chart.
+
+## Non-Goals
+
+- Horizontal scaling, leader election, or active-active failover.
+- Installing or updating Matterbridge plugins from Helm values.
+- Compiling or installing operating-system packages during pod startup.
+- Relaying mDNS or making a multicast-incapable CNI Matter-aware.
+- Providing frontend authentication, a live-copy backup sidecar, or synthetic
+  Prometheus metrics.
+- Replacing plugin-specific documentation or Matter controller validation.
+
+## Validation
+
+The chart renders default, custom-port, dual-stack, External Secrets, Gateway
+API, host-network, Ingress, NetworkPolicy, and Matter Service scenarios. Unit
+tests cover the workload, Services, storage, exposure resources, integrations,
+NOTES, and fail-fast validation. The complete HelmForge gate runs dependency
+checks, strict lint, every template scenario, unit tests, kubeconform with real
+CRD schemas, Artifact Hub lint, and behavioral k3d validation for every
+scenario.
