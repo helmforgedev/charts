@@ -4,7 +4,8 @@
 $settings = json_decode(file_get_contents('/opt/helmforge/settings.json'), true, 512, JSON_THROW_ON_ERROR);
 $public = parse_url($settings['moodle']['wwwroot']);
 $host = $public['host'] . (isset($public['port']) ? ':' . $public['port'] : '');
-$base = 'http://' . ($argv[1] ?? '127.0.0.1') . ':' . ($argv[2] ?? '8080');
+if (!isset($argv[1], $argv[2])) { throw new InvalidArgumentException('Service name and port are required'); }
+$base = 'http://' . $argv[1] . ':' . $argv[2];
 foreach (['/healthz.php' => "ok\n", '/readyz.php' => "ready\n", '/login/index.php' => null] as $path => $expected) {
     $curl = curl_init($base . $path);
     curl_setopt_array($curl, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 20,

@@ -18,8 +18,9 @@ course backups often need more memory and disk than ordinary web requests.
 ## Public URL and TLS
 
 Configure one canonical root URL without a trailing slash. DNS and certificates
-are managed by your infrastructure. Route requests to the chart Service on port
-80; Apache runs on unprivileged port 8080 inside the pod.
+are managed by your infrastructure. Route requests to `service.port`; the
+Service targets the named `http` listener configured by `containerPorts.http`.
+These values are independent, and Apache runs as a non-root process.
 
 ```yaml
 moodle:
@@ -270,9 +271,10 @@ your own multi-node environment.
 
 ## NetworkPolicy
 
-NetworkPolicy is opt-in. Its default policy permits web ingress to port 8080,
-DNS egress, the selected bundled database and Redis endpoints and HTTPS egress in archive
-mode. Configure `ingressFrom` to restrict traffic to your gateway/controller.
+NetworkPolicy is opt-in. Its default policy permits web ingress to
+`containerPorts.http`, DNS egress, the selected bundled database and Redis
+endpoints and HTTPS egress in archive mode. Configure `ingressFrom` to restrict
+traffic to your gateway/controller.
 
 Add explicit `extraEgress` rules for external databases, Redis, SMTP, identity
 providers, object stores and other application integrations. Kubernetes network

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 const [context,namespace,release]=process.argv.slice(2);
 if(!context?.startsWith('k3d-helmforge-') || !namespace || !release) throw new Error('Explicit HelmForge lab context, namespace and release required');
@@ -10,12 +11,19 @@ if(!web.length) throw new Error('No Moodle application pods found');
 const services=JSON.parse(k('get','services','-l',`app.kubernetes.io/instance=${release}`,'-o','json')).items;
 const service=services.find(s=>s.spec.ports.some(p=>p.name==='http'));
 if(!service) throw new Error('No Moodle HTTP Service found');
+const serviceHttp=service.spec.ports.find(p=>p.name==='http');
 for(const pod of web) {
   const name=pod.metadata.name;
   const ref=pod.spec.initContainers.find(c=>c.name==='install-database').env.find(e=>e.name==='ADMIN_PASSWORD').valueFrom.secretKeyRef;
   const secret=JSON.parse(k('get','secret',ref.name,'-o','json'));
   const config=JSON.parse(k('get','configmap',service.metadata.name,'-o','json'));
   const settings=JSON.parse(config.data['settings.json']);
+  const moodleContainer=pod.spec.containers.find(c=>c.name==='moodle');
+  assert.equal(serviceHttp.port,settings.service.port,'Moodle Service must expose the configured Service port');
+  assert.equal(serviceHttp.targetPort,'http','Moodle Service must target the named web listener');
+  assert.equal(moodleContainer.ports.find(p=>p.name==='http')?.containerPort,settings.containerPorts.http,
+    'Moodle container port must match the configured Apache listener');
+  assert.match(config.data['apache.conf'],new RegExp(`^Listen ${settings.containerPorts.http}$`,'m'));
   process.stdout.write(k('exec',name,'-c','moodle','--','php','/opt/helmforge/database-smoke.php'));
   if(settings.database.type !== 'postgresql' && settings.database.mysqlSslMode === 'verify-full'
       && settings.database.host === `moodle-external-${settings.database.type}`) {
@@ -46,15 +54,21 @@ for(const pod of web) {
     console.log('Native require mode encrypts without requiring a matching certificate hostname');
   }
   const credentials=JSON.stringify({username:settings.moodle.adminUser,password:Buffer.from(secret.data[ref.key],'base64').toString('utf8')});
-  process.stdout.write(runWithInput(credentials,'exec','-i',name,'-c','moodle','--','php','/opt/helmforge/smoke.php',service.metadata.name,String(service.spec.ports.find(p=>p.name==='http').port)));
+  process.stdout.write(runWithInput(credentials,'exec','-i',name,'-c','moodle','--','php','/opt/helmforge/smoke.php',service.metadata.name,String(serviceHttp.port)));
   if(settings.metrics.enabled) {
     const metricsService=services.find(s=>s.metadata.labels?.['app.kubernetes.io/component']==='metrics');
     const allServices=JSON.parse(k('get','services','-o','json')).items;
     const monitor=allServices.find(s=>s.metadata.name==='moodle-monitor');
     if(!metricsService) throw new Error('Metrics Service is missing');
+    const metricsPort=metricsService.spec.ports.find(p=>p.name==='metrics');
+    assert.equal(metricsPort?.port,settings.metrics.port,'Metrics Service must expose the configured private listener');
+    assert.equal(metricsPort?.targetPort,'metrics','Metrics Service must target the named metrics listener');
+    assert.equal(moodleContainer.ports.find(p=>p.name==='metrics')?.containerPort,settings.metrics.port,
+      'Moodle metrics container port must match the configured Apache listener');
+    assert.match(config.data['apache.conf'],new RegExp(`^Listen ${settings.metrics.port}$`,'m'));
     process.stdout.write(execFileSync('kubectl',['--context',context,'--namespace',namespace,
       'exec',name,'-c','moodle','--','php','/opt/helmforge/metrics-smoke.php',metricsService.metadata.name,
-      `${service.metadata.name}:${service.spec.ports.find(p=>p.name==='http').port}`,...(monitor?['moodle-monitor']:[])],
+      String(metricsPort.port),`${service.metadata.name}:${serviceHttp.port}`,...(monitor?['moodle-monitor']:[])],
       {encoding:'utf8',timeout:240000,maxBuffer:4*1024*1024}));
   }
   if(pod.spec.containers.some(c=>c.name==='cron')) {

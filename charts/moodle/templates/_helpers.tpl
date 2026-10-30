@@ -55,6 +55,7 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 {{- end -}}
 {{- if gt $enabled 1 }}{{ fail "Enable only one database subchart" }}{{ end -}}
+{{- if and .Values.metrics.enabled (eq (int .Values.containerPorts.http) (int .Values.metrics.port)) }}{{ fail "metrics.port must differ from containerPorts.http when metrics.enabled=true" }}{{ end -}}
 {{- if and .Values.metrics.prometheusRule.enabled (not .Values.metrics.serviceMonitor.enabled) }}{{ fail "metrics.prometheusRule.enabled requires metrics.serviceMonitor.enabled=true" }}{{ end -}}
 {{- if and .Values.metrics.serviceMonitor.enabled (not .Values.metrics.enabled) }}{{ fail "metrics.serviceMonitor.enabled requires metrics.enabled=true" }}{{ end -}}
 {{- if and .Values.ingress.enabled (empty .Values.ingress.hosts) }}{{ fail "ingress.hosts must contain at least one host when ingress.enabled=true" }}{{ end -}}

@@ -10,7 +10,9 @@ try { moodle_acquire_lifecycle_lock($second, time()); }
 catch (RuntimeException $e) { $blocked = str_contains($e->getMessage(), 'installer lock'); }
 if (!$blocked) { throw new RuntimeException('Concurrent lifecycle connection acquired the same lock'); }
 moodle_db_close($first);
-moodle_acquire_lifecycle_lock($second, time());
+// A remote database may observe the client disconnect a moment after pg_close()
+// returns. Keep this bounded while still proving that session close releases it.
+moodle_acquire_lifecycle_lock($second, time() + 15);
 moodle_db_close($second);
 define('CLI_SCRIPT', true);
 require '/var/www/html/config.php';
