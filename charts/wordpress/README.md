@@ -423,6 +423,7 @@ The chart creates an `HTTPRoute` that sends traffic to the WordPress Service.
 | `bootstrap.enabled` | `false` | Create a WP-CLI Job for first-install setup |
 | `bootstrap.siteUrl` | `""` | Site URL used by bootstrap; defaults to `wordpress.siteUrl` |
 | `bootstrap.permalinkStructure` | `""` | Optional permalink structure applied after install |
+| `bootstrap.podAnnotations` | `{}` | Annotations for the bootstrap Job pod, for example `linkerd.io/inject: disabled` |
 
 ### Database
 
@@ -462,6 +463,7 @@ The chart creates an `HTTPRoute` that sends traffic to the WordPress Service.
 | `autoscaling.enabled` | `false` | Create HPA |
 | `pdb.enabled` | `false` | Create PodDisruptionBudget |
 | `wpCron.cronJob.enabled` | `false` | Create deterministic WordPress cron CronJob |
+| `wpCron.cronJob.podAnnotations` | `{}` | Annotations for the wp-cron CronJob pods |
 | `networkPolicy.enabled` | `false` | Create NetworkPolicy |
 | `networkPolicy.egress.enabled` | `false` | Manage egress allow list |
 | `networkPolicy.egress.extraEgress` | `[]` | Append complete custom egress rules with optional ports |
@@ -471,6 +473,7 @@ The chart creates an `HTTPRoute` that sends traffic to the WordPress Service.
 | `metrics.serviceMonitor.enabled` | `false` | Create ServiceMonitor |
 | `plugins.enabled` | `false` | Enable plugin installer support |
 | `plugins.installer.enabled` | `false` | Create plugin installer Job |
+| `plugins.installer.podAnnotations` | `{}` | Annotations for the plugin installer Job pod |
 | `plugins.items` | `[]` | Official WordPress.org plugin slugs |
 | `plugins.custom` | `[]` | Checksum-verified custom plugin ZIPs |
 | `plugins.custom[].authentication.existingSecret` | `""` | Existing Secret containing an optional download token |
@@ -490,6 +493,7 @@ The chart creates an `HTTPRoute` that sends traffic to the WordPress Service.
 | `persistence.size` | `5Gi` | WordPress PVC size |
 | `backup.enabled` | `false` | Create backup CronJob |
 | `backup.schedule` | `0 3 * * *` | Backup schedule |
+| `backup.podAnnotations` | `{}` | Annotations for the backup CronJob pods |
 | `backup.s3.endpoint` | `""` | S3-compatible endpoint |
 | `backup.s3.bucket` | `""` | Backup bucket |
 | `backup.s3.existingSecret` | `""` | Existing S3 credentials Secret |

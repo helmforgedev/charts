@@ -49,3 +49,23 @@ tests:
       - equal:
           path: spec.jobTemplate.spec.template.spec.automountServiceAccountToken
           value: false
+      - notExists:
+          path: spec.jobTemplate.spec.template.metadata.annotations
+
+  - it: should set wp-cron CronJob pod annotations
+    template: templates/wp-cronjob.yaml
+    set:
+      wpCron.cronJob.enabled: true
+      wpCron.cronJob.podAnnotations:
+        linkerd.io/inject: disabled
+        custom: value
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.metadata.annotations["linkerd.io/inject"]
+          value: disabled
+      - equal:
+          path: spec.jobTemplate.spec.template.metadata.annotations.custom
+          value: value
+      - equal:
+          path: spec.jobTemplate.spec.template.metadata.labels["app.kubernetes.io/component"]
+          value: wp-cron
