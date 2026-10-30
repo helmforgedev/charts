@@ -17,6 +17,7 @@
 2. Service
 
    Internal: {{ include "opencut.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+   Process listener: 0.0.0.0:{{ .Values.containerPorts.http }}
    Health:   /api/health
    Image:    {{ include "opencut.image" . }}
 
@@ -40,7 +41,7 @@
    Redis: external
    Host: {{ .Values.redis.external.host }}:{{ .Values.redis.external.port }}
   {{- end }}
-   Redis HTTP bridge: enabled ({{ include "opencut.redisHttpName" . }}:{{ .Values.redisHttp.service.port }})
+   Redis HTTP bridge: enabled (Service {{ .Values.redisHttp.service.port }} -> process {{ .Values.redisHttp.containerPorts.http }})
 {{- else }}
    Redis: external REST-compatible endpoint
    Redis HTTP endpoint: external ({{ .Values.redisHttp.external.url }})
@@ -66,5 +67,13 @@
    Chart: https://helmforge.dev/docs/charts/opencut
    Source: https://github.com/helmforgedev/charts/tree/main/charts/opencut
    OpenCut: https://github.com/OpenCut-app/OpenCut
+
+8. Troubleshooting
+
+   Inspect recent events:
+     kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
+
+   Verify the chart-managed process listeners:
+     kubectl get deploy -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} -o yaml
 
 Happy Helmforging :)
