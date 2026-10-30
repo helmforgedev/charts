@@ -27,12 +27,15 @@ for (const deployment of deployments) {
 
 const router = deployments.find(deployment => deployment.metadata.name === `${release}-router`);
 assert.ok(router, 'the internal router deployment is required');
+const routerContainer = router.spec.template.spec.containers.find(container => container.name === 'router');
+const routerPort = routerContainer?.ports?.find(port => port.name === 'http')?.containerPort;
+assert.ok(Number.isInteger(routerPort), 'the router must expose a named HTTP container port');
 const routerPod = JSON.parse(run([
   'get', 'pods', '-l', `app.kubernetes.io/instance=${release},app.kubernetes.io/component=router`, '-o', 'json',
 ])).items.find(pod => !pod.metadata.deletionTimestamp);
 assert.ok(routerPod, 'the router pod is required');
 const fetch = path => run([
-  'exec', routerPod.metadata.name, '-c', 'router', '--', 'wget', '-qO-', `http://127.0.0.1:8080${path}`,
+  'exec', routerPod.metadata.name, '-c', 'router', '--', 'wget', '-qO-', `http://127.0.0.1:${routerPort}${path}`,
 ]);
 assert.equal(fetch('/healthz').trim(), '');
 const frontend = deployments.find(deployment => deployment.metadata.name === `${release}-frontend`);
@@ -40,11 +43,11 @@ if (frontend) {
   assert.match(fetch('/'), /<!doctype html|<html/i, 'the router must serve the OpenReplay frontend');
 }
 
-if (deployments.length > 2) {
+const migrationJobs = JSON.parse(run([
+  'get', 'jobs', '-l', `app.kubernetes.io/instance=${release},app.kubernetes.io/component=migration`, '-o', 'json',
+])).items;
+if (migrationJobs.length > 0) {
   assert.equal(deployments.length, 17, 'the default profile must deploy 15 OpenReplay components, the router and RustFS');
-  const migrationJobs = JSON.parse(run([
-    'get', 'jobs', '-l', `app.kubernetes.io/instance=${release},app.kubernetes.io/component=migration`, '-o', 'json',
-  ])).items;
   assert.equal(migrationJobs.length, 1, 'one schema migration Job is required');
   assert.equal(migrationJobs[0].status.succeeded, 1, 'the schema migration Job must complete');
 }

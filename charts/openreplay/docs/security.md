@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Security
 
 All application and supporting images are pinned by tag and manifest digest.
@@ -19,6 +21,10 @@ Do not store credentials in values committed to source control. Use an existing
 Secret or the External Secrets Operator contract. Rotate API/JWT and data-store
 credentials as one planned maintenance operation because all components share
 the application Secret.
+
+Application and RustFS pod templates include a checksum of the credential key contract so changes to Secret names or key
+mappings trigger a rollout. Changes to the data of an externally managed Secret do not change Helm-rendered manifests;
+after rotating external Secret data, perform a controlled rollout and verify every dependent component.
 
 The upstream v1.28 API and Chalice images had high-severity dependency findings
 in the validation-date scan. Track patched upstream component digests and do not

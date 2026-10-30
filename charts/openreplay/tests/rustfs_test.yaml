@@ -1,0 +1,66 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: OpenReplay RustFS
+templates:
+  - templates/rustfs.yaml
+tests:
+  - it: creates a hardened RustFS deployment and service
+    asserts:
+      - isKind:
+          of: Deployment
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+        documentIndex: 0
+      - equal:
+          path: spec.ports[0].targetPort
+          value: s3
+        documentIndex: 1
+
+  - it: wires custom API and console listeners through environment, container, and service
+    set:
+      rustfs.containerPorts.s3: 19000
+      rustfs.containerPorts.console: 19001
+      rustfs.service.ports.s3: 20000
+      rustfs.service.ports.console: 20001
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: RUSTFS_ADDRESS
+            value: 0.0.0.0:19000
+        documentIndex: 0
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: RUSTFS_CONSOLE_ADDRESS
+            value: 0.0.0.0:19001
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 19000
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.containers[0].ports[1].containerPort
+          value: 19001
+        documentIndex: 0
+      - equal:
+          path: spec.ports[0].port
+          value: 20000
+        documentIndex: 1
+      - equal:
+          path: spec.ports[1].port
+          value: 20001
+        documentIndex: 1
+
+  - it: omits RustFS when external object storage is selected
+    set:
+      rustfs.enabled: false
+      objectStorage.endpoint: s3.example.com:443
+    asserts:
+      - hasDocuments:
+          count: 0
