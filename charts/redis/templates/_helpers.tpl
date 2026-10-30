@@ -11,6 +11,18 @@ Expand the name of the chart.
 {{- if has .Values.image.tag (list "latest" "stable" "main" "master" "edge") -}}
 {{- fail "image.tag must be an immutable release tag" -}}
 {{- end -}}
+{{- if and (eq .Values.architecture "cluster") (eq (int .Values.containerPorts.redis) (int .Values.containerPorts.clusterBus)) -}}
+{{- fail "containerPorts.clusterBus must differ from containerPorts.redis in cluster mode" -}}
+{{- end -}}
+{{- if and .Values.metrics.enabled (eq (int .Values.containerPorts.redis) (int .Values.containerPorts.metrics)) -}}
+{{- fail "containerPorts.metrics must differ from containerPorts.redis when metrics are enabled" -}}
+{{- end -}}
+{{- if regexMatch `(?m)^\s*(port|tls-port|cluster-port|cluster-announce-port|cluster-announce-tls-port|cluster-announce-bus-port|bind|protected-mode)\s+` .Values.config.redis -}}
+{{- fail "config.redis cannot override chart-managed listener, cluster announcement, bind, or protected-mode directives" -}}
+{{- end -}}
+{{- if regexMatch `(?m)^\s*(port|tls-port|sentinel announce-port|sentinel monitor)\s+` .Values.config.sentinel -}}
+{{- fail "config.sentinel cannot override chart-managed listener, announcement, or monitor directives" -}}
+{{- end -}}
 {{- end -}}
 
 {{/*
@@ -254,7 +266,7 @@ TLS block for redis.conf.
 {{- define "redis.tlsConfig" -}}
 {{- if .Values.tls.enabled }}
 port 0
-tls-port {{ .Values.service.ports.redis }}
+tls-port {{ .Values.containerPorts.redis }}
 tls-cert-file /tls/{{ .Values.tls.certFilename }}
 tls-key-file /tls/{{ .Values.tls.keyFilename }}
 tls-ca-cert-file /tls/{{ .Values.tls.caFilename }}
@@ -265,7 +277,7 @@ tls-auth-clients no
 {{- define "redis.sentinelTlsConfig" -}}
 {{- if .Values.tls.enabled }}
 port 0
-tls-port {{ .Values.service.ports.sentinel }}
+tls-port {{ .Values.containerPorts.sentinel }}
 tls-cert-file /tls/{{ .Values.tls.certFilename }}
 tls-key-file /tls/{{ .Values.tls.keyFilename }}
 tls-ca-cert-file /tls/{{ .Values.tls.caFilename }}
@@ -286,6 +298,9 @@ Common redis.conf baseline.
 {{- define "redis.commonConfig" -}}
 bind 0.0.0.0
 protected-mode no
+{{- if not .Values.tls.enabled }}
+port {{ .Values.containerPorts.redis }}
+{{- end }}
 dir /data
 appendonly yes
 save 900 1
@@ -299,9 +314,9 @@ Probe command.
 */}}
 {{- define "redis.probeCommand" -}}
 {{- if .Values.auth.enabled -}}
-REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli {{ include "redis.cliTlsArgs" . }} -p {{ .Values.service.ports.redis }} ping | grep -qx PONG
+REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli {{ include "redis.cliTlsArgs" . }} -p {{ .Values.containerPorts.redis }} ping | grep -qx PONG
 {{- else -}}
-redis-cli {{ include "redis.cliTlsArgs" . }} -p {{ .Values.service.ports.redis }} ping | grep -qx PONG
+redis-cli {{ include "redis.cliTlsArgs" . }} -p {{ .Values.containerPorts.redis }} ping | grep -qx PONG
 {{- end -}}
 {{- end -}}
 
@@ -310,7 +325,9 @@ Exporter environment.
 */}}
 {{- define "redis.exporterEnv" -}}
 - name: REDIS_ADDR
-  value: redis://127.0.0.1:{{ .Values.service.ports.redis }}
+  value: {{ ternary "rediss" "redis" .Values.tls.enabled }}://127.0.0.1:{{ .Values.containerPorts.redis }}
+- name: REDIS_EXPORTER_WEB_LISTEN_ADDRESS
+  value: 0.0.0.0:{{ .Values.containerPorts.metrics }}
 {{- if .Values.auth.enabled }}
 - name: REDIS_USER
   value: default
@@ -365,7 +382,7 @@ its replication link is up. Rollouts then wait for the restarted replica to
 catch up before they restart the next node, which may be the master.
 */}}
 {{- define "redis.nodeReadinessCommand" -}}
-{{- $cli := printf "redis-cli %s -p %v" (include "redis.cliTlsArgs" .) .Values.service.ports.redis -}}
+{{- $cli := printf "redis-cli %s -p %v" (include "redis.cliTlsArgs" .) .Values.containerPorts.redis -}}
 {{- if .Values.auth.enabled -}}
 {{- $cli = printf "REDISCLI_AUTH=\"$REDIS_PASSWORD\" %s" $cli -}}
 {{- end -}}
@@ -373,11 +390,11 @@ catch up before they restart the next node, which may be the master.
 {{- end -}}
 
 {{- define "redis.sentinelProbeCommand" -}}
-redis-cli {{ include "redis.cliTlsArgs" . }} -p {{ .Values.service.ports.sentinel }} ping
+redis-cli {{ include "redis.cliTlsArgs" . }} -p {{ .Values.containerPorts.sentinel }} ping
 {{- end -}}
 
 {{- define "redis.sentinelReadyCommand" -}}
-redis-cli {{ include "redis.cliTlsArgs" . }} -p {{ .Values.service.ports.sentinel }} sentinel get-master-addr-by-name {{ .Values.sentinel.masterSet }} | grep -q .
+redis-cli {{ include "redis.cliTlsArgs" . }} -p {{ .Values.containerPorts.sentinel }} sentinel get-master-addr-by-name {{ .Values.sentinel.masterSet }} | grep -q .
 {{- end -}}
 
 {{- define "redis.metricsVolumeMounts" -}}
@@ -417,6 +434,7 @@ imagePullSecrets:
   {{- toYaml . | nindent 2 }}
 {{- end }}
 serviceAccountName: {{ include "redis.serviceAccountName" . }}
+automountServiceAccountToken: false
 {{- with .Values.priorityClassName }}
 priorityClassName: {{ . }}
 {{- end }}

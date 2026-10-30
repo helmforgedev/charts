@@ -125,6 +125,46 @@ The chart creates a headless Service for stable StatefulSet pod DNS and topology
 | `sentinel` | `<release>-redis-sentinel`; Sentinel-aware clients discover the elected master |
 | `cluster` | `<release>-redis-client` |
 
+Application listeners and Service ports are separate contracts. Change
+`containerPorts.redis`, `containerPorts.sentinel`,
+`containerPorts.clusterBus`, or `containerPorts.metrics` to move the actual
+process listener. Change `service.ports.*` only to alter the client-facing
+Service port. Services use named target ports, while headless peer discovery
+uses the container listener directly.
+
+For example, this keeps the Service on 6379 while Redis listens on 6380:
+
+```yaml
+containerPorts:
+  redis: 6380
+
+service:
+  ports:
+    redis: 6379
+```
+
+Cluster mode explicitly configures and announces the cluster bus listener.
+Keep `containerPorts.clusterBus` distinct from `containerPorts.redis`.
+
+Enable ingress isolation when the cluster network plugin enforces
+NetworkPolicy:
+
+```yaml
+networkPolicy:
+  enabled: true
+  ingress:
+    allowSameNamespace: false
+    extraFrom:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: applications
+```
+
+The generated policies always preserve required Redis and Sentinel peer
+traffic. If same-namespace access is disabled, list every external client and
+metrics scraper explicitly. In cluster mode without TLS, restrict the cluster
+bus port to trusted Redis peers because the bus protocol is not authenticated.
+
 ### Cluster domain
 
 Set `clusterDomain` when the Kubernetes cluster does not use `cluster.local`:
@@ -275,9 +315,20 @@ Use the generic extension values when platform-specific integration is needed:
 | `cluster.nodes` | Number of Redis Cluster nodes | `6` |
 | `cluster.replicasPerMaster` | Redis Cluster replicas per master | `1` |
 | `cluster.initJob.resources` | Resource requests and limits for the `redis-cli` container in the Redis Cluster bootstrap Job | `{}` |
+| `containerPorts.redis` | Redis process listener port | `6379` |
+| `containerPorts.sentinel` | Sentinel process listener port | `26379` |
+| `containerPorts.clusterBus` | Redis Cluster bus listener port | `16379` |
+| `containerPorts.metrics` | redis_exporter listener port | `9121` |
 | `service.type` | Client Service type where applicable | `ClusterIP` |
+| `service.ports.redis` | Client-facing Redis Service port | `6379` |
+| `service.ports.sentinel` | Client-facing Sentinel Service port | `26379` |
+| `service.ports.metrics` | Client-facing metrics Service port | `9121` |
 | `service.ipFamilyPolicy` | Service IP family policy for dual-stack clusters | `null` |
 | `service.ipFamilies` | Service IP families for dual-stack clusters | `[]` |
+| `networkPolicy.enabled` | Create ingress-only Redis and Sentinel NetworkPolicies | `false` |
+| `networkPolicy.ingress.allowSameNamespace` | Allow application clients from the release namespace | `true` |
+| `networkPolicy.ingress.extraFrom` | Additional client ingress sources | `[]` |
+| `networkPolicy.metrics.enabled` | Allow metrics ingress through the policy | `false` |
 | `metrics.enabled` | Enable redis_exporter sidecar | `false` |
 | `metrics.serviceMonitor.enabled` | Create ServiceMonitor | `false` |
 | `pdb.enabled` | Create PodDisruptionBudget for HA modes | `false` |
@@ -297,6 +348,7 @@ The `ci/` scenarios validate chart behavior across common configurations:
 - `external-secrets.yaml`
 - `metrics.yaml`
 - `dual-stack.yaml`
+- `custom-ports.yaml`
 
 Local validation should include:
 

@@ -6,7 +6,7 @@ Status: implemented and maintained
 
 Date: 2026-05-05
 
-## Goal
+## Scope
 
 The Redis chart provides explicit, production-oriented Redis topologies without hiding operational tradeoffs behind generic StatefulSet defaults. The chart supports four runtime contracts:
 
@@ -17,7 +17,7 @@ The Redis chart provides explicit, production-oriented Redis topologies without 
 
 Each mode renders a different Kubernetes resource model because each mode has different client behavior, failover expectations, persistence patterns, and operational risk.
 
-## Design Principles
+## Decisions
 
 - Make topology the first decision through `architecture`.
 - Keep Redis data-plane resources separate from optional observability and extension resources.
@@ -183,13 +183,29 @@ Best practices:
 - Use `RequireDualStack` only when both families are guaranteed.
 - Keep headless and client services aligned so DNS behavior is predictable.
 
-## Security Model
+`containerPorts.redis`, `containerPorts.sentinel`,
+`containerPorts.clusterBus`, and `containerPorts.metrics` configure the actual
+process listeners. `service.ports.*` configures the stable client-facing
+Service ports and targets the named container ports. Headless peer discovery
+uses the container listeners directly because it does not provide kube-proxy
+port translation. Cluster mode explicitly configures and announces both the
+client and cluster bus ports.
+
+## Security Boundary
 
 - Authentication is enabled by default for production-oriented usage.
 - `existingSecret` avoids chart-owned credential rotation when an external secret manager is authoritative.
 - External Secrets Operator integration lets the chart reference externally managed credentials while still rendering Kubernetes-native Secret consumers.
 - Pods run with restricted security contexts by default where Redis compatibility allows it.
 - The chart avoids privileged containers and host namespace access.
+- RuntimeDefault seccomp, dropped Linux capabilities, non-root execution, and
+  disabled ServiceAccount token automount are secure defaults.
+- Optional ingress-only NetworkPolicies isolate Redis and Sentinel pods while
+  preserving required topology peer traffic. Operators must add external
+  client and metrics sources when same-namespace access is disabled.
+- Redis Cluster bus traffic is authenticated when TLS is enabled. Without TLS,
+  operators must restrict the bus port to trusted peers with NetworkPolicy or
+  equivalent infrastructure controls.
 - Sensitive values should not be embedded in examples, CI values, or NOTES.
 
 ## Persistence
@@ -203,7 +219,7 @@ Best practices:
 - Disable persistence only for tests, ephemeral caches, or local k3d validation.
 - Treat backup/restore as an application-level operational procedure, not as an implicit chart side effect.
 
-## Scheduling And Availability
+## Production Boundary
 
 HA topologies should spread pods across nodes and failure domains where the cluster has enough capacity.
 
@@ -215,7 +231,7 @@ Recommended production controls:
 - explicit resource requests and limits
 - node selectors or tolerations only when they reflect real platform policy
 
-## Observability
+## Observability Boundary
 
 Metrics are optional and should be enabled only when the Prometheus Operator or a compatible scraper is present.
 
@@ -249,6 +265,13 @@ Every change to the chart should keep the following checks passing:
 - runtime k3d validation for behavior-changing chart changes
 
 The CI values must cover standalone, replication, sentinel, cluster, metrics, existing secrets, and networking variants that affect rendered resources.
+
+## Known Gaps
+
+- The chart does not automate backups, restores, resharding, or cluster node
+  replacement; operators must provide those procedures.
+- NetworkPolicy enforcement depends on a compatible cluster network plugin.
+- TLS identity is only as strong as the supplied CA and certificate lifecycle.
 
 ## Non-Goals
 

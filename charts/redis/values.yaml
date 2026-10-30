@@ -181,6 +181,16 @@ config:
 # Networking
 # =============================================================================
 
+containerPorts:
+  # -- Redis process listener port used by every data-node topology
+  redis: 6379
+  # -- Sentinel process listener port
+  sentinel: 26379
+  # -- Redis Cluster bus listener port; keep distinct from the client listener
+  clusterBus: 16379
+  # -- redis_exporter listener port
+  metrics: 9121
+
 service:
   type: ClusterIP
   annotations: {}
@@ -197,6 +207,22 @@ service:
   ipFamilyPolicy: ~
   # -- Service IP families override. Empty uses cluster default.
   ipFamilies: []
+
+networkPolicy:
+  # -- Create ingress-only NetworkPolicies for Redis and Sentinel pods
+  enabled: false
+  ingress:
+    # -- Allow clients and topology peers from the release namespace
+    allowSameNamespace: true
+    # -- Additional ingress sources for Redis and Sentinel client traffic
+    extraFrom: []
+  metrics:
+    # -- Allow metrics scraping when metrics.enabled=true
+    enabled: false
+    # -- Allow metrics scrapers from the release namespace
+    allowSameNamespace: true
+    # -- Additional ingress sources for metrics traffic
+    extraFrom: []
 
 serviceAccount:
   create: false
@@ -247,6 +273,8 @@ metrics:
 
 podSecurityContext:
   fsGroup: 999
+  seccompProfile:
+    type: RuntimeDefault
 
 securityContext:
   runAsUser: 999
@@ -254,6 +282,9 @@ securityContext:
   runAsNonRoot: true
   allowPrivilegeEscalation: false
   readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
 
 podLabels: {}
 podAnnotations: {}

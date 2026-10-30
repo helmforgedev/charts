@@ -51,12 +51,12 @@ data:
     {{- if .Values.tls.enabled }}
     {{- include "redis.sentinelTlsConfig" . | nindent 4 }}
     {{- else }}
-    port {{ .Values.service.ports.sentinel }}
+    port {{ .Values.containerPorts.sentinel }}
     {{- end }}
     dir /tmp
     sentinel resolve-hostnames yes
     sentinel announce-hostnames yes
-    sentinel monitor {{ .Values.sentinel.masterSet }} {{ include "redis.nodePodFqdn" . }} {{ .Values.service.ports.redis }} {{ .Values.sentinel.quorum }}
+    sentinel monitor {{ .Values.sentinel.masterSet }} {{ include "redis.nodePodFqdn" . }} {{ .Values.containerPorts.redis }} {{ .Values.sentinel.quorum }}
     sentinel down-after-milliseconds {{ .Values.sentinel.masterSet }} {{ .Values.sentinel.downAfterMilliseconds }}
     sentinel failover-timeout {{ .Values.sentinel.masterSet }} {{ .Values.sentinel.failoverTimeout }}
     sentinel parallel-syncs {{ .Values.sentinel.masterSet }} {{ .Values.sentinel.parallelSyncs }}
@@ -72,7 +72,7 @@ data:
     set -eu
 
     MODE="${1:-run}"
-    REDIS_PORT={{ .Values.service.ports.redis }}
+    REDIS_PORT={{ .Values.containerPorts.redis }}
     SENTINEL_HOST="{{ include "redis.sentinelServiceFqdn" . }}"
     SENTINEL_PORT={{ .Values.service.ports.sentinel }}
     MASTER_SET="{{ .Values.sentinel.masterSet }}"
@@ -264,9 +264,10 @@ data:
     # terminationGracePeriodSeconds. Never fails.
     set -u
 
-    REDIS_PORT={{ .Values.service.ports.redis }}
+    REDIS_PORT={{ .Values.containerPorts.redis }}
     SENTINEL_HOST="{{ include "redis.sentinelServiceFqdn" . }}"
-    SENTINEL_PORT={{ .Values.service.ports.sentinel }}
+    SENTINEL_PORT={{ .Values.containerPorts.sentinel }}
+    SENTINEL_SERVICE_PORT={{ .Values.service.ports.sentinel }}
     SENTINEL_PEERS="{{ include "redis.sentinelPeerFqdns" . }}"
     MASTER_SET="{{ .Values.sentinel.masterSet }}"
     TLS_ARGS="{{ include "redis.cliTlsArgs" . }}"
@@ -279,12 +280,12 @@ data:
     vcli() { redis-cli $TLS_ARGS "$@"; }
     {{- if and .Values.auth.enabled (not .Values.auth.sentinel) }}
     # shellcheck disable=SC2086 # TLS_ARGS is an intentional flag list
-    sentinel_cli() { env -u REDISCLI_AUTH redis-cli $TLS_ARGS -p "$SENTINEL_PORT" "$@"; }
+    sentinel_cli() { env -u REDISCLI_AUTH redis-cli $TLS_ARGS "$@"; }
     {{- else }}
     # shellcheck disable=SC2086 # TLS_ARGS is an intentional flag list
-    sentinel_cli() { redis-cli $TLS_ARGS -p "$SENTINEL_PORT" "$@"; }
+    sentinel_cli() { redis-cli $TLS_ARGS "$@"; }
     {{- end }}
-    scli() { sentinel_cli -h "$SENTINEL_HOST" "$@"; }
+    scli() { sentinel_cli -h "$SENTINEL_HOST" -p "$SENTINEL_SERVICE_PORT" "$@"; }
 
     replication_info() { vcli -p "$REDIS_PORT" info replication 2>/dev/null | tr -d '\r'; }
 
@@ -317,7 +318,7 @@ data:
     # pointed at the current master after an earlier failover.
     sentinel_candidates() {
       for s in $SENTINEL_PEERS; do
-        sentinel_cli -h "$s" sentinel replicas "$MASTER_SET" 2>/dev/null | tr -d '\r' | awk '
+        sentinel_cli -h "$s" -p "$SENTINEL_PORT" sentinel replicas "$MASTER_SET" 2>/dev/null | tr -d '\r' | awk '
           NR % 2 == 1 { key = $0; next }
           key == "name" {
             if (ip != "" && flags !~ /(s_down|o_down|disconnected)/) print ip
@@ -442,8 +443,8 @@ data:
     #!/bin/sh
     set -eu
 
-    REDIS_PORT={{ .Values.service.ports.redis }}
-    SENTINEL_PORT={{ .Values.service.ports.sentinel }}
+    REDIS_PORT={{ .Values.containerPorts.redis }}
+    SENTINEL_PORT={{ .Values.containerPorts.sentinel }}
     MASTER_SET="{{ .Values.sentinel.masterSet }}"
     SEED_MASTER="{{ include "redis.nodePodFqdn" . }}"
     PEERS="{{ include "redis.nodePeerFqdns" . }}"
@@ -574,6 +575,9 @@ data:
     cluster-enabled yes
     cluster-config-file nodes.conf
     cluster-node-timeout 5000
+    cluster-port {{ .Values.containerPorts.clusterBus }}
+    cluster-announce-port {{ .Values.containerPorts.redis }}
+    cluster-announce-bus-port {{ .Values.containerPorts.clusterBus }}
     {{- if .Values.tls.enabled }}
     tls-cluster yes
     tls-replication yes
