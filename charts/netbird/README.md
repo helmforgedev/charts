@@ -190,7 +190,7 @@ Use `externalSecrets.items[]` to synchronize sensitive values such as `config.ya
 
 | Framework | Score |
 |---|---|
-| MITRE + NSA + SOC2 | **86.87%** |
+| MITRE + NSA + SOC2 | **89.898994%** |
 
 Rendered-manifest scan using Kubescape 4.0.13.
 
