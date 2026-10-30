@@ -35,6 +35,12 @@ persistence:
 Keep `replicaCount: 1` with SQLite. For production teams with multiple writers or
 high repository traffic, move to PostgreSQL or MySQL before scaling.
 
+Changing the SQL database does not externalize Gitea's repositories, queues,
+indexes, or configuration. The Deployment therefore keeps `Recreate` as its
+default strategy for PostgreSQL and MySQL too. Treat a RollingUpdate override as
+an advanced configuration that requires every shared-state dependency and the
+storage access mode to support concurrent writers.
+
 ## PostgreSQL Subchart
 
 ```yaml

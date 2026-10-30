@@ -28,8 +28,8 @@ bootstrap an optional administrator, and schedule S3-compatible backups.
 
 ## Non-goals
 
-- Multi-replica write scaling with SQLite. SQLite uses a `Recreate` deployment
-  strategy and should stay at one replica.
+- Multi-replica write scaling. The default queues, indexes, repositories, and
+  configuration are single-writer state even when the SQL database is external.
 - Managing repository mirroring, runners, OAuth providers, mailers, or app.ini
   sections beyond environment-variable passthrough.
 - Running privileged maintenance containers by default. PVC ownership repair is
@@ -46,7 +46,8 @@ The deployment mounts one data PVC in two subPaths:
 The main container initializes the `GITEA_APP_INI` path if it does not exist and
 then delegates to the upstream image entrypoint. Security context defaults run as
 UID/GID `1000`, drop Linux capabilities, disable privilege escalation, and use
-`RuntimeDefault` seccomp.
+`RuntimeDefault` seccomp. The database wait init container inherits the same
+container security context.
 
 ```mermaid
 flowchart LR
@@ -77,6 +78,19 @@ independent Kubernetes Service port and always targets the named `http` port.
 The helpers fail template rendering when multiple database sources are configured
 or when an explicit mode is missing the matching settings. This makes the chart
 fail early rather than starting Gitea with ambiguous database values.
+
+### Rollout safety
+
+The Deployment defaults to `strategy.type: Recreate` in every database mode.
+An external PostgreSQL or MySQL database does not externalize Gitea's LevelDB
+queues, Bleve indexes, repositories, or configuration from the data volume.
+Recreate preserves the single-writer contract during upgrades and avoids
+multi-attach failures with the default `ReadWriteOnce` PVC. Advanced operators
+may override `strategy`, but only after externalizing all shared state and
+selecting storage that supports the resulting access pattern.
+
+`podAnnotations` are copied to the pod template so controllers such as secret
+reloaders can trigger a rollout without post-render patches.
 
 ### Network surfaces
 
