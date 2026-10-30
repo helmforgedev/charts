@@ -1,6 +1,37 @@
 # AFFiNE design
 
-## Workload and state
+## Scope
+
+This document defines the architecture and operational boundaries of the AFFiNE
+chart. It covers the application workload, state, bootstrap process, dependency
+contracts, exposure, security, observability and the behavior verified by the
+chart test suite.
+
+The chart deploys AFFiNE with either bundled or external PostgreSQL and Redis.
+It does not redesign AFFiNE's application architecture or claim high
+availability for a workload that requires a single application replica.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  client[Browser and sync clients] --> edge[Ingress or Gateway]
+  edge --> service[Public AFFiNE Service]
+  service --> app[AFFiNE container]
+  bootstrap[Bootstrap init container] --> app
+  bootstrap --> postgres[(PostgreSQL and pgvector)]
+  bootstrap --> redis[(Redis)]
+  app --> postgres
+  app --> redis
+  app --> pvc[(Application PVC)]
+  bootstrap --> pvc
+  scraper[Authorized Prometheus scraper] --> metrics[Private metrics Service]
+  metrics --> app
+  secrets[Secrets or External Secrets] --> bootstrap
+  secrets --> app
+```
+
+### Workload and state
 
 The official AFFiNE image runs as UID/GID 1000 with a read-only root filesystem,
 dropped capabilities and no Kubernetes API token. A single Recreate Deployment
@@ -15,7 +46,9 @@ objects. Redis supports cache, session, Socket.IO and BullMQ clients on separate
 logical databases. Increasing replicas without validating storage and worker
 coordination would not establish HA, so the chart requires one application replica.
 
-## Private initialization
+## Design decisions
+
+### Private initialization
 
 An init container checks dependency authentication, the vector extension and
 migration history before invoking native schema and data migration commands in
@@ -36,7 +69,7 @@ Helm upgrades through the retained Secret. Supplied passwords must contain 16 to
 32 characters, within the upstream default limit. The bootstrap Secret is mounted
 only in the init container. Changing it does not reset an existing user's password.
 
-## PostgreSQL TLS has two driver contracts
+### PostgreSQL TLS has two driver contracts
 
 The image contains Prisma and native Rust SQLx clients. Their PostgreSQL URL
 parameters have different meanings:
@@ -59,7 +92,7 @@ on the private PVC with restrictive permissions. It must be handled as secret
 material in backups. TLS disabled for bundled dependencies means namespace-local
 plaintext transport; external TLS is enabled by default and validates the server.
 
-## Redis and health
+### Redis and health
 
 External Redis TLS uses native `redis.ioredis.tls`, with CA PEM contents and strict
 hostname validation. Every native client inherits this configuration. Cache DB N,
@@ -71,17 +104,47 @@ HTTP request. Startup and liveness check the HTTP process. A dependency outage
 therefore removes application readiness without turning dependency availability
 into a liveness restart policy.
 
-## Exposure and observability
+### Retained recovery material
+
+When `persistence.retain` is enabled and the chart creates the claim, Helm keeps
+the application PVC. When the chart generates the bootstrap Secret, Helm keeps
+that Secret. Existing claims and existing Secrets have their external lifecycle.
+Operators must inventory and back up these resources before decommissioning.
+
+## Production boundary
 
 Ingress and canonical Gateway API HTTPRoutes expose the application Service.
 WebSocket upgrades must be supported by the selected controller. The chart does
 not install an ingress controller, Gateway or certificate issuer.
+
+Production operators remain responsible for capacity planning, storage classes,
+backup retention, disaster-recovery objectives, database maintenance and the
+availability of external dependencies. The single-replica Recreate topology is
+an explicit consistency boundary, not a highly available deployment.
+
+## Security boundary
+
+The chart hardens containers, disables service-account token mounting and can
+restrict ingress and egress with NetworkPolicy. Secrets may be supplied directly,
+through existing Kubernetes Secrets or through External Secrets. TLS termination
+at an Ingress or Gateway, certificate lifecycle, cluster policy and access to
+retained backups remain operator responsibilities.
+
+Bundled dependency traffic is namespace-local and plaintext by default. External
+PostgreSQL and Redis connections support strict TLS verification and should be
+used when traffic crosses trust boundaries.
+
+## Observability boundary
 
 Optional native Prometheus metrics use a separate private port and Service.
 NetworkPolicy restricts scrapers to configured peers; the upstream listener has
 no authentication. ServiceMonitor and PrometheusRule are optional real CRDs.
 Enabling native metrics also enables upstream trace instrumentation and its Zipkin
 exporter; the chart does not open unrestricted egress for that exporter.
+
+The chart provides health probes, optional ServiceMonitor discovery and optional
+PrometheusRule alerts. Operators must supply Prometheus, alert routing, log
+collection, dashboards and any permitted Zipkin destination.
 
 ## Validation boundaries
 
@@ -96,3 +159,20 @@ document structure and persisted text across real Socket.IO/Yjs broadcasts,
 reconnects and edits after replacement. A generic custom Yjs map is insufficient:
 it can round-trip while failing the application's indexing parser. This validation
 does not establish browser editor or ingress-controller compatibility.
+
+## Known gaps and limitations
+
+- The application Deployment is intentionally limited to one replica.
+- Redis Cluster is unsupported because AFFiNE requires multiple logical databases.
+- Browser-editor and ingress-controller interoperability are outside the runtime
+  acceptance suite.
+- Native metrics also activate upstream Zipkin instrumentation; exporting traces
+  requires an explicitly permitted destination.
+
+## Non-goals
+
+- Installing an ingress controller, Gateway, certificate issuer or monitoring
+  stack.
+- Providing cross-region disaster recovery or automatic dependency failover.
+- Patching the official AFFiNE image or rewriting application bundles.
+- Managing external PostgreSQL, Redis, object storage or DNS services.
