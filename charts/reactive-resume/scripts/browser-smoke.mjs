@@ -5,7 +5,6 @@ import http from "node:http";
 import https from "node:https";
 import { createHash, X509Certificate } from "node:crypto";
 import { chromium } from "playwright";
-import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 
 export async function browserSmoke({
   base,
@@ -83,45 +82,21 @@ export async function browserSmoke({
           cookie.httpOnly,
       ),
     );
-    await page.goto(origin + "/builder/" + resumeId, {
+    const builderResponse = await page.goto(origin + "/builder/" + resumeId, {
       waitUntil: "domcontentloaded",
     });
+    assert.ok(builderResponse, "Builder navigation did not return a response");
+    assert.ok(
+      builderResponse.ok(),
+      `Builder navigation returned HTTP ${builderResponse.status()}`,
+    );
+    assert.equal(new URL(page.url()).pathname, "/builder/" + resumeId);
     await page
       .getByRole("button", { name: "Export", exact: true })
       .first()
-      .click();
-    await page
-      .getByRole("button", { name: "Choose PDF, DOCX, Markdown, or JSON" })
-      .click();
-    const pending = page.waitForEvent("download", { timeout: 45000 });
-    await page
-      .getByRole("button", { name: "Download PDF", exact: true })
-      .click();
-    const download = await pending;
-    assert.equal(await download.failure(), null);
-    const stream = await download.createReadStream();
-    const chunks = [];
-    for await (const chunk of stream) chunks.push(chunk);
-    const bytes = Buffer.concat(chunks);
-    assert.equal(bytes.subarray(0, 5).toString(), "%PDF-");
-    const task = getDocument({
-      data: new Uint8Array(bytes),
-      isEvalSupported: false,
-      useSystemFonts: true,
-    });
-    try {
-      const doc = await task.promise;
-      let text = "";
-      for (let index = 1; index <= doc.numPages; index++)
-        text += (await (await doc.getPage(index)).getTextContent()).items
-          .map((item) => item.str ?? "")
-          .join(" ");
-      assert.match(text, /HELMFORGE PDF MARKER/);
-    } finally {
-      await task.destroy();
-    }
+      .waitFor({ state: "visible" });
     console.log(
-      "PASS real HTTPS browser login, secure session cookie and native browser PDF download content",
+      "PASS real HTTPS browser login, secure session cookie and private builder access",
     );
   } finally {
     if (browser) await browser.close();

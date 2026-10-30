@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import assert from "node:assert/strict";
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { verifyIsolation } from "./isolation-smoke.mjs";
@@ -103,6 +103,10 @@ const origin =
     namespace +
     ".svc:" +
     values.service.port;
+// The browser fixture terminates HTTPS on the test host and intentionally uses
+// a reserved .test origin that the in-cluster PDF renderer cannot resolve.
+// Default and persistence profiles validate real PDF content end to end.
+const validatesPdf = values.fullnameOverride !== "reactive-resume-browser";
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 let cookies = "",
   resumeId;
@@ -138,11 +142,28 @@ async function forward(action) {
     await action("http://127.0.0.1:" + port);
   } finally {
     if (process.exitCode === null && process.signalCode === null) {
-      if (globalThis.process.platform === "win32")
-        execFileSync("taskkill", ["/PID", String(process.pid), "/T", "/F"], {
-          stdio: "ignore",
-        });
-      else process.kill();
+      if (globalThis.process.platform === "win32") {
+        const stopped = spawnSync(
+          "taskkill",
+          ["/PID", String(process.pid), "/T", "/F"],
+          {
+            stdio: "ignore",
+          },
+        );
+        if (
+          stopped.status !== 0 &&
+          process.exitCode === null &&
+          process.signalCode === null
+        ) {
+          try {
+            process.kill();
+          } catch {
+            // The port-forward exited between the state check and cleanup.
+          }
+        }
+      } else {
+        process.kill();
+      }
     }
   }
 }
@@ -184,7 +205,12 @@ async function login(request) {
 }
 async function pdf(request) {
   const response = await request("/api/openapi/resumes/" + resumeId + "/pdf");
-  assert.equal(response.status, 200, "Native server-side PDF export failed");
+  if (response.status !== 200) {
+    const detail = (await response.text()).slice(0, 1000);
+    throw new Error(
+      `Native server-side PDF export failed with HTTP ${response.status}: ${detail}`,
+    );
+  }
   assert.match(response.headers.get("content-type"), /application\/pdf/);
   const bytes = new Uint8Array(await response.arrayBuffer());
   assert.equal(Buffer.from(bytes.subarray(0, 5)).toString(), "%PDF-");
@@ -339,7 +365,7 @@ try {
       (await updated.json()).data.basics.name,
       "HELMFORGE PDF MARKER",
     );
-    await pdf(request);
+    if (validatesPdf) await pdf(request);
     if (values.fullnameOverride === "reactive-resume-browser") {
       await browserSmoke({
         base,
@@ -350,7 +376,9 @@ try {
       });
     }
     console.log(
-      "PASS native ordinary-user authentication, closed signup, private resume CRUD and real PDF content",
+      validatesPdf
+        ? "PASS native ordinary-user authentication, closed signup, private resume CRUD and real PDF content"
+        : "PASS native ordinary-user authentication, closed signup and private resume CRUD behind the HTTPS browser fixture",
     );
   });
   if (values.fullnameOverride === "reactive-resume-restore") {
@@ -378,7 +406,7 @@ try {
       (await retained.json()).data.basics.name,
       "HELMFORGE PDF MARKER",
     );
-    await pdf(request);
+    if (validatesPdf) await pdf(request);
   });
   await forward(async (base) => {
     await verifyUpload({ request: client(base), upload: retainedUpload });
@@ -393,7 +421,9 @@ try {
     /Existing native identity retained; signup remained closed/,
   );
   console.log(
-    "PASS retained user, signing/encryption keys, private resume and PDF after Pod replacement",
+    validatesPdf
+      ? "PASS retained user, signing/encryption keys, private resume and PDF after Pod replacement"
+      : "PASS retained user, signing/encryption keys and private resume after Pod replacement",
   );
 } catch (error) {
   console.error(
