@@ -53,6 +53,8 @@ exposed by a Service.
   This avoids a remotely reachable browser-control endpoint.
 - The browser image is pinned by digest. Its real listener is configurable
   through the supported Sockpuppet `--port` command-line option.
+- The browser has its own restricted container security context: non-root,
+  privilege escalation disabled, and all Linux capabilities dropped.
 - Ingress and Gateway API are independent, disabled-by-default routing
   choices. Operators are responsible for selecting one coherent edge path.
 - External Secrets support materializes generic environment variables rather
@@ -88,6 +90,9 @@ writable because the upstream runtime expects it; durable state is isolated on
 The browser-control port is loopback-only at the architecture level: no
 Service selects it. Exposing that port through an extra manifest or sidecar
 proxy expands the trust boundary and is the operator's responsibility.
+The browser security context is separate from the application context so
+operators can adjust image-specific requirements without weakening the main
+container.
 
 changedetection.io blocks private and reserved target addresses by default.
 Setting `ALLOW_IANA_RESTRICTED_ADDRESSES=true` permits server-side requests to
