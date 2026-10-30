@@ -5,7 +5,7 @@ providers. This HelmForge chart deploys the official upstream image with secure
 Kubernetes defaults, Gateway API support, ExternalSecret integration, metrics,
 and runtime validation.
 
-## Highlights
+## Features
 
 - Official `quay.io/oauth2-proxy/oauth2-proxy` image.
 - `v7.15.5` default, including upstream authentication-boundary hardening and
@@ -17,6 +17,16 @@ and runtime validation.
 - Config validation init container using `--config-test`.
 - Dual-stack Service defaults, Ingress with `ingressClassName`, Gateway API `HTTPRoute`, ServiceMonitor,
   HPA, PDB, and optional NetworkPolicy.
+
+## Architecture
+
+Client traffic reaches OAuth2 Proxy through its Service, optionally via Ingress
+or Gateway API. OAuth2 Proxy authenticates against the configured provider and
+forwards accepted requests to one or more upstreams. The chart owns the main
+listener through `containerPorts.http` and the metrics listener through
+`metrics.port`; both are passed as official command-line flags so legacy and
+alpha configuration modes use the same runtime contract. See
+[DESIGN.md](DESIGN.md) for trust boundaries and design decisions.
 
 ## Install
 
@@ -50,6 +60,36 @@ because changing it invalidates sessions.
 When `externalSecrets.enabled=true`, `auth.existingSecret` must match the
 ExternalSecret target name. Provide either `externalSecrets.data` or
 `externalSecrets.dataFrom`.
+
+## Configuration
+
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `replicaCount` | `2` | Replicas when autoscaling is disabled |
+| `containerPorts.http` | `4180` | Real OAuth2 Proxy HTTP listener and pod port |
+| `service.port` | `80` | Cluster-facing Service port |
+| `metrics.enabled` | `true` | Enable the metrics listener and Service port |
+| `metrics.port` | `44180` | Real metrics listener and Service port |
+| `auth.existingSecret` | `""` | Existing Secret containing OAuth credentials |
+| `config.provider` | `github` | OAuth2 or OIDC provider |
+| `config.redirectUrl` | `""` | Explicit OAuth callback URL |
+| `config.upstreams` | `[file:///dev/null]` | Protected upstream targets |
+| `config.reverseProxy.enabled` | `false` | Trust forwarded proxy headers |
+| `config.reverseProxy.trustedProxyIps` | `[]` | Trusted edge proxy CIDRs |
+| `alphaConfig.enabled` | `false` | Use structured alpha configuration |
+| `networkPolicy.enabled` | `false` | Restrict application ingress and egress |
+| `autoscaling.enabled` | `false` | Enable the HPA |
+| `pdb.enabled` | `true` | Create a PodDisruptionBudget |
+
+`extraArgs.http-address` and `extraArgs.metrics-address` are rejected because
+the chart owns those listeners. Use `containerPorts.http` and `metrics.port`.
+The two ports must be different while metrics are enabled.
+
+## Examples
+
+- [Production deployment](examples/production.yaml)
+- [Gateway API deployment](examples/gateway.yaml)
+- [External Secrets deployment](examples/external-secrets.yaml)
 
 ## Reverse Proxy Hardening
 
@@ -122,10 +162,16 @@ replacing the chart's generated DNS and HTTP(S) egress defaults.
 ## Alpha Config
 
 When `alphaConfig.enabled=true`, the chart renders the structured
-`alpha-config.yaml` without the legacy TOML file. To keep Kubernetes probes,
-Service traffic, and metrics reachable, the chart injects
-`server.bindAddress: 0.0.0.0:4180` and `metricsServer.bindAddress` when those
-fields are not set explicitly.
+`alpha-config.yaml` without legacy provider options. The chart enforces
+`server.bindAddress` from `containerPorts.http` and `metricsServer.bindAddress`
+from `metrics.port`; disabling metrics forces that alpha listener off. Matching
+CLI flags are passed to both the config-test init container and runtime.
+
+An external alpha Secret cannot be rewritten or inspected during Helm render.
+When `alphaConfig.existingSecret` is set, its `server.bindAddress` must be
+`0.0.0.0:4180` and its enabled metrics listener must be `0.0.0.0:44180`.
+The chart rejects custom listener ports with an external alpha Secret; use the
+chart-managed `alphaConfig.config` contract when custom ports are required.
 
 ### Security Scan: oauth2-proxy
 
@@ -142,3 +188,21 @@ helm lint charts/oauth2-proxy
 helm template oauth2-proxy charts/oauth2-proxy -f charts/oauth2-proxy/ci/ci-values.yaml
 helm unittest charts/oauth2-proxy
 ```
+
+## Troubleshooting
+
+- If probes fail, confirm that `containerPorts.http` is not overridden through
+  `extraArgs` and inspect the startup log for the effective HTTP address.
+- If redirects use the wrong scheme or host, set `config.redirectUrl`; when
+  `config.reverseProxy.enabled=true`, restrict `trustedProxyIps` to the actual
+  ingress or gateway hops.
+- If sign-in loops after a rollout, verify that the cookie Secret remained
+  stable and that `config.cookie.secure` matches the external HTTPS boundary.
+- If metrics scraping fails, ensure `metrics.enabled=true`, `metrics.port` does
+  not collide with the HTTP listener, and the NetworkPolicy admits the scraper.
+
+## Operational Guides
+
+- [Production checklist](docs/production.md)
+- [Networking and trusted proxies](docs/networking.md)
+- [External Secrets](docs/external-secrets.md)
