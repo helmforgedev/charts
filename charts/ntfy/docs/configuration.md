@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # ntfy Configuration
 
 ntfy needs a stable public URL when clients connect through Ingress or Gateway API.
@@ -10,6 +12,24 @@ ntfy:
 ```
 
 This value should match the URL used by browsers, mobile apps, and scripts.
+
+## Listener and Service Ports
+
+`containerPorts.http` controls the port on which the ntfy process listens.
+`service.port` is the stable client-facing Service port and targets the named
+`http` container port.
+
+```yaml
+containerPorts:
+  http: 8080
+
+service:
+  port: 80
+```
+
+Do not set `listen-http` through `ntfy.extraConfig` or
+`NTFY_LISTEN_HTTP` through `ntfy.extraEnv`; the chart rejects both so probes,
+Services, and the actual process listener cannot drift.
 
 ## Authentication
 
@@ -144,3 +164,58 @@ service:
     - IPv4
     - IPv6
 ```
+
+## Availability and Network Policy
+
+The singleton Deployment can be protected from voluntary eviction:
+
+```yaml
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+```
+
+Ingress isolation can be enabled independently. Egress isolation should list
+every external dependency. For external PostgreSQL, a database CIDR is
+required:
+
+```yaml
+networkPolicy:
+  enabled: true
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-system
+  egress:
+    enabled: true
+    dnsPeers:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: kube-system
+    externalDatabaseCIDR: 10.30.0.0/24
+    extraEgress:
+      - to:
+          - ipBlock:
+              cidr: 198.51.100.10/32
+        ports:
+          - protocol: TCP
+            port: 587
+```
+
+## Security and Temporary Storage
+
+The secure defaults require the upstream image and mounted storage to be
+writable by UID/GID 1000. `/tmp` and non-persistent data use bounded
+`emptyDir` volumes:
+
+```yaml
+runtimeStorage:
+  tmpSizeLimit: 128Mi
+
+persistence:
+  enabled: false
+  emptyDirSizeLimit: 1Gi
+```
+
+Keep `serviceAccount.automountServiceAccountToken: false` unless ntfy or a
+custom sidecar explicitly needs Kubernetes API access.

@@ -1,96 +1,127 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
---------------------------------------------------------------------
-ntfy has been successfully deployed!
---------------------------------------------------------------------
+{{- $fullname := include "ntfy.fullname" . -}}
+{{- $namespace := .Release.Namespace -}}
 
-Chart:      {{ .Chart.Name }}
-Version:    {{ .Chart.Version }}
-AppVersion: {{ .Chart.AppVersion }}
-Release:    {{ .Release.Name }}
-Namespace:  {{ .Release.Namespace }}
+1. ntfy has been installed
+--------------------------
+  Release:        {{ .Release.Name }}
+  Namespace:      {{ $namespace }}
+  Version:        {{ .Chart.AppVersion }}
+  Image:          {{ include "ntfy.image" . }}
+  Listener:       {{ .Values.containerPorts.http }}
+  Service:        {{ $fullname }}.{{ $namespace }}.svc.cluster.local:{{ .Values.service.port }}
+  Database:       {{ if include "ntfy.databaseEnabled" . }}PostgreSQL{{ else }}SQLite{{ end }}
+  Persistence:    {{ .Values.persistence.enabled }}
 
-Database:   {{ if .Values.ntfy.database.enabled }}PostgreSQL (Secret: {{ .Values.ntfy.database.existingSecret }}){{ else }}SQLite{{ end }}
-Persistence: {{ if .Values.persistence.enabled }}enabled{{ else }}disabled{{ end }}
-
---------------------------------------------------------------------
-ACCESS INFORMATION
---------------------------------------------------------------------
-
-{{- if include "ntfy.adminEnabled" . }}
-ADMIN USERNAME: {{ include "ntfy.adminUsername" . }}
-{{- if and (not .Values.ntfy.admin.password) (not .Values.ntfy.admin.existingSecret) }}
-ADMIN PASSWORD: To retrieve the admin password, run:
-
-  kubectl get secret -n {{ .Release.Namespace }} {{ include "ntfy.adminSecretName" . }} -o jsonpath="{.data.{{ include "ntfy.adminSecretPasswordKey" . }}}" | base64 -d; echo
-{{- else if .Values.ntfy.admin.existingSecret }}
-ADMIN PASSWORD: Sourced from existing Secret '{{ .Values.ntfy.admin.existingSecret }}'
-{{- end }}
-
-{{- end }}
+2. Access
+---------
 {{- if .Values.gateway.enabled }}
-{{- with .Values.gateway.hostnames }}
-WEB UI:  https://{{ index . 0 }}/
-API:     https://{{ index . 0 }}/<topic>
-{{- else }}
-Gateway API HTTPRoute: {{ include "ntfy.fullname" . }} (no hostnames configured)
-{{- end }}
+  Gateway API HTTPRoute is enabled:
+  {{- range .Values.gateway.hostnames }}
+    https://{{ . }}/
+  {{- else }}
+    No gateway.hostnames are configured. Inspect the HTTPRoute and parent Gateway.
+  {{- end }}
 {{- else if .Values.ingress.enabled }}
-{{- range $host := .Values.ingress.hosts }}
-WEB UI:  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
-API:     http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/<topic>
-{{- end }}
+  Ingress is enabled:
+  {{- range $host := .Values.ingress.hosts }}
+    http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+  {{- else }}
+    No ingress host is configured.
+  {{- end }}
 {{- else }}
-Port-forward to access ntfy locally:
+  Port-forward locally:
+    kubectl port-forward -n {{ $namespace }} svc/{{ $fullname }} 2586:{{ .Values.service.port }}
 
-  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "ntfy.fullname" . }} 2586:{{ .Values.service.port }}
-
-  WEB UI:   http://localhost:2586/
-  API:      http://localhost:2586/<topic>
+  Open http://localhost:2586/
 {{- end }}
 
---------------------------------------------------------------------
-GETTING STARTED
---------------------------------------------------------------------
+3. First notification
+---------------------
+{{- if and .Values.gateway.enabled .Values.gateway.hostnames }}
+  Publish:
+    curl -d "Hello from Kubernetes" https://{{ index .Values.gateway.hostnames 0 }}/my-topic
 
-1. kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=ntfy -n {{ .Release.Namespace }} --timeout=300s
-2. kubectl get pods -l app.kubernetes.io/name=ntfy -n {{ .Release.Namespace }}
-3. kubectl logs -l app.kubernetes.io/name=ntfy -n {{ .Release.Namespace }} --all-containers --tail=50 -f
+  Subscribe:
+    curl -s https://{{ index .Values.gateway.hostnames 0 }}/my-topic/json
+{{- else if and .Values.ingress.enabled .Values.ingress.hosts }}
+  Publish:
+    curl -d "Hello from Kubernetes" http{{ if .Values.ingress.tls }}s{{ end }}://{{ (index .Values.ingress.hosts 0).host }}/my-topic
 
-Send your first notification:
-  curl -d "Hello World" http://localhost:2586/my-topic
-
---------------------------------------------------------------------
-TROUBLESHOOTING
---------------------------------------------------------------------
-
-  kubectl describe pod -l app.kubernetes.io/name=ntfy -n {{ .Release.Namespace }}
-  kubectl logs -l app.kubernetes.io/name=ntfy -n {{ .Release.Namespace }} --all-containers --tail=100
-  kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-  kubectl get pvc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-{{- if .Values.ntfy.database.enabled }}
-  kubectl get secret {{ .Values.ntfy.database.existingSecret }} -n {{ .Release.Namespace }}
+  Subscribe:
+    curl -s http{{ if .Values.ingress.tls }}s{{ end }}://{{ (index .Values.ingress.hosts 0).host }}/my-topic/json
+{{- else }}
+  Start the port-forward from section 2, then publish and subscribe locally:
+    curl -d "Hello from Kubernetes" http://localhost:2586/my-topic
+    curl -s http://localhost:2586/my-topic/json
 {{- end }}
 
---------------------------------------------------------------------
-WARNINGS
---------------------------------------------------------------------
+4. Configuration summary
+------------------------
+  Public URL:        {{ default "not configured" .Values.ntfy.baseUrl }}
+  Authentication:   {{ .Values.ntfy.authDefaultAccess }}
+  Admin bootstrap:  {{ include "ntfy.adminEnabled" . }}
+  Metrics:          {{ .Values.ntfy.enableMetrics }}
+  Backup:           {{ .Values.backup.enabled }}
+  NetworkPolicy:    {{ .Values.networkPolicy.enabled }}
+  DisruptionBudget: {{ .Values.podDisruptionBudget.enabled }}
+  API token mount:  {{ .Values.serviceAccount.automountServiceAccountToken }}
 
+5. Validation commands
+----------------------
+  Wait for ntfy:
+    kubectl wait --for=condition=Ready pod -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/component=server --timeout=300s
+
+  Check resources and storage:
+    kubectl get deploy,svc,pod,pvc -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+  Check the health endpoint:
+    kubectl run ntfy-smoke -n {{ $namespace }} --rm -i --restart=Never --image=docker.io/library/busybox:1.37 -- wget -qO- http://{{ $fullname }}:{{ .Values.service.port }}/v1/health
+
+6. Logs and troubleshooting
+---------------------------
+  Application logs:
+    kubectl logs -n {{ $namespace }} deploy/{{ $fullname }} --tail=200
+
+  Pod details and recent events:
+    kubectl describe pod -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/component=server
+    kubectl get events -n {{ $namespace }} --sort-by=.lastTimestamp
+
+  Rendered values and manifests:
+    helm get values {{ .Release.Name }} -n {{ $namespace }}
+    helm get manifest {{ .Release.Name }} -n {{ $namespace }}
+
+7. Backup and recovery
+---------------------
+{{- if .Values.backup.enabled }}
+  Scheduled S3 backup is enabled:
+    Schedule: {{ .Values.backup.schedule }}
+    Bucket:   {{ .Values.backup.s3.bucket }}
+    Prefix:   {{ .Values.backup.s3.prefix }}
+
+  Trigger a manual backup:
+    kubectl create job -n {{ $namespace }} --from=cronjob/{{ $fullname }}-backup ntfy-backup-manual
+{{- else }}
+  Scheduled backup is disabled. Back up the data PVC and, when enabled,
+  PostgreSQL before upgrades. Enable it with backup.enabled=true.
+{{- end }}
+
+8. Security and production readiness
+------------------------------------
+  - Set ntfy.baseUrl to the canonical HTTPS URL.
+  - Use ntfy.authDefaultAccess=deny-all for private instances.
+  - Keep credentials in existing Secrets or External Secrets.
+  - Review explicit egress rules before enabling NetworkPolicy egress isolation.
+  - Restore-test both PVC and PostgreSQL backups.
 {{- if not .Values.ingress.enabled }}
-
-NOTE: Ingress is not enabled. Access via port-forward (see above).
-For push notifications to mobile apps, ntfy needs a public HTTPS endpoint.
+  - No Ingress is enabled. Mobile push requires a reachable HTTPS endpoint.
 {{- end }}
-{{- if and .Values.ntfy.database.enabled (not .Values.persistence.enabled) }}
-
-NOTE: Persistence is disabled. PostgreSQL stores database-backed state, but
-filesystem attachments and other local files will not survive pod replacement.
+{{- if and (include "ntfy.databaseEnabled" .) (not .Values.persistence.enabled) }}
+  - Persistence is disabled. PostgreSQL stores database-backed state, but
+    filesystem attachments and local files will not survive pod replacement.
 {{- end }}
 
---------------------------------------------------------------------
-ADDITIONAL RESOURCES
---------------------------------------------------------------------
-
-Documentation:  https://helmforge.dev/docs/charts/ntfy
-ntfy:           https://ntfy.sh | https://github.com/binwiederhier/ntfy
+Documentation: https://helmforge.dev/docs/charts/ntfy
+Upstream:      https://docs.ntfy.sh
 
 Happy Helmforging :)

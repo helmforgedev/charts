@@ -4,6 +4,7 @@ templates:
   - templates/configmap.yaml
   - templates/secret.yaml
   - templates/deployment.yaml
+  - templates/validate.yaml
 release:
   name: test
   namespace: default
@@ -11,6 +12,8 @@ tests:
   - it: should render OIDC and SMTP settings in ConfigMap when enabled
     template: templates/configmap.yaml
     set:
+      ntfy:
+        baseUrl: "https://ntfy.example.com"
       oidc:
         enabled: true
         issuerUrl: "https://auth.example.com"
@@ -48,12 +51,15 @@ tests:
   - it: should render OIDC and SMTP Secrets with inline credentials
     template: templates/secret.yaml
     set:
+      ntfy:
+        baseUrl: "https://ntfy.example.com"
       oidc:
         enabled: true
         clientSecret: "my-oidc-secret"
       smtp:
         enabled: true
         senderAddr: "smtp.example.com:587"
+        senderFrom: "ntfy@example.com"
         senderPass: "my-smtp-password"
     asserts:
       - isKind:
@@ -74,12 +80,15 @@ tests:
   - it: should not render Secrets when existingSecret is provided
     template: templates/secret.yaml
     set:
+      ntfy:
+        baseUrl: "https://ntfy.example.com"
       oidc:
         enabled: true
         existingSecret: "custom-oidc-secret"
       smtp:
         enabled: true
         senderAddr: "smtp.example.com:587"
+        senderFrom: "ntfy@example.com"
         existingSecret: "custom-smtp-secret"
     asserts:
       - hasDocuments:
@@ -88,12 +97,15 @@ tests:
   - it: should inject sensitive credentials via secretKeyRef in Deployment
     template: templates/deployment.yaml
     set:
+      ntfy:
+        baseUrl: "https://ntfy.example.com"
       oidc:
         enabled: true
         clientSecret: "my-oidc-secret"
       smtp:
         enabled: true
         senderAddr: "smtp.example.com:587"
+        senderFrom: "ntfy@example.com"
         senderPass: "my-smtp-password"
     asserts:
       - isKind:
@@ -114,3 +126,23 @@ tests:
               secretKeyRef:
                 name: test-ntfy-oidc
                 key: client-secret
+
+  - it: should reject SMTP without a sender address
+    template: templates/validate.yaml
+    set:
+      ntfy.baseUrl: "https://ntfy.example.com"
+      smtp.enabled: true
+      smtp.senderAddr: "smtp.example.com:587"
+    asserts:
+      - failedTemplate:
+          errorMessage: "ntfy: smtp.senderFrom is required when smtp.enabled is true"
+
+  - it: should reject SMTP without the public base URL
+    template: templates/validate.yaml
+    set:
+      smtp.enabled: true
+      smtp.senderAddr: "smtp.example.com:587"
+      smtp.senderFrom: "ntfy@example.com"
+    asserts:
+      - failedTemplate:
+          errorMessage: "ntfy: ntfy.baseUrl is required when smtp.enabled is true"

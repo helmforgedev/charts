@@ -1,0 +1,93 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Operational resources
+templates:
+  - templates/pdb.yaml
+  - templates/networkpolicy.yaml
+  - templates/validate.yaml
+tests:
+  - it: should keep the disruption budget disabled by default
+    template: templates/pdb.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should select only the ntfy server in the disruption budget
+    template: templates/pdb.yaml
+    set:
+      podDisruptionBudget.enabled: true
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: 'spec.selector.matchLabels["app.kubernetes.io/component"]'
+          value: server
+
+  - it: should restrict ingress to the named HTTP port
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: http
+
+  - it: should allow DNS and bundled PostgreSQL under egress isolation
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+      postgresql.enabled: true
+      postgresql.auth.password: test
+    asserts:
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 53
+      - equal:
+          path: 'spec.egress[0].to[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]'
+          value: kube-system
+      - equal:
+          path: spec.egress[1].ports[0].port
+          value: 5432
+
+  - it: should reject isolated external PostgreSQL without a CIDR
+    template: templates/validate.yaml
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+      ntfy.database.mode: postgresql
+      ntfy.database.external.host: postgres.internal
+      ntfy.database.external.password: test
+    asserts:
+      - failedTemplate:
+          errorMessage: "ntfy: networkPolicy.egress.externalDatabaseCIDR is required for isolated external PostgreSQL mode"
+
+  - it: should reject simultaneous disruption limits
+    template: templates/validate.yaml
+    set:
+      podDisruptionBudget.enabled: true
+      podDisruptionBudget.maxUnavailable: 1
+    asserts:
+      - failedTemplate:
+          errorMessage: "ntfy: podDisruptionBudget.minAvailable and maxUnavailable are mutually exclusive"
+
+  - it: should allow custom cluster DNS peers
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+      networkPolicy.egress.dnsPeers:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: dns-system
+          podSelector:
+            matchLabels:
+              app: dns
+    asserts:
+      - equal:
+          path: 'spec.egress[0].to[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]'
+          value: dns-system
+      - equal:
+          path: spec.egress[0].to[0].podSelector.matchLabels.app
+          value: dns

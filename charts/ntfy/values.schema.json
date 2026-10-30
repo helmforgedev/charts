@@ -49,6 +49,19 @@
         "type": "object"
       }
     },
+    "containerPorts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "http": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 65535,
+          "default": 2586
+        }
+      },
+      "required": ["http"]
+    },
     "ntfy": {
       "type": "object",
       "description": "ntfy application configuration",
@@ -326,6 +339,11 @@
         "existingClaim": {
           "type": "string",
           "default": ""
+        },
+        "emptyDirSizeLimit": {
+          "type": "string",
+          "minLength": 1,
+          "default": "1Gi"
         }
       }
     },
@@ -342,6 +360,10 @@
         },
         "annotations": {
           "type": "object"
+        },
+        "automountServiceAccountToken": {
+          "type": "boolean",
+          "default": false
         }
       }
     },
@@ -420,7 +442,19 @@
       }
     },
     "probes": {
-      "type": "object"
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "startup": {
+          "$ref": "#/definitions/probe"
+        },
+        "liveness": {
+          "$ref": "#/definitions/probe"
+        },
+        "readiness": {
+          "$ref": "#/definitions/probe"
+        }
+      }
     },
     "metrics": {
       "type": "object",
@@ -444,13 +478,50 @@
       }
     },
     "resources": {
-      "type": "object"
+      "type": "object",
+      "properties": {
+        "requests": {
+          "type": "object",
+          "properties": {"cpu": {"type": "string"}, "memory": {"type": "string"}}
+        },
+        "limits": {
+          "type": "object",
+          "properties": {"cpu": {"type": "string"}, "memory": {"type": "string"}}
+        }
+      }
     },
     "podSecurityContext": {
-      "type": "object"
+      "type": "object",
+      "properties": {
+        "runAsNonRoot": {"type": "boolean"},
+        "runAsUser": {"type": "integer", "minimum": 1},
+        "runAsGroup": {"type": "integer", "minimum": 1},
+        "fsGroup": {"type": "integer", "minimum": 1},
+        "fsGroupChangePolicy": {"type": "string", "enum": ["Always", "OnRootMismatch"]},
+        "seccompProfile": {
+          "type": "object",
+          "properties": {"type": {"type": "string", "enum": ["RuntimeDefault", "Localhost", "Unconfined"]}}
+        }
+      }
     },
     "securityContext": {
-      "type": "object"
+      "type": "object",
+      "properties": {
+        "allowPrivilegeEscalation": {"type": "boolean"},
+        "privileged": {"type": "boolean"},
+        "readOnlyRootFilesystem": {"type": "boolean"},
+        "capabilities": {
+          "type": "object",
+          "properties": {"drop": {"type": "array", "items": {"type": "string"}}}
+        }
+      }
+    },
+    "runtimeStorage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tmpSizeLimit": {"type": "string", "minLength": 1, "default": "128Mi"}
+      }
     },
     "nodeSelector": {
       "type": "object"
@@ -483,6 +554,38 @@
     },
     "podAnnotations": {
       "type": "object"
+    },
+    "podDisruptionBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean", "default": false},
+        "minAvailable": {"type": ["integer", "string", "null"]},
+        "maxUnavailable": {"type": ["integer", "string", "null"]}
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean", "default": false},
+        "ingressFrom": {"type": "array", "items": {"type": "object"}},
+        "egress": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {"type": "boolean", "default": false},
+            "allowDNS": {"type": "boolean", "default": true},
+            "dnsPeers": {"type": "array", "minItems": 1, "items": {"type": "object"}},
+            "externalDatabaseCIDR": {
+              "type": "string",
+              "default": "",
+              "pattern": "^$|^(?:(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])/(?:[0-9]|[12][0-9]|3[0-2])$|^(?:[0-9A-Fa-f]{0,4}:){2,7}[0-9A-Fa-f]{0,4}/(?:[0-9]|[1-9][0-9]|1[01][0-9]|12[0-8])$"
+            },
+            "extraEgress": {"type": "array", "items": {"type": "object"}}
+          }
+        }
+      }
     },
     "extraVolumes": {
       "type": "array",
@@ -574,7 +677,14 @@
           "type": "string"
         },
         "auth": {
-          "type": "object"
+          "type": "object",
+          "properties": {
+            "database": {"type": "string"},
+            "username": {"type": "string"},
+            "password": {"type": "string"},
+            "existingSecret": {"type": "string"},
+            "existingSecretUserPasswordKey": {"type": "string"}
+          }
         }
       }
     },
@@ -626,6 +736,14 @@
         },
         "resources": {
           "type": "object"
+        },
+        "scratchSizeLimit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tmpSizeLimit": {
+          "type": "string",
+          "minLength": 1
         },
         "s3": {
           "type": "object",
@@ -736,5 +854,20 @@
         "enabled"
       ]
     }
-  }
+  },
+  "definitions": {
+    "probe": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "path": {"type": "string", "pattern": "^/"},
+        "initialDelaySeconds": {"type": "integer", "minimum": 0},
+        "periodSeconds": {"type": "integer", "minimum": 1},
+        "timeoutSeconds": {"type": "integer", "minimum": 1},
+        "failureThreshold": {"type": "integer", "minimum": 1}
+      }
+    }
+  },
+  "required": ["global", "image", "containerPorts", "ntfy", "persistence", "service", "postgresql"]
 }
