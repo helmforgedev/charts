@@ -95,6 +95,10 @@ export async function browserSmoke({
     const noSync = page.getByText("Continue without sync", { exact: true });
     const finish = page.getByRole("button", { name: "Finish", exact: true });
     const skip = page.getByRole("button", { name: "Skip", exact: true });
+    const skipAnyway = page.getByRole("button", {
+      name: "Skip anyway",
+      exact: true,
+    });
     for (let step = 0; step < 8; step++) {
       await page.goto(origin + "/object/company/" + companyId, {
         waitUntil: "domcontentloaded",
@@ -104,20 +108,35 @@ export async function browserSmoke({
         .or(noSync)
         .or(finish)
         .or(skip)
+        .or(skipAnyway)
         .first()
         .waitFor({ state: "visible", timeout: 25000 });
       if (await record.isVisible()) break;
       const currentPath = new URL(page.url()).pathname;
+      if (currentPath === "/invite-team") {
+        if (!(await skipAnyway.isVisible())) {
+          await skip.click();
+          await skipAnyway.waitFor({ state: "visible" });
+        }
+        await skipAnyway.click();
+        continue;
+      }
       if (await first.isVisible()) {
         await first.fill("HelmForge");
         await page
           .getByLabel("Last name", { exact: true })
           .fill("Administrator");
-        await page
-          .getByRole("button", { name: "Continue", exact: true })
-          .click();
+        try {
+          await page
+            .getByRole("button", { name: "Continue", exact: true })
+            .click();
+        } catch (error) {
+          if (new URL(page.url()).pathname === currentPath) throw error;
+          continue;
+        }
       } else if (await noSync.isVisible()) await noSync.click();
       else if (await finish.isVisible()) await finish.click();
+      else if (await skipAnyway.isVisible()) await skipAnyway.click();
       else if (await skip.isVisible()) await skip.click();
       else
         assert.fail(
