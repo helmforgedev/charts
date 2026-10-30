@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: NautilusTrader operational resources
+templates:
+  - templates/networkpolicy.yaml
+  - templates/pdb.yaml
+tests:
+  - it: does not render a PodDisruptionBudget by default
+    template: templates/pdb.yaml
+    asserts:
+      - hasDocuments: {count: 0}
+  - it: renders a PodDisruptionBudget for the live singleton
+    template: templates/pdb.yaml
+    set: {podDisruptionBudget.enabled: true}
+    asserts:
+      - isKind: {of: PodDisruptionBudget}
+      - equal: {path: spec.minAvailable, value: 1}
+      - equal: {path: 'spec.selector.matchLabels["app.kubernetes.io/component"]', value: live}
+  - it: does not render a PodDisruptionBudget without the live workload
+    template: templates/pdb.yaml
+    set: {podDisruptionBudget.enabled: true, live.enabled: false}
+    asserts:
+      - hasDocuments: {count: 0}
+  - it: keeps NetworkPolicy opt-in
+    template: templates/networkpolicy.yaml
+    asserts:
+      - hasDocuments: {count: 0}

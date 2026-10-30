@@ -12,16 +12,17 @@ spec:
     type: Recreate
   selector:
     matchLabels:
-      {{- include "nautilus-trader.selectorLabels" . | nindent 6 }}
+      {{- include "nautilus-trader.liveSelectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "nautilus-trader.selectorLabels" . | nindent 8 }}
+        {{- include "nautilus-trader.liveSelectorLabels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        checksum/runtime: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/credentials: {{ printf "%s|%s|%s|%s|%s" .Values.secrets.existingSecret .Values.database.external.existingSecret .Values.messageBus.external.existingSecret (toJson .Values.externalSecrets.items) .Values.externalSecrets.refreshInterval | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -176,7 +177,8 @@ spec:
             name: {{ include "nautilus-trader.fullname" . }}-runtime
             defaultMode: 0555
         - name: tmp
-          emptyDir: {}
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeStorage.tmpSizeLimit }}
         {{- range $kind, $config := .Values.persistence }}
         {{- if $config.enabled }}
         - name: {{ $kind | kebabcase }}

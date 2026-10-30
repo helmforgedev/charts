@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Observability
 
 The runner exposes `/healthz`, `/readyz`, and Prometheus text metrics on the internal Service. Enable

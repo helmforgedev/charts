@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: NautilusTrader runtime configuration
+templates:
+  - templates/configmap.yaml
+tests:
+  - it: embeds the managed runner and default node configuration
+    asserts:
+      - isKind: {of: ConfigMap}
+      - exists: {path: 'data["runner.py"]'}
+      - matchRegex:
+          path: 'data["node-config.json"]'
+          pattern: '"environment":"sandbox".*"traderId":"TRADER-001"'
+  - it: serializes an operator-provided node configuration
+    set:
+      live.nodeConfig:
+        environment: LIVE
+        traderId: DESK-001
+        logging:
+          level: WARNING
+    asserts:
+      - matchRegex:
+          path: 'data["node-config.json"]'
+          pattern: '"environment":"LIVE".*"traderId":"DESK-001"'

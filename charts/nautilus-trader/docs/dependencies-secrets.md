@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Dependencies and secrets
 
 Set `database.mode=postgresql` with `postgresql.enabled=true` for the bundled PostgreSQL dependency, or use

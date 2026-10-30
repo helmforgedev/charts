@@ -9,6 +9,8 @@ tests:
     asserts:
       - equal: {path: spec.replicas, value: 1}
       - equal: {path: spec.strategy.type, value: Recreate}
+      - equal: {path: 'spec.selector.matchLabels["app.kubernetes.io/component"]', value: live}
+      - equal: {path: 'spec.template.metadata.labels["app.kubernetes.io/component"]', value: live}
   - it: pins the official image by digest
     template: templates/deployment.yaml
     asserts:
@@ -23,6 +25,15 @@ tests:
       - equal: {path: spec.template.spec.securityContext.runAsNonRoot, value: true}
       - equal: {path: "spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem", value: true}
       - equal: {path: spec.template.spec.automountServiceAccountToken, value: false}
+      - equal:
+          path: spec.template.spec.volumes[1].emptyDir.sizeLimit
+          value: 256Mi
+      - matchRegex:
+          path: 'spec.template.metadata.annotations["checksum/config"]'
+          pattern: '^[a-f0-9]{64}$'
+      - matchRegex:
+          path: 'spec.template.metadata.annotations["checksum/credentials"]'
+          pattern: '^[a-f0-9]{64}$'
   - it: disables the live deployment
     template: templates/deployment.yaml
     set: {live.enabled: false}

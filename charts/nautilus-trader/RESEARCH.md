@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # NautilusTrader research
 
 Issue: helmforgedev/charts#1420
