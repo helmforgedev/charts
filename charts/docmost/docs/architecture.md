@@ -13,6 +13,13 @@ with clear defaults, local validation, explicit external-service support, and op
 - optional External Secrets Operator integration for credentials managed outside Helm
 - optional PostgreSQL backup CronJob that uploads dumps to S3-compatible storage
 
+## Listener Contract
+
+`containerPorts.http` configures both the declared container port and Docmost's
+upstream `PORT` environment variable. Probes and the Service target the named
+`http` port, so a listener override stays consistent across the workload.
+`service.port` is independent and changes only the Kubernetes Service port.
+
 ## Replica Model
 
 The chart defaults to `replicaCount=1` and keeps local storage single-replica.
@@ -66,6 +73,20 @@ The chart pins the upstream application image through `image.tag` and `appVersio
 
 Docmost supports disabling anonymous upstream telemetry through the `DISABLE_TELEMETRY` environment variable. The chart exposes
 this as `docmost.disableTelemetry` so operators can opt out without overriding the raw container environment list.
+
+## Security Boundary
+
+The chart drops all Linux capabilities, denies privilege escalation, applies
+RuntimeDefault seccomp, and disables Kubernetes API token mounting by default.
+The upstream filesystem remains writable. Database, Redis, S3 transport
+security, NetworkPolicy, and external secret-store policy are operator-owned.
+
+## Operational Signals
+
+Use the `/api/health` probes, pod events, application logs, PostgreSQL and Redis
+logs, and backup CronJob status as the primary signals. The chart does not
+create a ServiceMonitor because Docmost `0.96.0` does not provide a stable
+chart-supported Prometheus endpoint.
 
 <!-- @AI-METADATA
 type: chart-docs

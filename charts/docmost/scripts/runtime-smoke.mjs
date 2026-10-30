@@ -12,14 +12,18 @@ const pods = JSON.parse(run(['get', 'pods', '-l', `app.kubernetes.io/instance=${
     && p.status.conditions?.some(c => c.type === 'Ready' && c.status === 'True'));
 assert.ok(pods.length);
 for (const pod of pods) {
-  assert.match(pod.spec.containers.find(c => c.name === 'docmost').image, /:0\.96\.0$/);
+  const container = pod.spec.containers.find(c => c.name === 'docmost');
+  assert.match(container.image, /:0\.96\.0$/);
+  const httpPort = container.ports?.find(port => port.name === 'http')?.containerPort;
+  assert.ok(Number.isInteger(httpPort) && httpPort > 0, 'Docmost HTTP listener port is required');
+  assert.equal(container.env?.find(variable => variable.name === 'PORT')?.value, String(httpPort));
   console.log(run(['exec', pod.metadata.name, '-c', 'docmost', '--', 'node', '-e', `
     const assert = require('node:assert/strict');
     process.chdir('/app/apps/server');
     const {createRequire} = require('node:module');
     const req = createRequire('/app/apps/server/package.json');
     (async () => {
-      assert.equal((await fetch('http://127.0.0.1:3000/api/health')).status, 200);
+      assert.equal((await fetch('http://127.0.0.1:${httpPort}/api/health')).status, 200);
       const {EncryptionService} = req('./dist/integrations/encryption/encryption.service.js');
       const encryption = new EncryptionService({getAppSecret: () => process.env.APP_SECRET});
       const marker = 'helmforge-docmost-storage-fixture';
