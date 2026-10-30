@@ -20,6 +20,15 @@ tests:
       frontend.autoscaling.enabled: true
     asserts:
       - notExists: { path: spec.replicas }
+  - it: configures the real frontend listener through PORT
+    template: templates/frontend-deployment.yaml
+    set:
+      containerPorts.frontend: 3100
+    asserts:
+      - equal: { path: 'spec.template.spec.containers[0].ports[0].containerPort', value: 3100 }
+      - contains:
+          path: 'spec.template.spec.containers[0].env'
+          content: { name: PORT, value: '3100' }
   - it: keeps the migration-running backend singleton
     template: templates/backend-deployment.yaml
     asserts:
@@ -27,16 +36,17 @@ tests:
       - equal: { path: spec.strategy.type, value: Recreate }
       - equal: { path: 'spec.template.spec.containers[0].image', value: 'docker.io/opensign/opensignserver@sha256:cadfcaaa20bf40272aed43c91314362c1dac034b2a4651f50e5288d01c2b434d' }
       - equal: { path: spec.template.spec.securityContext.runAsUser, value: 1000 }
+      - equal: { path: 'spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem', value: false }
       - contains:
           path: 'spec.template.spec.containers[0].env'
           content: { name: MONGODB_URI, value: 'mongodb://root:$(MONGODB_ROOT_PASSWORD)@RELEASE-NAME-mongodb:27017/opensign?authSource=admin' }
       - contains:
           path: 'spec.template.spec.containers[0].volumeMounts'
           content: { name: files, mountPath: /usr/src/app/files }
-      - contains:
-          path: 'spec.template.spec.containers[0].volumeMounts'
-          content: { name: runtime-app, mountPath: /usr/src/app }
-      - equal: { path: 'spec.template.spec.volumes[0].emptyDir.sizeLimit', value: 2Gi }
+      - notContains:
+          path: 'spec.template.spec.initContainers'
+          content: { name: prepare-runtime-app }
+      - equal: { path: 'spec.template.spec.volumes[1].emptyDir.sizeLimit', value: 2Gi }
   - it: bounds ephemeral file storage when S3 is selected
     template: templates/backend-deployment.yaml
     set:
@@ -46,7 +56,16 @@ tests:
       storage.s3.baseUrl: https://documents.example.com
       secrets.existingSecret: opensign-production
     asserts:
-      - equal: { path: 'spec.template.spec.volumes[1].emptyDir.sizeLimit', value: 2Gi }
+      - equal: { path: 'spec.template.spec.volumes[0].emptyDir.sizeLimit', value: 2Gi }
+  - it: configures the real backend listener through PORT
+    template: templates/backend-deployment.yaml
+    set:
+      containerPorts.backend: 8180
+    asserts:
+      - equal: { path: 'spec.template.spec.containers[0].ports[0].containerPort', value: 8180 }
+      - contains:
+          path: 'spec.template.spec.containers[0].env'
+          content: { name: PORT, value: '8180' }
   - it: follows MongoDB subchart naming when the release name contains mongodb
     template: templates/backend-deployment.yaml
     release:

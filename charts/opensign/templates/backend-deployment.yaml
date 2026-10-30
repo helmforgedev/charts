@@ -50,20 +50,6 @@ spec:
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
         {{- end }}
-        - name: prepare-runtime-app
-          image: {{ include "opensign.backendImage" . | quote }}
-          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
-          command:
-            - sh
-            - -ec
-            - cp -R /usr/src/app/. /runtime-app/
-          securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
-          volumeMounts:
-            - name: runtime-app
-              mountPath: /runtime-app
-            - name: tmp
-              mountPath: /tmp
         - name: prepare-files
           image: {{ include "opensign.backendImage" . | quote }}
           imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
@@ -86,8 +72,9 @@ spec:
         - name: backend
           image: {{ include "opensign.backendImage" . | quote }}
           imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          {{- $backendSecurityContext := mustMergeOverwrite (deepCopy .Values.securityContext) .Values.backend.securityContext }}
           securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
+            {{- toYaml $backendSecurityContext | nindent 12 }}
           env:
             - name: APP_ID
               value: {{ .Values.config.appId | quote }}
@@ -127,6 +114,8 @@ spec:
               value: {{ trimSuffix "/" .Values.config.apiUrl | quote }}
             - name: PUBLIC_URL
               value: {{ trimSuffix "/" .Values.config.publicUrl | quote }}
+            - name: PORT
+              value: {{ .Values.containerPorts.backend | quote }}
             - name: USE_LOCAL
               value: {{ ternary "true" "false" (eq .Values.storage.type "local") | quote }}
             - name: SMTP_ENABLE
@@ -184,7 +173,7 @@ spec:
             {{- end }}
           ports:
             - name: http
-              containerPort: 8080
+              containerPort: {{ .Values.containerPorts.backend }}
               protocol: TCP
           {{- if .Values.probes.backend.startup.enabled }}
           startupProbe:
@@ -217,16 +206,11 @@ spec:
           resources:
             {{- toYaml .Values.backend.resources | nindent 12 }}
           volumeMounts:
-            - name: runtime-app
-              mountPath: /usr/src/app
             - name: files
               mountPath: /usr/src/app/files
             - name: tmp
               mountPath: /tmp
       volumes:
-        - name: runtime-app
-          emptyDir:
-            sizeLimit: {{ .Values.runtimeStorage.sizeLimit }}
         - name: files
           {{- if and (eq .Values.storage.type "local") .Values.storage.persistence.enabled }}
           persistentVolumeClaim:
