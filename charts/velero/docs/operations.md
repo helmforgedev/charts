@@ -18,6 +18,12 @@ Changing `metrics.containerPort` updates the Velero process argument, container
 port, probes, and named Service target together. `metrics.service.port` changes
 only the Service-facing port.
 
+Charts before 1.6 used `configuration.metricsAddress` and `extraObjects`.
+Retained values using those names remain supported: `metricsAddress` overrides
+the default process listener and `extraObjects` is rendered together with
+`extraManifests`. Migrate to `metrics.containerPort` and `extraManifests` when
+editing the configuration.
+
 ## Backup Verification
 
 Create a small backup and inspect its phase and logs:
