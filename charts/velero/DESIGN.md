@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Velero Chart Design
 
 ## Scope
@@ -64,7 +66,7 @@ hostPath access to pod volume directories and runs as root by design.
 not infer cloud provider configuration. Snapshot support depends on the
 installed Velero plugin and storage platform capabilities.
 
-## Production Boundaries
+## Production Boundary
 
 - Validate `BackupStorageLocation` health before enabling schedules.
 - Enable `nodeAgent.enabled` only after confirming hostPath and Pod Security
@@ -79,7 +81,36 @@ installed Velero plugin and storage platform capabilities.
   environments should prefer a pre-created Secret or platform secret manager
   workflow.
 
-## Observability
+## Security Boundary
+
+The server and default AWS plugin run as the non-root identities declared by
+their official images. Their containers drop all Linux capabilities, disallow
+privilege escalation, use a read-only root filesystem, and run with the
+RuntimeDefault seccomp profile. The server keeps writable `emptyDir` volumes at
+`/scratch`, `/plugins`, and `/tmp` because Velero and its plugin processes need
+those paths at runtime. Enabling the node-agent with the Kopia uploader also
+mounts writable `/home/cnb/udmrepo` and `/home/cnb/.cache` volumes in both
+affected workloads for repository configuration and cache data.
+
+The node-agent is a deliberate exception. Filesystem backup needs access to
+kubelet host paths and therefore runs as UID 0. Its container remains
+unprivileged, drops all capabilities, disallows privilege escalation, and uses
+a read-only root filesystem. Operators must evaluate that host access against
+their Pod Security and node isolation policies before enabling it.
+
+Velero is a Kubernetes controller and needs an API token plus cluster-scoped
+RBAC. The default ClusterRoleBinding targets `cluster-admin`; installations
+with stricter authorization requirements can set
+`rbac.clusterAdministrator=false` and manage an appropriate binding outside
+the chart. Credentials are mounted from a Secret and are never placed in
+command-line arguments.
+
+The default NetworkPolicy limits inbound traffic to the metrics listener while
+leaving egress open because the controller must reach the Kubernetes API and
+operator-selected object storage endpoints. Restricting egress further is an
+operator responsibility because those destinations are environment-specific.
+
+## Observability Boundary
 
 Velero exposes metrics through the chart-managed Service when `metrics.enabled`
 is true. `metrics.serviceMonitor.enabled` creates a Prometheus Operator
@@ -93,6 +124,12 @@ Operational signals to watch:
 - failed or partially failed backups
 - repository maintenance and upload/download failures
 - schedules creating backups at the expected cadence
+
+The chart exposes only the Velero Prometheus endpoint. It does not install a
+Prometheus stack, define alerts, or infer backup success from scrape health.
+The process listener (`metrics.containerPort`) is independent from the Service
+port (`metrics.service.port`), and the Service always targets the named
+`metrics` container port.
 
 ## Failure Domains
 
@@ -112,6 +149,19 @@ Operational signals to watch:
 - Creating backup buckets.
 - Generating provider credentials.
 - Abstracting every Velero provider into first-class values.
+
+## Gaps
+
+- NetworkPolicy egress is permissive by default because Kubernetes API and
+  object-storage destinations cannot be inferred portably.
+- The chart does not create provider IAM identities, cloud buckets, encryption
+  keys, or external secret synchronization resources.
+- Enabling `metrics.serviceMonitor` requires Prometheus Operator CRDs to exist
+  before Helm renders the release.
+- Backup and restore correctness depends on provider plugins, storage health,
+  and application-consistent hooks that are outside this chart's control.
+- The node-agent cannot run as non-root while it requires kubelet host-path
+  access for filesystem backup.
 
 ## References
 

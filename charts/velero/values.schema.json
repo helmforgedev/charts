@@ -74,6 +74,26 @@
               "type": "string",
               "description": "AWS plugin image pull policy",
               "enum": ["Always", "IfNotPresent", "Never"]
+            },
+            "securityContext": {
+              "type": "object",
+              "description": "Security context for the AWS plugin init container",
+              "properties": {
+                "allowPrivilegeEscalation": { "type": "boolean" },
+                "readOnlyRootFilesystem": { "type": "boolean" },
+                "runAsNonRoot": { "type": "boolean" },
+                "runAsUser": { "type": "integer" },
+                "runAsGroup": { "type": "integer" },
+                "capabilities": {
+                  "type": "object",
+                  "properties": {
+                    "drop": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    }
+                  }
+                }
+              }
             }
           }
         },
@@ -193,10 +213,6 @@
           "type": "string",
           "description": "Default storage validation frequency"
         },
-        "metricsAddress": {
-          "type": "string",
-          "description": "Default address used for Velero metrics"
-        },
         "logLevel": {
           "type": "string",
           "description": "Server log level",
@@ -282,13 +298,28 @@
     },
     "podSecurityContext": {
       "type": "object",
-      "description": "Pod-level security context"
+      "description": "Pod-level security context",
+      "properties": {
+        "runAsNonRoot": { "type": "boolean" },
+        "runAsUser": { "type": "integer" },
+        "runAsGroup": { "type": "integer" },
+        "fsGroup": { "type": "integer" },
+        "seccompProfile": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string" }
+          }
+        }
+      }
     },
     "containerSecurityContext": {
       "type": "object",
       "description": "Container-level security context for the Velero server",
       "properties": {
         "allowPrivilegeEscalation": { "type": "boolean" },
+        "runAsNonRoot": { "type": "boolean" },
+        "runAsUser": { "type": "integer" },
+        "runAsGroup": { "type": "integer" },
         "capabilities": {
           "type": "object",
           "properties": {
@@ -380,13 +411,30 @@
         },
         "podSecurityContext": {
           "type": "object",
-          "description": "Pod-level security context for node-agent"
+          "description": "Pod-level security context for node-agent",
+          "properties": {
+            "seccompProfile": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string" }
+              }
+            }
+          }
         },
         "containerSecurityContext": {
           "type": "object",
           "description": "Container-level security context for node-agent",
           "properties": {
             "allowPrivilegeEscalation": { "type": "boolean" },
+            "capabilities": {
+              "type": "object",
+              "properties": {
+                "drop": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              }
+            },
             "privileged": { "type": "boolean" },
             "readOnlyRootFilesystem": { "type": "boolean" },
             "runAsUser": { "type": "integer" }
@@ -476,6 +524,12 @@
           "type": "boolean",
           "description": "Expose Velero metrics on a Service"
         },
+        "containerPort": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "Port listened on by the Velero metrics server"
+        },
         "service": {
           "type": "object",
           "description": "Metrics service settings",
@@ -531,6 +585,44 @@
         }
       }
     },
+    "livenessProbe": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "readinessProbe": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "startupProbe": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "description": "NetworkPolicy configuration for the Velero server",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "allowExternalEgress": { "type": "boolean" }
+      }
+    },
     "service": {
       "type": "object",
       "description": "Service networking settings shared by rendered Service resources",
@@ -550,7 +642,7 @@
         }
       }
     },
-    "extraObjects": {
+    "extraManifests": {
       "type": "array",
       "description": "Additional manifests rendered with tpl",
       "items": { "type": "object" }

@@ -43,6 +43,16 @@ plugins:
     tag: v1.14.0
     # -- AWS plugin image pull policy
     pullPolicy: IfNotPresent
+    # -- Security context for the AWS plugin init container
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 65532
+      runAsGroup: 65532
+      capabilities:
+        drop:
+          - ALL
 
   # -- Extra plugin init containers appended after the default AWS plugin
   extra: []
@@ -95,8 +105,6 @@ configuration:
   defaultItemOperationTimeout: 4h
   # -- Default storage validation frequency
   storeValidationFrequency: 1m
-  # -- Default address used for Velero metrics
-  metricsAddress: ":8085"
   # -- Server log level
   logLevel: info
   # -- Server log format (`text` or `json`)
@@ -135,15 +143,24 @@ schedules: []
 
 podAnnotations: {}
 podLabels: {}
-podSecurityContext: {}
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1002
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
 
 containerSecurityContext:
   allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  runAsUser: 1002
+  runAsGroup: 1000
   capabilities:
     drop:
       - ALL
   privileged: false
-  readOnlyRootFilesystem: false
+  readOnlyRootFilesystem: true
 
 resources: {}
 priorityClassName: ""
@@ -169,11 +186,16 @@ nodeAgent:
   pluginVolumePath: /var/lib/kubelet/plugins
   # -- Mount an emptyDir scratch volume into the node-agent
   useScratchEmptyDir: true
-  podSecurityContext: {}
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
   containerSecurityContext:
     allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
     privileged: false
-    readOnlyRootFilesystem: false
+    readOnlyRootFilesystem: true
     runAsUser: 0
   resources: {}
   updateStrategy: {}
@@ -196,6 +218,8 @@ nodeAgent:
 metrics:
   # -- Expose Velero metrics on a Service
   enabled: true
+  # -- Port listened on by the Velero metrics server
+  containerPort: 8085
   service:
     # -- Service annotations for Velero metrics
     annotations: {}
@@ -219,8 +243,35 @@ metrics:
     # -- Metrics scrape timeout
     scrapeTimeout: 10s
 
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 30
+  periodSeconds: 20
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+startupProbe:
+  enabled: true
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 5
+  failureThreshold: 30
+
+networkPolicy:
+  # -- Create a NetworkPolicy for the Velero server
+  enabled: true
+  # -- Allow outbound Kubernetes API and object-storage traffic
+  allowExternalEgress: true
+
 # -- Additional manifests rendered with tpl
-extraObjects: []
+extraManifests: []
 
 # =============================================================================
 # Service Networking
