@@ -15,6 +15,23 @@ path or authentication environment contract. See
 [upstream release](https://github.com/afairgiant/MediKeep/releases/tag/v0.72.0).
 Back up PostgreSQL and uploaded records before upgrading.
 
+The legacy `app.port` value has been removed. The pinned upstream entrypoint
+always starts Uvicorn on container port `8000`, so that value changed only
+Kubernetes metadata and could break traffic. Do not use `--reuse-values` for
+this migration because it can retain the removed default. Export the
+user-supplied values, remove `app.port` from the exported file, and reset old
+defaults during the upgrade:
+
+```bash
+helm get values medikeep --namespace medikeep -o yaml > medikeep-user-values.yaml
+# Remove app.port from medikeep-user-values.yaml if it is present.
+helm upgrade medikeep helmforge/medikeep --namespace medikeep \
+  --reset-values -f medikeep-user-values.yaml
+```
+
+Use `service.port` when clients need a different Kubernetes Service port; the
+Service continues to target the fixed named `http` listener.
+
 ## Install
 
 ```bash
@@ -28,13 +45,50 @@ MediKeep exposes HTTP on port `8000`. For local access:
 kubectl port-forward svc/medikeep 8000:8000
 ```
 
-## Production Notes
+## Configuration
+
+The chart keeps the fixed upstream listener separate from the Kubernetes
+Service port. This example exposes Service port `8080` while MediKeep continues
+to listen on container port `8000`:
+
+```yaml
+service:
+  port: 8080
+
+app:
+  timezone: America/New_York
+  logLevel: INFO
+  debug: false
+  enableApiDocs: false
+```
+
+Common configuration groups are:
+
+- `image`, `app`, and `probes` for the pinned image and application runtime.
+- `secrets` and `medikeep.sso` for authentication and stable credentials.
+- `postgresql` or `database.external` for the database topology.
+- `persistence` for uploads, generated backups, and optional persistent logs.
+- `service`, `ingress`, and `gatewayAPI` for exposure.
+- `networkPolicy`, `resources`, `securityContext`, and `podSecurityContext` for
+  production controls.
+
+See [Authentication and Secrets](docs/authentication.md),
+[Exposure](docs/exposure.md), [Production](docs/production.md), and
+[Storage](docs/storage.md) for complete examples and operational boundaries.
+
+## Security and Production Notes
 
 MediKeep stores personal health data. Treat the database, uploads PVC, backups PVC, logs, and Kubernetes Secrets as sensitive.
 
-On fresh installs, upstream creates an `admin` user with the default password `admin123` unless `ADMIN_DEFAULT_PASSWORD` is set before first startup.
-For production, provide a Secret through `secrets.existingSecret` or set `secrets.adminDefaultPassword` during the first install,
-then rotate the password in the UI.
+On fresh installs, upstream creates an `admin` user with the default password
+`admin123` unless `ADMIN_DEFAULT_PASSWORD` is set before first startup. For
+production, set a strong `secrets.adminDefaultPassword` during the first install
+or provide `secrets.existingSecret` with the key configured by
+`secrets.adminDefaultPasswordKey`, then rotate the password in the UI. The chart
+rejects an inline `admin123` value for public exposure. Helm cannot inspect the
+contents of an existing Secret, so operators must ensure that its administrator
+password key exists and contains a strong value. For public exposure, the pod
+will not start when that key is missing.
 
 ```yaml
 secrets:

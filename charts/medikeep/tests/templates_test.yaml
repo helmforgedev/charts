@@ -33,6 +33,9 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].securityContext.runAsUser
           value: 999
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8000
   - it: renders the app secret by default
     template: templates/secret.yaml
     asserts:
@@ -62,6 +65,16 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
+  - it: requires the administrator password key from an existing Secret on public exposure
+    template: templates/deployment.yaml
+    set:
+      ingress.enabled: true
+      ingress.hosts[0].host: medikeep.example.com
+      secrets.existingSecret: medikeep-runtime
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name == "ADMIN_DEFAULT_PASSWORD")].valueFrom.secretKeyRef.optional
+          value: false
   - it: renders the default ClusterIP service
     template: templates/service.yaml
     asserts:
@@ -70,6 +83,17 @@ tests:
       - equal:
           path: spec.ports[0].port
           value: 8000
+      - equal:
+          path: spec.ports[0].targetPort
+          value: http
+  - it: keeps the service port independent from the fixed upstream listener
+    template: templates/service.yaml
+    set:
+      service.port: 18080
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 18080
       - equal:
           path: spec.ports[0].targetPort
           value: http

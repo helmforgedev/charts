@@ -84,7 +84,8 @@ spec:
           {{- end }}
           ports:
             - name: http
-              containerPort: {{ .Values.app.port }}
+              # helmforge: fixed-protocol-port -- the pinned upstream entrypoint always starts Uvicorn on 8000.
+              containerPort: 8000
               protocol: TCP
           env:
             - name: DB_HOST
@@ -141,7 +142,7 @@ spec:
                 secretKeyRef:
                   name: {{ include "medikeep.appSecretName" . | quote }}
                   key: {{ .Values.secrets.adminDefaultPasswordKey | quote }}
-                  optional: true
+                  optional: {{ not (or .Values.ingress.enabled .Values.gatewayAPI.enabled (eq .Values.service.type "NodePort") (eq .Values.service.type "LoadBalancer")) }}
             {{- end }}
             {{- range .Values.app.env }}
             - name: {{ .name }}
