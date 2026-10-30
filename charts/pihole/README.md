@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Pi-hole DNS Sinkhole
 
 A Helm chart for deploying [Pi-hole](https://pi-hole.net/) on Kubernetes using the official [pihole/pihole](https://hub.docker.com/r/pihole/pihole) container image.
@@ -36,16 +38,23 @@ helm install pihole oci://ghcr.io/helmforgedev/helm/pihole \
 - **Ingress Support** — Configurable ingress with TLS for the web admin interface
 - **DHCP Support** — Optional DHCP server with hostNetwork mode
 - **DNSSEC Validation** — Optional DNS Security Extensions
+- **Configurable Listeners** — DNS and web ports configure Pi-hole FTL itself
+- **Immutable Images** — All workload and backup images are pinned by digest
+- **Ingress Policy** — NetworkPolicy limits inbound traffic to declared ports
 
 ### Security Scan: `pihole`
 
-| Framework | Score |
-|---|---|
-| MITRE + NSA + SOC2 | **86%** |
+Every PR runs Kubescape against the rendered default manifests using the MITRE,
+NSA, and SOC2 frameworks. The authoritative score is posted on the PR. The
+chart drops all capabilities before adding only the official image's required
+runtime set, disables privilege escalation and API token mounting, uses
+runtime-default seccomp, pins images by digest, and creates an ingress
+NetworkPolicy. Root bootstrap and writable Pi-hole configuration remain
+documented upstream constraints.
 
-Security posture: acceptable with documented Pi-hole runtime exceptions for
-required DNS/network capabilities, root bootstrap behavior, writable Pi-hole
-configuration directories, and site-specific NetworkPolicy delegation.
+| Framework | Score |
+| --- | --- |
+| MITRE + NSA + SOC2 | 90.90909% |
 
 ## Configuration
 
@@ -136,7 +145,10 @@ metrics:
 |-----|---------|-------------|
 | `image.repository` | `docker.io/pihole/pihole` | Pi-hole container image repository |
 | `image.tag` | `2026.10.0` | Pi-hole container image tag (official upstream release 2026.10.0) |
+| `image.digest` | pinned SHA-256 | Immutable Pi-hole image digest |
 | `image.pullPolicy` | `IfNotPresent` | Pi-hole image pull policy |
+| `containerPorts.dns` | `53` | Pi-hole FTL DNS listener port (TCP and UDP) |
+| `containerPorts.http` | `80` | Pi-hole FTL web listener port |
 | `pihole.timezone` | `UTC` | Timezone for logs and scheduled tasks |
 | `pihole.upstreamDns` | `8.8.8.8;8.8.4.4` | Upstream DNS servers (semicolon-delimited) |
 | `pihole.listeningMode` | `ALL` | DNS listening mode (LOCAL, ALL, SINGLE, BIND) |
@@ -144,6 +156,10 @@ metrics:
 | `pihole.ftl.rateLimit` | `1000` | Rate limiting query count per client; set to `0` to disable |
 | `pihole.ftl.rateLimitInterval` | `60` | Rate limiting interval in seconds |
 | `pihole.extraEnv` | `[]` | Additional environment variables |
+
+Image tags and digests form a pair. When overriding any image tag, also set
+the matching digest to the digest published for that exact tag; Kubernetes
+resolves the digest as the deployed image identity.
 
 ### Admin
 
@@ -197,6 +213,10 @@ metrics:
 | `serviceWeb.type` | `ClusterIP` | Web admin service type |
 | `serviceWeb.port` | `80` | Web admin port |
 
+`serviceDns.port` and `serviceWeb.port` are client-facing Service ports.
+`containerPorts.dns` and `containerPorts.http` change the actual Pi-hole FTL
+listeners. DHCP remains on protocol-defined UDP port 67.
+
 ### Security and Resources
 
 | Key | Default | Description |
@@ -204,8 +224,14 @@ metrics:
 | `resources` | requests `100m/128Mi`, limits `500m/512Mi` | CPU and memory resources for the Pi-hole container |
 | `podSecurityContext.seccompProfile.type` | `RuntimeDefault` | Enables the Kubernetes default seccomp profile |
 | `securityContext.allowPrivilegeEscalation` | `false` | Prevents privilege escalation while preserving required Pi-hole capabilities |
-| `securityContext.capabilities.add` | `NET_BIND_SERVICE`, `NET_RAW`, `SYS_NICE`, `CHOWN` | Capabilities required for DNS binding, ICMP, FTL scheduling, and data ownership |
+| `securityContext.capabilities.add` | image runtime set | Capabilities required for image setup, privilege drop, FTL file capabilities, DNS binding, and shutdown |
 | `serviceAccount.automountServiceAccountToken` | `false` | Keeps Kubernetes API tokens out of the pod unless explicitly needed |
+| `networkPolicy.enabled` | `true` | Restrict ingress to declared Pi-hole pod ports |
+| `networkPolicy.ingressFrom` | `[]` | Optional source peers; empty allows LAN and cluster clients |
+
+NetworkPolicy enforcement for `dhcp.hostNetwork: true` depends on the cluster
+network plugin. Verify host-network policy behavior and use node-level controls
+when the Pi-hole listeners must be restricted.
 
 ### Ingress
 
@@ -254,8 +280,12 @@ metrics:
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `dhcp.enabled` | `false` | Enable DHCP server |
+| `dhcp.enabled` | `false` | Enable the Pi-hole DHCP server and expose UDP 67 |
 | `dhcp.hostNetwork` | `false` | Use host network for DHCP |
+| `dhcp.start` | `""` | First IPv4 address in the lease range (required when enabled) |
+| `dhcp.end` | `""` | Last IPv4 address in the lease range (required when enabled) |
+| `dhcp.router` | `""` | Router address advertised to clients (required when enabled) |
+| `dhcp.leaseTime` | `24h` | Lease duration accepted by Pi-hole FTL |
 
 ### Scheduling
 
@@ -290,14 +320,19 @@ metrics:
 
 ## Architecture Guides
 
+- [Design rationale](DESIGN.md) — scope, security, production boundaries, and known gaps
 - [Unbound Recursive DNS](docs/unbound.md) — privacy-focused recursive DNS resolution
+- [Operations guide](docs/operations.md) — backup, upgrades, runtime verification, and troubleshooting
 
 ## Upgrade Notes
 
 ### Upgrading to 2026.10.0
 
-Pi-hole 2026.10.0 includes upstream bug fixes and performance improvements.
-No breaking configuration or schema changes are introduced in this release.
+Pi-hole 2026.10.0 includes FTL 6.8, Web 6.6.1, Core 6.5, and fixes for
+17 published security advisories. The Docker release also prevents Secret-backed
+web passwords from appearing in shell traces and makes FTL and release downloads
+fail closed. Back up the persistent data and verify DNS, admin login, gravity
+updates, and any enabled Unbound or DHCP workflow after rollout.
 
 Upstream release notes: [Pi-hole 2026.10.0](https://github.com/pi-hole/docker-pi-hole/releases/tag/2026.10.0).
 
@@ -325,6 +360,13 @@ kubectl get secret <release>-pihole -o jsonpath='{.data.password}' | base64 -d
 kubectl port-forward svc/<release>-pihole-web 8080:80
 # Then visit http://localhost:8080/admin
 ```
+
+## Troubleshooting
+
+For DNS, listener, gravity, Unbound, DHCP, backup, and recovery diagnostics, see
+the [operations guide](docs/operations.md). Start with pod events and all
+container logs, then verify the DNS Service EndpointSlice and both UDP and TCP
+queries before changing the chart configuration.
 
 ## Non-Goals
 

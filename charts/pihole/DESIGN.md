@@ -1,6 +1,8 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Pi-hole Chart Design
 
-## Purpose
+## Scope
 
 The `pihole` chart deploys the official Pi-hole DNS sinkhole as a single
 Kubernetes workload with persistent configuration, Helm-managed DNS lists,
@@ -11,10 +13,13 @@ Pi-hole is stateful and authoritative for client DNS configuration. The chart
 therefore treats one pod as the supported topology and uses `Recreate` rollout
 semantics so one instance owns `/etc/pihole` and `/etc/dnsmasq.d` at a time.
 
-## Workload Model
+## Architecture
 
 The chart renders a Deployment with one replica. The main container exposes DNS
-over TCP and UDP port 53 plus the web admin interface on port 80. DHCP can be
+over TCP and UDP through `containerPorts.dns` plus the web admin interface
+through `containerPorts.http`. Both values configure Pi-hole FTL itself through
+`FTLCONF_dns_port` and `FTLCONF_webserver_port`; Service ports remain separate.
+DHCP port 67 is fixed by the protocol and explicitly documented as such. DHCP can be
 enabled for advanced home-network deployments, but it requires host networking
 because DHCP broadcasts do not cross Kubernetes service boundaries.
 
@@ -46,27 +51,46 @@ with the same official Pi-hole image as the main workload. This makes first
 startup deterministic: blocklists are downloaded before the pod is marked ready,
 rather than relying on an operator to run gravity manually after install.
 
-## Security Model
+## Security Boundary
 
 The official Pi-hole image must start with elevated permissions because it binds
 DNS ports, adjusts ownership of `/etc/pihole`, and runs FTL with DNS-specific
 capabilities. The chart therefore does not force `runAsNonRoot`,
-`runAsUser`, `capabilities.drop: ALL`, or `readOnlyRootFilesystem: true` by
-default.
+`runAsUser`, or `readOnlyRootFilesystem: true` by default. It does drop all
+ambient capabilities before adding the minimum set required by the official
+entrypoint and FTL. When enabled, the official Unbound sidecar similarly drops
+all capabilities and adds only `CHOWN`, `DAC_OVERRIDE`, `MKNOD`, `SETGID`,
+`SETUID`, and `SYS_CHROOT`; its entrypoint needs these to prepare the chroot and
+DNSSEC trust anchor before dropping to the `_unbound` user.
 
 The compatible default hardening set is:
 
 - `serviceAccount.automountServiceAccountToken: false`
 - `podSecurityContext.seccompProfile.type: RuntimeDefault`
 - `securityContext.allowPrivilegeEscalation: false`
+- `securityContext.capabilities.drop: [ALL]` before adding only Pi-hole's
+  required capabilities
 - explicit CPU and memory requests/limits for Pi-hole, gravity init, gravity
   update, backup, metrics, and Unbound containers
 
 The remaining Kubescape findings are documented product exceptions for DNS
-capabilities, root bootstrap behavior, writable runtime configuration, and
-NetworkPolicy delegation. The chart does not generate NetworkPolicy because
-home DNS, DHCP, recursive DNS, conditional forwarding, S3 backup endpoints, and
-monitoring stacks vary by deployment.
+capabilities, root bootstrap behavior, and writable runtime configuration. A
+default ingress NetworkPolicy admits only the declared DNS, web, optional DHCP,
+and optional metrics ports. Its source list is open by default because DNS and
+DHCP clients commonly live outside Kubernetes; operators can restrict
+`networkPolicy.ingressFrom`. Egress remains open for upstream DNS, gravity
+lists, recursive DNS, and optional S3 backups.
+
+NetworkPolicy enforcement for host-networked pods is implementation-dependent.
+Before enabling DHCP with `dhcp.hostNetwork: true`, operators must confirm how
+their network plugin handles host-network traffic and apply node-level firewall
+or equivalent controls instead of relying on `networkPolicy.ingressFrom` to
+protect the web and DNS listeners.
+
+When DHCP is enabled, the chart configures the Pi-hole FTL DHCP range and
+router, requires host networking, exposes fixed UDP port 67, and adds
+`NET_ADMIN` only for that configuration. The default DNS-only deployment does
+not receive `NET_ADMIN`.
 
 ## Networking
 
@@ -83,7 +107,7 @@ The DNS and web services both expose `ipFamilyPolicy` and `ipFamilies` so
 operators can render dual-stack manifests. The CI scenario uses explicit IPv4
 settings because the HelmForge k3d validation lab is IPv4-only.
 
-## Observability
+## Observability Boundary
 
 The chart uses HTTP probes against `/admin/` so readiness follows the web admin
 surface that operators use for status checks. Startup has a longer failure
@@ -92,6 +116,11 @@ threshold to allow gravity downloads and first-boot initialization.
 Prometheus metrics are optional through the `pihole-exporter` sidecar. When
 enabled, the chart exposes a metrics port on the web service and can render a
 ServiceMonitor for Prometheus Operator.
+
+Container logs, HTTP probes, the live DNS query runtime smoke, and optional
+Prometheus metrics are the supported signals. The chart does not provision a
+Prometheus stack, alert rules, log aggregation, or external synthetic DNS
+monitoring.
 
 ## Backup Design
 
@@ -102,6 +131,41 @@ or an existing Secret.
 
 The backup containers use explicit resource requests and limits by default so
 enabling backups does not introduce unconstrained workloads.
+
+## Design Decisions
+
+- `Recreate` preserves single-writer ownership of the Pi-hole data PVC.
+- DNS and web process ports are configurable because current Pi-hole FTL exposes
+  supported configuration keys for both listeners.
+- DHCP port 67 remains fixed because it is part of the DHCP protocol contract.
+- Unbound and the exporter remain optional sidecars to keep the default pod
+  focused on Pi-hole while supporting privacy and observability profiles.
+- Every image is tag-and-digest pinned so tag intent remains readable while the
+  runtime artifact is immutable.
+
+## Production Boundary
+
+The chart owns the workload, persistence, credentials, Service objects,
+listener wiring, probes, and optional ingress resources. Operators own a stable
+external DNS address, router or client DNS configuration, TLS and DNS names,
+restricted NetworkPolicy peers, PVC snapshots and restore drills, upstream DNS
+policy, and capacity planning.
+
+## Known Gaps
+
+- Pi-hole requires root bootstrap and selected network capabilities; a fully
+  non-root, read-only-root-filesystem default is not compatible upstream.
+- The default NetworkPolicy intentionally leaves source peers unrestricted to
+  support external LAN clients.
+- The chart is single-instance and does not implement state replication.
+- DHCPv6 and NTP exposure are outside the current chart contract.
+
+## Non-Goals
+
+The chart does not provide Pi-hole clustering, Gravity Sync, router
+configuration, a VPN, a Prometheus installation, or an S3 service. External
+Unbound, exporters, and backup systems can be used, but their lifecycle is not
+managed by this chart.
 
 ## Validation Expectations
 

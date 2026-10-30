@@ -90,7 +90,48 @@ Secret key for admin password.
 Image string with tag fallback to appVersion.
 */}}
 {{- define "pihole.image" -}}
-{{- printf "%s:%s" .Values.image.repository .Values.image.tag }}
+{{- $image := printf "%s:%s" .Values.image.repository .Values.image.tag -}}
+{{- if .Values.image.digest -}}
+{{- printf "%s@%s" $image .Values.image.digest -}}
+{{- else -}}
+{{- $image -}}
+{{- end -}}
+{{- end }}
+
+{{- define "pihole.metricsImage" -}}
+{{- $image := printf "%s:%s" .Values.metrics.image.repository .Values.metrics.image.tag -}}
+{{- if .Values.metrics.image.digest -}}
+{{- printf "%s@%s" $image .Values.metrics.image.digest -}}
+{{- else -}}
+{{- $image -}}
+{{- end -}}
+{{- end }}
+
+{{- define "pihole.unboundImage" -}}
+{{- $image := printf "%s:%s" .Values.unbound.image.repository .Values.unbound.image.tag -}}
+{{- if .Values.unbound.image.digest -}}
+{{- printf "%s@%s" $image .Values.unbound.image.digest -}}
+{{- else -}}
+{{- $image -}}
+{{- end -}}
+{{- end }}
+
+{{- define "pihole.backupUtilityImage" -}}
+{{- $image := printf "%s:%s" .Values.backup.images.utility.repository .Values.backup.images.utility.tag -}}
+{{- if .Values.backup.images.utility.digest -}}
+{{- printf "%s@%s" $image .Values.backup.images.utility.digest -}}
+{{- else -}}
+{{- $image -}}
+{{- end -}}
+{{- end }}
+
+{{- define "pihole.backupUploaderImage" -}}
+{{- $image := printf "%s:%s" .Values.backup.images.uploader.repository .Values.backup.images.uploader.tag -}}
+{{- if .Values.backup.images.uploader.digest -}}
+{{- printf "%s@%s" $image .Values.backup.images.uploader.digest -}}
+{{- else -}}
+{{- $image -}}
+{{- end -}}
 {{- end }}
 
 {{/*
@@ -136,6 +177,11 @@ the server: section.
 {{- else -}}
 server:
     verbosity: 0
+    use-syslog: no
+    do-daemonize: no
+    directory: "/opt/unbound/etc/unbound"
+    chroot: "/opt/unbound/etc/unbound"
+    username: "_unbound"
     interface: 127.0.0.1
     port: {{ .Values.unbound.port }}
     do-ip4: yes
@@ -144,7 +190,7 @@ server:
     do-ip6: no
     prefer-ip6: no
 
-    auto-trust-anchor-file: "/opt/unbound/etc/unbound/var/root.key"
+    auto-trust-anchor-file: "var/root.key"
 
     harden-glue: yes
     harden-dnssec-stripped: yes
@@ -303,6 +349,20 @@ Compile all validation warnings and errors into a single message.
   {{- end -}}
   {{- if not $hasPasswordKey -}}
     {{- $messages = append $messages (printf "When externalSecrets.enabled is true, externalSecrets.data must contain an entry with secretKey '%s' to populate the admin password." .Values.admin.existingSecretKey) -}}
+  {{- end -}}
+{{- end -}}
+{{- if .Values.dhcp.enabled -}}
+  {{- if not (or .Values.hostNetwork .Values.dhcp.hostNetwork) -}}
+    {{- $messages = append $messages "When dhcp.enabled is true, hostNetwork or dhcp.hostNetwork must be true so DHCP broadcasts can reach Pi-hole." -}}
+  {{- end -}}
+  {{- if not .Values.dhcp.start -}}
+    {{- $messages = append $messages "When dhcp.enabled is true, dhcp.start must be specified." -}}
+  {{- end -}}
+  {{- if not .Values.dhcp.end -}}
+    {{- $messages = append $messages "When dhcp.enabled is true, dhcp.end must be specified." -}}
+  {{- end -}}
+  {{- if not .Values.dhcp.router -}}
+    {{- $messages = append $messages "When dhcp.enabled is true, dhcp.router must be specified." -}}
   {{- end -}}
 {{- end -}}
 {{- if $messages -}}
