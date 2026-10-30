@@ -3,7 +3,7 @@
 Deploy [Ryot](https://github.com/IgnisDa/ryot) for private personal tracking with the official
 `ghcr.io/ignisda/ryot:v10.5.0` image and HelmForge PostgreSQL.
 
-## Production contract
+## Capabilities and production contract
 
 - One application replica with Recreate upgrades and one active native scheduler.
 - Protected native administrator creation before the public process starts; existing users are preserved.
@@ -38,6 +38,31 @@ For remote use, set `server.publicUrl` to the exact HTTPS origin, configure Ingr
 controller through `networkPolicy.ingressFrom`. Default ingress permits same-namespace pods only. The proxy health
 endpoint also probes the native backend. Resource limits must accommodate both the frontend and backend.
 
+## Configuration
+
+Inspect the current chart contract with `helm show values helmforge/ryot`. For an installed release, use
+`helm show values helmforge/ryot --version <chart-version>` with its deployed chart version. The schema rejects unknown
+chart-owned keys and validates the security-sensitive options below before Kubernetes receives a manifest.
+
+| Parameter | Purpose | Default |
+| --- | --- | --- |
+| `image.tag` | Pinned upstream Ryot release | `v10.5.0` |
+| `server.port` | Actual Caddy listener and container port | `8000` |
+| `server.publicUrl` | Exact browser-visible origin | `http://localhost:8000` |
+| `auth.existingSecret` | Retained administrator override Secret | `""` |
+| `bootstrap.existingSecret` | Retained initial-password Secret | `""` |
+| `postgresql.enabled` | Deploy the maintained PostgreSQL dependency | `true` |
+| `database.sslMode` | External PostgreSQL TLS mode | `verify-full` when external |
+| `networkPolicy.enabled` | Isolate application traffic | `true` |
+| `networkPolicy.ingressFrom` | Explicit ingress-controller peers | same namespace |
+| `ingress.enabled` | Render an Ingress | `false` |
+| `gatewayAPI.enabled` | Render configured HTTPRoutes | `false` |
+| `runtime.temporarySize` | Bound each application temporary volume | `1Gi` |
+
+Use `extraEnv` only for supported provider integrations. The chart rejects overrides of its database, identity,
+registration, telemetry, listener and storage safety controls. See [authentication and integration
+boundaries](docs/security.md) before adding any credential or outbound destination.
+
 ## Database choices
 
 Bundled PostgreSQL is enabled by default. Its native first-boot scripts prepare `uuid-ossp` and `pg_trgm` as the
@@ -54,6 +79,18 @@ only supported database engine.
 The read-only admission check waits for an authenticated database connection, rejects OIDC-linked accounts and decides
 whether first-administrator setup is needed. Native migrations fail closed before readiness. Disabling bootstrap does
 not disable database admission or the nonempty administrator-override requirement.
+
+## Architecture
+
+One Deployment retains the official supervisor, Caddy frontend proxy and Rust backend. Three init stages prepare the
+capability-free Caddy binary, build a private database URL, and admit the database before an optional fourth stage uses
+the native API to create the first local administrator. The public container starts only after those checks succeed.
+The Service targets the named `http` port; Ingress and Gateway API routes terminate at that same listener.
+
+PostgreSQL is the durability boundary. The bundled dependency receives first-boot extension scripts and its own
+NetworkPolicy. External PostgreSQL remains supported through a Secret-backed password and verified TLS. Temporary
+imports, logs and in-memory scheduler work are explicitly outside the recovery boundary. See [design](DESIGN.md) for
+the lifecycle, trust boundaries and deliberately unsupported features.
 
 ## Durability and availability
 
@@ -99,3 +136,26 @@ this namespace, and configure its HTTPS listener and public hostname. Routes acc
 with matches, filters and optional backend references; omitted backends target this chart's application Service.
 Ingress and HTTPRoute resources can coexist. Verify controller conditions and public traffic before production use.
 See the [Gateway API documentation](https://gateway-api.sigs.k8s.io/).
+
+## Examples
+
+- [Production deployment](examples/production.yaml) uses retained Secrets, TLS ingress and an explicit ingress peer.
+- [External PostgreSQL](examples/external-postgresql.yaml) uses a Secret-backed password, a private CA and narrow
+  database egress.
+
+Apply an example only after replacing hostnames, Secret names, selectors and storage sizes with values verified for the
+target cluster. The examples are starting contracts, not portable credentials or network identities.
+
+## Troubleshooting
+
+- If `database-admission` does not complete, inspect that init container first. Confirm credentials, TLS trust,
+  NetworkPolicy egress and the database's existing user state before changing application settings.
+- If migration or bootstrap fails, verify that `uuid-ossp` and `pg_trgm` exist with the required schema privileges. Keep
+  the same Secrets after a partial first start: the helper verifies a matching user and never treats password rotation
+  as an account reset.
+- If the Service is healthy but remote access fails, compare `server.publicUrl`, route hostnames, controller status and
+  `networkPolicy.ingressFrom`. Do not disable isolation as a diagnostic shortcut.
+- If the container cannot start with a custom security context, restore the default non-root identity, read-only root
+  filesystem and bounded writable mounts before investigating the upstream process.
+- Before an upgrade or restore, follow [database operations and recovery](docs/recovery.md). Helm rollback does not
+  reverse native database migrations.
