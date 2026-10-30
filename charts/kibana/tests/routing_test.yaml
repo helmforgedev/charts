@@ -28,6 +28,29 @@ tests:
           path: spec.ipFamilies[1]
           value: IPv6
 
+  - it: keeps the Service port independent from the named listener target
+    template: templates/service.yaml
+    set:
+      containerPorts.http: 15601
+      service.port: 15602
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 15602
+      - equal:
+          path: spec.ports[0].targetPort
+          value: http
+
+  - it: uses the configured listener in NetworkPolicy ingress
+    template: templates/networkpolicy.yaml
+    set:
+      containerPorts.http: 15601
+      networkPolicy.enabled: true
+    asserts:
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 15601
+
   - it: renders ingress when enabled
     template: templates/ingress.yaml
     set:
