@@ -25,6 +25,10 @@ The S3 Secret must contain `access-key` and `secret-key` unless key names are
 overridden. Each `pgDumpArgs` item is passed directly to `pg_dump`; shell
 expansion is not used.
 
+Legacy releases accepted a space-delimited string for `pgDumpArgs`. That form
+remains supported for upgrades, but new configurations should use the array
+form so every argument boundary is explicit.
+
 ## Verify a backup
 
 Create an ad-hoc Job from the CronJob and inspect the result:

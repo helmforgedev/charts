@@ -90,6 +90,24 @@ tests:
           path: spec.jobTemplate.spec.template.spec.initContainers[0].args[1]
           value: --no-acl
 
+  - it: preserves legacy space-delimited pg_dump arguments during upgrades
+    template: templates/backup-cronjob.yaml
+    set:
+      postgresql.enabled: true
+      backup.enabled: true
+      backup.database.pgDumpArgs: --no-owner --no-acl
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: test-bucket
+      backup.s3.accessKey: AKIA123
+      backup.s3.secretKey: secret123
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].args[0]
+          value: --no-owner
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].args[1]
+          value: --no-acl
+
   - it: should render CronJob when backup enabled with external postgres
     template: templates/backup-cronjob.yaml
     set:
