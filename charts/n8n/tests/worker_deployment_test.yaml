@@ -151,6 +151,38 @@ tests:
             name: N8N_PYTHON_ENABLED
             value: "false"
 
+  - it: should configure worker task runner listeners from containerPorts
+    template: templates/worker-deployment.yaml
+    set:
+      queue.enabled: true
+      redis.enabled: true
+      postgresql.enabled: true
+      postgresql.auth.password: pgpass
+      containerPorts.runnerBroker: 5779
+      containerPorts.runnerHealth: 5780
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: N8N_RUNNERS_BROKER_PORT
+            value: "5779"
+      - equal:
+          path: spec.template.spec.containers[1].ports[0].containerPort
+          value: 5780
+      - contains:
+          path: spec.template.spec.containers[1].env
+          content:
+            name: N8N_RUNNERS_TASK_BROKER_URI
+            value: "http://127.0.0.1:5779"
+      - contains:
+          path: spec.template.spec.containers[1].env
+          content:
+            name: N8N_RUNNERS_LAUNCHER_HEALTH_CHECK_PORT
+            value: "5780"
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+
   - it: should add extra env vars to the worker task runner
     template: templates/worker-deployment.yaml
     set:

@@ -35,6 +35,7 @@ spec:
       {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "n8n.serviceAccountName" . }}
       {{- end }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . }}
       {{- end }}
@@ -108,11 +109,11 @@ spec:
           {{- end }}
           ports:
             - name: http
-              containerPort: 5678
+              containerPort: {{ .Values.containerPorts.http }}
               protocol: TCP
             {{- if eq (.Values.taskRunners.mode | default "external") "external" }}
             - name: runners
-              containerPort: 5679
+              containerPort: {{ .Values.containerPorts.runnerBroker }}
               protocol: TCP
             {{- end }}
           env:
@@ -143,7 +144,7 @@ spec:
                   name: {{ include "n8n.encryptionKeySecretName" . }}
                   key: {{ include "n8n.encryptionKeySecretKey" . }}
             - name: N8N_PORT
-              value: "5678"
+              value: {{ .Values.containerPorts.http | quote }}
             {{- if .Values.n8n.webhookUrl }}
             - name: WEBHOOK_URL
               value: {{ .Values.n8n.webhookUrl | quote }}
@@ -171,6 +172,8 @@ spec:
             {{- if eq (.Values.taskRunners.mode | default "external") "external" }}
             - name: N8N_RUNNERS_BROKER_LISTEN_ADDRESS
               value: "0.0.0.0"
+            - name: N8N_RUNNERS_BROKER_PORT
+              value: {{ .Values.containerPorts.runnerBroker | quote }}
             - name: N8N_RUNNERS_AUTH_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -249,11 +252,11 @@ spec:
           {{- end }}
           ports:
             - name: runner-health
-              containerPort: 5680
+              containerPort: {{ .Values.containerPorts.runnerHealth }}
               protocol: TCP
           env:
             - name: N8N_RUNNERS_TASK_BROKER_URI
-              value: "http://127.0.0.1:5679"
+              value: {{ printf "http://127.0.0.1:%v" .Values.containerPorts.runnerBroker | quote }}
             - name: N8N_RUNNERS_AUTH_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -264,7 +267,7 @@ spec:
             - name: N8N_RUNNERS_AUTO_SHUTDOWN_TIMEOUT
               value: {{ .Values.taskRunners.autoShutdownTimeout | quote }}
             - name: N8N_RUNNERS_LAUNCHER_HEALTH_CHECK_PORT
-              value: "5680"
+              value: {{ .Values.containerPorts.runnerHealth | quote }}
             {{- with .Values.taskRunners.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

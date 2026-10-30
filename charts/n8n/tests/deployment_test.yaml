@@ -33,6 +33,43 @@ tests:
             containerPort: 5678
             protocol: TCP
 
+  - it: should configure every real listener from containerPorts
+    template: templates/deployment.yaml
+    set:
+      containerPorts.http: 5778
+      containerPorts.runnerBroker: 5779
+      containerPorts.runnerHealth: 5780
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 5778
+      - equal:
+          path: spec.template.spec.containers[0].ports[1].containerPort
+          value: 5779
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: N8N_PORT
+            value: "5778"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: N8N_RUNNERS_BROKER_PORT
+            value: "5779"
+      - equal:
+          path: spec.template.spec.containers[1].ports[0].containerPort
+          value: 5780
+      - contains:
+          path: spec.template.spec.containers[1].env
+          content:
+            name: N8N_RUNNERS_TASK_BROKER_URI
+            value: "http://127.0.0.1:5779"
+      - contains:
+          path: spec.template.spec.containers[1].env
+          content:
+            name: N8N_RUNNERS_LAUNCHER_HEALTH_CHECK_PORT
+            value: "5780"
+
   - it: should render hardened pod and container security defaults
     template: templates/deployment.yaml
     asserts:
@@ -51,6 +88,9 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].securityContext.capabilities.drop[0]
           value: ALL
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
 
   - it: should render resource defaults
     template: templates/deployment.yaml
@@ -283,6 +323,27 @@ tests:
     asserts:
       - failedTemplate:
           errorPattern: "taskRunners.nativePython.enabled=true requires taskRunners.mode=external"
+
+  - it: should reject duplicate external runner listener ports
+    template: templates/deployment.yaml
+    set:
+      containerPorts.http: 5678
+      containerPorts.runnerBroker: 5678
+      containerPorts.runnerHealth: 5680
+    asserts:
+      - failedTemplate:
+          errorPattern: "containerPorts.http, containerPorts.runnerBroker, and containerPorts.runnerHealth must be distinct when taskRunners.mode=external"
+
+  - it: should allow shared listener values in internal mode
+    template: templates/deployment.yaml
+    set:
+      taskRunners.mode: internal
+      containerPorts.http: 5678
+      containerPorts.runnerBroker: 5678
+      containerPorts.runnerHealth: 5678
+    asserts:
+      - isKind:
+          of: Deployment
 
   - it: should offload manual executions to workers in queue mode
     template: templates/deployment.yaml

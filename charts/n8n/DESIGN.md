@@ -68,6 +68,45 @@ For production, operators should define:
 - External Secrets integration for encryption, database, Redis, and S3 credentials
 - staging validation for migrations before reusing production PVCs
 
+## Security Boundary
+
+The main, worker, and task-runner containers use the upstream non-root user,
+drop all Linux capabilities, deny privilege escalation, and inherit the
+RuntimeDefault seccomp profile. Kubernetes API token mounting is disabled by
+default for both Deployments. Persistent workflow state and generated Secrets
+remain readable to principals with access to the namespace or Helm release
+metadata.
+
+The external task-runner broker uses a shared Secret and is exposed only while
+external runner mode is enabled. Operators must restrict network access to the
+broker Service port when workloads outside the pod are allowed to connect.
+Ingress authentication, NetworkPolicy, database TLS, Redis TLS, and secret-store
+policy remain platform responsibilities.
+
+## Observability Boundary
+
+Startup, liveness, and readiness probes target the configured n8n HTTP
+listener. The behavioral gate verifies readiness, owner authentication,
+credential encryption/decryption, published JavaScript and Python workflows,
+queue workers, and the listener contract for every task-runner sidecar.
+
+The chart does not create a ServiceMonitor. Operators can enable the upstream
+Prometheus endpoint with `N8N_METRICS=true`, keep it off the public route, and
+scrape it with platform-managed monitoring. Pod logs, Kubernetes events, Redis
+queue health, PostgreSQL metrics, backup job status, and synthetic webhook
+execution are complementary production signals.
+
+## Known Gaps
+
+- The chart does not create NetworkPolicy or ServiceMonitor resources.
+- The backup CronJob protects the database and application data archive but
+  does not manage object-store retention or cross-region replication.
+- SQLite uses a single main pod and cannot support queue-mode workers.
+- Community nodes and arbitrary Code node dependencies remain outside the
+  chart's compatibility guarantee.
+- External task-runner mode exposes a broker Service port; cluster network
+  policy must limit clients when the broker is used beyond same-pod sidecars.
+
 ## Explicit Non-Goals
 
 - provisioning external databases, object storage, secret stores, or ingress
