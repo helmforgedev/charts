@@ -94,12 +94,27 @@ spec:
           env:
             {{- include "pocket-id.nativeEnvironment" . | nindent 12 }}
           resources: {{ toYaml .Values.resources | nindent 12 }}
-          {{- range $name, $probe := .Values.probes }}
-          {{- if $probe.enabled }}
-          {{ $name }}Probe:
-            httpGet: {path: {{ $probe.path | quote }}, port: http}
-            {{- omit $probe "enabled" "path" | toYaml | nindent 12 }}
-          {{- end }}{{- end }}
+          {{- if .Values.probes.startup.enabled }}
+          startupProbe:
+            httpGet: {path: {{ .Values.probes.startup.path | quote }}, port: http}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet: {path: {{ .Values.probes.readiness.path | quote }}, port: http}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet: {path: {{ .Values.probes.liveness.path | quote }}, port: http}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+          {{- end }}
           volumeMounts:
             {{- include "pocket-id.mounts" . | nindent 12 }}
       volumes:

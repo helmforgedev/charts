@@ -390,10 +390,6 @@
               "type": "integer",
               "minimum": 1,
               "description": "Failure Threshold."
-            },
-            "requireBootComplete": {
-              "type": "boolean",
-              "description": "Require native boot progress 100 before startup/readiness succeeds."
             }
           },
           "description": "Wait for native kernel boot completion before liveness starts."
@@ -425,9 +421,6 @@
               "type": "integer",
               "minimum": 1,
               "description": "Failure Threshold."
-            },
-            "requireBootComplete": {
-              "type": "boolean"
             }
           },
           "description": "Check local HTTP availability without requiring external services."
@@ -459,10 +452,6 @@
               "type": "integer",
               "minimum": 1,
               "description": "Failure Threshold."
-            },
-            "requireBootComplete": {
-              "type": "boolean",
-              "description": "Require native boot progress 100 before startup/readiness succeeds."
             }
           },
           "description": "Require complete kernel initialization before admitting traffic."
@@ -473,6 +462,24 @@
     "resources": {
       "type": "object",
       "additionalProperties": true,
+      "properties": {
+        "requests": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "cpu": { "type": ["string", "number"] },
+            "memory": { "type": ["string", "number"] }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "cpu": { "type": ["string", "number"] },
+            "memory": { "type": ["string", "number"] }
+          }
+        }
+      },
       "description": "Resource sizing for indexing and workspace operations; increase memory for large collections."
     },
     "podSecurityContext": {
@@ -516,6 +523,18 @@
     "securityContext": {
       "type": "object",
       "additionalProperties": true,
+      "properties": {
+        "allowPrivilegeEscalation": { "type": "boolean" },
+        "readOnlyRootFilesystem": { "type": "boolean" },
+        "capabilities": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "add": { "type": "array", "items": { "type": "string" } },
+            "drop": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      },
       "description": "Restricted container privileges; all configuration and assets are read-only."
     },
     "podLabels": {
@@ -729,7 +748,58 @@
     },
     "postgresql": {
       "type": "object",
-      "additionalProperties": true
+      "additionalProperties": true,
+      "properties": {
+        "initdb": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "scripts": {
+              "type": "object",
+              "additionalProperties": { "type": "string" },
+              "properties": {
+                "20-pocket-id-extensions.sh": { "type": "string" }
+              }
+            }
+          }
+        },
+        "securityContext": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": { "readOnlyRootFilesystem": { "type": "boolean" } }
+        },
+        "extraVolumes": { "type": "array", "items": { "type": "object" } },
+        "extraVolumeMounts": { "type": "array", "items": { "type": "object" } },
+        "networkPolicy": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "egress": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "allowDNS": { "type": "boolean" },
+                "allowSameNamespacePostgreSQL": { "type": "boolean" },
+                "allowHTTPS": { "type": "boolean" }
+              }
+            }
+          }
+        },
+        "enabled": { "type": "boolean" },
+        "architecture": { "type": "string" },
+        "auth": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "database": { "type": "string" },
+            "username": { "type": "string" },
+            "existingSecret": { "type": "string" },
+            "existingSecretUserPasswordKey": { "type": "string" }
+          }
+        }
+      }
     },
     "metrics": {
       "type": "object",

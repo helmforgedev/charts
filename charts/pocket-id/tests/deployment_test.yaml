@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Pocket ID deployment contract
+templates:
+  - deployment.yaml
+tests:
+  - it: renders the official pinned image and native listener
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/pocket-id/pocket-id:v2.14.0
+      - equal: { path: 'spec.template.spec.containers[0].ports[0].containerPort', value: 1411 }
+      - contains:
+          path: 'spec.template.spec.containers[0].env'
+          content: { name: PORT, value: '1411' }
+  - it: renders every configured health probe against the named HTTP port
+    asserts:
+      - equal: { path: 'spec.template.spec.containers[0].startupProbe.httpGet.port', value: http }
+      - equal: { path: 'spec.template.spec.containers[0].readinessProbe.httpGet.port', value: http }
+      - equal: { path: 'spec.template.spec.containers[0].livenessProbe.httpGet.port', value: http }
+  - it: disables probes independently
+    set:
+      probes.startup.enabled: false
+      probes.readiness.enabled: false
+      probes.liveness.enabled: false
+    asserts:
+      - isNull: { path: 'spec.template.spec.containers[0].startupProbe' }
+      - isNull: { path: 'spec.template.spec.containers[0].readinessProbe' }
+      - isNull: { path: 'spec.template.spec.containers[0].livenessProbe' }

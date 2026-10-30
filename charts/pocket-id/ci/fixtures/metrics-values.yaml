@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Requires the Prometheus Operator in the HelmForge lab. Namespace-local test stack.
+# Namespace-local Prometheus stack for validating the chart monitoring contract.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -29,41 +29,105 @@ roleRef:
   kind: Role
   name: pocket-id-monitor
 ---
-apiVersion: monitoring.coreos.com/v1
-kind: Prometheus
+apiVersion: v1
+kind: ConfigMap
 metadata:
-  name: pocket-id-monitor
+  name: pocket-id-monitor-config
+  labels:
+    helmforge.dev/runtime-fixture: "true"
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 5s
+      scrape_timeout: 3s
+      evaluation_interval: 5s
+    rule_files:
+      - /etc/prometheus/rules.yml
+    scrape_configs:
+      - job_name: pocket-id
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              own_namespace: true
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_label_app_kubernetes_io_name]
+            regex: pocket-id
+            action: keep
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            regex: metrics
+            action: keep
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_service_name]
+            target_label: service
+          - replacement: metrics
+            target_label: endpoint
+  rules.yml: |
+    groups:
+      - name: pocket-id-metrics.native
+        rules:
+          - alert: PocketIDMetricsUnavailable
+            expr: up{endpoint="metrics"} == 0
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: Pocket ID native metrics target is unavailable
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: prometheus-pocket-id-monitor
   labels:
     helmforge.dev/runtime-fixture: "true"
 spec:
-  version: v3.14.0
-  image: quay.io/prometheus/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0
+  serviceName: pocket-id-monitor
   replicas: 1
-  serviceAccountName: pocket-id-monitor
-  serviceMonitorSelector:
+  selector:
     matchLabels:
-      app.kubernetes.io/name: pocket-id
-  ruleSelector:
-    matchLabels:
-      app.kubernetes.io/name: pocket-id
-  scrapeInterval: 15s
-  scrapeTimeout: 10s
-  evaluationInterval: 15s
-  retention: 1h
-  podMetadata:
-    labels:
       app: pocket-id-monitor
-      helmforge.dev/runtime-fixture: "true"
-  resources:
-    requests: {cpu: 100m, memory: 128Mi}
-    limits: {cpu: "1", memory: 512Mi}
-  securityContext:
-    runAsNonRoot: true
-    runAsUser: 65534
-    runAsGroup: 65534
-    fsGroup: 65534
-  storage:
-    emptyDir: {}
+  template:
+    metadata:
+      labels:
+        app: pocket-id-monitor
+        helmforge.dev/runtime-fixture: "true"
+    spec:
+      serviceAccountName: pocket-id-monitor
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: prometheus
+          image: quay.io/prometheus/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.path=/prometheus
+            - --storage.tsdb.retention.time=1h
+          ports:
+            - {name: http, containerPort: 9090}
+          readinessProbe:
+            httpGet: {path: /-/ready, port: http}
+          livenessProbe:
+            httpGet: {path: /-/healthy, port: http}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          volumeMounts:
+            - {name: config, mountPath: /etc/prometheus, readOnly: true}
+            - {name: data, mountPath: /prometheus}
+      volumes:
+        - name: config
+          configMap:
+            name: pocket-id-monitor-config
+        - {name: data, emptyDir: {}}
 ---
 apiVersion: v1
 kind: Service
@@ -71,7 +135,7 @@ metadata:
   name: pocket-id-monitor
 spec:
   selector:
-    prometheus: pocket-id-monitor
+    app: pocket-id-monitor
   ports:
     - name: http
       port: 9090
