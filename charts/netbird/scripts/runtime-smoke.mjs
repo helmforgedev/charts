@@ -51,7 +51,7 @@ for (let index = 0; index < 360; index += 1) {
   if (logs.includes('running metrics server:')) break;
   await delay(1000);
 }
-assert.match(logs, /management server version 0\.81\.3\b/);
+assert.match(logs, /management server version 0\.81\.5\b/);
 assert.match(logs, /running metrics server:/);
 
 function forward(podName, remotePorts) {
@@ -152,7 +152,7 @@ try {
     );
   });
   console.log(
-    `NetBird 0.81.3: server HTTP ${serverHttpPort}, metrics ${metricsPort}, dashboard HTTP ${dashboardHttpPort}, embedded OIDC, relay WebSocket, and Prometheus exposition verified.`,
+    `NetBird 0.81.5: server HTTP ${serverHttpPort}, metrics ${metricsPort}, dashboard HTTP ${dashboardHttpPort}, embedded OIDC, relay WebSocket, and Prometheus exposition verified.`,
   );
 } finally {
   stopForward(serverForward);

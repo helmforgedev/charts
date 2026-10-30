@@ -49,7 +49,7 @@ image with representative peers, and upgrade with explicit values:
 helm upgrade netbird helmforge/netbird \
   --namespace netbird \
   --reset-then-reuse-values \
-  --set server.image.tag=0.81.3
+  --set server.image.tag=0.81.5
 ```
 
 `--reset-then-reuse-values` also reapplies a previously explicit image tag, so set the intended tag as shown or remove
