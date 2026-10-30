@@ -1,0 +1,72 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: NetworkPolicy
+templates:
+  - templates/networkpolicy.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: isolates the main workload on its application listener by default
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: metadata.name
+          value: test-flowise-main
+      - equal:
+          path: spec.podSelector.matchLabels["app.kubernetes.io/component"]
+          value: main
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 3000
+
+  - it: renders component-scoped main and worker policies in queue mode
+    set:
+      architecture.mode: queue
+      persistence.enabled: false
+      storage.type: s3
+      storage.s3.bucketName: flowise
+      storage.s3.existingSecret: flowise-s3
+      postgresql.enabled: true
+      redis.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: spec.podSelector.matchLabels["app.kubernetes.io/component"]
+          value: worker
+        documentIndex: 1
+      - isEmpty:
+          path: spec.ingress
+        documentIndex: 1
+
+  - it: renders custom listener, ingress peers, and egress rules
+    set:
+      flowise.containerPort: 3100
+      networkPolicy.ingressFrom:
+        - namespaceSelector:
+            matchLabels:
+              access: flowise
+      networkPolicy.egress:
+        - ports:
+            - protocol: TCP
+              port: 5432
+    asserts:
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 3100
+      - equal:
+          path: spec.ingress[0].from[0].namespaceSelector.matchLabels.access
+          value: flowise
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 5432
+
+  - it: does not render policies when disabled
+    set:
+      networkPolicy.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

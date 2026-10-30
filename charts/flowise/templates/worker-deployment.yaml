@@ -32,13 +32,14 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "flowise.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       initContainers:
         - name: wait-for-database
-          image: docker.io/library/busybox:1.37
+          image: docker.io/library/busybox:1.37.0
           command:
             - sh
             - -c
@@ -49,7 +50,7 @@ spec:
               done
               echo "Database is reachable."
         - name: wait-for-redis
-          image: docker.io/library/busybox:1.37
+          image: docker.io/library/busybox:1.37.0
           command:
             - sh
             - -c
@@ -75,6 +76,10 @@ spec:
           env:
             - name: LOG_LEVEL
               value: {{ .Values.flowise.logLevel | quote }}
+            - name: LOG_PATH
+              value: {{ .Values.flowise.logPath | quote }}
+            - name: SECRETKEY_PATH
+              value: {{ .Values.flowise.secretKeyPath | quote }}
             - name: FLOWISE_SECRETKEY_OVERWRITE
               valueFrom:
                 secretKeyRef:
@@ -159,6 +164,22 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ .Values.persistence.mountPath }}
+            - name: tmp
+              mountPath: /tmp
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
