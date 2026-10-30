@@ -16,7 +16,7 @@ spec:
     metadata:
       {{- if (include "adguard-home.hasConfig" .) }}
       annotations:
-        checksum/config: {{ .Values.config.adGuardHome | toJson | sha256sum }}
+        checksum/config: {{ dict "config" .Values.config.adGuardHome "containerPorts" .Values.containerPorts | toJson | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -32,6 +32,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -124,6 +125,14 @@ spec:
         - name: adguard-home
           image: {{ include "adguard-home.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --no-check-update
+            - --config
+            - /opt/adguardhome/conf/AdGuardHome.yaml
+            - --work-dir
+            - /opt/adguardhome/work
+            - --web-addr
+            - 0.0.0.0:{{ include "adguard-home.webPort" . }}
           {{- with .Values.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
@@ -134,13 +143,14 @@ spec:
           {{- end }}
           ports:
             - name: http
-              containerPort: {{ if (include "adguard-home.hasConfig" .) }}80{{ else }}3000{{ end }}
+              containerPort: {{ include "adguard-home.webPort" . }}
               protocol: TCP
             - name: dns-tcp
-              containerPort: 53
+              # Wizard mode must select this same DNS port before setup completes.
+              containerPort: {{ .Values.containerPorts.dns }}
               protocol: TCP
             - name: dns-udp
-              containerPort: 53
+              containerPort: {{ .Values.containerPorts.dns }}
               protocol: UDP
           {{- if .Values.probes.startup.enabled }}
           startupProbe:

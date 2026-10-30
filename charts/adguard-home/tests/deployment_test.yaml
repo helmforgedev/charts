@@ -48,6 +48,16 @@ tests:
             name: http
             containerPort: 3000
             protocol: TCP
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - --no-check-update
+            - --config
+            - /opt/adguardhome/conf/AdGuardHome.yaml
+            - --work-dir
+            - /opt/adguardhome/work
+            - --web-addr
+            - 0.0.0.0:3000
 
   - it: should expose port 80 when config is provided
     template: templates/deployment.yaml
@@ -62,6 +72,60 @@ tests:
             name: http
             containerPort: 80
             protocol: TCP
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - --no-check-update
+            - --config
+            - /opt/adguardhome/conf/AdGuardHome.yaml
+            - --work-dir
+            - /opt/adguardhome/work
+            - --web-addr
+            - 0.0.0.0:80
+
+  - it: should wire non-default listeners to the process and pod ports
+    template: templates/deployment.yaml
+    set:
+      containerPorts:
+        setup: 3100
+        http: 8080
+        dns: 1053
+      config.adGuardHome:
+        http:
+          address: "0.0.0.0:80"
+        dns:
+          bind_hosts:
+            - 0.0.0.0
+          port: 53
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - --no-check-update
+            - --config
+            - /opt/adguardhome/conf/AdGuardHome.yaml
+            - --work-dir
+            - /opt/adguardhome/work
+            - --web-addr
+            - 0.0.0.0:8080
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http
+            containerPort: 8080
+            protocol: TCP
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: dns-tcp
+            containerPort: 1053
+            protocol: TCP
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: dns-udp
+            containerPort: 1053
+            protocol: UDP
 
   - it: should expose DNS ports
     template: templates/deployment.yaml
@@ -78,6 +142,13 @@ tests:
             name: dns-udp
             containerPort: 53
             protocol: UDP
+
+  - it: should disable API token automount by default
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
 
   - it: should mount conf and work volumes
     template: templates/deployment.yaml

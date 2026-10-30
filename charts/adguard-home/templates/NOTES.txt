@@ -1,7 +1,9 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 --------------------------------------------------------------------
-  AdGuard Home has been successfully deployed!
+  1. RELEASE SUMMARY
 --------------------------------------------------------------------
+
+AdGuard Home has been successfully deployed.
 
 Chart:      {{ .Chart.Name }}
 Version:    {{ .Chart.Version }}
@@ -10,13 +12,13 @@ Release:    {{ .Release.Name }}
 Namespace:  {{ .Release.Namespace }}
 
 --------------------------------------------------------------------
-  ACCESS INFORMATION
+  2. ACCESS INFORMATION
 --------------------------------------------------------------------
 
 {{- if (include "adguard-home.hasConfig" .) }}
 Mode: Pre-configured (setup wizard bypassed)
 {{- else }}
-Mode: Setup wizard (first-access via port 3000)
+Mode: Setup wizard (listener {{ .Values.containerPorts.setup }})
 {{- end }}
 
 {{- if .Values.ingress.enabled }}
@@ -42,7 +44,7 @@ DNS Service:
     export DNS_IP=$(kubectl get svc {{ include "adguard-home.fullname" . }}-dns \
       -n {{ .Release.Namespace }} \
       -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-    echo "DNS server: $DNS_IP:53"
+    echo "DNS server: $DNS_IP:{{ .Values.service.dns.port }}"
 {{- else if eq .Values.service.dns.type "NodePort" }}
   Get NodePort:
     export NODE_PORT=$(kubectl get svc {{ include "adguard-home.fullname" . }}-dns \
@@ -51,11 +53,26 @@ DNS Service:
     echo "DNS NodePort: $NODE_PORT"
 {{- else }}
   Internal DNS endpoint (ClusterIP):
-    {{ include "adguard-home.fullname" . }}-dns.{{ .Release.Namespace }}.svc.cluster.local:53
+    {{ include "adguard-home.fullname" . }}-dns.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.dns.port }}
 {{- end }}
 
 --------------------------------------------------------------------
-  CONFIGURATION
+  3. NETWORK LISTENERS
+--------------------------------------------------------------------
+
+Setup listener:      {{ .Values.containerPorts.setup }}/TCP
+Configured HTTP:     {{ .Values.containerPorts.http }}/TCP
+Active HTTP:         {{ include "adguard-home.webPort" . }}/TCP
+DNS listener:        {{ .Values.containerPorts.dns }}/TCP and UDP
+Web Service port:    {{ .Values.service.web.port }}/TCP
+DNS Service port:    {{ .Values.service.dns.port }}/TCP and UDP
+
+Services use named target ports, so public Service ports may differ from the
+application listeners. Existing or externally supplied AdGuardHome.yaml files
+must use DNS port {{ .Values.containerPorts.dns }}.
+
+--------------------------------------------------------------------
+  4. CONFIGURATION
 --------------------------------------------------------------------
 
 Deployment:
@@ -96,7 +113,7 @@ Optional Features:
 {{- end }}
 
 --------------------------------------------------------------------
-  GETTING STARTED
+  5. GETTING STARTED
 --------------------------------------------------------------------
 
 1. Wait for AdGuard Home to be ready:
@@ -117,18 +134,22 @@ Optional Features:
      svc/{{ include "adguard-home.fullname" . }}-web 3000:{{ .Values.service.web.port }}
    Open: http://localhost:3000/
 
-5. After wizard completion, configure your network to use this server as DNS.
+5. Before completing the wizard, set its DNS listener port to
+   {{ .Values.containerPorts.dns }} so it matches containerPorts.dns and the
+   DNS Service target. Then configure your network to use this server as DNS.
 {{- else }}
 4. Verify DNS is responding:
-   kubectl exec -n {{ .Release.Namespace }} \
-     deploy/{{ include "adguard-home.fullname" . }} -- \
-     nslookup google.com 127.0.0.1
+   kubectl run adguard-home-dns-check -n {{ .Release.Namespace }} \
+     --rm -i --restart=Never \
+     --image=registry.k8s.io/e2e-test-images/dnsutils:1.3 -- \
+     dig @{{ include "adguard-home.fullname" . }}-dns \
+     -p {{ .Values.containerPorts.dns }} google.com
 
 5. Access the admin panel (see ACCESS INFORMATION above).
 {{- end }}
 
 --------------------------------------------------------------------
-  TROUBLESHOOTING
+  6. TROUBLESHOOTING
 --------------------------------------------------------------------
 
 Check pod status:
@@ -182,7 +203,7 @@ View last backup job logs:
 {{- end }}
 
 --------------------------------------------------------------------
-  WARNINGS
+  7. WARNINGS
 --------------------------------------------------------------------
 
 {{- if and .Values.backup.enabled (not .Values.backup.s3.bucket) }}
@@ -231,7 +252,7 @@ Use config.adGuardHome or config.existingSecret to pre-seed AdGuardHome.yaml bef
 {{- end }}
 
 --------------------------------------------------------------------
-  ADDITIONAL RESOURCES
+  8. ADDITIONAL RESOURCES
 --------------------------------------------------------------------
 
 Documentation:        https://helmforge.dev/docs/charts/adguard-home

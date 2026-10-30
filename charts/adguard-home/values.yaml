@@ -22,6 +22,18 @@ image:
 imagePullSecrets: []
 
 # =============================================================================
+# Application Listeners
+# =============================================================================
+
+containerPorts:
+  # -- Initial setup wizard HTTP listener. The chart passes this to --web-addr.
+  setup: 3000
+  # -- Configured admin UI HTTP listener. The chart passes this to --web-addr.
+  http: 80
+  # -- DNS listener used when the chart seeds config.adGuardHome.
+  dns: 53
+
+# =============================================================================
 # AdGuard Home Configuration
 # =============================================================================
 # When config.adGuardHome is non-empty, it is rendered as AdGuardHome.yaml
@@ -114,6 +126,8 @@ serviceAccount:
   name: ""
   # -- Annotations for the ServiceAccount
   annotations: {}
+  # -- Mount the Kubernetes API token into chart workloads
+  automountServiceAccountToken: false
 
 # =============================================================================
 # Services
@@ -129,6 +143,7 @@ service:
     ipFamilyPolicy: ~
     # -- Service IP families override. Empty uses cluster default.
     ipFamilies: []
+
   # -- DNS service (separate for LoadBalancer/NodePort use)
   dns:
     # -- Service type - use LoadBalancer for external DNS access
@@ -151,6 +166,20 @@ service:
     ipFamilyPolicy: ~
     # -- Service IP families override. Empty uses cluster default.
     ipFamilies: []
+
+# =============================================================================
+# Network Policy
+# =============================================================================
+
+networkPolicy:
+  # -- Restrict inbound traffic to the declared web and DNS listeners
+  enabled: false
+  # -- NetworkPolicy peers allowed to reach the web and DNS listeners. Empty allows all sources.
+  ingressFrom: []
+  # -- Additional complete ingress rules
+  extraIngress: []
+  # -- Additional complete egress rules. Non-empty also enables egress isolation.
+  extraEgress: []
 
 # =============================================================================
 # Ingress
