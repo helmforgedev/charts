@@ -44,6 +44,37 @@ tests:
       - equal:
           path: spec.ports[0].targetPort
           value: http
+  - it: wires the application listener and network storage mode into the runtime
+    template: templates/deployment.yaml
+    set:
+      app.port: 6161
+      app.diskType: NETWORK
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 6161
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BOOKLORE_PORT
+            value: "6161"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DISK_TYPE
+            value: NETWORK
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /api/v1/healthcheck
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.port
+          value: http
+  - it: disables the service account token by default
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
   - it: renders common labels on a separate line
     template: templates/service.yaml
     values:
