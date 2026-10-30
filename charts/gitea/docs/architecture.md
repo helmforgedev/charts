@@ -11,7 +11,7 @@ responsibilities separate so each surface can be exposed and secured independent
 | Component | Resource | Purpose |
 | --- | --- | --- |
 | Gitea app | `Deployment` | Runs the upstream rootless image and serves HTTP plus Git SSH. |
-| HTTP endpoint | `Service` | Exposes the web UI and Git-over-HTTP on port `3000`. |
+| HTTP endpoint | `Service` | Exposes the web UI and Git-over-HTTP on `service.http.port`. |
 | SSH endpoint | `Service` | Exposes Git-over-SSH on port `2222` by default. |
 | Data volume | `PersistentVolumeClaim` | Stores repositories, LFS data, attachments, config, logs, and SQLite. |
 | Admin bootstrap | Helm hook `Job` | Creates an admin user after install when `admin.username` is set. |
@@ -33,8 +33,10 @@ only for disposable CI or local smoke checks.
 
 ## Request Flow
 
-HTTP requests reach `svc/<release>-gitea-http`, then the Gitea container on port
-`3000`. Ingress and Gateway API HTTPRoute both route only to this service.
+HTTP requests reach `svc/<release>-gitea-http`, then the Gitea container on
+`containerPorts.http` (`3000` by default). The chart passes the same value to
+the process as `GITEA__server__HTTP_PORT`. Ingress and Gateway API HTTPRoute both
+route only to this service, whose public `service.http.port` remains independent.
 
 SSH requests reach `svc/<release>-gitea-ssh`, then the same container on the
 configured SSH listen port. Use `service.ssh.type=NodePort` when clone URLs must
@@ -53,3 +55,8 @@ The main workload runs as UID/GID `1000`, denies privilege escalation, drops all
 Linux capabilities, and uses the runtime default seccomp profile. The root
 `volumePermissions` init container is disabled by default and should remain off in
 namespaces enforcing the Kubernetes restricted Pod Security profile.
+
+Kubernetes API token automount is disabled by default for the Deployment,
+admin-bootstrap Job, and backup CronJob. An optional ingress-only NetworkPolicy
+can constrain HTTP and SSH sources; because ingress controllers often run in a
+different namespace, it must be explicitly enabled with suitable peers.

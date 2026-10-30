@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: network policy
+templates:
+  - templates/networkpolicy.yaml
+tests:
+  - it: should not render by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should allow HTTP and SSH ingress when enabled
+    set:
+      networkPolicy.enabled: true
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - contains:
+          path: spec.ingress[0].ports
+          content:
+            protocol: TCP
+            port: http
+      - contains:
+          path: spec.ingress[0].ports
+          content:
+            protocol: TCP
+            port: ssh
+
+  - it: should omit SSH ingress when the SSH service is disabled
+    set:
+      networkPolicy.enabled: true
+      service.ssh.enabled: false
+    asserts:
+      - notContains:
+          path: spec.ingress[0].ports
+          content:
+            protocol: TCP
+            port: ssh
+
+  - it: should allow the admin bootstrap Job when ingress peers are restricted
+    set:
+      admin.username: gitea-admin
+      networkPolicy.enabled: true
+      networkPolicy.ingressFrom:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-system
+    asserts:
+      - equal:
+          path: spec.ingress[1].from[0].podSelector.matchLabels["app.kubernetes.io/component"]
+          value: admin-create
+      - equal:
+          path: spec.ingress[1].from[0].podSelector.matchLabels["app.kubernetes.io/name"]
+          value: gitea
+      - equal:
+          path: spec.ingress[1].from[0].podSelector.matchLabels["app.kubernetes.io/instance"]
+          value: RELEASE-NAME
+      - contains:
+          path: spec.ingress[1].ports
+          content:
+            protocol: TCP
+            port: http
