@@ -37,7 +37,7 @@ tests:
           path: spec.template.spec.containers[0].image
           value: "ghcr.io/timothepoznanski/poznote:6.121.0"
 
-  - it: should expose HTTP port 80
+  - it: should expose the default HTTP listener
     template: templates/deployment.yaml
     asserts:
       - equal:
@@ -47,14 +47,29 @@ tests:
           path: spec.template.spec.containers[0].ports[0].name
           value: http
 
-  - it: should set HTTP_WEB_PORT environment variable
+  - it: should configure the upstream Nginx listener
     template: templates/deployment.yaml
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
-            name: HTTP_WEB_PORT
+            name: POZNOTE_LISTEN_PORT
             value: "80"
+
+  - it: should change the real listener independently from the Service port
+    template: templates/deployment.yaml
+    set:
+      containerPorts.http: 8080
+      service.port: 8088
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8080
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POZNOTE_LISTEN_PORT
+            value: "8080"
 
   - it: should set TZ environment variable
     template: templates/deployment.yaml
@@ -128,6 +143,17 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: app.env must not override chart-managed environment variable POZNOTE_HIDE_RESTRICT_USERS
+
+  - it: should reject overrides of the chart-managed listener
+    template: templates/deployment.yaml
+    set:
+      app:
+        env:
+          - name: POZNOTE_LISTEN_PORT
+            value: "8080"
+    asserts:
+      - failedTemplate:
+          errorMessage: app.env must not override chart-managed environment variable POZNOTE_LISTEN_PORT
 
   - it: should mount data volume at upstream data path
     template: templates/deployment.yaml
