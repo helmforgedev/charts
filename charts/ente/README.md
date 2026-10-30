@@ -29,20 +29,18 @@ Ente clients encrypt photos before upload. Museum stores metadata and encryption
 material in PostgreSQL and returns presigned object-storage URLs. Clients then
 transfer encrypted objects directly to S3.
 
-```text
-Browser / mobile client
-        | HTTPS
-        +--------------------> Ente web applications
-        |
-        +--------------------> Museum API
-                                  | PostgreSQL protocol
-                                  +------> PostgreSQL
-                                  |
-                                  | S3 control operations
-                                  +------> external S3
-        |
-        | presigned S3 URLs
-        +------------------------> external S3
+```mermaid
+flowchart LR
+    clients[Browser and mobile clients]
+    web[Ente web applications]
+    museum[Museum API]
+    database[(PostgreSQL)]
+    objects[(External S3)]
+    clients -->|HTTPS| web
+    clients -->|HTTPS| museum
+    museum --> database
+    museum -->|S3 control operations| objects
+    clients -->|presigned S3 URLs| objects
 ```
 
 The S3 endpoint must be reachable from both the cluster and end-user clients.
@@ -89,6 +87,38 @@ helm install ente helmforge/ente -f values-production.yaml
 helm install ente oci://ghcr.io/helmforgedev/helm/ente \
   -f values-production.yaml
 ```
+
+## Configuration
+
+Application listeners and Kubernetes Service ports are separate contracts:
+
+| Value | Default | Purpose |
+|---|---:|---|
+| `museum.containerPorts.http` | `8080` | Configures Museum's real `http.port` listener and named Pod port |
+| `museum.service.port` | `8080` | Exposes Museum through the Kubernetes Service and targets `http` by name |
+| `museum.service.metricsPort` | `2112` | Exposes the upstream metrics listener through the metrics Service |
+| `web.apps.<name>.port` | app-specific | Configures each NGINX listener and named Pod port |
+| `web.service.port` | `80` | Exposes each enabled web application Service |
+
+For example, Museum can listen on 18080 while its Service exposes 18081:
+
+```yaml
+museum:
+  containerPorts:
+    http: 18080
+  service:
+    port: 18081
+```
+
+The Ente binary hard-codes Prometheus on port 2112, so that process listener is
+a documented fixed-protocol exception. `museum.service.metricsPort` changes the
+Service port only; its named target remains the fixed `metrics` container port.
+
+Museum runs as a non-root container with all Linux capabilities dropped. A
+listener below the runtime's `net.ipv4.ip_unprivileged_port_start` requires the
+runtime to permit non-root binds; otherwise, keep the application listener on
+an unprivileged port and expose the desired low port through
+`museum.service.port`.
 
 ## Required production inputs
 
@@ -290,7 +320,8 @@ schedulers during rollout.
 Every Museum process attempts database migrations during startup. In HA, the
 chart adds a hardened PostgreSQL client sidecar to every Museum pod. The sidecar
 uses `pg_try_advisory_lock` without holding an active transaction, starts one
-Museum process, waits for port 8080, and only then releases the next pod. This
+Museum process, waits for `museum.containerPorts.http`, and only then releases
+the next pod. This
 avoids concurrent `CREATE INDEX CONCURRENTLY` migrations and a dirty migration
 state. Disabling `museum.migrationGate` in an HA or HPA topology is rejected.
 
@@ -403,7 +434,7 @@ kubectl logs job/ente-backup-test --all-containers
 
 ## Observability
 
-Museum exposes Prometheus metrics on port 2112.
+Museum exposes Prometheus metrics on the upstream-fixed port 2112.
 
 ```yaml
 metrics:
