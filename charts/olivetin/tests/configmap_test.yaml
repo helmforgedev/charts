@@ -34,6 +34,7 @@ tests:
   - it: should wire metrics values into the default config
     set:
       metrics.enabled: true
+      metrics.port: 1341
       metrics.defaultGoMetrics: true
     asserts:
       - matchRegex:
@@ -42,6 +43,9 @@ tests:
       - matchRegex:
           path: data["config.yaml"]
           pattern: "defaultGoMetrics: true"
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "listenAddressPrometheus: 0.0.0.0:1341"
 
   - it: should preserve OliveTin runtime templates by default
     set:
@@ -76,3 +80,49 @@ tests:
       - matchRegex:
           path: data["config.yaml"]
           pattern: "Hello World"
+
+  - it: should enforce chart-managed metrics settings in custom config
+    set:
+      metrics.enabled: true
+      metrics.port: 2341
+      config: |
+        prometheus:
+          enabled: false
+        actions:
+          - title: "Hello World"
+            shell: "echo hello"
+    asserts:
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "listenAddressPrometheus: 0.0.0.0:2341"
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "enabled: true"
+
+  - it: should disable chart-managed metrics in custom config
+    set:
+      metrics.enabled: false
+      config: |
+        prometheus:
+          enabled: true
+        listenAddressPrometheus: 0.0.0.0:9999
+        actions:
+          - title: "Hello World"
+            shell: "echo hello"
+    asserts:
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "enabled: false"
+      - notMatchRegex:
+          path: data["config.yaml"]
+          pattern: "listenAddressPrometheus"
+
+  - it: should reject invalid custom YAML
+    set:
+      config: |
+        actions:
+          - title: broken
+           shell: echo broken
+    asserts:
+      - failedTemplate:
+          errorMessage: "config must contain valid YAML: error converting YAML to JSON: yaml: line 2: did not find expected '-' indicator"

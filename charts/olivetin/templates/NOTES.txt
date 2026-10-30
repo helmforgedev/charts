@@ -1,95 +1,142 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-{{- $namespace := .Release.Namespace -}}
-1. OliveTin has been installed
-==============================
-  Release:   {{ .Release.Name }}
-  Namespace: {{ $namespace }}
-  Version:   {{ .Chart.AppVersion }}
-  Image:     {{ include "olivetin.image" . }}
+OliveTin has been installed.
+
+1. Installation summary
+=======================
+
+- Release: {{ .Release.Name }}
+- Namespace: {{ .Release.Namespace }}
+- Chart: {{ .Chart.Name }} {{ .Chart.Version }}
+- App version: {{ .Chart.AppVersion }}
+- Image: {{ include "olivetin.image" . }}
+- Deployment strategy: Recreate
+- ServiceAccount: {{ include "olivetin.serviceAccountName" . }}
 
 2. Access
 =========
-[ClusterIP] Port-forward:
-  kubectl port-forward svc/{{ include "olivetin.fullname" . }} 1337:{{ .Values.service.port }} -n {{ $namespace }}
-  Open: http://localhost:1337
+
+Application Service:
+- Name: {{ include "olivetin.fullname" . }}
+- Type: {{ .Values.service.type }}
+- Service port: {{ .Values.service.port }}
+- Application listener: {{ .Values.olivetin.port }}
+- Cluster DNS: http://{{ include "olivetin.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+
+Port-forward command:
+
+  kubectl port-forward svc/{{ include "olivetin.fullname" . }} 1337:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+
+Local URL:
+
+  http://127.0.0.1:1337
 
 {{- if .Values.ingress.enabled }}
-[Ingress]
+
+Ingress is enabled.
 {{- range .Values.ingress.hosts }}
-  URL: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}/
+- Host: {{ .host | default "(hostless rule)" }}
 {{- end }}
+{{- else }}
+Ingress is disabled.
 {{- end }}
 
 {{- if .Values.gatewayAPI.enabled }}
-[Gateway API]
-  HTTPRoutes:
+
+Gateway API HTTPRoute is enabled.
 {{- range .Values.gatewayAPI.httpRoutes }}
-    - {{ include "olivetin.httpRouteName" (dict "root" $ "route" .) }}
+{{- range .hostnames }}
+- Hostname: {{ . }}
 {{- end }}
+{{- end }}
+{{- else }}
+Gateway API HTTPRoute is disabled.
 {{- end }}
 
-3. Configuration Summary
+3. Getting started
+==================
+
+1. Wait for the OliveTin pod:
+
+   kubectl wait --for=condition=Ready pod -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name={{ include "olivetin.name" . }} --timeout=5m
+
+2. Port-forward the Service and open http://127.0.0.1:1337.
+
+3. Run only the actions you have reviewed and test their least-privilege access.
+
+4. Security
+===========
+
+OliveTin executes configured shell commands. Before exposing it:
+
+- configure OliveTin authentication and ACLs or an authenticated reverse proxy;
+- keep ServiceAccount token mounting disabled unless actions require it;
+- grant only the RBAC, volumes, executables, and credentials each action needs;
+- use Secrets or External Secrets for credentials, never the ConfigMap;
+- restrict network access according to the destinations used by your actions.
+
+5. Configuration summary
 ========================
-  Config source:      {{- if .Values.config }} custom values.config{{- else }} chart-managed starter config{{- end }}
-  Helm tpl config:    {{- if .Values.configTpl.enabled }} enabled{{- else }} disabled{{- end }}
-  Persistence:        {{- if .Values.persistence.enabled }} enabled ({{ .Values.persistence.size }}){{- else }} disabled{{- end }}
-  Metrics:            {{- if .Values.metrics.enabled }} enabled{{- else }} disabled{{- end }}
-  ServiceMonitor:     {{- if .Values.metrics.serviceMonitor.enabled }} enabled{{- else }} disabled{{- end }}
-  Gateway API:        {{- if .Values.gatewayAPI.enabled }} enabled{{- else }} disabled{{- end }}
-  External Secrets:   {{- if .Values.externalSecrets.enabled }} enabled{{- else }} disabled{{- end }}
-  Service dual-stack: {{- if .Values.service.ipFamilyPolicy }} {{ .Values.service.ipFamilyPolicy }}{{- else }} cluster default{{- end }}
 
-4. Getting Started
-==================
-  Step 1: Wait for the pod to become ready:
-    kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=olivetin -n {{ $namespace }} --timeout=300s
+- Config source: {{ if .Values.config }}custom values.config{{ else }}chart-managed starter config{{ end }}
+- Helm tpl for config: {{ .Values.configTpl.enabled }}
+- Application listener: {{ .Values.olivetin.port }}
+- Persistence: {{ if .Values.persistence.enabled }}enabled at /data{{ else }}disabled{{ end }}
+- Metrics: {{ .Values.metrics.enabled }}
+{{- if .Values.metrics.enabled }}
+- Metrics port: {{ .Values.metrics.port }}
+{{- end }}
+- ServiceMonitor: {{ .Values.metrics.serviceMonitor.enabled }}
+- Gateway API: {{ .Values.gatewayAPI.enabled }}
+- External Secrets: {{ .Values.externalSecrets.enabled }}
+- Service dual-stack policy: {{ .Values.service.ipFamilyPolicy | default "cluster default" }}
 
-  Step 2: Open the UI and test one configured action.
-
-  Step 3: Review command output and application logs before exposing OliveTin broadly.
-
-Security reminder:
-  OliveTin executes the shell commands you configure. Keep commands explicit,
-  prefer non-root defaults, and inject credentials through Kubernetes Secrets or
-  External Secrets instead of hardcoding them in values files.
-
-5. Validation Commands
+6. Validation commands
 ======================
-  # Check pods and services
-  kubectl get pods,svc -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
 
-  # Inspect recent logs
-  kubectl logs -n {{ $namespace }} -l app.kubernetes.io/name=olivetin --all-containers --tail=100
+Check release status:
 
-  # Smoke test through the Service from inside the cluster
-  kubectl run olivetin-smoke -n {{ $namespace }} --rm -i --restart=Never --image=curlimages/curl:8.11.1 -- \
-    curl -fsS http://{{ include "olivetin.fullname" . }}:{{ .Values.service.port }}/
+  helm status {{ .Release.Name }} -n {{ .Release.Namespace }}
 
-6. Troubleshooting
+Check resources and endpoints:
+
+  kubectl get deploy,svc,cm,pvc,servicemonitor -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl get endpoints {{ include "olivetin.fullname" . }} -n {{ .Release.Namespace }}
+
+Check the UI through the Service:
+
+  kubectl run {{ include "olivetin.fullname" . }}-smoke -n {{ .Release.Namespace }} --rm -i --restart=Never --image=docker.io/library/busybox:1.37 -- wget -qO- http://{{ include "olivetin.fullname" . }}:{{ .Values.service.port }}/
+
+{{- if .Values.metrics.enabled }}
+Check Prometheus metrics:
+
+  kubectl run {{ include "olivetin.fullname" . }}-metrics -n {{ .Release.Namespace }} --rm -i --restart=Never --image=docker.io/library/busybox:1.37 -- wget -qO- http://{{ include "olivetin.fullname" . }}:{{ .Values.metrics.port }}/metrics
+{{- end }}
+
+7. Troubleshooting
 ==================
-  Pod is not ready:
-    -> Check init container and app logs
-    -> Verify the generated /config/config.yaml syntax
-    -> Confirm custom commands do not block startup
 
-  UI loads but actions fail:
-    -> Check command paths and required packages in the OliveTin image
-    -> Mount scripts or credentials explicitly when commands need them
-    -> Inspect action output in OliveTin logs
+Inspect pods, init containers, logs, and events:
 
-  Gateway or ingress does not route:
-    -> Confirm the controller exists and parentRefs/ingressClassName match it
-    -> Check HTTPRoute or Ingress status conditions
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} -o wide
+  kubectl describe pod -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name={{ include "olivetin.name" . }}
+  kubectl logs deploy/{{ include "olivetin.fullname" . }} -n {{ .Release.Namespace }} --all-containers --tail=200
+  kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
 
-  ExternalSecret is not creating a Secret:
-    -> Confirm External Secrets Operator and the referenced SecretStore exist
-    -> Check ExternalSecret status and events
+Common checks:
 
-7. Documentation
-================
-  HelmForge docs: https://helmforge.dev/docs/charts/olivetin
-  Chart design:   https://github.com/helmforgedev/charts/tree/main/charts/olivetin/DESIGN.md
-  Upstream docs:  https://docs.olivetin.app
-  GitHub source:  https://github.com/helmforgedev/charts/tree/main/charts/olivetin
+- If config rendering fails, validate values.config as YAML and review tpl usage.
+- If the UI is unavailable, verify PORT, Service endpoints, and edge routing.
+- If actions fail, verify command paths, credentials, mounts, RBAC, and egress.
+- If metrics fail, verify metrics.enabled, the metrics port, and ServiceMonitor.
+- If data disappears, confirm actions write durable output to the /data mount.
+
+8. Resources
+============
+
+- HelmForge docs: https://helmforge.dev/docs/charts/olivetin
+- Chart configuration guide: https://github.com/helmforgedev/charts/tree/main/charts/olivetin/docs/configuration.md
+- OliveTin documentation: https://docs.olivetin.app
+- OliveTin source: https://github.com/OliveTin/OliveTin
+- HelmForge issues: https://github.com/helmforgedev/charts/issues
 
 Happy Helmforging :)

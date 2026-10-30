@@ -66,6 +66,32 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "olivetin.validate" -}}
+{{- if and .Values.metrics.serviceMonitor.enabled (not .Values.metrics.enabled) -}}
+{{- fail "metrics.enabled must be true when metrics.serviceMonitor.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.metrics.enabled (eq (int .Values.metrics.port) (int .Values.olivetin.port)) -}}
+{{- fail "metrics.port must differ from olivetin.port because OliveTin uses separate listeners" -}}
+{{- end -}}
+{{- if and .Values.ingress.enabled (empty .Values.ingress.hosts) -}}
+{{- fail "ingress.hosts must contain at least one host when ingress.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.gatewayAPI.enabled (empty .Values.gatewayAPI.httpRoutes) -}}
+{{- fail "gatewayAPI.httpRoutes must contain at least one route when gatewayAPI.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.externalSecrets.enabled (empty .Values.externalSecrets.items) -}}
+{{- fail "externalSecrets.items must contain at least one item when externalSecrets.enabled=true" -}}
+{{- end -}}
+{{- range .Values.olivetin.extraEnv -}}
+{{- if eq .name "PORT" -}}
+{{- fail "olivetin.extraEnv must not override PORT; use olivetin.port" -}}
+{{- end -}}
+{{- end -}}
+{{- if hasKey .Values.podLabels "app.kubernetes.io/name" -}}
+{{- fail "podLabels must not override the selector label app.kubernetes.io/name" -}}
+{{- end -}}
+{{- if hasKey .Values.podLabels "app.kubernetes.io/instance" -}}
+{{- fail "podLabels must not override the selector label app.kubernetes.io/instance" -}}
+{{- end -}}
 {{- end -}}
 
 {{/* Data PVC claim name */}}

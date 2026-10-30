@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: ServiceMonitor
+templates:
+  - templates/servicemonitor.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should scrape the dedicated metrics port
+    set:
+      metrics.enabled: true
+      metrics.serviceMonitor.enabled: true
+    asserts:
+      - isKind:
+          of: ServiceMonitor
+      - equal:
+          path: spec.endpoints[0].port
+          value: metrics
+      - equal:
+          path: spec.endpoints[0].path
+          value: /metrics
+
+  - it: should support monitor namespace and labels
+    set:
+      metrics.enabled: true
+      metrics.serviceMonitor.enabled: true
+      metrics.serviceMonitor.namespace: monitoring
+      metrics.serviceMonitor.labels.release: kube-prometheus-stack
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: monitoring
+      - equal:
+          path: metadata.labels.release
+          value: kube-prometheus-stack

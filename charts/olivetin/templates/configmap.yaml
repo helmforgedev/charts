@@ -1,4 +1,24 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- $config := dict -}}
+{{- if .Values.config -}}
+{{- $rawConfig := .Values.config -}}
+{{- if .Values.configTpl.enabled -}}
+{{- $rawConfig = tpl $rawConfig . -}}
+{{- end -}}
+{{- $parsedConfig := fromYaml $rawConfig -}}
+{{- if hasKey $parsedConfig "Error" -}}
+{{- fail (printf "config must contain valid YAML: %s" (get $parsedConfig "Error")) -}}
+{{- end -}}
+{{- $config = $parsedConfig -}}
+{{- else -}}
+{{- $config = dict "actions" (list (dict "title" "Ping Google" "shell" "ping -c 1 google.com")) -}}
+{{- end -}}
+{{- $_ := set $config "prometheus" (dict "enabled" .Values.metrics.enabled "defaultGoMetrics" .Values.metrics.defaultGoMetrics) -}}
+{{- if .Values.metrics.enabled -}}
+{{- $_ := set $config "listenAddressPrometheus" (printf "0.0.0.0:%d" (int .Values.metrics.port)) -}}
+{{- else -}}
+{{- $_ := unset $config "listenAddressPrometheus" -}}
+{{- end -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -7,17 +27,4 @@ metadata:
     {{- include "olivetin.labels" . | nindent 4 }}
 data:
   config.yaml: |
-    {{- if .Values.config }}
-    {{- if .Values.configTpl.enabled }}
-    {{- tpl .Values.config . | nindent 4 }}
-    {{- else }}
-    {{- .Values.config | nindent 4 }}
-    {{- end }}
-    {{- else }}
-    prometheus:
-      enabled: {{ .Values.metrics.enabled }}
-      defaultGoMetrics: {{ .Values.metrics.defaultGoMetrics }}
-    actions:
-      - title: "Ping Google"
-        shell: "ping -c 1 google.com"
-    {{- end }}
+    {{- toYaml $config | nindent 4 }}
