@@ -1,0 +1,104 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: value contract validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: rejects a disabled bundled database in subchart mode
+    set:
+      postgresql.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: metadata.mode=subchart requires postgresql.enabled=true
+
+  - it: rejects the bundled database in external mode
+    set:
+      metadata.mode: external
+      metadata.external.host: postgresql.example.com
+      metadata.external.password: secret
+    asserts:
+      - failedTemplate:
+          errorMessage: metadata.mode=external requires postgresql.enabled=false
+
+  - it: requires an external database host
+    set:
+      postgresql.enabled: false
+      metadata.mode: external
+      metadata.external.password: secret
+    asserts:
+      - failedTemplate:
+          errorMessage: metadata.external.host is required when metadata.mode=external
+
+  - it: requires external database credentials
+    set:
+      postgresql.enabled: false
+      metadata.mode: external
+      metadata.external.host: postgresql.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: metadata.external.password or metadata.external.existingSecret is required when metadata.mode=external
+
+  - it: rejects a disabled bundled ZooKeeper in subchart mode
+    set:
+      zookeeper.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: zookeeperConfig.mode=subchart requires zookeeper.enabled=true
+
+  - it: requires external ZooKeeper hosts
+    set:
+      zookeeper.enabled: false
+      zookeeperConfig.mode: external
+    asserts:
+      - failedTemplate:
+          errorMessage: zookeeperConfig.external.hosts is required when zookeeperConfig.mode=external
+
+  - it: requires an S3 bucket
+    set:
+      deepStorage.type: s3
+      deepStorage.s3.accessKey: access
+      deepStorage.s3.secretKey: secret
+    asserts:
+      - failedTemplate:
+          errorMessage: deepStorage.s3.bucket is required when deepStorage.type=s3
+
+  - it: requires S3 credentials or an existing Secret
+    set:
+      deepStorage.type: s3
+      deepStorage.s3.bucket: druid-segments
+    asserts:
+      - failedTemplate:
+          errorMessage: deepStorage.s3 accessKey and secretKey or existingSecret are required when deepStorage.type=s3
+
+  - it: requires a router for ingress
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: druid.example.com
+      router.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: ingress.enabled requires router.enabled=true
+
+  - it: requires an ingress host
+    set:
+      ingress.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: ingress.hosts must contain at least one host when ingress.enabled=true
+
+  - it: requires a router for Gateway API
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.parentRefs:
+        - name: shared-gateway
+      router.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: gatewayAPI.enabled requires router.enabled=true
+
+  - it: requires a parent Gateway
+    set:
+      gatewayAPI.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: gatewayAPI.parentRefs must contain at least one Gateway when gatewayAPI.enabled=true

@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Apache Druid Networking and Security Guide
 
 ## Router Exposure
@@ -117,6 +119,13 @@ securityContext:
 
 The init container that prepares writable directories runs as root with a small
 capability set so the main Druid process can run as UID 1000.
+
+## Service Account Tokens
+
+Druid and ZooKeeper do not use the Kubernetes API. The chart therefore sets
+`automountServiceAccountToken: false` on every Pod and on a chart-owned
+ServiceAccount. Set `serviceAccount.automountServiceAccountToken=true` only
+when an explicitly configured integration needs Kubernetes API credentials.
 
 ## Resource Limits
 
