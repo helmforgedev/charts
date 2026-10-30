@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # BentoPDF
 
 BentoPDF provides PDF tools that run in the user's browser. The official image contains a static application and NGINX.
@@ -18,7 +20,10 @@ This chart deploys a restricted, stateless service with native runtime tool cont
 ```bash
 helm repo add helmforge https://repo.helmforge.dev
 helm repo update
-helm install bentopdf helmforge/bentopdf --namespace bentopdf --create-namespace
+helm install bentopdf helmforge/bentopdf \
+  --namespace bentopdf \
+  --create-namespace \
+  --wait
 kubectl -n bentopdf port-forward service/bentopdf-bentopdf 8080:8080
 ```
 
@@ -37,6 +42,15 @@ because individual files use subPath mounts.
 No database, Secret, ExternalSecret or PVC is required. There is no native login. Protect private installations through
 edge authentication. Disabling tools is presentation control, not an authorization boundary.
 
+## Architecture
+
+One or more non-root NGINX pods serve the official static application. PDF
+processing runs in the user's browser, so no document database or application
+PVC exists. Optional NGINX exporter sidecars expose serving metrics through a
+separate Service without publishing the loopback status endpoint. See
+[DESIGN.md](DESIGN.md) for Mermaid topologies, trust boundaries and deliberate
+omissions.
+
 ## Privacy and network boundary
 
 PDF operations execute on client devices. The browser test checks for document POST/PUT/PATCH requests to the
@@ -49,7 +63,14 @@ Some tools download WASM, OCR or font assets from CDNs in the browser. Denying p
 The default image is not an offline guarantee. Air-gapped use requires hosting relevant assets and building an image
 with matching URLs and CSP.
 
-## Runtime configuration
+## Configuration
+
+`server.port` changes the real NGINX listener. `service.port` independently
+controls the Kubernetes Service-facing port and targets the named `http` port.
+Keep the application listener different from the reserved status port `8081`
+and the configured exporter port.
+
+Runtime tool controls are public JSON and never contain credentials:
 
 ```yaml
 config:
@@ -62,6 +83,18 @@ config:
 
 Use exact upstream tool/category identifiers. Disabling a parent category disables its children. Unknown identifiers may
 have no effect upstream. These controls do not enforce permissions.
+
+## Examples
+
+- [`examples/runtime-config.yaml`](examples/runtime-config.yaml) demonstrates
+  upstream tool and editor-category controls.
+- [`examples/production.yaml`](examples/production.yaml) demonstrates replicas,
+  disruption protection and topology spreading.
+- [`examples/metrics.yaml`](examples/metrics.yaml) enables the exporter,
+  ServiceMonitor and PrometheusRule.
+
+Every example is rendered by CI. Review and adapt selectors, hostnames and
+resource budgets for the target cluster.
 
 ## Availability
 
@@ -129,6 +162,20 @@ use maxUnavailable zero and maxSurge one; reserve extra pod capacity.
 Keep values, edge configuration and image pins in version control. Reinstall the same chart/image/configuration to
 recover server state. Client documents require client backups; Kubernetes snapshots cannot recover them.
 
+## Troubleshooting
+
+- If a tool fails only through a remote hostname, verify HTTPS and inspect the
+  browser console for secure-context, CSP or WASM errors.
+- If a tool cannot load a CDN asset, inspect browser network requests; changing
+  pod egress cannot repair a request originating from the client.
+- If probes fail, inspect the `bentopdf` container logs and confirm
+  `server.port` is not `8081` or the metrics port.
+- If Prometheus reports no target, match ServiceMonitor labels to the Prometheus
+  selector and authorize its namespace through `metrics.ingressFrom`.
+
+See the [operations guide](docs/operations.md) for browser diagnostics,
+availability, monitoring and recovery procedures.
+
 ## Validation
 
 Install dependencies with `npm ci --prefix charts/bentopdf/scripts` and Chromium with
@@ -152,6 +199,14 @@ security guarantee.
 
 See [values.yaml](values.yaml) and [values.schema.json](values.schema.json) for the complete contract.
 
+## Gateway API contract
+
+Use `gatewayAPI.enabled` and `gatewayAPI.httpRoutes[]`. Set each route's `parentRefs` to a shared Gateway that allows
+this namespace, and configure its HTTPS listener and public hostname. Routes accept labels, annotations and rules
+with matches, filters and optional backend references; omitted backends target this chart's application Service.
+Ingress and HTTPRoute resources can coexist. Verify controller conditions and public traffic before production use.
+See the [Gateway API documentation](https://gateway-api.sigs.k8s.io/).
+
 <!-- @AI-METADATA
  type: guide
  title: BentoPDF chart
@@ -160,14 +215,6 @@ See [values.yaml](values.yaml) and [values.schema.json](values.schema.json) for 
  purpose: Explain deployment and operational boundaries
  scope: chart
  path: charts/bentopdf/README.md
- version: 1.0
- date: 2026-09-10
+ version: 1.1
+ date: 2026-10-26
 -->
-
-## Gateway API contract
-
-Use `gatewayAPI.enabled` and `gatewayAPI.httpRoutes[]`. Set each route's `parentRefs` to a shared Gateway that allows
-this namespace, and configure its HTTPS listener and public hostname. Routes accept labels, annotations and rules
-with matches, filters and optional backend references; omitted backends target this chart's application Service.
-Ingress and HTTPRoute resources can coexist. Verify controller conditions and public traffic before production use.
-See the [Gateway API documentation](https://gateway-api.sigs.k8s.io/).
