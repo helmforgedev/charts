@@ -9,8 +9,7 @@ Supported database modes:
 
 - SQLite, the default zero-dependency mode
 - bundled HelmForge PostgreSQL subchart
-- bundled HelmForge MySQL subchart
-- external PostgreSQL or MySQL
+- external PostgreSQL
 
 Optional capabilities include Kubernetes workload discovery, external Redis, S3-compatible backups, External Secrets,
 Ingress, Gateway API, and dual-stack Services.
@@ -35,7 +34,7 @@ flowchart LR
   user[User] --> edge[Ingress or HTTPRoute]
   edge --> homarr[Homarr Deployment]
   homarr --> appdata[(Appdata PVC)]
-  homarr --> dbsvc[PostgreSQL or MySQL Service]
+  homarr --> dbsvc[PostgreSQL Service]
   dbsvc --> db[HelmForge database StatefulSet]
   db --> dbpvc[(Database PVC)]
   secret[Generated Secrets] --> homarr
@@ -51,7 +50,7 @@ Bundled database mode is useful when the application and database lifecycle shou
 flowchart LR
   user[User] --> edge[Ingress or HTTPRoute]
   edge --> homarr[Homarr Deployment]
-  homarr --> db[(External PostgreSQL or MySQL)]
+  homarr --> db[(External PostgreSQL)]
   homarr --> redis[(External Redis optional)]
   eso[External Secrets Operator optional] -. materializes .-> secret[App Secret]
   secret --> homarr
@@ -62,7 +61,7 @@ failover outside the application chart.
 
 ## Main Design Choices
 
-- Use HelmForge PostgreSQL and MySQL dependencies when database subcharts are enabled.
+- Use the HelmForge PostgreSQL dependency when the database subchart is enabled.
 - Keep SQLite as the default for simple deployments.
 - Keep database mode selection explicit and validate ambiguous combinations.
 - Use discrete database environment variables instead of a full `DB_URL` so passwords do not need URL encoding.
@@ -73,6 +72,21 @@ failover outside the application chart.
 - Keep default security hardening compatible with the official image: resource limits, no privilege escalation, and
   `RuntimeDefault` seccomp are enabled, while writable root filesystem, root UID, and default capabilities remain because
   nginx writes `/etc/nginx/nginx.conf` and `/var/lib/nginx` at startup.
+- Keep the application container port fixed at `7575`, matching the official image's nginx template. `service.port` is an
+  independent Kubernetes Service concern and always targets the named application port.
+
+## Security Boundary
+
+The chart creates the application Secret and can consume an operator-managed Secret or ExternalSecret. The ServiceAccount
+token is not mounted by default. Kubernetes workload discovery is opt-in and requires both `homarr.enableKubernetes=true`
+and `serviceAccount.automountServiceAccountToken=true`, making the cluster-API trust expansion explicit. Operators own
+Ingress or Gateway TLS, SecretStore access policies, database credentials, and S3 credentials.
+
+## Observability Boundary
+
+Startup, readiness, and liveness probes use Homarr's documented health endpoints. Kubernetes exposes workload status,
+events, restart counts, and container logs, but the chart does not deploy a metrics collector, dashboard, alert rule, or log
+backend. Operators must connect those platform services according to their own retention and alerting requirements.
 
 ## Production Boundary
 
@@ -94,12 +108,19 @@ For production, operators should define:
 - automatic migration between database engines
 - managing external SecretStores or Gateway controllers
 
+## Known Gaps
+
+- The official Homarr image does not offer a configurable application listener; container port `7575` is fixed upstream.
+- The chart does not automate migration from historical MySQL deployments. Operators must run Homarr's supported
+  MySQL-to-SQLite converter before upgrading and then choose SQLite or PostgreSQL.
+- SQLite remains single-replica storage and does not provide application-level high availability.
+
 <!-- @AI-METADATA
 type: design
 title: Homarr Chart Design
 description: Design document for the Homarr Helm chart database modes, architecture, backups, and production boundaries
 
-keywords: homarr, design, architecture, sqlite, postgresql, mysql, backup, gateway-api, kubernetes
+keywords: homarr, design, architecture, sqlite, postgresql, backup, gateway-api, kubernetes
 
 purpose: Document chart architecture, database modes, operational choices, production boundaries, and non-goals
 scope: Chart Design

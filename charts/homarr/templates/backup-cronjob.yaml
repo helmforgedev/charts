@@ -22,6 +22,7 @@ spec:
             app.kubernetes.io/component: backup
         spec:
           restartPolicy: Never
+          automountServiceAccountToken: false
           {{- with .Values.imagePullSecrets }}
           imagePullSecrets:
             {{- toYaml . | nindent 12 }}
@@ -55,37 +56,6 @@ spec:
                   value: {{ .Values.backup.archivePrefix | quote }}
                 - name: PG_DUMP_EXTRA_ARGS
                   value: {{ .Values.backup.database.postgresDumpArgs | quote }}
-                - name: DB_HOST
-                  value: {{ include "homarr.backupDatabaseHost" . | quote }}
-                - name: DB_PORT
-                  value: {{ include "homarr.backupDatabasePort" . | quote }}
-                - name: DB_NAME
-                  value: {{ include "homarr.backupDatabaseName" . | quote }}
-                - name: DB_USERNAME
-                  value: {{ include "homarr.backupDatabaseUsername" . | quote }}
-                - name: DB_PASSWORD
-                  valueFrom:
-                    secretKeyRef:
-                      name: {{ include "homarr.backupDatabasePasswordSecretName" . }}
-                      key: {{ include "homarr.backupDatabasePasswordSecretKey" . }}
-              {{- with .Values.backup.resources }}
-              resources:
-                {{- toYaml . | nindent 16 }}
-              {{- end }}
-              volumeMounts:
-                - name: scripts
-                  mountPath: /scripts
-                - name: backup-workdir
-                  mountPath: /backup/out
-            {{- else if eq (include "homarr.databaseVendor" .) "mysql" }}
-            - name: mysql-backup
-              image: {{ .Values.backup.images.mysql | quote }}
-              command: ["/bin/sh", "/scripts/mysql-backup.sh"]
-              env:
-                - name: BACKUP_ARCHIVE_PREFIX
-                  value: {{ .Values.backup.archivePrefix | quote }}
-                - name: MYSQL_DUMP_EXTRA_ARGS
-                  value: {{ .Values.backup.database.mysqlDumpArgs | quote }}
                 - name: DB_HOST
                   value: {{ include "homarr.backupDatabaseHost" . | quote }}
                 - name: DB_PORT

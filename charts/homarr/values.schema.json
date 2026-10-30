@@ -1,9 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema#",
+  "$comment": "SPDX-License-Identifier: Apache-2.0",
   "title": "Homarr Helm Chart Values",
   "description": "Values schema for the HelmForge Homarr chart.",
   "type": "object",
   "additionalProperties": true,
+  "required": ["global"],
   "properties": {
     "global": {
       "type": "object",
@@ -18,6 +20,16 @@
         "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
       }
     },
+    "imagePullSecrets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": { "name": { "type": "string" } },
+        "required": ["name"]
+      }
+    },
+    "nameOverride": { "type": "string" },
+    "fullnameOverride": { "type": "string" },
     "replicaCount": { "type": "integer", "minimum": 1 },
     "homarr": {
       "type": "object",
@@ -40,7 +52,7 @@
     "database": {
       "type": "object",
       "properties": {
-        "mode": { "type": "string", "enum": ["auto", "sqlite", "external", "postgresql", "mysql"] },
+        "mode": { "type": "string", "enum": ["auto", "sqlite", "external", "postgresql"] },
         "sqlite": {
           "type": "object",
           "properties": { "path": { "type": "string" } }
@@ -48,7 +60,7 @@
         "external": {
           "type": "object",
           "properties": {
-            "vendor": { "type": "string", "enum": ["postgres", "mysql"] },
+            "vendor": { "type": "string", "enum": ["postgres"] },
             "host": { "type": "string" },
             "port": { "type": ["string", "integer"] },
             "name": { "type": "string" },
@@ -65,9 +77,41 @@
       "properties": {
         "enabled": { "type": "boolean" },
         "architecture": { "type": "string", "enum": ["standalone", "replication"] },
-        "auth": { "type": "object" },
-        "initdb": { "type": "object" },
-        "standalone": { "type": "object" }
+        "auth": {
+          "type": "object",
+          "properties": {
+            "database": { "type": "string" },
+            "username": { "type": "string" },
+            "password": { "type": "string" },
+            "existingSecret": { "type": "string" },
+            "existingSecretUserPasswordKey": { "type": "string" },
+            "existingSecretPostgresPasswordKey": { "type": "string" }
+          }
+        },
+        "initdb": {
+          "type": "object",
+          "properties": {
+            "scripts": {
+              "type": "object",
+              "properties": {
+                "10-homarr-privileges.sh": { "type": "string" }
+              },
+              "additionalProperties": { "type": "string" }
+            }
+          }
+        },
+        "standalone": {
+          "type": "object",
+          "properties": {
+            "persistence": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "size": { "type": "string" }
+              }
+            }
+          }
+        }
       }
     },
     "postgresqlUpgradeJob": {
@@ -86,19 +130,52 @@
         "backoffLimit": { "type": "integer", "minimum": 0 },
         "activeDeadlineSeconds": { "type": "integer", "minimum": 1 },
         "podAnnotations": { "type": "object" },
-        "podSecurityContext": { "type": "object" },
-        "securityContext": { "type": "object" },
-        "resources": { "type": "object" }
-      }
-    },
-    "mysql": {
-      "type": "object",
-      "properties": {
-        "enabled": { "type": "boolean" },
-        "architecture": { "type": "string", "enum": ["standalone", "replication"] },
-        "auth": { "type": "object" },
-        "standalone": { "type": "object" },
-        "startupProbe": { "type": "object" }
+        "podSecurityContext": {
+          "type": "object",
+          "properties": {
+            "runAsNonRoot": { "type": "boolean" },
+            "runAsUser": { "type": "integer", "minimum": 0 },
+            "fsGroup": { "type": "integer", "minimum": 0 },
+            "seccompProfile": {
+              "type": "object",
+              "properties": { "type": { "type": "string" } }
+            }
+          }
+        },
+        "securityContext": {
+          "type": "object",
+          "properties": {
+            "allowPrivilegeEscalation": { "type": "boolean" },
+            "capabilities": {
+              "type": "object",
+              "properties": {
+                "drop": { "type": "array", "items": { "type": "string" } }
+              }
+            },
+            "readOnlyRootFilesystem": { "type": "boolean" },
+            "runAsNonRoot": { "type": "boolean" },
+            "runAsUser": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "properties": {
+            "requests": {
+              "type": "object",
+              "properties": {
+                "cpu": { "type": ["string", "number"] },
+                "memory": { "type": ["string", "number"] }
+              }
+            },
+            "limits": {
+              "type": "object",
+              "properties": {
+                "cpu": { "type": ["string", "number"] },
+                "memory": { "type": ["string", "number"] }
+              }
+            }
+          }
+        }
       }
     },
     "redis": {
@@ -123,9 +200,74 @@
         "annotations": { "type": "object" }
       }
     },
-    "resources": { "type": "object" },
-    "podSecurityContext": { "type": "object" },
-    "securityContext": { "type": "object" },
+    "resources": {
+      "type": "object",
+      "properties": {
+        "requests": {
+          "type": "object",
+          "properties": {
+            "cpu": { "type": ["string", "number"] },
+            "memory": { "type": ["string", "number"] }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "cpu": { "type": ["string", "number"] },
+            "memory": { "type": ["string", "number"] }
+          }
+        }
+      }
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "properties": {
+        "seccompProfile": {
+          "type": "object",
+          "properties": { "type": { "type": "string" } }
+        }
+      }
+    },
+    "securityContext": {
+      "type": "object",
+      "properties": {
+        "allowPrivilegeEscalation": { "type": "boolean" },
+        "readOnlyRootFilesystem": { "type": "boolean" }
+      }
+    },
+    "startupProbe": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "path": { "type": "string" },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "livenessProbe": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "path": { "type": "string" },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "readinessProbe": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "path": { "type": "string" },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
+    },
     "service": {
       "type": "object",
       "properties": {
@@ -150,8 +292,35 @@
         "enabled": { "type": "boolean" },
         "ingressClassName": { "type": "string" },
         "annotations": { "type": "object" },
-        "hosts": { "type": "array" },
-        "tls": { "type": "array" }
+        "hosts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "host": { "type": "string" },
+              "paths": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": { "type": "string" },
+                    "pathType": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tls": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "secretName": { "type": "string" },
+              "hosts": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
       }
     },
     "gateway": {
@@ -170,7 +339,8 @@
       "properties": {
         "create": { "type": "boolean" },
         "name": { "type": "string" },
-        "annotations": { "type": "object" }
+        "annotations": { "type": "object" },
+        "automountServiceAccountToken": { "type": "boolean" }
       }
     },
     "backup": {
@@ -178,8 +348,48 @@
       "properties": {
         "enabled": { "type": "boolean" },
         "schedule": { "type": "string" },
-        "s3": { "type": "object" },
-        "database": { "type": "object" }
+        "suspend": { "type": "boolean" },
+        "concurrencyPolicy": { "type": "string", "enum": ["Allow", "Forbid", "Replace"] },
+        "successfulJobsHistoryLimit": { "type": "integer", "minimum": 0 },
+        "failedJobsHistoryLimit": { "type": "integer", "minimum": 0 },
+        "backoffLimit": { "type": "integer", "minimum": 0 },
+        "archivePrefix": { "type": "string" },
+        "images": {
+          "type": "object",
+          "properties": {
+            "sqlite": { "type": "string" },
+            "postgresql": { "type": "string" },
+            "uploader": { "type": "string" }
+          }
+        },
+        "resources": { "$ref": "#/definitions/resources" },
+        "s3": {
+          "type": "object",
+          "properties": {
+            "endpoint": { "type": "string" },
+            "bucket": { "type": "string" },
+            "prefix": { "type": "string" },
+            "createBucketIfNotExists": { "type": "boolean" },
+            "existingSecret": { "type": "string" },
+            "existingSecretAccessKeyKey": { "type": "string" },
+            "existingSecretSecretKeyKey": { "type": "string" },
+            "accessKey": { "type": "string" },
+            "secretKey": { "type": "string" }
+          }
+        },
+        "database": {
+          "type": "object",
+          "properties": {
+            "host": { "type": "string" },
+            "port": { "type": ["string", "integer"] },
+            "name": { "type": "string" },
+            "username": { "type": "string" },
+            "password": { "type": "string" },
+            "existingSecret": { "type": "string" },
+            "existingSecretPasswordKey": { "type": "string" },
+            "postgresDumpArgs": { "type": "string" }
+          }
+        }
       }
     },
     "externalSecrets": {
@@ -201,13 +411,60 @@
             "creationPolicy": { "type": "string" }
           }
         },
-        "data": { "type": "array", "items": { "type": "object" } },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "secretKey": { "type": "string" },
+              "remoteRef": {
+                "type": "object",
+                "properties": {
+                  "key": { "type": "string" },
+                  "property": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
         "annotations": { "type": "object" }
       }
     },
     "nodeSelector": { "type": "object" },
-    "tolerations": { "type": "array" },
+    "tolerations": { "type": "array", "items": { "type": "object" } },
     "affinity": { "type": "object" },
-    "extraManifests": { "type": "array" }
+    "extraManifests": { "type": "array", "items": { "type": "object" } }
+  },
+  "definitions": {
+    "resources": {
+      "type": "object",
+      "properties": {
+        "requests": {
+          "type": "object",
+          "properties": {
+            "cpu": { "type": ["string", "number"] },
+            "memory": { "type": ["string", "number"] }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "cpu": { "type": ["string", "number"] },
+            "memory": { "type": ["string", "number"] }
+          }
+        }
+      }
+    },
+    "httpProbe": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "path": { "type": "string" },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
+    }
   }
 }

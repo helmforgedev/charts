@@ -3,8 +3,9 @@
 {{- $namespace := .Release.Namespace -}}
 {{- $databaseMode := include "homarr.databaseMode" . -}}
 
-1. Homarr has been installed
-----------------------------
+## Installation
+
+1. Review the Homarr installation
   Release:        {{ .Release.Name }}
   Namespace:      {{ $namespace }}
   Version:        {{ .Chart.AppVersion }}
@@ -13,8 +14,9 @@
   Log Level:      {{ .Values.homarr.logLevel }}
   Auth Providers: {{ .Values.homarr.authProviders }}
 
-2. Access
----------
+## Access
+
+2. Open Homarr
 {{- if .Values.ingress.enabled }}
   Ingress is enabled:
   {{- range $host := .Values.ingress.hosts }}
@@ -35,8 +37,9 @@
     http://localhost:7575/
 {{- end }}
 
-3. First-time Setup
--------------------
+## First-time Setup
+
+3. Complete first-time setup
   - Open the dashboard and create the initial administrator account.
   - Add integrations, calendars, bookmarks, and service widgets from the Homarr UI.
   - Keep `encryption.key` or `encryption.existingSecret` stable after first install; changing it can make stored integration secrets unreadable.
@@ -44,12 +47,12 @@
   - Kubernetes integration is enabled. Confirm the ServiceAccount/RBAC you provide has only the permissions Homarr needs.
 {{- end }}
 
-4. Configuration Summary
-------------------------
+## Configuration Summary
+
+4. Review the configuration
   Persistence:       {{ .Values.persistence.enabled }}
   Data PVC:          {{ .Values.persistence.existingClaim | default (printf "%s-data" $fullname) }}
   PostgreSQL:        {{ .Values.postgresql.enabled }}
-  MySQL:             {{ .Values.mysql.enabled }}
   External Redis:    {{ .Values.redis.external }}
   Backup:            {{ .Values.backup.enabled }}
   Ingress:           {{ .Values.ingress.enabled }}
@@ -60,8 +63,9 @@
   IP family policy:  {{ . }}{{ with $.Values.service.ipFamilies }} ({{ join ", " . }}){{ end }}
 {{- end }}
 
-5. Validation Commands
-----------------------
+## Validation Commands
+
+5. Validate the deployment
   Wait for Homarr:
     kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=homarr -n {{ $namespace }} --timeout=300s
 
@@ -75,8 +79,9 @@
   Inspect release events:
     kubectl get events -n {{ $namespace }} --sort-by=.lastTimestamp
 
-6. Logs
--------
+## Logs
+
+6. Inspect logs
   Homarr logs:
     kubectl logs -l app.kubernetes.io/name=homarr -n {{ $namespace }} --all-containers --tail=200
 {{- if .Values.postgresql.enabled }}
@@ -87,14 +92,10 @@
   Bundled PostgreSQL logs:
     kubectl logs -l app.kubernetes.io/name=postgresql -n {{ $namespace }} --all-containers --tail=100
 {{- end }}
-{{- if .Values.mysql.enabled }}
 
-  Bundled MySQL logs:
-    kubectl logs -l app.kubernetes.io/name=mysql -n {{ $namespace }} --all-containers --tail=100
-{{- end }}
+## Database
 
-7. Database
------------
+7. Verify database state
 {{- if eq $databaseMode "sqlite" }}
   SQLite is active. Back up the Homarr data PVC because the database file lives in:
     {{ .Values.database.sqlite.path }}
@@ -105,7 +106,7 @@
   Database user:   {{ include "homarr.databaseUsername" . }}
 
   Verify the database password Secret:
-    kubectl get secret {{ $fullname }}-database -n {{ $namespace }}
+    kubectl get secret {{ include "homarr.databaseSecretName" . }} -n {{ $namespace }}
 {{- end }}
 {{- if .Values.redis.external }}
 
@@ -113,8 +114,9 @@
     {{ .Values.redis.host }}:{{ .Values.redis.port }}
 {{- end }}
 
-8. Backup
----------
+## Backup
+
+8. Verify backup configuration
 {{- if .Values.backup.enabled }}
   S3 backup is enabled:
     Schedule: {{ .Values.backup.schedule }}
@@ -128,11 +130,12 @@
     kubectl create job --from=cronjob/{{ $fullname }}-backup homarr-backup-$(date +%s) -n {{ $namespace }}
 {{- else }}
   Backup is disabled. Enable `backup.enabled=true` for S3 backups.
-  The chart uses the correct backup command for SQLite, PostgreSQL, or MySQL.
+  The chart uses the correct backup command for SQLite or PostgreSQL.
 {{- end }}
 
-9. Troubleshooting
-------------------
+## Troubleshooting
+
+9. Troubleshoot the release
   Dashboard does not load:
     kubectl describe pod -l app.kubernetes.io/name=homarr -n {{ $namespace }}
     kubectl logs -l app.kubernetes.io/name=homarr -n {{ $namespace }} --all-containers --tail=300
@@ -141,8 +144,6 @@
     helm get values {{ .Release.Name }} -n {{ $namespace }}
 {{- if .Values.postgresql.enabled }}
     kubectl logs -l app.kubernetes.io/name=postgresql -n {{ $namespace }} --all-containers --tail=200
-{{- else if .Values.mysql.enabled }}
-    kubectl logs -l app.kubernetes.io/name=mysql -n {{ $namespace }} --all-containers --tail=200
 {{- end }}
 
   Lost widgets, users, or integrations after restart:
@@ -153,8 +154,9 @@
     kubectl get externalsecret -n {{ $namespace }}
     kubectl describe externalsecret -n {{ $namespace }}
 
-10. Documentation
------------------
+## Documentation
+
+10. Read further documentation
   Helm values:
     helm get values {{ .Release.Name }} -n {{ $namespace }}
 

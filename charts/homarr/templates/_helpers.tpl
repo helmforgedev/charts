@@ -49,6 +49,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "homarr.validate" -}}
 {{/* Triggers database selection validation through homarr.databaseMode; the return value is unused. */}}
 {{- $databaseMode := include "homarr.databaseMode" . -}}
+{{- if and .Values.homarr.enableKubernetes (not .Values.serviceAccount.automountServiceAccountToken) -}}
+{{- fail "homarr.enableKubernetes=true requires serviceAccount.automountServiceAccountToken=true and scoped RBAC" -}}
+{{- end -}}
 {{- end }}
 
 {{/* ======================================================================== */}}
@@ -77,56 +80,55 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- define "homarr.databaseMode" -}}
 {{- $mode := .Values.database.mode | default "auto" -}}
-{{- if not (has $mode (list "auto" "sqlite" "external" "postgresql" "mysql")) -}}
-{{- fail (printf "database.mode must be one of: auto, sqlite, external, postgresql, mysql (got %s)" $mode) -}}
+{{- $legacyMysqlEnabled := dig "enabled" false (.Values.mysql | default dict) -}}
+{{- if $legacyMysqlEnabled -}}
+{{- fail "mysql.enabled is not supported by Homarr v2. Convert the MySQL database to SQLite and validate the converted SQLite deployment before upgrading." -}}
 {{- end -}}
-{{- $hasExternal := or (ne (.Values.database.external.host | default "") "") (ne (.Values.database.external.existingSecret | default "") "") -}}
+{{- if not (has $mode (list "auto" "sqlite" "external" "postgresql")) -}}
+{{- fail (printf "database.mode must be one of: auto, sqlite, external, postgresql (got %s)" $mode) -}}
+{{- end -}}
+{{- $hasExternal := ne (.Values.database.external.host | default "") "" -}}
+{{- $hasExternalCredentials := or (ne (.Values.database.external.password | default "") "") (ne (.Values.database.external.existingSecret | default "") "") -}}
 {{- $hasPostgresql := .Values.postgresql.enabled | default false -}}
-{{- $hasMysql := .Values.mysql.enabled | default false -}}
 {{- if and $hasPostgresql (hasKey .Values.postgresql "primary") -}}
 {{- fail "postgresql.primary.* is not supported by the HelmForge PostgreSQL 2.x dependency used by this chart. Migrate PostgreSQL values to postgresql.standalone.* before upgrading." -}}
 {{- end -}}
-{{- if and $hasMysql (hasKey .Values.mysql "primary") -}}
-{{- fail "mysql.primary.* is not supported by the HelmForge MySQL 2.x dependency used by this chart. Migrate MySQL values to mysql.standalone.* before upgrading." -}}
-{{- end -}}
 {{- $vendor := .Values.database.external.vendor | default "postgres" -}}
-{{- if not (has $vendor (list "postgres" "mysql")) -}}
-{{- fail (printf "database.external.vendor must be one of: postgres, mysql (got %s)" $vendor) -}}
+{{- if ne $vendor "postgres" -}}
+{{- fail (printf "database.external.vendor must be postgres for Homarr v2 (got %s)" $vendor) -}}
+{{- end -}}
+{{- if and $hasExternal (not $hasExternalCredentials) -}}
+{{- fail "database.external.password or database.external.existingSecret is required when database.external.host is set" -}}
+{{- end -}}
+{{- if and $hasExternalCredentials (not $hasExternal) -}}
+{{- fail "database.external.host is required when external database credentials are configured" -}}
 {{- end -}}
 {{- if eq $mode "auto" -}}
   {{- $count := 0 -}}
   {{- if $hasExternal -}}{{- $count = add1 $count -}}{{- end -}}
   {{- if $hasPostgresql -}}{{- $count = add1 $count -}}{{- end -}}
-  {{- if $hasMysql -}}{{- $count = add1 $count -}}{{- end -}}
   {{- if gt $count 1 -}}
-    {{- fail "homarr database selection is ambiguous: configure only one of database.external.host, postgresql.enabled, or mysql.enabled" -}}
+    {{- fail "homarr database selection is ambiguous: configure only one of database.external.host or postgresql.enabled" -}}
   {{- end -}}
   {{- if $hasExternal -}}external
   {{- else if $hasPostgresql -}}postgresql
-  {{- else if $hasMysql -}}mysql
   {{- else -}}sqlite
   {{- end -}}
 {{- else -}}
-  {{- if and (eq $mode "sqlite") (or $hasExternal $hasPostgresql $hasMysql) -}}
-    {{- fail "database.mode=sqlite cannot be combined with database.external, postgresql.enabled, or mysql.enabled" -}}
+  {{- if and (eq $mode "sqlite") (or $hasExternal $hasPostgresql) -}}
+    {{- fail "database.mode=sqlite cannot be combined with database.external or postgresql.enabled" -}}
   {{- end -}}
   {{- if and (eq $mode "external") (not $hasExternal) -}}
-    {{- fail "database.mode=external requires database.external.host or database.external.existingSecret" -}}
+    {{- fail "database.mode=external requires database.external.host and database credentials" -}}
   {{- end -}}
-  {{- if and (eq $mode "external") (or $hasPostgresql $hasMysql) -}}
-    {{- fail "database.mode=external cannot be combined with postgresql.enabled or mysql.enabled" -}}
+  {{- if and (eq $mode "external") $hasPostgresql -}}
+    {{- fail "database.mode=external cannot be combined with postgresql.enabled" -}}
   {{- end -}}
   {{- if and (eq $mode "postgresql") (not $hasPostgresql) -}}
     {{- fail "database.mode=postgresql requires postgresql.enabled=true" -}}
   {{- end -}}
-  {{- if and (eq $mode "postgresql") (or $hasExternal $hasMysql) -}}
-    {{- fail "database.mode=postgresql cannot be combined with database.external or mysql.enabled" -}}
-  {{- end -}}
-  {{- if and (eq $mode "mysql") (not $hasMysql) -}}
-    {{- fail "database.mode=mysql requires mysql.enabled=true" -}}
-  {{- end -}}
-  {{- if and (eq $mode "mysql") (or $hasExternal $hasPostgresql) -}}
-    {{- fail "database.mode=mysql cannot be combined with database.external or postgresql.enabled" -}}
+  {{- if and (eq $mode "postgresql") $hasExternal -}}
+    {{- fail "database.mode=postgresql cannot be combined with database.external" -}}
   {{- end -}}
   {{- $mode -}}
 {{- end -}}
@@ -138,31 +140,27 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- .Values.database.external.vendor | default "postgres" -}}
 {{- else if eq $mode "postgresql" -}}
 postgres
-{{- else if eq $mode "mysql" -}}
-mysql
 {{- else -}}
 sqlite3
 {{- end -}}
 {{- end -}}
 
 {{/*
-Homarr DB_DRIVER value: better-sqlite3, node-postgres, mysql2
+Homarr DB_DRIVER value: better-sqlite3 or node-postgres
 */}}
 {{- define "homarr.dbDriver" -}}
 {{- $vendor := include "homarr.databaseVendor" . -}}
 {{- if eq $vendor "sqlite3" -}}better-sqlite3
-{{- else if eq $vendor "mysql" -}}mysql2
 {{- else -}}node-postgres
 {{- end -}}
 {{- end -}}
 
 {{/*
-Homarr DB_DIALECT value: sqlite, mysql, postgresql
+Homarr DB_DIALECT value: sqlite or postgresql
 */}}
 {{- define "homarr.dbDialect" -}}
 {{- $vendor := include "homarr.databaseVendor" . -}}
 {{- if eq $vendor "sqlite3" -}}sqlite
-{{- else if eq $vendor "mysql" -}}mysql
 {{- else -}}postgresql
 {{- end -}}
 {{- end -}}
@@ -173,8 +171,6 @@ Homarr DB_DIALECT value: sqlite, mysql, postgresql
 {{- .Values.database.external.host -}}
 {{- else if eq $mode "postgresql" -}}
 {{- printf "%s-postgresql" .Release.Name -}}
-{{- else if eq $mode "mysql" -}}
-{{- printf "%s-mysql" .Release.Name -}}
 {{- else -}}
 {{- "" -}}
 {{- end -}}
@@ -185,15 +181,11 @@ Homarr DB_DIALECT value: sqlite, mysql, postgresql
 {{- if eq $mode "external" -}}
 {{- if .Values.database.external.port -}}
 {{- .Values.database.external.port | toString -}}
-{{- else if eq (.Values.database.external.vendor | default "postgres") "mysql" -}}
-3306
 {{- else -}}
 5432
 {{- end -}}
 {{- else if eq $mode "postgresql" -}}
 5432
-{{- else if eq $mode "mysql" -}}
-3306
 {{- else -}}
 {{- "" -}}
 {{- end -}}
@@ -205,8 +197,6 @@ Homarr DB_DIALECT value: sqlite, mysql, postgresql
 {{- .Values.database.external.name -}}
 {{- else if eq $mode "postgresql" -}}
 {{- .Values.postgresql.auth.database -}}
-{{- else if eq $mode "mysql" -}}
-{{- .Values.mysql.auth.database -}}
 {{- else -}}
 {{- "" -}}
 {{- end -}}
@@ -218,8 +208,6 @@ Homarr DB_DIALECT value: sqlite, mysql, postgresql
 {{- .Values.database.external.username -}}
 {{- else if eq $mode "postgresql" -}}
 {{- .Values.postgresql.auth.username -}}
-{{- else if eq $mode "mysql" -}}
-{{- .Values.mysql.auth.username -}}
 {{- else -}}
 {{- "" -}}
 {{- end -}}
@@ -231,15 +219,13 @@ Homarr DB_DIALECT value: sqlite, mysql, postgresql
 {{- .Values.database.external.password -}}
 {{- else if eq $mode "postgresql" -}}
 {{- .Values.postgresql.auth.password -}}
-{{- else if eq $mode "mysql" -}}
-{{- .Values.mysql.auth.password -}}
 {{- else -}}
 {{- "" -}}
 {{- end -}}
 {{- end -}}
 
 {{/*
-Database URL for SQLite. PostgreSQL/MySQL use discrete env vars so passwords
+Database URL for SQLite. PostgreSQL uses discrete env vars so passwords
 do not need URL encoding inside a rendered connection string.
 */}}
 {{- define "homarr.dbUrl" -}}
@@ -255,6 +241,8 @@ do not need URL encoding inside a rendered connection string.
 {{- $mode := include "homarr.databaseMode" . -}}
 {{- if and (eq $mode "external") .Values.database.external.existingSecret -}}
   {{- .Values.database.external.existingSecret -}}
+{{- else if eq $mode "postgresql" -}}
+  {{- include "homarr.postgresqlSecretName" . -}}
 {{- else -}}
   {{- printf "%s-database" (include "homarr.fullname" .) -}}
 {{- end -}}
@@ -264,18 +252,26 @@ do not need URL encoding inside a rendered connection string.
 {{- $mode := include "homarr.databaseMode" . -}}
 {{- if and (eq $mode "external") .Values.database.external.existingSecret -}}
   {{- .Values.database.external.existingSecretPasswordKey | default "database-password" -}}
+{{- else if eq $mode "postgresql" -}}
+  {{- .Values.postgresql.auth.existingSecretUserPasswordKey | default "user-password" -}}
 {{- else -}}
   database-password
 {{- end -}}
 {{- end -}}
 
 {{- define "homarr.postgresqlSecretName" -}}
+{{- $postgresqlName := .Values.postgresql.nameOverride | default "postgresql" | trunc 63 | trimSuffix "-" -}}
+{{- $baseName := printf "%s-%s" .Release.Name $postgresqlName | trunc 63 | trimSuffix "-" -}}
+{{- if .Values.postgresql.fullnameOverride -}}
+  {{- $baseName = .Values.postgresql.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- $defaultName := printf "%s-auth" ($baseName | trunc 58 | trimSuffix "-") | trunc 63 | trimSuffix "-" -}}
 {{- if .Values.postgresql.auth.existingSecret -}}
 {{- .Values.postgresql.auth.existingSecret -}}
-{{- else if .Values.postgresql.fullnameOverride -}}
-{{- printf "%s-auth" .Values.postgresql.fullnameOverride -}}
+{{- else if and (dig "externalSecrets" "enabled" false .Values.postgresql) (dig "externalSecrets" "auth" "enabled" false .Values.postgresql) -}}
+{{- dig "externalSecrets" "auth" "targetName" "" .Values.postgresql | default $defaultName -}}
 {{- else -}}
-{{- printf "%s-%s-auth" .Release.Name (.Values.postgresql.nameOverride | default "postgresql") -}}
+{{- $defaultName -}}
 {{- end -}}
 {{- end -}}
 
