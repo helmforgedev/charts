@@ -92,9 +92,11 @@ CronJob, and backup CronJob have their own pod annotations, so a batch pod can d
 - `backup.podAnnotations`
 
 A common use is Linkerd auto-injection. The `linkerd-proxy` sidecar does not exit when the main container finishes, so
-a Job pod stays `NotReady`, the Job never completes, and it fails once `activeDeadlineSeconds` is reached. Tools such
-as Argo CD then report the sync as failed even though the application is healthy. Opt the batch pods out of injection
-while the Deployment stays meshed:
+the pod stays `NotReady` and its Job never completes. The bootstrap and plugin installer Jobs fail once their
+`activeDeadlineSeconds` is reached, and tools such as Argo CD then report the sync as failed even though the
+application is healthy. The CronJobs set no deadline, so a stuck run stays active, and with the default
+`concurrencyPolicy: Forbid` every later scheduled run is skipped. Opt the batch pods out of injection while the
+Deployment stays meshed:
 
 ```yaml
 bootstrap:
@@ -104,11 +106,19 @@ plugins:
   installer:
     podAnnotations:
       linkerd.io/inject: disabled
+wpCron:
+  cronJob:
+    podAnnotations:
+      linkerd.io/inject: disabled
+backup:
+  podAnnotations:
+    linkerd.io/inject: disabled
 ```
 
-Other pod-level annotations, such as Vault Agent or Datadog settings, work the same way. Only annotations are
-supported: a setting that must be a pod label, such as Istio's `sidecar.istio.io/inject`, cannot be set through these
-keys.
+Other pod-level annotations, such as Vault Agent or Datadog settings, work the same way. Annotation values must be
+strings, so quote values that YAML would read as a boolean or number, for example
+`vault.hashicorp.com/agent-inject: "true"`. The chart schema rejects unquoted ones. Only annotations are supported: a
+setting that must be a pod label, such as Istio's `sidecar.istio.io/inject`, cannot be set through these keys.
 
 ## Routing
 
