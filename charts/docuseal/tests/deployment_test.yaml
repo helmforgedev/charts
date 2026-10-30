@@ -8,6 +8,23 @@ tests:
       - equal: { path: 'spec.template.spec.containers[0].image', value: 'docker.io/docuseal/docuseal@sha256:28d0ca583860e2c73e5b068756023a93a325799a22da1f788355d566865dd051' }
       - equal: { path: 'spec.template.spec.containers[0].startupProbe.httpGet.path', value: /up }
       - equal: { path: 'spec.template.spec.containers[0].readinessProbe.httpGet.path', value: /up }
+      - equal: { path: 'spec.template.spec.containers[0].livenessProbe.httpGet.path', value: /up }
+  - it: disables each health probe independently
+    set:
+      probes.startup.enabled: false
+      probes.readiness.enabled: false
+      probes.liveness.enabled: false
+    asserts:
+      - isNull: { path: 'spec.template.spec.containers[0].startupProbe' }
+      - isNull: { path: 'spec.template.spec.containers[0].readinessProbe' }
+      - isNull: { path: 'spec.template.spec.containers[0].livenessProbe' }
+  - it: preserves optional readiness and liveness initial delays
+    set:
+      probes.readiness.initialDelaySeconds: 7
+      probes.liveness.initialDelaySeconds: 11
+    asserts:
+      - equal: { path: 'spec.template.spec.containers[0].readinessProbe.initialDelaySeconds', value: 7 }
+      - equal: { path: 'spec.template.spec.containers[0].livenessProbe.initialDelaySeconds', value: 11 }
   - it: uses the upstream non-root identity and hardened container defaults
     asserts:
       - equal: { path: 'spec.template.spec.automountServiceAccountToken', value: false }
@@ -22,6 +39,15 @@ tests:
       - contains:
           path: 'spec.template.spec.containers[0].env'
           content: { name: REDIS_URL, value: 'redis://:$(REDIS_PASSWORD)@RELEASE-NAME-redis-client:6379/0' }
+  - it: configures the real DocuSeal listener independently from the Service port
+    set:
+      containerPorts.http: 3100
+      service.port: 8080
+    asserts:
+      - equal: { path: 'spec.template.spec.containers[0].ports[0].containerPort', value: 3100 }
+      - contains:
+          path: 'spec.template.spec.containers[0].env'
+          content: { name: PORT, value: "3100" }
   - it: uses rolling updates only for a production HA topology
     set:
       replicaCount: 2

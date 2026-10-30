@@ -4,6 +4,15 @@ Deploy [DocuSeal](https://www.docuseal.com), an open-source electronic-signature
 platform, with a pinned official image, HelmForge PostgreSQL and Redis subcharts,
 durable attachments, External Secrets, and hardened Kubernetes networking.
 
+## Features
+
+- Official DocuSeal image pinned by immutable multi-platform digest.
+- Bundled or external PostgreSQL and Redis with Secret-based credentials.
+- Retained local attachments or S3-compatible shared storage.
+- Configurable Puma listener, named Service target, and `/up` health probes.
+- External Secrets, Ingress, Gateway API, dual-stack, and NetworkPolicy support.
+- Non-root, read-only runtime with dropped capabilities and seccomp enabled.
+
 ## Install
 
 ```bash
@@ -13,11 +22,13 @@ helm install docuseal oci://ghcr.io/helmforgedev/helm/docuseal \
   --create-namespace
 ```
 
-## Production topology
+## Architecture and production topology
 
 The default is a durable single-replica deployment backed by HelmForge
 PostgreSQL and Redis. An init container prepares the database before each Pod
-can start. The application uses the upstream `/up` health endpoint,
+can start. Puma listens on `containerPorts.http` through the upstream `PORT`
+environment variable, while `service.port` remains the independent
+cluster-facing port. The application uses the upstream `/up` health endpoint,
 runs as UID/GID 2000, and persists `/data/docuseal`.
 
 For multiple replicas, the chart requires external PostgreSQL, external Redis,
@@ -63,6 +74,8 @@ upload, signing, and email before upgrading.
 | `image.tag` | `3.3.3` | Human-readable upstream release |
 | `image.digest` | pinned | Immutable official image |
 | `replicaCount` | `1` | Application replicas |
+| `containerPorts.http` | `3000` | Puma HTTP listener configured through `PORT` |
+| `service.port` | `3000` | Independent cluster-facing Service port |
 | `docuseal.existingSecret` | `""` | Persistent application identity and credentials |
 | `postgresql.enabled` | `true` | Bundled HelmForge PostgreSQL |
 | `redis.enabled` | `true` | Bundled HelmForge Redis |
@@ -74,9 +87,33 @@ upload, signing, and email before upgrading.
 Every value is documented in [values.yaml](values.yaml) and constrained by
 [values.schema.json](values.schema.json).
 
+## Configuration example
+
+The process listener and Service port are deliberately independent:
+
+```yaml
+containerPorts:
+  http: 3100
+service:
+  port: 8080
+docuseal:
+  appUrl: https://signatures.example.com
+  forceSsl: true
+```
+
+Puma receives `PORT=3100`; the Service exposes `8080` and targets the named
+`http` port. See the complete [production example](examples/production.yaml)
+for external dependencies, S3 storage, and a stable identity Secret.
+
+## Examples
+
+- [Production values](examples/production.yaml)
+- [External services](docs/external-services.md)
+- [Operations and recovery](docs/operations.md)
+
 ## Validation scenarios
 
-The chart tests the default topology, dual-stack Service, Ingress, Gateway API,
+The chart tests the default topology, a custom application listener, dual-stack Service, Ingress, Gateway API,
 native External Secrets, retained identity, HA prerequisites, and external
 service isolation. The k3d smoke verifies `/up`, UID 2000, identity retention,
 clean events and logs, successful migrations, and stable workloads.
@@ -95,6 +132,22 @@ Security Scan: docuseal
 Kubescape reported no critical or high-severity failures. The remaining medium
 and low findings are limited to the maintained PostgreSQL and Redis subcharts,
 whose writable data filesystems and independent network policies are required.
+
+## Troubleshooting
+
+Inspect application and migration output separately because migrations run as
+an init container, not a Job:
+
+```bash
+kubectl -n docuseal rollout status deployment/docuseal-docuseal
+kubectl -n docuseal logs deployment/docuseal-docuseal -c migrate
+kubectl -n docuseal logs deployment/docuseal-docuseal -c docuseal
+kubectl -n docuseal get events --sort-by=.lastTimestamp
+```
+
+If the Pod is not ready, verify PostgreSQL and Redis connectivity, Secret key
+names, writable attachment storage, and any private NetworkPolicy peers before
+changing the health probe timings.
 
 ## Limitations
 
