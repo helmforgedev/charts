@@ -228,6 +228,13 @@ pihole:
   webserverPort: "9090o,[::]:9090o,9091os,[::]:9091os"
 ```
 
+The chart Web Service and default NetworkPolicy expose only
+`containerPorts.http`; additional FTL listeners such as HTTPS 9091 are not
+routed through that Service. With `hostNetwork`, reach them directly through
+the node and enforce access with the node firewall. For ordinary pod
+networking, terminate TLS at an Ingress or Gateway that targets the primary
+HTTP listener.
+
 DHCP remains on protocol-defined UDP port 67.
 
 ### Security and Resources
@@ -351,8 +358,12 @@ Chart 2.2.0 changed `securityContext.capabilities` to drop all capabilities
 before adding the complete set required by the official image. Helm replaces
 custom arrays during an upgrade, so a `securityContext.capabilities.add`
 override copied from chart 2.1.x removes the new required defaults and prevents
-Pi-hole from starting. Remove the old override before upgrading. When
-`dhcp.enabled` is true, the chart now adds `NET_ADMIN` automatically.
+Pi-hole from starting. Inspect stored overrides with `helm get values <release>
+-n <namespace>`, remove the old capability override, then upgrade with
+`--reset-values` and pass the other intended overrides again. Do not use
+`--reuse-values` or `--reset-then-reuse-values` for this migration because both
+retain the stored capability override. When `dhcp.enabled` is true, the chart
+now adds `NET_ADMIN` automatically.
 
 Upstream release notes: [Pi-hole 2026.10.0](https://github.com/pi-hole/docker-pi-hole/releases/tag/2026.10.0).
 

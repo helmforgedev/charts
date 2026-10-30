@@ -15,9 +15,13 @@ choose a StorageClass with a tested recovery procedure.
 by the Web Service, probes, and metrics exporter. They are independent from the
 cluster-facing DNS and web Service ports. Set `pihole.webserverPort` when FTL
 must listen on multiple IPv4, IPv6, HTTP, or HTTPS addresses and include
-`containerPorts.http` in that full value. DHCP remains on UDP 67 because it is
-a fixed protocol port and requires host networking or equivalent
-broadcast-aware network integration.
+`containerPorts.http` in that full value. The chart Web Service and default
+NetworkPolicy do not expose additional listeners in the full value. Use
+Ingress or Gateway TLS termination for ordinary pod networking. With
+`hostNetwork`, access additional listeners through the node and enforce them
+with the node firewall. DHCP remains on UDP 67 because it is a fixed protocol
+port and requires host networking or equivalent broadcast-aware network
+integration.
 
 ## Backup and Restore
 
@@ -43,6 +47,13 @@ image before allowing traffic.
 
 Use an explicit rollback plan. A Helm rollback restores Kubernetes manifests,
 but it does not reverse an application data migration inside the PVC.
+
+When migrating a chart 2.1.x `securityContext.capabilities.add` override, first
+inspect stored overrides with `helm get values <release> -n <namespace>`. Remove
+the old capability override and upgrade with `--reset-values`, passing all other
+intended overrides again. `--reuse-values` and `--reset-then-reuse-values` both
+retain the stored array and prevent the chart 2.2.0 capability defaults from
+taking effect. DHCP automatically receives `NET_ADMIN` when enabled.
 
 ## Runtime Verification
 

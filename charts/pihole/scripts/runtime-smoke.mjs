@@ -31,7 +31,7 @@ assert.equal(dnsPort, dnsUdpPort, 'DNS TCP and UDP listeners must use the same p
 assert.equal(environment.FTLCONF_dns_port, String(dnsPort));
 const primaryHttpListener = new RegExp(`^(?:\\+|.*:)?${httpPort}o?$`);
 assert.ok(
-  environment.FTLCONF_webserver_port.split(',').some((listener) => primaryHttpListener.test(listener)),
+  environment.FTLCONF_webserver_port.split(',').some((listener) => primaryHttpListener.test(listener.trim())),
   `FTLCONF_webserver_port must include primary unencrypted HTTP listener ${httpPort}`,
 );
 
