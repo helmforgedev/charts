@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Community Branch Plugin
 
 The chart can install the community branch plugin during pod initialization.
@@ -22,7 +24,9 @@ communityBranchPlugin:
   enabled: true
   version: "26.4.0"
   jarUrl: https://artifacts.example.com/sonarqube-community-branch-plugin-26.4.0.jar
+  jarSha256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
   webappUrl: https://artifacts.example.com/sonarqube-webapp.zip
+  webappSha256: abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789
 ```
 
 The chart validates plugin `26.4.0` with its default SonarQube image. When
@@ -39,6 +43,10 @@ plugins:
   install:
     - name: sonar-auth-oidc
       url: https://example.com/sonar-auth-oidc.jar
+      sha256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 ```
 
-Use an internal artifact repository for production so startup does not depend on public internet availability.
+URLs are passed to the installer through environment variables so shell characters
+are not evaluated. When a checksum is set, the init container verifies it before
+SonarQube starts. Use an internal artifact repository and checksums for production
+so startup does not depend on public internet availability or unverified content.
