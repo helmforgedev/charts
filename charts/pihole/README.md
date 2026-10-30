@@ -219,7 +219,11 @@ resolves the digest as the deployed image identity.
 `containerPorts.http` is the primary unencrypted web listener targeted by the
 Web Service, HTTP probes, and metrics exporter. For multiple IPv4, IPv6, HTTP,
 or HTTPS listeners, set `pihole.webserverPort` to the complete FTL value and
-include `containerPorts.http` as an unencrypted listener. For example:
+include `containerPorts.http` as a directly served HTTP listener bound to all
+pod interfaces. Do not add `r` or `s` to that primary listener or bind it to a
+specific address; Service probes and the metrics exporter require direct HTTP.
+Redirect, TLS, and address-specific listeners may be added separately. For
+example:
 
 ```yaml
 containerPorts:

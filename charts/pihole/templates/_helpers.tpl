@@ -331,9 +331,9 @@ Compile all validation warnings and errors into a single message.
 {{- define "pihole.validate" -}}
 {{- $messages := list -}}
 {{- $webserverPort := include "pihole.webserverPort" . -}}
-{{- $primaryHttpPattern := printf "(^|,[[:space:]]*)(\\+|[^,]*:)?%v(o)?[[:space:]]*(,|$)" .Values.containerPorts.http -}}
+{{- $primaryHttpPattern := printf "(^|,[[:space:]]*)(\\+|0\\.0\\.0\\.0:)?%v(o)?[[:space:]]*(,|$)" .Values.containerPorts.http -}}
 {{- if not (regexMatch $primaryHttpPattern $webserverPort) -}}
-  {{- $messages = append $messages (printf "pihole.webserverPort must include containerPorts.http (%v) as an unencrypted listener." .Values.containerPorts.http) -}}
+  {{- $messages = append $messages (printf "pihole.webserverPort must include containerPorts.http (%v) as a directly served HTTP listener bound to all pod interfaces." .Values.containerPorts.http) -}}
 {{- end -}}
 {{- if .Values.backup.enabled -}}
   {{- if not .Values.backup.s3.bucket -}}

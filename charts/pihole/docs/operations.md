@@ -15,8 +15,10 @@ choose a StorageClass with a tested recovery procedure.
 by the Web Service, probes, and metrics exporter. They are independent from the
 cluster-facing DNS and web Service ports. Set `pihole.webserverPort` when FTL
 must listen on multiple IPv4, IPv6, HTTP, or HTTPS addresses and include
-`containerPorts.http` in that full value. The chart Web Service and default
-NetworkPolicy do not expose additional listeners in the full value. Use
+`containerPorts.http` in that full value as directly served HTTP bound to all
+pod interfaces. Do not redirect, secure, or bind that primary listener to a
+specific address; those modes may be used on additional listeners. The chart
+Web Service and default NetworkPolicy do not expose additional listeners. Use
 Ingress or Gateway TLS termination for ordinary pod networking. With
 `hostNetwork`, access additional listeners through the node and enforce them
 with the node firewall. DHCP remains on UDP 67 because it is a fixed protocol
@@ -85,7 +87,7 @@ Verify the web Service target, the `http` named container port, and the startup
 and readiness probes. `serviceWeb.port` changes only the Service-facing port;
 use `containerPorts.http` to change the primary FTL listener. When
 `pihole.webserverPort` is set, confirm its full listener list includes that
-primary port as unencrypted HTTP.
+primary port as directly served HTTP bound to all pod interfaces.
 
 ### Gravity Update Fails
 

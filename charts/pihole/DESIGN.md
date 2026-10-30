@@ -32,7 +32,9 @@ interface through `containerPorts.http`. The DNS value configures
 default, while `pihole.webserverPort` can define Pi-hole's complete IPv4, IPv6,
 HTTP, and HTTPS listener string. The complete string must retain
 `containerPorts.http` as an unencrypted listener because the Service, probes,
-and metrics exporter target that named port. Service ports remain separate.
+and metrics exporter target that named port. The primary listener must serve
+HTTP directly on all pod interfaces; redirects, TLS, and address-specific binds
+are supported only as additional listeners. Service ports remain separate.
 DHCP port 67 is fixed by the protocol and explicitly documented as such. DHCP can be
 enabled for advanced home-network deployments, but it requires host networking
 because DHCP broadcasts do not cross Kubernetes service boundaries.
