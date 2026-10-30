@@ -11,6 +11,8 @@ Image: {{ include "ckan.image" . }}
 Service name: {{ include "ckan.fullname" . }}
 Service type: {{ .Values.service.type }}
 Service port: {{ .Values.service.port }}
+Application port: {{ .Values.ckan.containerPort }}
+NetworkPolicy: {{ ternary "enabled" "disabled" .Values.networkPolicy.enabled }}
 
 2. Access
 ---------
@@ -46,6 +48,9 @@ Sysadmin password key: {{ .Values.ckan.existingSecretPasswordKey | default "sysa
 Inspect generated credentials:
 
   kubectl -n {{ .Release.Namespace }} get secret {{ include "ckan.secretName" . }}
+
+Generated values are preserved during upgrades. Back up this Secret or provide
+ckan.existingSecret before relying on the release for production recovery.
 
 4. Runtime components
 ---------------------
@@ -89,10 +94,12 @@ Inspect CKAN and dependencies:
 
   kubectl -n {{ .Release.Namespace }} describe deploy/{{ include "ckan.fullname" . }}
 {{- if .Values.postgresql.enabled }}
-  kubectl -n {{ .Release.Namespace }} logs statefulset/{{ .Release.Name }}-postgresql --tail=80
+  kubectl -n {{ .Release.Namespace }} get pods \
+    -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name=postgresql
 {{- end }}
 {{- if .Values.redis.enabled }}
-  kubectl -n {{ .Release.Namespace }} logs statefulset/{{ .Release.Name }}-redis --tail=80
+  kubectl -n {{ .Release.Namespace }} get pods \
+    -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name=redis
 {{- end }}
 {{- if .Values.solr.enabled }}
   kubectl -n {{ .Release.Namespace }} logs statefulset/{{ include "ckan.fullname" . }}-solr --tail=80
