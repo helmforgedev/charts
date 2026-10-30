@@ -62,3 +62,20 @@ alf.io stores durable business data in PostgreSQL. The chart does not render an
 application-level backup job. Use the PostgreSQL subchart backup pattern if the
 database is chart-managed, or the platform database backup process when using an
 external PostgreSQL service.
+
+For production, document the recovery point and recovery time objectives,
+schedule database backups outside the application pod, and execute restore
+tests. A successful backup job alone is not recovery evidence.
+
+## Credential Rotation
+
+When using an existing Secret, update its password and the PostgreSQL role in a
+coordinated maintenance window, then restart the alf.io Deployment so the new
+environment value is loaded:
+
+```bash
+kubectl rollout restart deployment/<release>-alfio
+kubectl rollout status deployment/<release>-alfio --timeout=300s
+```
+
+Verify `/healthz` and a read-only application page after rotation.

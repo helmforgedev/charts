@@ -1,177 +1,71 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
---------------------------------------------------------------------
-  alf.io has been successfully deployed!
---------------------------------------------------------------------
+1. Summary
 
-Chart:      {{ .Chart.Name }}
-Version:    {{ .Chart.Version }}
-AppVersion: {{ .Chart.AppVersion }}
-Release:    {{ .Release.Name }}
-Namespace:  {{ .Release.Namespace }}
+   alf.io {{ .Chart.AppVersion }} is deployed as release {{ .Release.Name }}
+   in namespace {{ .Release.Namespace }}. The application listens on port
+   {{ .Values.alfio.containerPort }} and the Service exposes port {{ .Values.service.port }}.
 
---------------------------------------------------------------------
-  ACCESS INFORMATION
---------------------------------------------------------------------
+2. Access
 
 {{- if .Values.ingress.enabled }}
 {{- range $host := .Values.ingress.hosts }}
-WEB UI:   https://{{ $host.host }}/
-ADMIN:    https://{{ $host.host }}/admin/
-API:      https://{{ $host.host }}/api/
+   Web application: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+   Administration:  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/admin/
 {{- end }}
 {{- else }}
-Port-forward to access alf.io locally:
+   Start a local port-forward:
 
-  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "alfio.fullname" . }} 8080:{{ .Values.service.port }}
+     kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "alfio.fullname" . }} 8080:{{ .Values.service.port }}
 
-  WEB UI:   http://localhost:8080/
-  ADMIN:    http://localhost:8080/admin/
-  API:      http://localhost:8080/api/
-
+   Open http://localhost:8080/.
 {{- end }}
 
-Internal cluster endpoint:
-  http://{{ include "alfio.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+3. Getting Started
 
---------------------------------------------------------------------
-  CREDENTIALS
---------------------------------------------------------------------
+   Wait for the server, open the application, and complete the first-time setup:
 
-Default admin credentials (first launch):
-  Username: admin
-  Password: (set during first-time setup wizard)
+     kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/component=server -n {{ .Release.Namespace }} --timeout=300s
 
-IMPORTANT: Complete the setup wizard on first access to configure admin credentials.
+4. Credentials
 
---------------------------------------------------------------------
-  CONFIGURATION
---------------------------------------------------------------------
+   The chart does not create alf.io administrator credentials. The initial
+   setup flow creates the administrator. Database credentials come from the
+   chart-managed Secret or database.external.existingSecret.
 
-Deployment:
-  Image:           {{ include "alfio.image" . }}
-  Spring Profiles: {{ .Values.alfio.profiles }}
-{{- if .Values.alfio.baseUrl }}
-  Base URL:        {{ .Values.alfio.baseUrl }}
-{{- else }}
-  Base URL:        (not set — configure for production use)
-{{- end }}
+5. Configuration
 
-Database:
+   Image:                     {{ include "alfio.image" . }}
+   Additional profiles:       {{ .Values.alfio.profiles }}
+   Public base URL:           {{ default "not configured" .Values.alfio.baseUrl }}
+   ServiceAccount token:      {{ .Values.serviceAccount.automountServiceAccountToken }}
+   Ingress NetworkPolicy:     {{ .Values.networkPolicy.enabled }}
 {{- if .Values.postgresql.enabled }}
-  Type:            PostgreSQL (subchart)
-  Host:            {{ include "alfio.dbHost" . }}:{{ include "alfio.dbPort" . }}
-  Database:        {{ include "alfio.dbName" . }}
-  Username:        {{ include "alfio.dbUsername" . }}
+   Database:                  bundled PostgreSQL at {{ include "alfio.dbHost" . }}:{{ include "alfio.dbPort" . }}
 {{- else }}
-  Type:            PostgreSQL (external)
-  Host:            {{ .Values.database.external.host }}:{{ .Values.database.external.port }}
-  Database:        {{ .Values.database.external.name }}
-  Username:        {{ .Values.database.external.username }}
-{{- end }}
-  JDBC URL:        {{ include "alfio.jdbcUrl" . }}
-
---------------------------------------------------------------------
-  GETTING STARTED
---------------------------------------------------------------------
-
-1. Wait for alf.io to be ready:
-   kubectl wait --for=condition=ready pod \
-     -l app.kubernetes.io/name=alfio \
-     -n {{ .Release.Namespace }} --timeout=300s
-
-2. Check pod status:
-   kubectl get pods -l app.kubernetes.io/name=alfio -n {{ .Release.Namespace }}
-
-3. View startup logs:
-   kubectl logs -l app.kubernetes.io/name=alfio \
-     -n {{ .Release.Namespace }} --all-containers --tail=50 -f
-
-4. Access alf.io (see ACCESS INFORMATION above):
-   - Complete the setup wizard on first access
-   - Create your organization and first event
-
-5. Configure base URL for production:
-   helm upgrade {{ .Release.Name }} alfio \
-     --set alfio.baseUrl=https://tickets.example.com \
-     --set alfio.profiles=spring-boot \
-     --reuse-values
-
---------------------------------------------------------------------
-  TROUBLESHOOTING
---------------------------------------------------------------------
-
-Check pod status:
-  kubectl get pods -l app.kubernetes.io/name=alfio -n {{ .Release.Namespace }}
-
-Describe pod (events and errors):
-  kubectl describe pod -l app.kubernetes.io/name=alfio -n {{ .Release.Namespace }}
-
-View application logs:
-  kubectl logs -l app.kubernetes.io/name=alfio \
-    -n {{ .Release.Namespace }} --all-containers --tail=100
-
-Check service endpoints:
-  kubectl get endpoints -n {{ .Release.Namespace }} | grep {{ include "alfio.fullname" . }}
-
-View all chart resources:
-  kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-
-Execute shell in pod:
-  kubectl exec -n {{ .Release.Namespace }} \
-    -it deploy/{{ include "alfio.fullname" . }} -- /bin/sh
-
-{{- if .Values.postgresql.enabled }}
-Check PostgreSQL subchart pod:
-  kubectl get pods -l app.kubernetes.io/name=postgresql -n {{ .Release.Namespace }}
-
-View PostgreSQL logs:
-  kubectl logs -l app.kubernetes.io/name=postgresql \
-    -n {{ .Release.Namespace }} --all-containers --tail=50
+   Database:                  external PostgreSQL at {{ include "alfio.dbHost" . }}:{{ include "alfio.dbPort" . }}
 {{- end }}
 
-Health check endpoint:
-  kubectl exec -n {{ .Release.Namespace }} \
-    deploy/{{ include "alfio.fullname" . }} -- \
-    wget -qO- http://localhost:8080/healthz
+6. Validation
 
---------------------------------------------------------------------
-  WARNINGS
---------------------------------------------------------------------
+     kubectl get deployment,service,pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+     kubectl get networkpolicy -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+     kubectl get --raw /api/v1/namespaces/{{ .Release.Namespace }}/services/http:{{ include "alfio.fullname" . }}:http/proxy/healthz
 
-{{- if and (eq (.Values.alfio.profiles) "dev") (not .Values.alfio.baseUrl) }}
+7. Troubleshooting
 
-WARNING: Spring profile is set to 'dev' and baseUrl is not configured.
-For production, use:
-  helm upgrade {{ .Release.Name }} alfio \
-    --set alfio.profiles=spring-boot \
-    --set alfio.baseUrl=https://tickets.example.com \
-    --reuse-values
-{{- end }}
+     kubectl describe pod -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/component=server -n {{ .Release.Namespace }}
+     kubectl logs deployment/{{ include "alfio.fullname" . }} -n {{ .Release.Namespace }} --all-containers --tail=200
+     kubectl get endpointslices -l kubernetes.io/service-name={{ include "alfio.fullname" . }} -n {{ .Release.Namespace }}
+     kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
 
-{{- if not .Values.ingress.enabled }}
+   If startup is blocked, check PostgreSQL reachability and credentials. If a
+   custom listener fails, verify SERVER_PORT and the named HTTP container port.
 
-NOTE: Ingress is not enabled. To expose alf.io externally:
-  helm upgrade {{ .Release.Name }} alfio \
-    --set ingress.enabled=true \
-    --set ingress.hosts[0].host=tickets.example.com \
-    --set ingress.hosts[0].paths[0].path=/ \
-    --set ingress.hosts[0].paths[0].pathType=Prefix \
-    --reuse-values
-{{- end }}
+8. Resources
 
---------------------------------------------------------------------
-  ADDITIONAL RESOURCES
---------------------------------------------------------------------
-
-Documentation:     https://helmforge.dev/docs/charts/alfio
-Chart Repository:  https://github.com/helmforgedev/charts/tree/main/charts/alfio
-Report Issues:     https://github.com/helmforgedev/charts/issues
-
-alf.io Website:    https://alf.io
-alf.io GitHub:     https://github.com/alfio-event/alf.io
-alf.io Docs:       https://alfio-event.github.io/alf.io/
-
-For questions or feedback about this chart, please visit:
-  https://github.com/helmforgedev/charts/discussions
+   Chart documentation: https://helmforge.dev/docs/charts/alfio
+   Architecture:        https://github.com/helmforgedev/charts/tree/main/charts/alfio/docs/architecture.md
+   Database guide:      https://github.com/helmforgedev/charts/tree/main/charts/alfio/docs/database.md
+   Upstream releases:   https://github.com/alfio-event/alf.io/releases
 
 Happy Helmforging :)

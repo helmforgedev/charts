@@ -1,83 +1,66 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # alf.io Helm Chart
 
-Deploy [alf.io](https://alf.io) on Kubernetes using the official
-[alfio/alf.io](https://hub.docker.com/r/alfio/alf.io) container image.
-Open-source event management and ticketing platform for conferences, meetups,
-and exhibitions.
+Deploy [alf.io](https://alf.io), an open-source event ticketing and attendee
+management platform, with its official image and PostgreSQL.
 
 ## Features
 
-- **Event ticketing** — full-featured ticketing with check-in, invoicing, and attendee management
-- **PostgreSQL backend** — bundled subchart or external database
-- **Spring Boot** — configurable Spring profiles and environment variables
-- **Wait-for-db** — init container ensures database is ready before app starts
-- **Health checks** — HTTP probes on `/healthz` endpoint
-- **Ingress support** — TLS with cert-manager, traefik or nginx
+- Official alf.io image pinned to `2.0-M5-2609`
+- Bundled HelmForge PostgreSQL or an external PostgreSQL service
+- Real Spring Boot listener configuration independent from the Service port
+- Startup, liveness, and readiness checks on `/healthz`
+- Non-root, read-only, capability-free security defaults
+- Service-account token disabled and ingress NetworkPolicy enabled by default
+- Optional Ingress with TLS configuration
 
-## Installation
-
-**HTTPS repository:**
+## Install
 
 ```bash
 helm repo add helmforge https://repo.helmforge.dev
 helm repo update
-helm install alfio helmforge/alfio -f values.yaml
+helm install alfio helmforge/alfio \
+  --set alfio.baseUrl=https://tickets.example.com
 ```
 
-**OCI registry:**
+The equivalent OCI install is:
 
 ```bash
-helm install alfio oci://ghcr.io/helmforgedev/helm/alfio -f values.yaml
+helm install alfio oci://ghcr.io/helmforgedev/helm/alfio \
+  --set alfio.baseUrl=https://tickets.example.com
 ```
 
-## Basic Example
+Access a ClusterIP installation locally:
+
+```bash
+kubectl port-forward service/alfio-alfio 8080:80
+```
+
+Then open `http://localhost:8080`. alf.io guides the administrator through
+first-time setup.
+
+## Production Example
 
 ```yaml
-# values.yaml — default values deploy with bundled PostgreSQL
 alfio:
-  baseUrl: "https://tickets.example.com"
-```
+  baseUrl: https://tickets.example.com
 
-After deploying, access alf.io:
-
-```bash
-kubectl port-forward svc/<release>-alfio 8080:80
-# Open http://localhost:8080
-# Default admin credentials are created on first boot
-```
-
-## External PostgreSQL
-
-```yaml
 postgresql:
   enabled: false
 
 database:
   external:
     host: postgres.example.com
+    port: "5432"
     name: alfio
     username: alfio
     existingSecret: alfio-db-credentials
-```
+    existingSecretPasswordKey: password
 
-## Architecture Guides
-
-- [Architecture](docs/architecture.md)
-- [Database Configuration](docs/database.md)
-
-## Examples
-
-- [Simple self-contained deployment](examples/simple.yaml)
-- [External PostgreSQL deployment](examples/external-postgresql.yaml)
-
-## Ingress
-
-```yaml
 ingress:
   enabled: true
-  ingressClassName: traefik  # or nginx
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt
+  ingressClassName: nginx
   hosts:
     - host: tickets.example.com
       paths:
@@ -87,51 +70,110 @@ ingress:
     - hosts:
         - tickets.example.com
       secretName: alfio-tls
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    memory: 1Gi
 ```
+
+## Listener and Service Ports
+
+`alfio.containerPort` changes the port used by the actual Spring Boot process.
+`service.port` changes only the Kubernetes Service port. The Service always
+targets the named application port.
+
+```yaml
+alfio:
+  containerPort: 8081
+
+service:
+  port: 9080
+```
+
+## Security
+
+The defaults run the official image as UID/GID `1001`, drop all capabilities,
+disable privilege escalation and API token mounting, enable `RuntimeDefault`
+seccomp, and make the root filesystem read-only. `/tmp` is the only chart-owned
+writable application path. A NetworkPolicy permits inbound traffic only to the
+named HTTP listener.
+
+If the cluster CNI does not enforce NetworkPolicy, the object has no traffic
+effect. Egress remains unrestricted for payment providers, email, webhooks, and
+external databases. Use an existing Secret for database credentials and keep
+the release at a patched upstream version.
+
+### Security Scan: `alfio`
+
+| Framework | Score |
+| --- | --- |
+| MITRE + NSA + SOC2 | **78.79%** |
+
+> Security posture includes non-root execution, a read-only root filesystem,
+> disabled token mounting, default ingress isolation, and operator-owned TLS,
+> database, identity, and egress controls.
+
+## Architecture
+
+One single-replica Deployment serves the web application and API through a
+ClusterIP Service and optional Ingress. A database wait init container gates
+startup. PostgreSQL owns all durable state; the application pod and its `/tmp`
+volume are disposable. See the architecture guide for ownership boundaries and
+request flow.
+
+## Database and Operations
+
+The bundled database is appropriate for evaluation and small installations
+that accept release-owned database lifecycle. Production platforms should
+normally use external PostgreSQL with platform backup, restore testing,
+replication, and maintenance processes.
+
+- [Architecture](docs/architecture.md)
+- [Database configuration](docs/database.md)
+- [Security](docs/security.md)
+- [Operations](docs/operations.md)
+- [Simple example](examples/simple.yaml)
+- [External PostgreSQL example](examples/external-postgresql.yaml)
 
 ## Key Values
 
 | Key | Default | Description |
-|-----|---------|-------------|
-| `alfio.baseUrl` | `""` | Public URL of the alf.io instance |
-| `alfio.profiles` | `"dev"` | Spring profiles (`dev` or `spring-boot` for production) |
-| `postgresql.enabled` | `true` | Deploy PostgreSQL subchart |
-| `ingress.enabled` | `false` | Enable ingress |
-| `service.port` | `80` | Service port |
-| `probes.startup.initialDelaySeconds` | `15` | Startup probe initial delay (JVM warm-up) |
+| --- | --- | --- |
+| `alfio.containerPort` | `8080` | Port used by the Spring Boot process |
+| `alfio.baseUrl` | `""` | Public URL used by attendees and administrators |
+| `alfio.profiles` | `"jdbc-session"` | Additional Spring profiles |
+| `service.port` | `80` | Kubernetes Service port |
+| `networkPolicy.enabled` | `true` | Restrict inbound traffic to HTTP |
+| `serviceAccount.automountServiceAccountToken` | `false` | Mount a Kubernetes API token |
+| `postgresql.enabled` | `true` | Deploy the PostgreSQL subchart |
+| `ingress.enabled` | `false` | Create an Ingress |
 
-### 🟢 Security Scan: `alfio`
+## Troubleshooting
 
-| Framework | Score |
-|---|---|
-| MITRE + NSA + SOC2 | **78.79%** |
+```bash
+kubectl get pods -l app.kubernetes.io/instance=alfio
+kubectl logs deployment/alfio-alfio --all-containers --tail=200
+kubectl get endpointslices -l kubernetes.io/service-name=alfio-alfio
+kubectl get networkpolicy alfio-alfio -o yaml
+```
 
-> ✅ Security posture acceptable.
+If startup remains blocked, validate PostgreSQL DNS, port, credentials, and
+network reachability. If probes fail after a listener override, confirm that
+`SERVER_PORT`, the named container port, and the Service target are aligned in
+the rendered Deployment.
 
 ## Limitations
 
-- **Single instance** — alf.io does not support horizontal scaling out of the box
-- **PostgreSQL only** — alf.io requires PostgreSQL as the database backend
+- The application is deliberately single-replica.
+- The chart does not manage application-level backups, SMTP, payments, WAF, or
+  certificate issuers.
+- Operators must test PostgreSQL restores and size resources for sale traffic.
 
 ## More Information
 
 - [alf.io documentation](https://alf.io/docs)
-- [alf.io GitHub](https://github.com/alfio-event/alf.io)
-- [Source code](https://github.com/helmforgedev/charts/tree/main/charts/alfio)
-
-<!-- @AI-METADATA
-type: chart-readme
-title: alf.io Helm Chart
-description: README for the alf.io event management and ticketing platform Helm chart
-
-keywords: alfio, ticketing, events, conference, postgresql
-
-purpose: Chart installation, configuration, and usage documentation
-scope: Chart
-
-relations:
-  - charts/alfio/values.yaml
-path: charts/alfio/README.md
-version: 1.0
-date: 2026-04-03
--->
+- [alf.io releases](https://github.com/alfio-event/alf.io/releases)
+- [Chart source](https://github.com/helmforgedev/charts/tree/main/charts/alfio)

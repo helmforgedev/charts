@@ -106,6 +106,11 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "jdbc:postgresql://%s:%s/%s" (include "alfio.dbHost" .) (include "alfio.dbPort" .) (include "alfio.dbName" .) -}}
 {{- end -}}
 
+{{/* Roll the application when its database connection or chart-managed password changes. */}}
+{{- define "alfio.databaseChecksum" -}}
+{{- printf "%t|%s|%s|%s|%s|%s|%s|%s|%s" .Values.postgresql.enabled (include "alfio.dbHost" .) (include "alfio.dbPort" .) (include "alfio.dbName" .) (include "alfio.dbUsername" .) (include "alfio.dbSecretName" .) (include "alfio.dbSecretPasswordKey" .) (.Values.database.external.password | default "") (.Values.postgresql.auth.password | default "") | sha256sum -}}
+{{- end -}}
+
 {{- define "alfio.validate" -}}
 {{- if and (not .Values.postgresql.enabled) (empty .Values.database.external.host) -}}
 {{- fail "database.external.host is required when postgresql.enabled=false" -}}
@@ -122,6 +127,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- if hasKey .Values.podLabels "app.kubernetes.io/instance" -}}
 {{- fail "podLabels must not override the selector label app.kubernetes.io/instance" -}}
+{{- end -}}
+{{- if hasKey .Values.podLabels "app.kubernetes.io/component" -}}
+{{- fail "podLabels must not override the reserved label app.kubernetes.io/component" -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}

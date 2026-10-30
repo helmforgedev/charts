@@ -13,6 +13,7 @@ invoice, and configuration data.
 - `Secret`: stores generated or supplied database credentials.
 - `Service`: exposes HTTP traffic inside the cluster.
 - `Ingress`: optional edge route for public ticketing and admin access.
+- `NetworkPolicy`: limits inbound traffic to the named HTTP listener.
 - PostgreSQL subchart: optional database for self-contained deployments.
 - Init container: waits for PostgreSQL before starting the application.
 
@@ -22,6 +23,11 @@ Users reach the application through either an Ingress or a port-forwarded
 ClusterIP Service. alf.io serves public event pages, checkout flows, admin
 screens, and API endpoints from the same HTTP port. The application then uses a
 JDBC connection to PostgreSQL for all persistent state.
+
+`alfio.containerPort` is passed to Spring Boot as `SERVER_PORT`, while
+`service.port` remains the independent client-facing Service port. The Service
+uses the named `http` target, so listener overrides do not require a numeric
+`targetPort` change.
 
 ## Database Ownership
 
@@ -40,10 +46,13 @@ administrative workflows. Run one pod and scale the database independently.
 ## Production Checklist
 
 1. Set `alfio.baseUrl` to the externally reachable HTTPS URL.
-2. Use `alfio.profiles=spring-boot`.
+2. Keep the default `jdbc-session` profile unless another upstream profile is
+   required. Never enable `dev` for production.
 3. Use an external PostgreSQL instance or define a backup plan for the bundled
    PostgreSQL volume.
 4. Enable Ingress with TLS through the cluster standard.
 5. Set CPU and memory requests and limits after load testing expected ticket
    sale traffic.
 6. Store database credentials in an existing Secret for GitOps workflows.
+7. Confirm the cluster CNI enforces NetworkPolicy and connect application logs
+   and Kubernetes metrics to the platform observability stack.

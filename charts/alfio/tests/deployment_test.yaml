@@ -26,11 +26,17 @@ tests:
           path: spec.replicas
           value: 1
 
+  - it: should checksum the database connection configuration
+    asserts:
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/secret-configuration"]
+          pattern: "^[a-f0-9]{64}$"
+
   - it: should set the correct image with default tag
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "docker.io/alfio/alf.io:2.0-M5-2606"
+          value: "docker.io/alfio/alf.io:2.0-M5-2609"
 
   - it: should set custom image tag
     set:
@@ -46,7 +52,60 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: SPRING_PROFILES_ACTIVE
-            value: "dev"
+            value: "jdbc-session"
+
+  - it: should wire the configured listener port into the process and container
+    set:
+      alfio.containerPort: 8081
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8081
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SERVER_PORT
+            value: "8081"
+
+  - it: should apply secure runtime defaults
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: default
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 1001
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsUser
+          value: 65534
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/component"]
+          value: server
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tmp
+            mountPath: /tmp
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tmp
+            emptyDir: {}
 
   - it: should set DATASOURCE_URL with subchart host
     asserts:
