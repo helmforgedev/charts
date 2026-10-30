@@ -82,11 +82,13 @@ policies should disable the sidecars and point Karakeep at externally managed
 services through `karakeep.extraEnv` only after validating the upstream
 configuration variables for their target version.
 
-The official `karakeep-chrome` entrypoint owns public port 9222 and its internal
-Chrome debugging port. Karakeep connects through `127.0.0.1` because the
-sidecar listens on IPv4 loopback and `localhost` can resolve to IPv6 first.
-Those ports must not be overridden, so 9222 is an explicit fixed-protocol
-exception. In contrast, `containerPorts.http` is passed
+The official `karakeep-chrome` entrypoint owns the unauthenticated socat proxy
+on port 9222 and Chrome's internal debugging endpoint on port 9223. Chrome binds
+9223 to IPv4 loopback, while the proxy exposes 9222 on all pod IPv4 interfaces.
+Karakeep therefore connects through `127.0.0.1`; `localhost` can resolve to IPv6
+first. Keep the NetworkPolicy enabled or provide another access boundary for
+port 9222. These ports must not be overridden, so 9222 is an explicit
+fixed-protocol exception. In contrast, `containerPorts.http` is passed
 to Karakeep through `PORT`, and `meilisearch.port` is passed to Meilisearch
 through `MEILI_HTTP_ADDR`; both overrides change the actual listeners.
 

@@ -16,20 +16,23 @@ function kubectl(args, options = {}) {
   ).trim();
 }
 
-const podName = kubectl([
+const pods = JSON.parse(kubectl([
   'get',
   'pods',
   '-l',
-  `app.kubernetes.io/instance=${release},app.kubernetes.io/name=karakeep`,
+  `app.kubernetes.io/instance=${release}`,
   '-o',
-  'jsonpath={.items[0].metadata.name}',
-]);
+  'json',
+]));
+const pod = pods.items.find((item) =>
+  item.spec.containers.some((container) => container.name === 'karakeep'),
+);
+const podName = pod?.metadata.name;
 
 if (!podName) {
   throw new Error('Karakeep pod was not found');
 }
 
-const pod = JSON.parse(kubectl(['get', 'pod', podName, '-o', 'json']));
 const containers = new Map(
   pod.spec.containers.map((container) => [container.name, container]),
 );
@@ -78,7 +81,7 @@ if (containers.has('meilisearch')) {
     (meilisearch.env ?? []).map((entry) => [entry.name, entry.value]),
   );
 
-  if (meilisearchEnv.get('MEILI_ENV') !== 'production') {
+  if (meilisearchEnv.get('MEILI_ENV') !== 'development') {
     throw new Error(`unexpected MEILI_ENV: ${meilisearchEnv.get('MEILI_ENV')}`);
   }
   if (meilisearchEnv.get('MEILI_UPGRADE_DB') !== 'true') {

@@ -121,4 +121,11 @@ Generate MEILI_MASTER_KEY: lookup existing secret or generate a new one.
 {{- fail (printf "meilisearch.extraEnv must not override chart-managed variable %s" .name) -}}
 {{- end -}}
 {{- end -}}
+{{- if .Values.chromium.enabled -}}
+{{- range .Values.karakeep.extraEnv -}}
+{{- if has .name (list "BROWSER_WEB_URL" "BROWSER_CONNECT_ONDEMAND") -}}
+{{- fail (printf "karakeep.extraEnv must not override chart-managed variable %s while chromium.enabled is true" .name) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}
