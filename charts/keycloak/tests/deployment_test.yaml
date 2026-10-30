@@ -46,6 +46,9 @@ tests:
           path: spec.replicas
           value: 1
       - equal:
+          path: spec.progressDeadlineSeconds
+          value: 600
+      - equal:
           path: spec.strategy.type
           value: RollingUpdate
       - equal:
@@ -54,6 +57,15 @@ tests:
       - equal:
           path: spec.strategy.rollingUpdate.maxSurge
           value: 1
+
+  - it: should allow a longer deployment progress deadline for slow migrations
+    template: deployment.yaml
+    set:
+      deployment.progressDeadlineSeconds: 1200
+    asserts:
+      - equal:
+          path: spec.progressDeadlineSeconds
+          value: 1200
 
   - it: should render Recreate deployment strategy
     template: deployment.yaml
@@ -388,22 +400,56 @@ tests:
       database.external.host: pg-host
       database.external.password: prodpass
       replicaCount: 3
+      cache.embeddedNetworkBindPort: 7900
     asserts:
       - contains:
           path: spec.template.spec.containers[0].ports
           content:
             name: jgroups
-            containerPort: 7800
+            containerPort: 7900
       - contains:
           path: spec.template.spec.containers[0].ports
           content:
             name: jgroups-fd
-            containerPort: 57800
+            containerPort: 57900
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KC_CACHE_EMBEDDED_NETWORK_BIND_PORT
+            value: "7900"
       - notContains:
           path: spec.template.spec.containers[0].ports
           content:
             name: failure-detector
           any: true
+
+  - it: should pin a custom cache transport port before the first scale-out
+    template: deployment.yaml
+    set:
+      mode: production
+      hostname.hostname: sso.example.com
+      database.external.host: pg-host
+      database.external.password: prodpass
+      cache.embeddedNetworkBindPort: 7900
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KC_CACHE_EMBEDDED_NETWORK_BIND_PORT
+            value: "7900"
+
+  - it: should allow multi-replica bundled MySQL after schema initialization is confirmed
+    template: deployment.yaml
+    set:
+      mode: production
+      hostname.hostname: sso.example.com
+      mysql.enabled: true
+      mysql.auth.password: prodpass
+      database.mysqlSchemaInitialized: true
+      replicaCount: 3
+    asserts:
+      - isKind:
+          of: Deployment
 
   - it: should render overridden security contexts
     template: deployment.yaml

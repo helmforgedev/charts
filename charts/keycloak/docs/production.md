@@ -58,6 +58,9 @@ The default Deployment strategy is:
 
 ```yaml
 deployment:
+  # Increase this when large schema migrations or slow storage can require
+  # more than the Kubernetes default rollout window.
+  progressDeadlineSeconds: 600
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -65,7 +68,11 @@ deployment:
       maxSurge: 1
 ```
 
-Keep readiness probes enabled when using rolling updates. For slower bootstrap profiles, use `probes.profile: heavy-startup` rather than disabling probes.
+Keep readiness probes enabled when using rolling updates. For slower bootstrap
+profiles, use `probes.profile: heavy-startup` rather than disabling probes.
+Increase `deployment.progressDeadlineSeconds` when a legitimate schema
+migration can exceed the rollout window; keep the Helm operation timeout at
+least as large.
 
 ## Production hardening values
 
