@@ -42,11 +42,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "mosquitto.mqttxImage" -}}
-{{- if .Values.mqttxWeb.image.tag -}}
 {{- printf "%s:%s" .Values.mqttxWeb.image.repository .Values.mqttxWeb.image.tag -}}
-{{- else -}}
-{{- .Values.mqttxWeb.image.repository -}}
-{{- end -}}
 {{- end -}}
 
 {{- define "mosquitto.serviceAccountName" -}}
@@ -111,4 +107,45 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- define "mosquitto.defaultTopologySpreadEnabled" -}}
 {{- if and (eq .Values.architecture.mode "federated") (gt (int .Values.broker.replicaCount) 1) .Values.broker.multiReplicaDefaults.enabled .Values.broker.multiReplicaDefaults.topologySpread.enabled -}}true{{- end -}}
+{{- end -}}
+
+{{- define "mosquitto.validate" -}}
+{{- if and (eq .Values.architecture.mode "standalone") (ne (int .Values.broker.replicaCount) 1) -}}
+{{- fail "mosquitto: architecture.mode=standalone requires broker.replicaCount=1" -}}
+{{- end -}}
+{{- if and (eq .Values.architecture.mode "federated") (lt (int .Values.broker.replicaCount) 2) -}}
+{{- fail "mosquitto: architecture.mode=federated requires broker.replicaCount>=2" -}}
+{{- end -}}
+{{- if and .Values.broker.tls.enabled (not .Values.broker.tls.certSecretName) -}}
+{{- fail "mosquitto: broker.tls.certSecretName is required when broker.tls.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.broker.tls.enabled (eq (int .Values.broker.tls.port) (int .Values.broker.listeners.mqtt)) -}}
+{{- fail "mosquitto: broker.tls.port must differ from broker.listeners.mqtt" -}}
+{{- end -}}
+{{- if and .Values.broker.tls.enabled (eq (int .Values.broker.tls.port) (int .Values.broker.listeners.websocket)) -}}
+{{- fail "mosquitto: broker.tls.port must differ from broker.listeners.websocket" -}}
+{{- end -}}
+{{- if and .Values.broker.tls.enabled (eq .Values.architecture.mode "federated") -}}
+{{- fail "mosquitto: broker.tls.enabled=true is not supported with architecture.mode=federated" -}}
+{{- end -}}
+{{- if and .Values.websocketIngress.enabled (empty .Values.websocketIngress.hosts) -}}
+{{- fail "mosquitto: websocketIngress.hosts must contain at least one host when websocketIngress.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.mqttxWeb.ingress.enabled (not .Values.mqttxWeb.enabled) -}}
+{{- fail "mosquitto: mqttxWeb.enabled must be true when mqttxWeb.ingress.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.mqttxWeb.ingress.enabled (empty .Values.mqttxWeb.ingress.hosts) -}}
+{{- fail "mosquitto: mqttxWeb.ingress.hosts must contain at least one host when mqttxWeb.ingress.enabled=true" -}}
+{{- end -}}
+{{- range $labels := list .Values.podLabels .Values.mqttxWeb.podLabels -}}
+{{- if hasKey $labels "app.kubernetes.io/name" -}}
+{{- fail "mosquitto: podLabels must not override the selector label app.kubernetes.io/name" -}}
+{{- end -}}
+{{- if hasKey $labels "app.kubernetes.io/instance" -}}
+{{- fail "mosquitto: podLabels must not override the selector label app.kubernetes.io/instance" -}}
+{{- end -}}
+{{- if hasKey $labels "app.kubernetes.io/component" -}}
+{{- fail "mosquitto: podLabels must not override the selector label app.kubernetes.io/component" -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}

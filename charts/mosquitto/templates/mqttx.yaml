@@ -26,14 +26,22 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      serviceAccountName: {{ include "mosquitto.serviceAccountName" . }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      securityContext:
+        {{- toYaml .Values.mqttxWeb.podSecurityContext | nindent 8 }}
       containers:
         - name: mqttx-web
           image: {{ include "mosquitto.mqttxImage" . | quote }}
           imagePullPolicy: {{ .Values.mqttxWeb.image.pullPolicy }}
+          args:
+            - http-server
+            - -p
+            - {{ .Values.mqttxWeb.containerPort | quote }}
           env:
             - name: HELMFORGE_DEFAULT_CONNECTION_NAME
               value: {{ .Values.mqttxWeb.broker.connectionName | quote }}
@@ -41,12 +49,35 @@ spec:
               value: {{ include "mosquitto.websocketUrl" . | quote }}
           ports:
             - name: http
-              containerPort: 80
+              containerPort: {{ .Values.mqttxWeb.containerPort }}
               protocol: TCP
+          startupProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
           {{- with .Values.mqttxWeb.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          securityContext:
+            {{- toYaml .Values.mqttxWeb.securityContext | nindent 12 }}
 {{- end }}
 {{- if .Values.mqttxWeb.enabled }}
 ---

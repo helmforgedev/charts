@@ -17,6 +17,50 @@ tests:
     asserts:
       - hasDocuments:
           count: 2
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/emqx/mqttx-web:v1.13.1
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8080
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.containers[0].args[2]
+          value: "8080"
+        documentIndex: 0
+      - equal:
+          path: spec.ports[0].targetPort
+          value: http
+        documentIndex: 1
+
+  - it: should wire an independent custom process and Service port
+    set:
+      mqttxWeb.enabled: true
+      mqttxWeb.containerPort: 9080
+      mqttxWeb.service.port: 8088
+    template: templates/mqttx.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 9080
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.containers[0].args[2]
+          value: "9080"
+        documentIndex: 0
+      - equal:
+          path: spec.ports[0].port
+          value: 8088
+        documentIndex: 1
+      - equal:
+          path: spec.ports[0].targetPort
+          value: http
+        documentIndex: 1
 
   - it: should render MQTTX ingress when enabled
     set:

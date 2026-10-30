@@ -4,6 +4,7 @@
   "description": "Configuration values for the Eclipse Mosquitto Helm chart with WebSocket support and optional MQTTX Web.",
   "type": "object",
   "additionalProperties": true,
+  "required": ["global"],
   "properties": {
     "global": {
       "type": "object",
@@ -47,7 +48,7 @@
         },
         "tag": {
           "type": "string",
-          "description": "Mosquitto image tag validated on Docker Hub for the default non-Alpine release"
+          "description": "Pinned Mosquitto image tag validated on Docker Hub"
         },
         "pullPolicy": {
           "type": "string",
@@ -434,7 +435,8 @@
             },
             "tag": {
               "type": "string",
-              "description": "MQTTX Web image tag. Keep empty to use the image's default tag while upstream release/tag mismatch is under review."
+              "description": "Pinned MQTTX Web image tag",
+              "minLength": 1
             },
             "pullPolicy": {
               "type": "string",
@@ -445,7 +447,14 @@
         },
         "replicaCount": {
           "type": "integer",
-          "description": "Number of MQTTX Web replicas"
+          "description": "Number of MQTTX Web replicas",
+          "minimum": 1
+        },
+        "containerPort": {
+          "type": "integer",
+          "description": "HTTP listener port used by the MQTTX Web process",
+          "minimum": 1024,
+          "maximum": 65535
         },
         "service": {
           "type": "object",
@@ -529,6 +538,37 @@
           "type": "object",
           "description": "CPU and memory requests/limits for the MQTTX Web container"
         },
+        "podSecurityContext": {
+          "type": "object",
+          "description": "Pod-level security context for MQTTX Web",
+          "properties": {
+            "runAsNonRoot": {"type": "boolean", "description": "Require a non-root identity"},
+            "runAsUser": {"type": "integer", "description": "Numeric user ID"},
+            "runAsGroup": {"type": "integer", "description": "Numeric group ID"},
+            "seccompProfile": {
+              "type": "object",
+              "description": "Seccomp profile",
+              "properties": {
+                "type": {"type": "string", "description": "Seccomp profile type"}
+              }
+            }
+          }
+        },
+        "securityContext": {
+          "type": "object",
+          "description": "Container-level security context for MQTTX Web",
+          "properties": {
+            "allowPrivilegeEscalation": {"type": "boolean", "description": "Allow privilege escalation"},
+            "readOnlyRootFilesystem": {"type": "boolean", "description": "Mount the image root filesystem read-only"},
+            "capabilities": {
+              "type": "object",
+              "description": "Linux capability configuration",
+              "properties": {
+                "drop": {"type": "array", "description": "Linux capabilities to drop", "items": {"type": "string"}}
+              }
+            }
+          }
+        },
         "podLabels": {
           "type": "object",
           "description": "Additional labels for the MQTTX Web pod"
@@ -536,6 +576,26 @@
         "podAnnotations": {
           "type": "object",
           "description": "Additional annotations for the MQTTX Web pod"
+        }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "description": "Ingress NetworkPolicy configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Create ingress NetworkPolicies for the broker and MQTTX Web"
+        },
+        "extraIngress": {
+          "type": "array",
+          "description": "Additional ingress rules appended to the broker NetworkPolicy",
+          "items": {"type": "object"}
+        },
+        "mqttxExtraIngress": {
+          "type": "array",
+          "description": "Additional ingress rules appended to the MQTTX Web NetworkPolicy",
+          "items": {"type": "object"}
         }
       }
     },
@@ -637,11 +697,36 @@
     },
     "podSecurityContext": {
       "type": "object",
-      "description": "Pod-level security context"
+      "description": "Pod-level security context",
+      "properties": {
+        "runAsNonRoot": {"type": "boolean", "description": "Require a non-root identity"},
+        "runAsUser": {"type": "integer", "description": "Numeric user ID"},
+        "runAsGroup": {"type": "integer", "description": "Numeric group ID"},
+        "fsGroup": {"type": "integer", "description": "Supplemental group for mounted volumes"},
+        "fsGroupChangePolicy": {"type": "string", "description": "Volume ownership change policy"},
+        "seccompProfile": {
+          "type": "object",
+          "description": "Seccomp profile",
+          "properties": {
+            "type": {"type": "string", "description": "Seccomp profile type"}
+          }
+        }
+      }
     },
     "securityContext": {
       "type": "object",
-      "description": "Container-level security context"
+      "description": "Container-level security context",
+      "properties": {
+        "allowPrivilegeEscalation": {"type": "boolean", "description": "Allow privilege escalation"},
+        "readOnlyRootFilesystem": {"type": "boolean", "description": "Mount the image root filesystem read-only"},
+        "capabilities": {
+          "type": "object",
+          "description": "Linux capability configuration",
+          "properties": {
+            "drop": {"type": "array", "description": "Linux capabilities to drop", "items": {"type": "string"}}
+          }
+        }
+      }
     },
     "serviceAccount": {
       "type": "object",
@@ -658,6 +743,10 @@
         "annotations": {
           "type": "object",
           "description": "Annotations for the ServiceAccount"
+        },
+        "automountServiceAccountToken": {
+          "type": "boolean",
+          "description": "Mount the Kubernetes API token into broker and MQTTX Web pods"
         }
       }
     },

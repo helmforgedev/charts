@@ -1,0 +1,96 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Supporting resources
+templates:
+  - templates/serviceaccount.yaml
+  - templates/pdb.yaml
+  - templates/secret.yaml
+  - templates/acl-configmap.yaml
+  - templates/extra-manifests.yaml
+  - templates/ingress.yaml
+tests:
+  - it: should render a dedicated ServiceAccount with token automount disabled
+    template: templates/serviceaccount.yaml
+    set:
+      serviceAccount.create: true
+    asserts:
+      - isKind:
+          of: ServiceAccount
+      - equal:
+          path: automountServiceAccountToken
+          value: false
+
+  - it: should render the broker PodDisruptionBudget by default
+    template: templates/pdb.yaml
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: spec.minAvailable
+          value: 1
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/component"]
+          value: broker
+
+  - it: should render chart-managed authentication credentials
+    template: templates/secret.yaml
+    set:
+      auth.enabled: true
+      auth.username: application
+      auth.password: test-password
+    asserts:
+      - isKind:
+          of: Secret
+      - equal:
+          path: stringData.username
+          value: application
+      - equal:
+          path: stringData.password
+          value: test-password
+
+  - it: should render chart-managed ACL rules
+    template: templates/acl-configmap.yaml
+    set:
+      acl.enabled: true
+      acl.rules: "topic readwrite #"
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: data.aclfile
+          pattern: "topic readwrite #"
+
+  - it: should render explicitly supplied extra manifests
+    template: templates/extra-manifests.yaml
+    set:
+      extraManifests:
+        - apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: additional-config
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: additional-config
+
+  - it: should render WebSocket ingress to the named Service port
+    template: templates/ingress.yaml
+    set:
+      websocketIngress.enabled: true
+      websocketIngress.ingressClassName: traefik
+      websocketIngress.hosts:
+        - host: mqtt.example.com
+          paths:
+            - path: /mqtt
+              pathType: Prefix
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: spec.ingressClassName
+          value: traefik
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.port.name
+          value: websocket

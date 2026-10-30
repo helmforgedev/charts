@@ -3,6 +3,29 @@ suite: ConfigMap
 templates:
   - templates/configmap.yaml
 tests:
+  - it: should use Mosquitto 2.1 authentication plugins
+    set:
+      auth.enabled: true
+      auth.password: secretpass
+      acl.enabled: true
+      acl.rules: "topic readwrite #"
+    asserts:
+      - matchRegex:
+          path: data["mosquitto.conf.tmpl"]
+          pattern: "global_plugin /usr/lib/mosquitto_password_file.so"
+      - matchRegex:
+          path: data["mosquitto.conf.tmpl"]
+          pattern: "plugin_opt_password_file /mosquitto/config/generated/passwordfile"
+      - matchRegex:
+          path: data["mosquitto.conf.tmpl"]
+          pattern: "global_plugin /usr/lib/mosquitto_acl_file.so"
+      - matchRegex:
+          path: data["mosquitto.conf.tmpl"]
+          pattern: "plugin_opt_acl_file /mosquitto/config/generated/aclfile"
+      - notMatchRegex:
+          path: data["mosquitto.conf.tmpl"]
+          pattern: "per_listener_settings"
+
   - it: should include TLS listener directives when TLS is enabled
     set:
       broker.tls.enabled: true
