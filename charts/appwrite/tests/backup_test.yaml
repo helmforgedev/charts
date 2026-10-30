@@ -222,3 +222,20 @@ tests:
       - equal:
           path: spec.jobTemplate.spec.template.spec.initContainers[0].securityContext.readOnlyRootFilesystem
           value: true
+
+  - it: should preserve legacy space-delimited mysqldump arguments during upgrades
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+      backup.database.mysqldumpArgs: --single-transaction --routines --triggers
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].args
+          value:
+            - --single-transaction
+            - --routines
+            - --triggers

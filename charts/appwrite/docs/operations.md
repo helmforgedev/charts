@@ -29,6 +29,11 @@ Upgrade the chart with retained values, then run `migrate` in the API Deployment
 while traffic is paused. Verify the health endpoint, an existing account and
 project, worker logs, and persisted files before restoring traffic.
 
+Legacy releases accepted `backup.database.mysqldumpArgs` as a
+whitespace-delimited string. That form remains supported during upgrades and is
+normalized to an argument list. Prefer a YAML array for new configuration so
+each argument is explicit and passed without shell evaluation.
+
 Never treat `helm rollback` as a database rollback. Restore the matching
 database, referenced Secrets, PVC snapshots, and old images together when a
 migration must be reversed.
