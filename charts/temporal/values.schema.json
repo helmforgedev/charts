@@ -13,12 +13,30 @@
     "fullnameOverride": { "type": "string" },
     "commonLabels": { "type": "object", "additionalProperties": { "type": "string" } },
     "imagePullSecrets": { "type": "array", "items": { "type": "object" } },
+    "containerPorts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["web", "metrics"],
+      "properties": {
+        "web": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "metrics": { "type": "integer", "minimum": 1, "maximum": 65535 }
+      }
+    },
     "server": {
       "type": "object",
       "additionalProperties": false,
       "required": ["image", "numHistoryShards", "components"],
       "properties": {
-        "image": { "$ref": "#/definitions/image" },
+        "image": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["repository", "tag", "pullPolicy"],
+          "properties": {
+            "repository": { "type": "string", "minLength": 1 },
+            "tag": { "type": "string", "minLength": 1, "not": { "enum": ["latest", "stable", "main", "master"] } },
+            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+          }
+        },
         "numHistoryShards": { "type": "integer", "const": 512 },
         "versionCheckDisabled": { "type": "boolean" },
         "dynamicConfig": { "type": "object" },
@@ -26,17 +44,62 @@
         "extraEnvFrom": { "type": "array", "items": { "type": "object" } },
         "podAnnotations": { "type": "object" },
         "podLabels": { "type": "object" },
-        "podSecurityContext": { "type": "object" },
-        "securityContext": { "type": "object" },
+        "podSecurityContext": { "type": "object", "additionalProperties": true },
+        "securityContext": { "type": "object", "additionalProperties": true },
         "components": {
           "type": "object",
           "additionalProperties": false,
           "required": ["frontend", "history", "matching", "worker"],
           "properties": {
-            "frontend": { "$ref": "#/definitions/serverComponent" },
-            "history": { "$ref": "#/definitions/serverComponent" },
-            "matching": { "$ref": "#/definitions/serverComponent" },
-            "worker": { "$ref": "#/definitions/serverComponent" }
+            "frontend": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["enabled", "replicaCount", "rpcPort", "httpPort", "membershipPort", "resources"],
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "replicaCount": { "type": "integer", "minimum": 1 },
+                "rpcPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+                "httpPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+                "membershipPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+                "resources": { "type": "object", "additionalProperties": true }
+              }
+            },
+            "history": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["enabled", "replicaCount", "rpcPort", "membershipPort", "resources"],
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "replicaCount": { "type": "integer", "minimum": 1 },
+                "rpcPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+                "membershipPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+                "resources": { "type": "object", "additionalProperties": true }
+              }
+            },
+            "matching": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["enabled", "replicaCount", "rpcPort", "membershipPort", "resources"],
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "replicaCount": { "type": "integer", "minimum": 1 },
+                "rpcPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+                "membershipPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+                "resources": { "type": "object", "additionalProperties": true }
+              }
+            },
+            "worker": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["enabled", "replicaCount", "rpcPort", "membershipPort", "resources"],
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "replicaCount": { "type": "integer", "minimum": 1 },
+                "rpcPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+                "membershipPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+                "resources": { "type": "object", "additionalProperties": true }
+              }
+            }
           }
         },
         "nodeSelector": { "type": "object" },
@@ -55,10 +118,19 @@
         "activeDeadlineSeconds": { "type": "integer", "minimum": 60 },
         "backoffLimit": { "type": "integer", "minimum": 0 },
         "initialDelaySeconds": { "type": "integer", "minimum": 0 },
-        "waitImage": { "$ref": "#/definitions/image" },
+        "waitImage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["repository", "tag", "pullPolicy"],
+          "properties": {
+            "repository": { "type": "string", "minLength": 1 },
+            "tag": { "type": "string", "minLength": 1, "not": { "enum": ["latest", "stable", "main", "master"] } },
+            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+          }
+        },
         "expectedVersion": { "type": "string", "minLength": 1 },
         "visibilityExpectedVersion": { "type": "string", "minLength": 1 },
-        "resources": { "type": "object" }
+        "resources": { "type": "object", "additionalProperties": true }
       }
     },
     "database": {
@@ -93,14 +165,23 @@
       "properties": {
         "enabled": { "type": "boolean" },
         "replicaCount": { "type": "integer", "minimum": 1 },
-        "image": { "$ref": "#/definitions/image" },
+        "image": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["repository", "tag", "pullPolicy"],
+          "properties": {
+            "repository": { "type": "string", "minLength": 1 },
+            "tag": { "type": "string", "minLength": 1, "not": { "enum": ["latest", "stable", "main", "master"] } },
+            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+          }
+        },
         "extraEnv": { "type": "array", "items": { "type": "object" } },
         "extraEnvFrom": { "type": "array", "items": { "type": "object" } },
         "podAnnotations": { "type": "object" },
         "podLabels": { "type": "object" },
-        "resources": { "type": "object" },
-        "securityContext": { "type": "object" },
-        "podSecurityContext": { "type": "object" },
+        "resources": { "type": "object", "additionalProperties": true },
+        "securityContext": { "type": "object", "additionalProperties": true },
+        "podSecurityContext": { "type": "object", "additionalProperties": true },
         "nodeSelector": { "type": "object" },
         "tolerations": { "type": "array", "items": { "type": "object" } },
         "affinity": { "type": "object" },
@@ -112,12 +193,44 @@
       "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
-        "image": { "$ref": "#/definitions/image" },
-        "resources": { "type": "object" }
+        "image": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["repository", "tag", "pullPolicy"],
+          "properties": {
+            "repository": { "type": "string", "minLength": 1 },
+            "tag": { "type": "string", "minLength": 1, "not": { "enum": ["latest", "stable", "main", "master"] } },
+            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+          }
+        },
+        "resources": { "type": "object", "additionalProperties": true }
       }
     },
-    "frontendService": { "$ref": "#/definitions/service" },
-    "webService": { "$ref": "#/definitions/service" },
+    "frontendService": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "port", "httpPort", "annotations", "ipFamilyPolicy", "ipFamilies"],
+      "properties": {
+        "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"] },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "httpPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
+        "ipFamilyPolicy": { "type": "string", "enum": ["", "SingleStack", "PreferDualStack", "RequireDualStack"] },
+        "ipFamilies": { "type": "array", "items": { "type": "string", "enum": ["IPv4", "IPv6"] }, "uniqueItems": true }
+      }
+    },
+    "webService": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "port", "annotations", "ipFamilyPolicy", "ipFamilies"],
+      "properties": {
+        "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"] },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
+        "ipFamilyPolicy": { "type": "string", "enum": ["", "SingleStack", "PreferDualStack", "RequireDualStack"] },
+        "ipFamilies": { "type": "array", "items": { "type": "string", "enum": ["IPv4", "IPv6"] }, "uniqueItems": true }
+      }
+    },
     "ingress": {
       "type": "object",
       "additionalProperties": false,
@@ -156,8 +269,45 @@
         "maxUnavailable": { "type": ["integer", "string"] }
       }
     },
-    "networkPolicy": { "type": "object" },
-    "monitoring": { "type": "object" },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "ingressFrom", "egress"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "ingressFrom": { "type": "array", "items": { "type": "object" } },
+        "egress": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "allowDNS", "extraTo", "extraEgress"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "allowDNS": { "type": "boolean" },
+            "extraTo": { "type": "array", "items": { "type": "object" } },
+            "extraEgress": { "type": "array", "items": { "type": "object" } }
+          }
+        }
+      }
+    },
+    "monitoring": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["servicePort", "serviceMonitor"],
+      "properties": {
+        "servicePort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "serviceMonitor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "interval", "labels", "namespaceSelector"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "interval": { "type": "string", "minLength": 1 },
+            "labels": { "type": "object", "additionalProperties": { "type": "string" } },
+            "namespaceSelector": { "type": "object", "additionalProperties": true }
+          }
+        }
+      }
+    },
     "serviceAccount": {
       "type": "object",
       "additionalProperties": false,
@@ -170,9 +320,9 @@
     },
     "extraManifests": { "type": "array", "items": { "type": "object" } },
     "test": { "type": "object" },
-    "postgresql": { "type": "object" }
+    "postgresql": { "type": "object", "additionalProperties": true }
   },
-  "required": ["server", "schema", "database", "credentials", "web", "adminTools", "frontendService", "webService", "gatewayAPI", "postgresql"],
+  "required": ["containerPorts", "server", "schema", "database", "credentials", "web", "adminTools", "frontendService", "webService", "gatewayAPI", "monitoring", "postgresql"],
   "definitions": {
     "image": {
       "type": "object",

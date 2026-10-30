@@ -2,67 +2,124 @@
 
 ## Scope
 
-The chart deploys one Temporal cluster with four server roles, one optional Web
-UI, one optional admin-tools pod, SQL schema automation, and either bundled or
-external PostgreSQL. It does not deploy application Workers, Elasticsearch,
-cross-cluster replication, or a shared Gateway controller.
+The chart deploys one Temporal cluster with independent frontend, history,
+matching, and worker services, an optional Web UI, optional admin tools,
+Temporal schema automation, and either bundled or external PostgreSQL. It does
+not deploy application Workers, Elasticsearch, cross-cluster replication, or a
+Gateway controller.
 
-## Component Boundaries
+## Architecture
+
+```mermaid
+flowchart LR
+  SDK[Temporal SDK clients] --> Frontend[Frontend Service]
+  Browser[Browser] --> WebService[Web UI Service]
+  WebService --> Web[Temporal Web UI]
+  Web --> Frontend
+  Frontend --> Matching[Matching]
+  Frontend --> History[History]
+  Matching --> History
+  Worker[Temporal system worker] --> Frontend
+  Frontend --> Database[(PostgreSQL)]
+  History --> Database
+  Matching --> Database
+  Worker --> Database
+  Prometheus[Prometheus] -. metrics .-> Frontend
+  Prometheus -. metrics .-> History
+  Prometheus -. metrics .-> Matching
+  Prometheus -. metrics .-> Worker
+```
 
 Frontend is the only SDK-facing server role. History owns mutable workflow
-state and timers. Matching owns task queues. Worker runs Temporal system
-workflows. These are separate workloads and selectors because their scaling,
-failure, and resource profiles differ. History is an ordered StatefulSet to
-serialize cluster metadata bootstrap; the other roles are Deployments.
+state and timers, matching owns task queues, and worker runs Temporal system
+workflows. History is an ordered StatefulSet to serialize cluster metadata
+bootstrap; the other roles are Deployments. Each role receives the shared
+configuration with its own `SERVICES` value and exposes membership plus
+metrics through a headless Service.
 
-Every server role shares one generated config template but receives a distinct
-`SERVICES` value. Headless Services provide stable membership and metrics
-endpoints. The frontend also receives a ClusterIP Service for SDK traffic; the
-Web UI receives a separate HTTP Service.
+The Web UI has a separate Deployment and Service. `containerPorts.web` sets the
+real UI process through `TEMPORAL_UI_PORT`; `webService.port` remains the
+independent Kubernetes Service port. `containerPorts.metrics` configures the
+Temporal Server Prometheus listener, while `monitoring.servicePort` controls
+the headless Service port that targets the named metrics container port.
+
+## Design Decisions and Trade-offs
+
+- Server roles are separate workloads so scaling, failure domains, and resource
+  profiles can be managed independently.
+- The bundled PostgreSQL dependency optimizes evaluation and small deployments;
+  an externally operated database is preferred when independent HA, backup,
+  and lifecycle controls are required.
+- Schema setup uses the official Temporal tooling and gates server startup on
+  the exact expected schema versions. This favors safe upgrades over fast pod
+  startup.
+- HTTPRoute and GRPCRoute use separate contracts and default backends so a Web
+  UI route cannot accidentally expose the SDK endpoint.
+- Listener ports and Service ports are independent. This preserves normal
+  Kubernetes port translation and ensures an override changes the real process.
+- NetworkPolicy and ServiceMonitor resources are opt-in because controllers,
+  DNS labels, monitoring namespaces, and database topology are cluster-specific.
 
 ## Persistence Lifecycle
 
-The bundled mode installs the HelmForge PostgreSQL subchart and creates the
+Bundled mode installs the HelmForge PostgreSQL subchart and creates the
 `temporal` and `temporal_visibility` databases. A revision-scoped schema Job
-uses the official admin-tools image to run `temporal-sql-tool`. Each server pod
-uses the same tool in an init container and proceeds only after the default
-schema version is readable.
+runs `temporal-sql-tool`. Server init containers proceed only after both schema
+versions are readable. External mode disables the dependency; the operator
+must create both databases, provide connectivity, and supply the credential
+Secret. Helm hooks are supported only for an already reachable external
+database.
 
-External mode disables the dependency. Operators supply host, port, database
-names, username, and a Secret. Both databases must already exist and the user
-must be able to create and update Temporal tables. Helm hooks are permitted only
-in this mode because pre-install hooks cannot reach a bundled database that has
-not yet been created.
+## Production Boundary
 
-## Gateway API
+The chart owns Temporal workloads, configuration, schema jobs, Services,
+optional routes, and optional policy resources. Platform operators own the
+Gateway or Ingress controller, DNS, TLS certificates, external PostgreSQL HA,
+backups, restores, capacity planning, disruption budgets that match actual
+replica counts, and disaster-recovery exercises. The production example is a
+starting point rather than a capacity guarantee.
 
-HTTPRoute and GRPCRoute are deliberately separate values arrays and templates.
-Their generated default backends cannot be redirected accidentally:
+History shard count is immutable after initialization. Server and admin-tools
+versions must remain aligned, schema updates must precede newer server images,
+and Temporal minor versions must be upgraded sequentially.
 
-- HTTPRoute targets Web UI port 8080.
-- GRPCRoute targets frontend gRPC port 7233.
+## Security Boundary
 
-Custom backendRefs remain available for advanced routing, but the chart never
-exposes history, matching, worker, membership, metrics, or admin tools by
-default. Parent references are mandatory and route names must be unique.
+Chart workloads run as non-root, drop Linux capabilities, disable Kubernetes
+API token mounts, and use read-only root filesystems where official images
+permit it. Database passwords come from a persisted generated Secret, an
+existing Secret, or External Secrets Operator resources.
 
-## Security
+The chart does not create an authorization boundary around frontend gRPC or
+the Web UI. Operators must restrict network reachability, configure Temporal
+authentication, terminate TLS at a trusted edge, and control access to admin
+tools. Enabling egress NetworkPolicy requires explicit rules for external
+databases and any other required destinations.
 
-Workloads are non-root, drop Linux capabilities, disable service account token
-mounts, and use read-only root filesystems where official images permit it.
-Passwords come from a persisted generated Secret, an existing Secret, or ESO.
-NetworkPolicy is opt-in because clusters differ in Gateway, monitoring, DNS,
-and external database topology; it provides complete peer extension points.
+## Observability Boundary
 
-Gateway TLS is owned by the referenced Gateway. This first release uses an h2c
-backend. Backend TLS policies and TLSRoute passthrough can be supplied through
-`extraManifests` when required by the controller and security model.
+Every server role exposes Prometheus metrics through its headless Service. The
+optional ServiceMonitor discovers those named endpoints. Kubernetes probes,
+the Helm test, and the chart runtime smoke test cover Web UI health and native
+Temporal cluster health. Operators own Prometheus Operator installation,
+scrape authorization, dashboards, alert thresholds, log aggregation, and
+long-term telemetry retention.
 
-## Upgrade Invariants
+## Known Gaps and Limitations
 
-- Never change history shards after the first schema initialization.
-- Apply schema updates before starting a newer server image.
-- Keep admin-tools and server versions aligned.
-- Upgrade Temporal minor releases sequentially.
-- Preserve the database credential Secret and PostgreSQL data.
-- Confirm effective images and native cluster health after every rollout.
+- The bundled database is a standalone PostgreSQL deployment, not a managed HA
+  database.
+- The chart does not configure Temporal multi-cluster replication or advanced
+  visibility with Elasticsearch.
+- Gateway backend TLS policies and passthrough TLS routes must be supplied with
+  platform-managed resources or `extraManifests`.
+- NetworkPolicy cannot infer controller, scraper, or external database peers.
+
+## Non-goals
+
+- Deploying user application Workers or workflow code.
+- Operating Gateway API, Ingress, External Secrets, Prometheus Operator, DNS,
+  certificate, backup, or database controllers.
+- Managing external database creation, replication, backup, or restore.
+- Automatically changing history shard count or skipping required schema
+  upgrade sequencing.

@@ -43,6 +43,35 @@ helm test temporal -n temporal --logs
 See [docs/architecture.md](docs/architecture.md) for membership, persistence,
 schema, and scaling details.
 
+## Configuration
+
+Listener ports and Kubernetes Service ports are intentionally independent:
+
+| Purpose | Process listener | Service port |
+| --- | --- | --- |
+| Web UI HTTP | `containerPorts.web` (default `8080`) | `webService.port` (default `8080`) |
+| Server metrics | `containerPorts.metrics` (default `9090`) | `monitoring.servicePort` (default `9090`) |
+| Frontend gRPC | `server.components.frontend.rpcPort` | `frontendService.port` |
+| Frontend HTTP | `server.components.frontend.httpPort` | `frontendService.httpPort` |
+
+Changing `containerPorts.web` sets the official UI image's
+`TEMPORAL_UI_PORT`. Changing `containerPorts.metrics` updates Temporal Server's
+Prometheus `listenAddress`. Services continue to target named container ports,
+so their externally visible ports may be changed independently.
+
+```yaml
+containerPorts:
+  web: 18080
+  metrics: 19090
+webService:
+  port: 8080
+monitoring:
+  servicePort: 9090
+```
+
+See [values.yaml](values.yaml) for the complete contract and
+[docs/operations.md](docs/operations.md) for operational procedures.
+
 ## Gateway API
 
 The chart does not create a Gateway. Reference listeners already owned by the
@@ -129,10 +158,11 @@ helm upgrade --install temporal ./charts/temporal \
 
 ## Observability
 
-Every server role exposes Prometheus metrics on port 9090 through its headless
-Service. Enable `monitoring.serviceMonitor.enabled` when Prometheus Operator
-CRDs are installed. Alert on service and persistence errors, request latency,
-queue backlogs, and database saturation.
+Every server role exposes Prometheus metrics on `containerPorts.metrics`
+through the `monitoring.servicePort` port of its headless Service. Enable
+`monitoring.serviceMonitor.enabled` when Prometheus Operator CRDs are installed.
+Alert on service and persistence errors, request latency, queue backlogs, and
+database saturation.
 
 ## Network Policy
 
