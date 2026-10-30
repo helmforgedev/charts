@@ -56,6 +56,39 @@ curl -fsS http://127.0.0.1:8080/readyz
 The two endpoints verify nginx and PHP-FPM. The Pimcore UI is available only
 after the registered installer completes.
 
+## Configuration
+
+The web pod contains nginx and PHP-FPM, while Mercure runs in its own pod.
+Their process listeners are configured independently from Kubernetes Service
+ports:
+
+| Purpose | Process listener | Service port | Default |
+|---|---|---|---|
+| nginx HTTP | `containerPorts.http` | `service.port` | `8080` / `80` |
+| PHP-FPM | `containerPorts.phpFpm` | Internal to the web pod | `9000` |
+| Mercure HTTP | `containerPorts.mercure` | Internal Mercure Service port `80` | `3000` / `80` |
+
+Changing a listener updates the rendered nginx or PHP-FPM configuration, the
+container declaration, and applicable NetworkPolicy rules. The Mercure value
+also updates the official image's `SERVER_NAME` setting. Services continue to
+use named target ports, so their stable ports do not need to match container
+listeners.
+
+```yaml
+containerPorts:
+  http: 18080
+  phpFpm: 19000
+  mercure: 13000
+
+service:
+  port: 80
+```
+
+Use `values.yaml` and `values.schema.json` as the complete contract. The
+sections below describe the operational decisions that require more context,
+including immutable images, registration, databases, queues, persistence,
+routing, secrets, and network policy.
+
 ## Registered installation
 
 Create a Secret containing one matching registration set:
