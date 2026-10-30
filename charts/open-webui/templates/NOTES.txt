@@ -1,7 +1,5 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-============================================================
-  Open WebUI has been successfully deployed!
-============================================================
+Open WebUI has been deployed.
 
 Chart:      {{ .Chart.Name }}
 Version:    {{ .Chart.Version }}
@@ -9,70 +7,115 @@ AppVersion: {{ .Chart.AppVersion }}
 Release:    {{ .Release.Name }}
 Namespace:  {{ .Release.Namespace }}
 
-============================================================
-  ACCESS INFORMATION
-============================================================
+1. Access
 
 {{- if .Values.ingress.enabled }}
 {{- range $host := .Values.ingress.hosts }}
-WEB UI:  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+  URL: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
 {{- end }}
+{{- else if eq .Values.service.type "LoadBalancer" }}
+  kubectl get service {{ include "open-webui.fullname" . }} \
+    --namespace {{ .Release.Namespace }} --watch
+{{- else if eq .Values.service.type "NodePort" }}
+  kubectl get service {{ include "open-webui.fullname" . }} \
+    --namespace {{ .Release.Namespace }}
 {{- else }}
-Port-forward to access Open WebUI locally:
+  kubectl port-forward --namespace {{ .Release.Namespace }} \
+    service/{{ include "open-webui.fullname" . }} 8080:{{ .Values.service.port }}
 
-  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "open-webui.fullname" . }} 8080:{{ .Values.service.port }}
-
-  WEB UI:   http://localhost:8080/
+  URL: http://127.0.0.1:8080/
 {{- end }}
 
-============================================================
-  CONFIGURATION
-============================================================
+2. Configuration summary
 
-Deployment:
-  Image:   {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+  Image:             {{ .Values.image.repository }}:{{ .Values.image.tag }}
+  Application port:  {{ .Values.openWebui.port }}
+  Service type:      {{ .Values.service.type }}
+  Service port:      {{ .Values.service.port }}
+  Database mode:     {{ include "open-webui.databaseMode" . }}
+  Redis mode:        {{ include "open-webui.redisMode" . }}
+  Persistence:       {{ ternary "enabled" "disabled" .Values.persistence.enabled }}
+  NetworkPolicy:     {{ ternary "enabled" "disabled" .Values.networkPolicy.enabled }}
+  PostgreSQL backup: {{ ternary "enabled" "disabled" .Values.backup.enabled }}
 
-============================================================
-  GETTING STARTED
-============================================================
+3. Initial setup
 
-1. kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=open-webui -n {{ .Release.Namespace }} --timeout=300s
-2. kubectl get pods -l app.kubernetes.io/name=open-webui -n {{ .Release.Namespace }}
-3. kubectl logs -l app.kubernetes.io/name=open-webui -n {{ .Release.Namespace }} --all-containers --tail=50 -f
-4. Create your admin account on first access
+  kubectl wait --namespace {{ .Release.Namespace }} \
+    --for=condition=Available deployment/{{ include "open-webui.fullname" . }} \
+    --timeout=15m
 
-============================================================
-  TROUBLESHOOTING
-============================================================
+Create the initial administrator through a private route before exposing a new
+installation publicly. First startup can take several minutes while Open WebUI
+downloads an embedding model.
 
-  kubectl describe pod -l app.kubernetes.io/name=open-webui -n {{ .Release.Namespace }}
-  kubectl logs -l app.kubernetes.io/name=open-webui -n {{ .Release.Namespace }} --all-containers --tail=100
-  kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-  kubectl get pvc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+4. Health verification
 
+  kubectl get pods --namespace {{ .Release.Namespace }} \
+    --selector app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl get endpointslice --namespace {{ .Release.Namespace }} \
+    --selector kubernetes.io/service-name={{ include "open-webui.fullname" . }}
+  kubectl logs --namespace {{ .Release.Namespace }} \
+    deployment/{{ include "open-webui.fullname" . }} --tail=100
+
+Startup uses {{ .Values.probes.startup.path }}. Liveness uses
+{{ .Values.probes.liveness.path }}. Readiness uses
+{{ .Values.probes.readiness.path }} and depends on database health.
+
+5. Persistence and database
+
+{{- if .Values.persistence.enabled }}
+  Data claim: {{ include "open-webui.dataClaimName" . }}
+  Mount path: /app/backend/data
+{{- else }}
+  Persistence is disabled. Application data and downloaded models are ephemeral.
+{{- end }}
+
+{{- if eq (include "open-webui.databaseType" .) "sqlite" }}
+  SQLite is active. Use directly attached local storage only. Network-backed
+  filesystems can deadlock or corrupt SQLite; use PostgreSQL for production.
+{{- else }}
+  PostgreSQL is active. Verify database backups and restore procedures.
+{{- end }}
+
+6. Backup and recovery
+
+{{- if .Values.backup.enabled }}
+  Schedule: {{ .Values.backup.schedule }}
+  Bucket:   {{ .Values.backup.s3.bucket }}
+
+  kubectl create job --namespace {{ .Release.Namespace }} \
+    --from=cronjob/{{ include "open-webui.fullname" . }}-backup \
+    {{ include "open-webui.fullname" . }}-backup-manual
+{{- else }}
+  Automated PostgreSQL backup is disabled. Configure `backup.*` or provide an
+  external database backup policy before production use.
+{{- end }}
+
+7. Troubleshooting
+
+  kubectl describe deployment/{{ include "open-webui.fullname" . }} \
+    --namespace {{ .Release.Namespace }}
+  kubectl describe pod --namespace {{ .Release.Namespace }} \
+    --selector app.kubernetes.io/name={{ include "open-webui.name" . }}
+  kubectl get events --namespace {{ .Release.Namespace }} \
+    --sort-by=.lastTimestamp
+  kubectl get pvc --namespace {{ .Release.Namespace }}
 {{- if .Values.postgresql.enabled }}
-View PostgreSQL logs:
-  kubectl logs -l app.kubernetes.io/name=postgresql -n {{ .Release.Namespace }} --all-containers --tail=50
+  kubectl logs --namespace {{ .Release.Namespace }} \
+    --selector app.kubernetes.io/name=postgresql --all-containers --tail=100
 {{- end }}
 {{- if .Values.redis.enabled }}
-View Redis logs:
-  kubectl logs -l app.kubernetes.io/name=redis -n {{ .Release.Namespace }} --all-containers --tail=50
+  kubectl logs --namespace {{ .Release.Namespace }} \
+    --selector app.kubernetes.io/name=redis --all-containers --tail=100
 {{- end }}
 
-============================================================
-  WARNINGS
-============================================================
+8. Documentation and next steps
 
-{{- if not .Values.ingress.enabled }}
+  Chart documentation: https://helmforge.dev/docs/charts/open-webui
+  Upstream documentation: https://docs.openwebui.com/
+  Source: https://github.com/helmforgedev/charts/tree/main/charts/open-webui
 
-NOTE: Ingress is not enabled. Access via port-forward (see above).
-{{- end }}
-
-============================================================
-  ADDITIONAL RESOURCES
-============================================================
-
-Documentation:  https://helmforge.dev/docs/charts/open-webui
-Open WebUI:     https://openwebui.com | https://github.com/open-webui/open-webui
+Review database, secrets, TLS, resources, egress restrictions, backup retention,
+and restore testing before production use.
 
 Happy Helmforging :)

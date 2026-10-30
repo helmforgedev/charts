@@ -7,6 +7,8 @@ metadata:
     {{- include "open-webui.labels" . | nindent 4 }}
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       {{- include "open-webui.selectorLabels" . | nindent 6 }}
@@ -14,14 +16,16 @@ spec:
     metadata:
       labels:
         {{- include "open-webui.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: web
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
+      {{- with .Values.podAnnotations }}
       annotations:
-        {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
-        {{- end }}
+      {{- end }}
     spec:
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -38,6 +42,10 @@ spec:
           image: {{ .Values.backup.images.postgresql | quote }}
           imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "-c"]
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           args:
             - |
               until pg_isready -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}"; do
@@ -100,36 +108,37 @@ spec:
               value: {{ .Values.postgresql.auth.database | quote }}
             {{- else if eq $dbMode "external" }}
             - name: DATABASE_URL
-              {{- if .Values.database.existingSecret }}
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.database.existingSecret }}
+                  name: {{ include "open-webui.externalDatabaseSecretName" . }}
                   key: {{ .Values.database.existingSecretKey }}
-              {{- else }}
-              value: {{ .Values.database.url | quote }}
-              {{- end }}
             {{- end }}
             {{- end }}
             {{- /* Redis configuration */}}
             {{- $redisMode := include "open-webui.redisMode" . }}
             {{- if ne $redisMode "disabled" }}
-            {{- if eq $redisMode "auto" }}
+            {{- if and (eq $redisMode "auto") .Values.redis.auth.enabled }}
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "open-webui.redisSecretName" . }}
-                  key: password
+                  key: {{ include "open-webui.redisSecretKey" . }}
             {{- end }}
             - name: REDIS_URL
               {{- if eq $redisMode "external" }}
-              {{- if .Values.redisConfig.existingSecret }}
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.redisConfig.existingSecret }}
+                  name: {{ include "open-webui.externalRedisSecretName" . }}
                   key: {{ .Values.redisConfig.existingSecretKey }}
               {{- else }}
-              value: {{ .Values.redisConfig.url | quote }}
+              value: {{ include "open-webui.redisUrl" . | quote }}
               {{- end }}
+            - name: WEBSOCKET_REDIS_URL
+              {{- if eq $redisMode "external" }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "open-webui.externalRedisSecretName" . }}
+                  key: {{ .Values.redisConfig.existingSecretKey }}
               {{- else }}
               value: {{ include "open-webui.redisUrl" . | quote }}
               {{- end }}
@@ -150,11 +159,11 @@ spec:
               value: {{ .Values.openWebui.ollamaBaseUrl | quote }}
             {{- end }}
             {{- /* OpenAI */}}
-            {{- if or .Values.openWebui.openaiBaseUrl .Values.openWebui.openaiApiKey .Values.openWebui.openaiExistingSecret }}
             {{- if .Values.openWebui.openaiBaseUrl }}
             - name: OPENAI_API_BASE_URL
               value: {{ .Values.openWebui.openaiBaseUrl | quote }}
             {{- end }}
+            {{- if or .Values.openWebui.openaiApiKey .Values.openWebui.openaiExistingSecret }}
             - name: OPENAI_API_KEY
               valueFrom:
                 secretKeyRef:
