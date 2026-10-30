@@ -1,4 +1,12 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- $testHost := "localhost" -}}
+{{- $selectedHost := false -}}
+{{- range .Values.netbox.allowedHosts -}}
+{{- if and (not $selectedHost) (ne . "*") -}}
+{{- $testHost = . -}}
+{{- $selectedHost = true -}}
+{{- end -}}
+{{- end -}}
 apiVersion: v1
 kind: Pod
 metadata:
@@ -24,7 +32,7 @@ spec:
         - --show-error
         - --silent
         - --header
-        - "Host: localhost"
+        - {{ printf "Host: %s" $testHost | quote }}
         - http://{{ include "netbox.fullname" . }}:{{ .Values.service.port }}/login/
       securityContext:
         allowPrivilegeEscalation: false

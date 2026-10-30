@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Helm test
+templates:
+  - templates/tests/test-connection.yaml
+tests:
+  - it: should use the first configured allowed host
+    set:
+      netbox.allowedHosts:
+        - netbox.example.com
+    asserts:
+      - equal:
+          path: spec.containers[0].args[4]
+          value: "Host: netbox.example.com"
+
+  - it: should skip the Django wildcard when selecting the request host
+    set:
+      netbox.allowedHosts:
+        - "*"
+        - netbox.example.com
+    asserts:
+      - equal:
+          path: spec.containers[0].args[4]
+          value: "Host: netbox.example.com"
+
+  - it: should fall back to localhost when only the Django wildcard is configured
+    set:
+      netbox.allowedHosts:
+        - "*"
+    asserts:
+      - equal:
+          path: spec.containers[0].args[4]
+          value: "Host: localhost"
+
+  - it: should target the Kubernetes-facing service port
+    set:
+      service.port: 8088
+    asserts:
+      - equal:
+          path: spec.containers[0].args[5]
+          value: http://RELEASE-NAME-netbox:8088/login/

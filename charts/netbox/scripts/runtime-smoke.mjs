@@ -13,9 +13,23 @@ const run=(bin,args)=>{
   }
 };
 const target=['--context',context,'-n',namespace];
+const values=JSON.parse(run('helm',['get','values',release,'--kube-context',context,'-n',namespace,'-a','-o','json']));
+const deployment=JSON.parse(run('kubectl',[...target,'get','deployment','-l',`app.kubernetes.io/instance=${release},app.kubernetes.io/component=web`,'-o','json'])).items[0];
+if (!deployment) throw new Error('NetBox web Deployment required');
+const webContainer=deployment.spec.template.spec.containers.find(container=>container.name==='netbox');
+if (!webContainer) throw new Error('NetBox web container required');
+const httpPort=webContainer.ports.find(port=>port.name==='http')?.containerPort;
+if (httpPort!==values.containerPorts.http) throw new Error(`HTTP port ${httpPort} does not match configured listener ${values.containerPorts.http}`);
+const portArgument=webContainer.args?.indexOf('--port');
+const granianPort=portArgument>=0 ? webContainer.args[portArgument+1] : undefined;
+if (granianPort!==String(values.containerPorts.http)) throw new Error(`Granian --port ${granianPort} does not match configured listener ${values.containerPorts.http}`);
 const pods=JSON.parse(run('kubectl',[...target,'get','pods','-l',`app.kubernetes.io/instance=${release}`,'-o','json'])).items;
 const pod=pods.find(p=>p.spec.containers.some(c=>c.name==='netbox')&&!p.metadata.deletionTimestamp);
 if (!pod) throw new Error('NetBox web pod required');
+const requestHost=values.netbox.allowedHosts.find(host=>host!=='*') ?? 'localhost';
+run('kubectl',[...target,'exec',pod.metadata.name,'-c','netbox','--',
+  'curl','--fail','--silent','--show-error','--header',`Host: ${requestHost}`,
+  `http://127.0.0.1:${httpPort}/login/`,'--output','/dev/null']);
 const check=[
   'import os',
   'from django.conf import settings',
