@@ -1,297 +1,198 @@
 # Vaultwarden Chart Design
 
-Internal design document for the `vaultwarden` Helm chart.
-
-This file defines the product contract before implementation.
+This document defines the architecture, operating boundaries, and deliberate
+trade-offs of the HelmForge Vaultwarden chart.
 
 ## Product Goal
 
-Deliver a small, explicit, and secure Helm chart for Vaultwarden on Kubernetes.
+Provide a secure, explicit single-instance Vaultwarden deployment with durable
+application state, selectable database backends, ingress or Gateway API
+exposure, secret-backed credentials, and verifiable backup workflows.
 
-The chart should optimize for:
+The chart favors a small and predictable Kubernetes contract over a generic
+application wrapper. It exposes operational settings that materially affect
+Vaultwarden security, persistence, networking, email, or recovery.
 
-- simple self-hosted deployments
-- persistent local storage with SQLite
-- clean ingress and domain configuration
-- explicit SMTP and admin-token modeling
-- clear operational boundaries
+## Scope
 
-The chart should not try to behave like a generic web-app wrapper.
+Included:
 
-## Product Model
+- one Vaultwarden Deployment and one HTTP Service
+- a PVC for `/data`, enabled by default
+- SQLite, external PostgreSQL/MySQL, or bundled HelmForge database subcharts
+- Ingress and Gateway API HTTPRoute exposure
+- SMTP, admin-token, and database credentials from Kubernetes Secrets
+- External Secrets Operator integration for the admin credential
+- optional NetworkPolicy ingress and egress isolation
+- database-aware backup CronJob with S3-compatible object storage
+- restore through an existing claim or deliberate PV selector
 
-Vaultwarden is primarily a lightweight single-instance application.
+Excluded:
 
-For the v1 scope in this repository:
+- multi-replica or active-active Vaultwarden
+- database failover orchestration
+- automatic database-engine migrations
+- automatic identity-provider provisioning
+- management of ingress controllers, Gateways, certificate issuers, object
+  stores, SMTP servers, or External Secrets stores
 
-- the normal path is one pod
-- persistence is handled with a PVC mounted at `/data`
-- the default database model is SQLite
-- WebSocket notifications ride through the same HTTP service
-- TLS termination is expected at ingress or reverse proxy level
-- Rocket binds to a non-privileged container port so the default non-root security posture works without extra Linux capabilities
+## Architecture
 
-## v1 Scope
+```mermaid
+flowchart LR
+  client[Bitwarden clients and administrators]
+  edge[Ingress or Gateway API]
+  service[Vaultwarden Service]
+  app[Vaultwarden Deployment]
+  data[(Vaultwarden data PVC)]
+  sqlite[(SQLite in data PVC)]
+  database[(PostgreSQL or MySQL)]
+  smtp[SMTP server]
+  secrets[Kubernetes Secrets]
+  eso[External Secrets Operator]
+  backup[Backup CronJob]
+  object[(S3-compatible object storage)]
 
-### Included
-
-- single Deployment
-- single Service for HTTP and websocket-compatible traffic
-- PVC-backed persistent storage for `/data`
-- `ingress` with `ingressClassName`
-- optional SMTP configuration
-- optional admin token with `existingSecret`
-- security-focused defaults for container and pod context
-- explicit docs for SQLite limitations
-- optional local HelmForge PostgreSQL and MySQL subcharts
-- optional backup CronJob for SQLite archives and database dumps
-
-### Excluded
-
-- HA claims
-- multi-replica scaling
-- automatic failover
-- operator-like lifecycle control
-- split websocket Service unless a real product need appears
-
-## Architecture Decision
-
-### Runtime topology
-
-Use a single Deployment instead of StatefulSet for v1.
-
-Reasoning:
-
-- one replica is the intended operating mode
-- persistence is PVC-backed but not identity-based
-- Deployment keeps the chart smaller
-
-### Persistence
-
-Persist `/data` through a PVC by default.
-
-This directory holds:
-
-- SQLite database
-- attachments
-- configuration files created by the application
-- icon cache and related runtime state
-
-### Database model
-
-Default to SQLite.
-
-Reasoning:
-
-- matches the simplest and most common Vaultwarden self-hosted pattern
-- avoids inflating the chart with a second operational mode before the first one is mature
-
-### Domain and ingress
-
-`domain` should be modeled explicitly and strongly recommended when ingress is enabled.
-
-Ingress should support:
-
-- `enabled`
-- `ingressClassName`
-- `annotations`
-- `hosts[].paths[]`
-- `tls[]`
-
-The chart should assume HTTPS is terminated outside the pod.
-
-### WebSocket handling
-
-Use the same Service for normal HTTP and websocket traffic.
-
-Reasoning:
-
-- simpler for operators
-- aligns with common reverse-proxy setups
-- avoids extra manifests unless the product truly needs them
-
-### Rocket bind port
-
-Set `ROCKET_ADDRESS=0.0.0.0` and derive `ROCKET_PORT` from `service.targetPort`.
-
-The upstream container is commonly configured for port 80, but this chart runs Vaultwarden as UID 1000,
-requires `runAsNonRoot`, and drops all Linux capabilities.
-
-Binding Rocket to a privileged port inside that container causes a runtime `PermissionDenied` bind failure.
-Keeping the Service on port 80 while binding the container to non-privileged port 8085 preserves the public
-Kubernetes contract and keeps the pod security defaults intact.
-
-### SMTP
-
-SMTP should be fully optional.
-
-When enabled, it should support:
-
-- host
-- port
-- from address
-- username/password through inline values or `existingSecret`
-- security mode if the product supports it cleanly
-
-### Admin token
-
-Admin access should be explicit and secret-driven.
-
-Support:
-
-- inline `adminToken`
-- `existingSecret`
-- clear docs that the admin page should not be casually exposed
-
-## Proposed Values Structure
-
-```yaml
-image:
-  repository:
-  tag:
-  pullPolicy:
-
-domain: ""
-
-admin:
-  token: ""
-  existingSecret: ""
-  existingSecretTokenKey: admin-token
-
-data:
-  persistence:
-    enabled: true
-    accessMode: ReadWriteOnce
-    size: 5Gi
-    storageClass: ""
-    existingClaim: ""
-
-service:
-  type: ClusterIP
-  port: 80
-  targetPort: 8085
-  annotations: {}
-
-ingress:
-  enabled: false
-  ingressClassName: traefik
-  annotations: {}
-  hosts: []
-  tls: []
-
-smtp:
-  enabled: false
-  host: ""
-  port: 587
-  from: ""
-  username: ""
-  password: ""
-  existingSecret: ""
-  existingSecretPasswordKey: smtp-password
-
-websocket:
-  enabled: true
-
-resources: {}
-podSecurityContext: {}
-securityContext: {}
-nodeSelector: {}
-tolerations: []
-affinity: {}
-topologySpreadConstraints: []
-priorityClassName: ""
-networkPolicy:
-  enabled: false
+  client -->|HTTPS and WebSocket| edge
+  edge -->|HTTP| service
+  service -->|port 8085| app
+  app --> data
+  data --> sqlite
+  app -->|optional SQL| database
+  app -->|optional email| smtp
+  secrets --> app
+  eso --> secrets
+  backup --> data
+  backup -->|database dump| database
+  secrets --> backup
+  backup -->|TLS| object
 ```
 
-## Templates Expected in v1
+The Kubernetes Service remains on port 80 while Rocket listens on the
+configurable non-privileged `service.targetPort`, which defaults to 8085. HTTP
+and WebSocket traffic share the same listener and route.
 
-- `_helpers.tpl`
-- `secret.yaml`
-- `deployment.yaml`
-- `service.yaml`
-- `ingress.yaml`
-- `pvc.yaml`
-- `serviceaccount.yaml` only if needed
-- `networkpolicy.yaml` only if the implementation stays small and clear
-- `NOTES.txt`
+## Design Decisions and Trade-offs
 
-## CI Matrix
+### Single application replica
 
-The chart should validate at least these scenarios:
+Vaultwarden is intentionally rendered with one replica. `/data` contains
+runtime state even when SQL stores the primary vault records, and the chart
+does not claim that a shared database alone makes the application stateless or
+highly available. A Deployment is sufficient because the pod does not require
+a stable ordinal identity.
 
-- `ci/minimal.yaml`
-- `ci/persistent.yaml`
-- `ci/smtp.yaml`
-- `ci/existing-secret.yaml`
-- `ci/ingress.yaml`
-- `ci/database-postgresql.yaml`
-- `ci/database-mysql.yaml`
-- `ci/backup-sqlite.yaml`
-- `ci/gateway-api.yaml`
-- `ci/external-secrets.yaml`
+### Persistent data boundary
 
-## Documentation Set
+The entire `/data` directory is durable by default. It includes SQLite data,
+attachments, sends, generated keys, icons, and persisted `config.json` state.
+Backup and restore guidance therefore treats `/data` as a unit rather than
+copying only `db.sqlite3`.
 
-User-facing docs should include:
+### Database selection
 
-- `README.md`
-- `docs/sqlite.md`
-- `docs/ingress-and-domain.md`
+`database.mode` validates one effective backend. In `auto` mode, an external
+database wins over the PostgreSQL subchart, which wins over the MySQL subchart,
+with SQLite as the fallback. Ambiguous combinations fail during rendering.
+Database passwords must be explicit so generated connection URLs are stable
+across upgrades.
 
-The docs must explain:
+### Non-root listener
 
-- why SQLite is the v1 default
-- why multi-replica is out of scope
-- why `/data` persistence is essential
-- how websocket traffic behaves behind ingress
-- why Rocket binds to a non-privileged container port
-- how to secure the admin interface
+The upstream image commonly defaults Rocket to privileged port 80. This chart
+runs as UID/GID 1000 and drops all capabilities, so it exports
+`ROCKET_ADDRESS=0.0.0.0` and derives `ROCKET_PORT` from `service.targetPort`.
+This preserves a Service port of 80 without granting `NET_BIND_SERVICE`.
 
-## Security Direction
+### Backup execution
 
-The chart should default to:
+The backup CronJob selects a SQLite archive, PostgreSQL dump, or MySQL dump
+from the effective database mode, then uploads through the pinned HelmForge
+MinIO Client image. A private S3 CA is mounted explicitly; disabling TLS
+verification is an opt-in emergency escape hatch and cannot be combined with a
+CA Secret.
 
-- non-root execution
-- dropped Linux capabilities where possible
-- no privilege escalation
-- explicit secret modeling for admin token and SMTP password
+## Production Boundary
 
-The docs should also recommend:
+The chart owns the Vaultwarden workload, Service, optional PVC, routing
+resources, optional NetworkPolicy, generated Secrets, ExternalSecret, and
+backup resources. Operators own:
 
-- HTTPS at ingress
-- restricted exposure of `/admin`
-- conservative registration/signup settings when relevant
+- the Kubernetes cluster, CNI, ingress controller or Gateway implementation
+- DNS, TLS certificates, and the correctness of the public `domain`
+- external databases and their availability, encryption, and backups
+- object-storage retention, versioning, encryption, and restore testing
+- SMTP delivery and reputation
+- Secret and External Secrets backends
+- resource sizing, alerting, maintenance windows, and disaster-recovery drills
 
-## Open Decisions To Revisit During Implementation
+A successful Helm rollout does not prove that external email, database, or
+object-storage dependencies satisfy production requirements.
 
-- whether `domain` becomes required whenever ingress is enabled
-- whether `networkPolicy` enters v1 or waits for v2
-- whether SMTP security mode deserves its own structured block
-- whether admin-token modeling should support hashed/precomputed forms or stay simple
+## Security Boundary
 
-## Non-Goals Reminder
+The default application pod runs as non-root, denies privilege escalation,
+drops all capabilities, and uses `RuntimeDefault` seccomp. Application and
+backup pods disable Kubernetes API credential automounting because neither
+workload calls the API.
 
-Do not turn v1 into:
+The admin token, SMTP password, database URL, and S3 credentials are sensitive.
+Production deployments should use existing Secrets or External Secrets and an
+Argon2 PHC admin token. The chart does not protect secrets placed directly in
+Helm values from release-history exposure.
 
-- a Bitnami-style giant values surface
-- a multi-database chart
-- a pseudo-HA architecture
-- a backup platform
+TLS terminates at the selected edge by default. NetworkPolicy is optional
+because enforcement depends on the cluster CNI; enabling egress isolation
+requires explicit DNS, database, SMTP, and object-storage destinations. The
+admin endpoint remains part of the application route and must be restricted by
+the operator's edge and identity controls.
 
-<!-- @AI-METADATA
-type: design
-title: Vaultwarden Chart Design
-description: Design document for Vaultwarden Helm chart defining product contract before implementation
+## Observability Boundary
 
-keywords: vaultwarden, design, architecture, bitwarden, password-manager
+Startup, readiness, and liveness probes call the Vaultwarden `/alive` endpoint,
+including a configured domain path prefix. Runtime validation checks rollout,
+Service endpoints, authenticated and anonymous behavior, persistence after pod
+replacement, logs, restarts, and Kubernetes Warning events.
 
-purpose: Document design decisions and non-goals for the Vaultwarden chart
-scope: Chart Design
+Vaultwarden does not expose a chart-managed Prometheus contract here. Operators
+must collect container logs, Kubernetes workload metrics, ingress metrics,
+database health, SMTP failures, backup CronJob status, and object-store upload
+results through their platform. The chart intentionally avoids creating a
+ServiceMonitor without a stable upstream metrics endpoint.
 
-relations:
-  - charts/vaultwarden/README.md
-path: charts/vaultwarden/DESIGN.md
-version: 1.0
-date: 2026-03-20
--->
+## Known Gaps and Limitations
+
+- one application replica creates an availability boundary during upgrades
+- SQLite is not an HA database and uses the same PVC as other runtime state
+- the SQLite backup CronJob archives live `/data`; concurrent writes can make
+  the SQLite files inconsistent or corrupt, so production backups require a
+  quiesced application or a SQLite-aware snapshot/backup process
+- the backup CronJob is not a continuous or transactional multi-system backup
+- SQL-mode backups still require `/data` protection for attachments and keys
+- NetworkPolicy cannot secure traffic on CNIs that do not enforce it
+- `readOnlyRootFilesystem` is not enabled because the pinned upstream image
+  still expects writable runtime paths outside the mounted data directory
+- External Secrets automation currently targets the admin credential; other
+  external credentials use operator-created Kubernetes Secrets
+
+## Non-Goals
+
+- turning Vaultwarden into a horizontally scalable service
+- operating PostgreSQL, MySQL, S3, SMTP, DNS, or TLS infrastructure
+- silently choosing between conflicting database sources
+- compiling or mutating the upstream image at startup
+- claiming backup success without a tested restore
+
+## Validation Contract
+
+The chart must keep positive unit coverage for every rendered resource and
+negative coverage for fail-fast validation. CI renders all scenarios and runs
+strict lint, kubeconform, Artifact Hub lint, and behavioral k3d validation for
+SQLite, bundled and external databases, routing, External Secrets, SMTP,
+backup, restore, network isolation, and custom listener behavior.
+
+The definitive gate is:
+
+```bash
+make validate-chart CHART=vaultwarden
+```

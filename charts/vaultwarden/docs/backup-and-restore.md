@@ -48,6 +48,9 @@ If your platform uses a strict `ReadWriteOnce` PVC and cannot guarantee the moun
 - or a future in-pod backup design that shares the already-mounted volume
 
 For the current chart scope, the built-in SQLite backup assumes that the scheduled backup pod can safely mount the same claim and read `/data`.
+The CronJob archives live files and does not coordinate a SQLite transaction.
+Concurrent writes can make the archived database inconsistent or corrupt even when the PVC can be mounted safely.
+Quiesce Vaultwarden before taking a production recovery point, or use a SQLite-aware backup or volume snapshot and preserve the complete `/data` boundary.
 
 ## External database and local subchart backups
 
@@ -166,7 +169,7 @@ At minimum, validate:
 
 ## References used for this guidance
 
-- Vaultwarden configuration template: https://raw.githubusercontent.com/dani-garcia/vaultwarden/main/.env.template
+- [Vaultwarden configuration template](https://raw.githubusercontent.com/dani-garcia/vaultwarden/main/.env.template)
 
 <!-- @AI-METADATA
 type: chart-docs

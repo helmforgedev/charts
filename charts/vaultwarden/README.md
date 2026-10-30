@@ -93,6 +93,7 @@ and back up `/data` and the database before upgrading.
 
 - enable `backup.enabled` only after confirming the selected storage mode and S3 endpoint contract
 - in `sqlite` mode the chart archives `/data` and uploads it to the configured bucket
+- the SQLite archive reads live files and is not transactionally consistent with concurrent writes; quiesce Vaultwarden or use a SQLite-aware snapshot/backup process for production recovery points
 - in `external`, `postgresql`, and `mysql` modes the chart runs a database dump and uploads the compressed result
 - the built-in backup path is intentionally focused on backup creation, not restore orchestration
 - prefer `backup.s3.caSecret` for private or self-signed certificate authorities; use `backup.s3.insecureSkipVerify` only as a temporary compatibility escape hatch
@@ -101,7 +102,7 @@ and back up `/data` and the database before upgrading.
 ### Database selection
 
 - for production, prefer `database.external` or one of the optional subcharts
-- optional local database subcharts are vendored from HelmForge dependencies: PostgreSQL chart `2.0.4` and MySQL chart `2.0.3`
+- optional local database subcharts are vendored from HelmForge dependencies: PostgreSQL chart `2.1.1` and MySQL chart `2.1.1`
 - `database.mode=auto` uses this precedence:
 - `database.external.host` or `database.external.existingSecret`
 - `postgresql.enabled=true`
@@ -145,6 +146,7 @@ and back up `/data` and the database before upgrading.
 - expose the admin panel carefully and only behind trusted access patterns
 - enable `networkPolicy` in clusters where traffic should be explicitly restricted
 - keep `runAsNonRoot`, dropped capabilities, and `RuntimeDefault` seccomp unless the platform proves a concrete incompatibility
+- application and backup pods do not automount Kubernetes API credentials because neither workload calls the API
 - keep `showPasswordHint=false` on publicly reachable deployments
 - review `orgCreationUsers`, `orgEventsEnabled`, and `emergencyAccessAllowed` instead of relying on product defaults you did not document
 - review [Admin Access and Hardening](docs/admin-access-and-hardening.md) before enabling the admin page in production
@@ -243,8 +245,8 @@ Official reference:
 | `database.external.username` | External database username | `vaultwarden` |
 | `database.external.existingSecret` | Existing secret containing a complete `DATABASE_URL` | `""` |
 | `database.external.existingSecretUrlKey` | Secret key containing the `DATABASE_URL` value | `database-url` |
-| `postgresql.enabled` | Enable the local PostgreSQL subchart (`helmforge/postgresql` `2.0.4`) | `false` |
-| `mysql.enabled` | Enable the local MySQL subchart (`helmforge/mysql` `2.0.3`) | `false` |
+| `postgresql.enabled` | Enable the local PostgreSQL subchart (`helmforge/postgresql` `2.1.1`) | `false` |
+| `mysql.enabled` | Enable the local MySQL subchart (`helmforge/mysql` `2.1.1`) | `false` |
 | `vaultwarden.signupsAllowed` | Allow new user signups | `false` |
 | `vaultwarden.signupsVerify` | Require email verification for new signups | `false` |
 | `vaultwarden.signupsVerifyResendTime` | Seconds before another verification email can be sent | `3600` |

@@ -55,6 +55,10 @@ This disables TLS certificate verification and should not be used when a trusted
 ### SQLite
 
 The CronJob archives the mounted `/data` directory and uploads the resulting tarball.
+It reads the live filesystem and does not take a SQLite transaction or storage snapshot.
+Concurrent Vaultwarden writes can therefore produce an inconsistent or corrupt SQLite backup.
+For production recovery points, quiesce Vaultwarden before the job runs or use a
+SQLite-aware backup or volume-snapshot workflow, then protect the complete `/data` boundary.
 
 ### PostgreSQL modes
 

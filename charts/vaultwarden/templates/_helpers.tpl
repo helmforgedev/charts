@@ -11,6 +11,12 @@
 {{- end -}}
 {{- end -}}
 
+{{- define "vaultwarden.suffixedName" -}}
+{{- $suffix := .suffix -}}
+{{- $baseMax := int (max 1 (sub 63 (len $suffix))) -}}
+{{- printf "%s%s" (.base | trunc $baseMax | trimSuffix "-") $suffix | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
 {{- define "vaultwarden.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
@@ -29,6 +35,14 @@ app.kubernetes.io/part-of: helmforge
 {{- define "vaultwarden.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "vaultwarden.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end -}}
+
+{{- define "vaultwarden.validatePodLabels" -}}
+{{- range $key := list "app.kubernetes.io/name" "app.kubernetes.io/instance" -}}
+{{- if hasKey $.Values.podLabels $key -}}
+{{- fail (printf "podLabels must not override selector label %q" $key) -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}
 
 {{- define "vaultwarden.domain" -}}
@@ -59,7 +73,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if .Values.admin.existingSecret -}}
 {{- .Values.admin.existingSecret -}}
 {{- else -}}
-{{- printf "%s-admin" (include "vaultwarden.fullname" .) -}}
+{{- include "vaultwarden.suffixedName" (dict "base" (include "vaultwarden.fullname" .) "suffix" "-admin") -}}
 {{- end -}}
 {{- end -}}
 
@@ -67,7 +81,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if .Values.smtp.existingSecret -}}
 {{- .Values.smtp.existingSecret -}}
 {{- else -}}
-{{- printf "%s-smtp" (include "vaultwarden.fullname" .) -}}
+{{- include "vaultwarden.suffixedName" (dict "base" (include "vaultwarden.fullname" .) "suffix" "-smtp") -}}
 {{- end -}}
 {{- end -}}
 
@@ -111,7 +125,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if .Values.database.external.existingSecret -}}
 {{- .Values.database.external.existingSecret -}}
 {{- else -}}
-{{- printf "%s-database" (include "vaultwarden.fullname" .) -}}
+{{- include "vaultwarden.suffixedName" (dict "base" (include "vaultwarden.fullname" .) "suffix" "-database") -}}
 {{- end -}}
 {{- end -}}
 
@@ -200,9 +214,9 @@ sqlite
 {{- if eq $mode "external" -}}
 {{- .Values.database.external.host -}}
 {{- else if eq $mode "postgresql" -}}
-{{- printf "%s-postgresql" .Release.Name -}}
+{{- include "postgresql.clientServiceName" .Subcharts.postgresql -}}
 {{- else if eq $mode "mysql" -}}
-{{- printf "%s-mysql" .Release.Name -}}
+{{- include "mysql.clientServiceName" .Subcharts.mysql -}}
 {{- else -}}
 {{- "" -}}
 {{- end -}}
@@ -258,7 +272,7 @@ sqlite
 {{- if and (eq $mode "external") .Values.database.external.existingSecret -}}
 {{- include "vaultwarden.databaseSecretName" . -}}
 {{- else -}}
-{{- printf "%s-database" (include "vaultwarden.fullname" .) -}}
+{{- include "vaultwarden.suffixedName" (dict "base" (include "vaultwarden.fullname" .) "suffix" "-database") -}}
 {{- end -}}
 {{- end -}}
 
@@ -327,7 +341,7 @@ database-url
 {{- if .Values.backup.s3.existingSecret -}}
 {{- .Values.backup.s3.existingSecret -}}
 {{- else -}}
-{{- printf "%s-backup" (include "vaultwarden.fullname" .) -}}
+{{- include "vaultwarden.suffixedName" (dict "base" (include "vaultwarden.fullname" .) "suffix" "-backup") -}}
 {{- end -}}
 {{- end -}}
 
@@ -397,7 +411,7 @@ true
 {{- else if and (eq (include "vaultwarden.databaseMode" .) "external") .Values.database.external.existingSecret -}}
 {{- .Values.database.external.existingSecret -}}
 {{- else -}}
-{{- printf "%s-database" (include "vaultwarden.fullname" .) -}}
+{{- include "vaultwarden.suffixedName" (dict "base" (include "vaultwarden.fullname" .) "suffix" "-database") -}}
 {{- end -}}
 {{- end -}}
 
