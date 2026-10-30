@@ -27,7 +27,29 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "ghcr.io/karakeep-app/karakeep:0.34.0"
+          value: "ghcr.io/karakeep-app/karakeep:0.34.1@sha256:69ae5315c618b7c14c1af3e34c6e211acdb231793af424ecd1cab0b70691d987"
+
+  - it: should configure the application listener port end to end
+    template: templates/deployment.yaml
+    set:
+      containerPorts.http: 13000
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 13000
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PORT
+            value: "13000"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NEXTAUTH_URL_INTERNAL
+            value: "http://localhost:13000"
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.port
+          value: http
 
   - it: should set DATA_DIR env
     template: templates/deployment.yaml
@@ -64,6 +86,25 @@ tests:
             name: MEILI_ADDR
             value: "http://localhost:7700"
 
+  - it: should configure the Meilisearch listener port end to end
+    template: templates/deployment.yaml
+    set:
+      meilisearch.port: 17700
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MEILI_ADDR
+            value: "http://localhost:17700"
+      - equal:
+          path: spec.template.spec.containers[1].ports[0].containerPort
+          value: 17700
+      - contains:
+          path: spec.template.spec.containers[1].env
+          content:
+            name: MEILI_HTTP_ADDR
+            value: "0.0.0.0:17700"
+
   - it: should not set MEILI_ADDR when meilisearch disabled
     template: templates/deployment.yaml
     set:
@@ -88,11 +129,12 @@ tests:
           content:
             name: BROWSER_CONNECT_ONDEMAND
             value: "true"
-      - contains:
-          path: spec.template.spec.containers[2].env
-          content:
-            name: PORT
-            value: "9222"
+      - equal:
+          path: spec.template.spec.containers[2].image
+          value: "ghcr.io/karakeep-app/karakeep-chrome:154.0.8037.57-r1@sha256:c51a8c8e6c3c1040a50fa0ecfd0b2fc298401b4229262636552458151f6f18fa"
+      - equal:
+          path: spec.template.spec.containers[2].ports[0].containerPort
+          value: 9222
 
   - it: should not set BROWSER_WEB_URL when chromium disabled
     template: templates/deployment.yaml
@@ -154,6 +196,31 @@ tests:
           path: spec.template.spec.containers[0].livenessProbe
       - isNotNull:
           path: spec.template.spec.containers[0].readinessProbe
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /api/health
+      - equal:
+          path: spec.template.spec.containers[1].readinessProbe.httpGet.path
+          value: /health
+
+  - it: should use hardened defaults and disable API token mounting
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[1].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[2].securityContext.readOnlyRootFilesystem
+          value: true
 
   - it: should set NEXTAUTH_URL when configured
     template: templates/deployment.yaml
@@ -174,18 +241,22 @@ tests:
         existingSecretNextAuthKey: nextauth
         existingSecretMeiliMasterKey: meili
     asserts:
-      - equal:
-          path: spec.template.spec.containers[0].env[1].valueFrom.secretKeyRef.name
-          value: karakeep-app-secret
-      - equal:
-          path: spec.template.spec.containers[0].env[1].valueFrom.secretKeyRef.key
-          value: nextauth
-      - equal:
-          path: spec.template.spec.containers[0].env[3].valueFrom.secretKeyRef.name
-          value: karakeep-app-secret
-      - equal:
-          path: spec.template.spec.containers[0].env[3].valueFrom.secretKeyRef.key
-          value: meili
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NEXTAUTH_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: karakeep-app-secret
+                key: nextauth
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MEILI_MASTER_KEY
+            valueFrom:
+              secretKeyRef:
+                name: karakeep-app-secret
+                key: meili
       - equal:
           path: spec.template.spec.containers[1].env[0].valueFrom.secretKeyRef.name
           value: karakeep-app-secret

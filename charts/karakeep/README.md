@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Karakeep Helm Chart
 
 Deploy [Karakeep](https://karakeep.app), formerly Hoarder, on Kubernetes using
@@ -5,18 +7,21 @@ the official `ghcr.io/karakeep-app/karakeep` container image. Karakeep provides
 bookmark management, full-text archive search, web page capture, and optional AI
 tagging in a single-writer application pod.
 
-Current application version: `0.34.0`.
+Current application version: `0.34.1`.
 
 ## Features
 
-- Official Karakeep image pinned to `0.34.0`
+- Official Karakeep image pinned to the `0.34.1` security release and digest
 - Optional Meilisearch sidecar for full-text search
-- Optional browserless Chromium sidecar for screenshots and page archiving
+- Optional official Karakeep Chrome sidecar for screenshots and page archiving
 - SQLite and uploaded content stored on a PersistentVolumeClaim
 - Generated `NEXTAUTH_SECRET` and `MEILI_MASTER_KEY` with lookup-based reuse on
   upgrades
 - Existing Secret and External Secrets Operator paths for production credentials
 - Ingress, Gateway API, dual-stack Service, scheduling, and resource controls
+- Configurable Karakeep and Meilisearch listeners with runtime validation
+- Non-root containers, seccomp, dropped capabilities, token-free ServiceAccount,
+  and an ingress NetworkPolicy by default
 
 ## Installation
 
@@ -125,18 +130,26 @@ chromium:
 | Key | Default | Description |
 | --- | --- | --- |
 | `image.repository` | `ghcr.io/karakeep-app/karakeep` | Main Karakeep image |
-| `image.tag` | `"0.34.0"` | Main Karakeep image tag |
+| `image.tag` | `"0.34.1"` | Main Karakeep image tag |
+| `containerPorts.http` | `3000` | Karakeep process listener port |
 | `karakeep.nextAuthUrl` | `""` | Public URL of the Karakeep instance |
 | `karakeep.browserConnectOnDemand` | `true` | Connect to Chromium only when crawling needs it |
 | `karakeep.existingSecret` | `""` | Existing secret with auth and Meilisearch keys |
 | `karakeep.extraEnv` | `[]` | Extra environment variables for AI and advanced configuration |
 | `meilisearch.enabled` | `true` | Enable the Meilisearch sidecar |
+| `meilisearch.port` | `7700` | Meilisearch process listener port |
 | `chromium.enabled` | `true` | Enable the Chromium sidecar |
+| `networkPolicy.enabled` | `true` | Restrict ingress to the HTTP port |
 | `persistence.enabled` | `true` | Enable persistence for SQLite, uploads, and Meilisearch data |
 | `persistence.size` | `10Gi` | PVC size |
 | `ingress.enabled` | `false` | Enable Ingress |
 | `gatewayAPI.enabled` | `false` | Enable Gateway API HTTPRoute |
 | `externalSecrets.enabled` | `false` | Render ExternalSecret for app credentials |
+
+Image tags and digests form a pair. When overriding `image.tag`,
+`meilisearch.image.tag`, or `chromium.image.tag`, also set the matching digest
+to the digest published for that exact image tag; Kubernetes resolves the
+digest as the deployed image identity.
 
 ## Security Scan
 
@@ -144,23 +157,23 @@ Security Scan: Kubescape on rendered default manifests.
 
 | Framework | Score |
 | --- | --- |
-| MITRE | 100.00% |
-| NSA | 60.00% |
-| SOC2 | 80.00% |
-| Aggregate | 80.00% |
+| MITRE + NSA + SOC2 | 87.878784% |
 
-Default findings are driven by intentionally unset platform-specific controls:
-resource limits, container hardening context, service account token mounting, and
-NetworkPolicy boundaries. Set `resources`, `securityContext`,
-`podSecurityContext`, and platform NetworkPolicies according to your cluster
-baseline.
+Resource requests and limits remain unset because sizing depends on archive and
+search load. The chart otherwise enables non-root execution, seccomp, dropped
+capabilities, disabled API token mounting, and an ingress NetworkPolicy by
+default.
 
 ## Upgrade Notes
 
-Karakeep `0.34.0` improves SingleFile archive handling, custom Chrome migration,
-favicon extraction, CLI uploads, and completion-token configuration. Back up
-the `/data` PVC before upgrading and review the upstream release notes for the
-complete migration guidance.
+Karakeep `0.34.1` updates Node.js to fix one Brotli memory-safety vulnerability
+and three TLS hostname-validation bypasses. This chart also completes the 0.34.0
+migration from Browserless to the official `karakeep-chrome` image. Back up the
+`/data` PVC before upgrading. Before upgrading an existing 0.33.x installation,
+resolve any accounts whose email addresses differ only by letter case; the
+automatic migration lowercases addresses and conflicting accounts can lock
+users out. All web users must sign in again after the migration. Mobile sessions
+and API keys are unaffected.
 
 ## Quality Gates
 
