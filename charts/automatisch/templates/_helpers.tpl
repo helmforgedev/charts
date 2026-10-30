@@ -31,6 +31,16 @@ app.kubernetes.io/name: {{ include "automatisch.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
+{{- define "automatisch.webSelectorLabels" -}}
+{{ include "automatisch.selectorLabels" . }}
+app.kubernetes.io/component: web
+{{- end -}}
+
+{{- define "automatisch.workerSelectorLabels" -}}
+{{ include "automatisch.selectorLabels" . }}
+app.kubernetes.io/component: worker
+{{- end -}}
+
 {{- define "automatisch.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
 {{- default (include "automatisch.fullname" .) .Values.serviceAccount.name -}}
@@ -49,6 +59,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if and (not .Values.redis.enabled) (not .Values.redis_config.external.host) -}}
 {{- fail "redis_config.external.host is required when redis.enabled is false" -}}
 {{- end -}}
+{{- if and .Values.redis.enabled (dig "tls" "enabled" false .Values.redis) -}}
+{{- fail "redis.tls.enabled is not supported by the Automatisch Redis client contract" -}}
+{{- end -}}
 {{- if and .Values.ingress.enabled (not .Values.ingress.hosts) -}}
 {{- fail "ingress.enabled requires ingress.hosts to contain at least one host" -}}
 {{- end -}}
@@ -61,7 +74,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- $selectorLabels := include "automatisch.selectorLabels" . | fromYaml -}}
 {{- range $key, $_ := .Values.podLabels -}}
-{{- if hasKey $selectorLabels $key -}}
+{{- if or (hasKey $selectorLabels $key) (eq $key "app.kubernetes.io/component") -}}
 {{- fail (printf "podLabels must not override selector label %q" $key) -}}
 {{- end -}}
 {{- end -}}
@@ -137,12 +150,56 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{/* Redis helpers                                                            */}}
 {{/* ======================================================================= */}}
 
+{{/* Redis subchart fullname, mirrored from Redis 3.1. */}}
+{{- define "automatisch.redisFullname" -}}
+{{- if .Values.redis.fullnameOverride -}}
+{{- .Values.redis.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $name := default "redis" .Values.redis.nameOverride -}}
+{{- if contains $name .Release.Name -}}
+{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{/* Redis host */}}
 {{- define "automatisch.redisHost" -}}
 {{- if .Values.redis.enabled -}}
-{{- printf "%s-redis-master" .Release.Name -}}
+{{- if eq .Values.redis.architecture "replication" -}}
+{{- printf "%s-primary" (include "automatisch.redisFullname" .) -}}
+{{- else -}}
+{{- printf "%s-client" (include "automatisch.redisFullname" .) -}}
+{{- end -}}
 {{- else -}}
 {{- .Values.redis_config.external.host -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Redis secret name */}}
+{{- define "automatisch.redisSecretName" -}}
+{{- if .Values.redis.enabled -}}
+{{- if .Values.redis.auth.existingSecret -}}
+{{- .Values.redis.auth.existingSecret -}}
+{{- else -}}
+{{- printf "%s-auth" (include "automatisch.redisFullname" .) -}}
+{{- end -}}
+{{- else if .Values.redis_config.external.existingSecret -}}
+{{- .Values.redis_config.external.existingSecret -}}
+{{- else -}}
+{{- printf "%s-redis" (include "automatisch.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Redis secret password key */}}
+{{- define "automatisch.redisSecretPasswordKey" -}}
+{{- if .Values.redis.enabled -}}
+{{- .Values.redis.auth.existingSecretPasswordKey | default "redis-password" -}}
+{{- else if .Values.redis_config.external.existingSecret -}}
+{{- .Values.redis_config.external.existingSecretPasswordKey | default "password" -}}
+{{- else -}}
+{{- "password" -}}
 {{- end -}}
 {{- end -}}
 

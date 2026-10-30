@@ -1,100 +1,115 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-============================================================
-  Automatisch has been successfully deployed!
-============================================================
+1. Installation status
+======================
+  Release:     {{ .Release.Name }}
+  Namespace:   {{ .Release.Namespace }}
+  Chart:       {{ .Chart.Name }} {{ .Chart.Version }}
+  Application: {{ .Chart.AppVersion }}
+  Web:         enabled
+  Worker:      {{ ternary "enabled" "disabled" .Values.worker.enabled }}
 
-Chart:      {{ .Chart.Name }}
-Version:    {{ .Chart.Version }}
-AppVersion: {{ .Chart.AppVersion }}
-Release:    {{ .Release.Name }}
-Namespace:  {{ .Release.Namespace }}
-
-============================================================
-  ACCESS INFORMATION
-============================================================
-
+2. Access
+=========
 {{- if .Values.ingress.enabled }}
 {{- range $host := .Values.ingress.hosts }}
-WEB UI:  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+  URL: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
 {{- end }}
 {{- else }}
-Port-forward to access Automatisch locally:
+  Start a local port-forward:
+    kubectl port-forward -n {{ .Release.Namespace }} \
+      svc/{{ include "automatisch.fullname" . }} 3000:{{ .Values.service.port }}
 
-  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "automatisch.fullname" . }} 3000:{{ .Values.service.port }}
-
-  WEB UI:   http://localhost:3000/
-
+  Open: http://localhost:3000/
 {{- end }}
 
-Internal cluster endpoint:
-  http://{{ include "automatisch.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+  Cluster endpoint:
+    http://{{ include "automatisch.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
 
-============================================================
-  GETTING STARTED
-============================================================
+3. First-time setup
+===================
+  1. Wait for the web Deployment to become available.
+  2. Open the web UI and create the first administrator account.
+  3. Configure integration credentials and create a test workflow.
+  4. Confirm the worker executes the test workflow.
 
-1. Wait for Automatisch to be ready:
-   kubectl wait --for=condition=ready pod \
-     -l app.kubernetes.io/name=automatisch \
-     -n {{ .Release.Namespace }} --timeout=300s
+4. Configuration summary
+========================
+  Listener port:  {{ .Values.automatisch.containerPorts.http }}
+  Service port:   {{ .Values.service.port }}
+  PostgreSQL:     {{ ternary "bundled" "external" .Values.postgresql.enabled }}
+  Redis:          {{ ternary "bundled" "external" .Values.redis.enabled }}
+  Worker replicas:{{ if .Values.worker.enabled }} {{ .Values.worker.replicaCount }}{{ else }} 0{{ end }}
+  Ingress:        {{ ternary "enabled" "disabled" .Values.ingress.enabled }}
+  NetworkPolicy:  {{ ternary "enabled" "disabled" .Values.networkPolicy.enabled }}
 
-2. Check pod status:
-   kubectl get pods -l app.kubernetes.io/name=automatisch -n {{ .Release.Namespace }}
+5. Validation commands
+======================
+  Check both Deployments:
+    kubectl get deployment -n {{ .Release.Namespace }} \
+      -l app.kubernetes.io/instance={{ .Release.Name }}
 
-3. View startup logs:
-   kubectl logs -l app.kubernetes.io/name=automatisch \
-     -n {{ .Release.Namespace }} --all-containers --tail=50 -f
+  Check all application pods:
+    kubectl get pods -n {{ .Release.Namespace }} \
+      -l app.kubernetes.io/name=automatisch
 
-4. Open the Web UI and create your admin account on first launch
+  Follow web logs:
+    kubectl logs -n {{ .Release.Namespace }} \
+      deployment/{{ include "automatisch.fullname" . }} --tail=100 -f
 
-============================================================
-  TROUBLESHOOTING
-============================================================
-
-Check pod status:
-  kubectl get pods -l app.kubernetes.io/name=automatisch -n {{ .Release.Namespace }}
-
-Describe pod (events and errors):
-  kubectl describe pod -l app.kubernetes.io/name=automatisch -n {{ .Release.Namespace }}
-
-View application logs:
-  kubectl logs -l app.kubernetes.io/name=automatisch \
-    -n {{ .Release.Namespace }} --all-containers --tail=100
-
-View all chart resources:
-  kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-
-{{- if .Values.postgresql.enabled }}
-View PostgreSQL logs:
-  kubectl logs -l app.kubernetes.io/name=postgresql \
-    -n {{ .Release.Namespace }} --all-containers --tail=50
+{{- if .Values.worker.enabled }}
+  Follow worker logs:
+    kubectl logs -n {{ .Release.Namespace }} \
+      deployment/{{ include "automatisch.fullname" . }}-worker --tail=100 -f
 {{- end }}
 
-{{- if .Values.redis.enabled }}
-View Redis logs:
-  kubectl logs -l app.kubernetes.io/name=redis \
-    -n {{ .Release.Namespace }} --all-containers --tail=50
-{{- end }}
+6. Security reminders
+=====================
+  Back up Secret {{ include "automatisch.appSecretName" . }} together with PostgreSQL.
+  Do not rotate encryption-key, app-secret-key, or webhook-secret-key casually.
+  Use TLS at the ingress or edge proxy for every public installation.
+  Review NetworkPolicy egress before using strict destination allowlists.
 
-============================================================
-  WARNINGS
-============================================================
+7. Backup and restore
+=====================
+  Stream the application Secret directly into an encrypted backup:
+    kubectl get secret -n {{ .Release.Namespace }} \
+      {{ include "automatisch.appSecretName" . }} -o yaml | \
+      age --encrypt --recipient "$AGE_RECIPIENT" \
+      > automatisch-app-secret.yaml.age
 
-{{- if not .Values.ingress.enabled }}
+  Back up PostgreSQL with the tooling appropriate to the selected deployment.
+  Restore PostgreSQL and the matching application Secret into an isolated
+  namespace, then execute a real workflow before accepting the recovery.
 
-NOTE: Ingress is not enabled. Access via port-forward (see above).
-{{- end }}
+8. Troubleshooting
+==================
+  Web pod waiting for PostgreSQL:
+    kubectl logs -n {{ .Release.Namespace }} \
+      deployment/{{ include "automatisch.fullname" . }} -c wait-for-db
 
-============================================================
-  ADDITIONAL RESOURCES
-============================================================
+  Workflows remain queued:
+    kubectl describe deployment -n {{ .Release.Namespace }} \
+      {{ include "automatisch.fullname" . }}-worker
+    kubectl logs -n {{ .Release.Namespace }} \
+      deployment/{{ include "automatisch.fullname" . }}-worker --tail=200
 
-Documentation:     https://helmforge.dev/docs/charts/automatisch
-Chart Repository:  https://github.com/helmforgedev/charts/tree/main/charts/automatisch
-Report Issues:     https://github.com/helmforgedev/charts/issues
+  Inspect all release resources:
+    kubectl get all -n {{ .Release.Namespace }} \
+      -l app.kubernetes.io/instance={{ .Release.Name }}
 
-Automatisch:       https://automatisch.io
-Automatisch Docs:  https://automatisch.io/docs
-Automatisch GH:    https://github.com/automatisch/automatisch
+9. Upgrading
+============
+  Back up PostgreSQL and the application Secret before every upgrade.
+  Validate migrations and a worker-executed test workflow in staging.
+  Upgrade with readiness waiting enabled:
+    helm upgrade {{ .Release.Name }} helmforge/automatisch \
+      -n {{ .Release.Namespace }} --reuse-values --wait --timeout 10m
+
+10. Documentation
+=================
+  HelmForge docs: https://helmforge.dev/docs/charts/automatisch
+  Chart source:   https://github.com/helmforgedev/charts/tree/main/charts/automatisch
+  Upstream docs:  https://automatisch.io/docs
+  Upstream source:https://github.com/automatisch/automatisch
 
 Happy Helmforging :)
