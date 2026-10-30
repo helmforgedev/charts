@@ -33,6 +33,7 @@ spec:
       {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ .Values.serviceAccount.name | default (include "authelia.fullname" .) }}
       {{- end }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -160,11 +161,11 @@ spec:
             {{- end }}
           ports:
             - name: http
-              containerPort: 9091
+              containerPort: {{ .Values.containerPorts.http }}
               protocol: TCP
             {{- if .Values.config.telemetry.metrics.enabled }}
             - name: metrics
-              containerPort: 9959
+              containerPort: {{ .Values.containerPorts.metrics }}
               protocol: TCP
             {{- end }}
           {{- if .Values.probes.startup.enabled }}
@@ -217,6 +218,8 @@ spec:
             {{- end }}
             - name: data
               mountPath: /data
+            - name: tmp
+              mountPath: /tmp
             {{- if and (ne (include "authelia.dbType" .) "sqlite") .Values.database.external.existingSecret }}
             - name: db-secret
               mountPath: /db-secret
@@ -244,6 +247,9 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: {{ .Values.runtime.temporarySize }}
         {{- if and (ne (include "authelia.dbType" .) "sqlite") .Values.database.external.existingSecret }}
         - name: db-secret
           secret:

@@ -78,6 +78,39 @@ Production deployments should provide explicit values for:
 - ingress or Gateway API TLS and trusted proxy settings
 - backup, monitoring, resources, and scheduling constraints
 
+## Security Boundary
+
+Authelia owns authentication policy, session protection, MFA data encryption and
+OIDC behavior. The chart keeps the official image non-root, drops Linux
+capabilities, disables ServiceAccount token mounting and injects runtime secrets
+through files. The storage encryption key, session secret and JWT secret are one
+durable identity boundary; losing or replacing them can invalidate sessions or
+make enrolled MFA credentials unreadable.
+
+Operators remain responsible for TLS termination, trusted proxy configuration,
+access-control policy, secret lifecycle, user or LDAP administration and network
+isolation. Use stable existing Secrets or External Secrets and limit access to
+the rendered configuration Secret.
+
+## Observability Boundary
+
+Startup, liveness and readiness probes use Authelia's native `/api/health`
+endpoint on the configured HTTP listener. When native telemetry and the metrics
+Service are enabled, the chart exposes Authelia's separate Prometheus listener
+and can create a ServiceMonitor. Application logs, Kubernetes events, dependency
+health and backup Job status remain operator-facing signals; the chart does not
+install Prometheus, an alerting stack or log aggregation.
+
+## Known Gaps
+
+- SQLite and a single replica are not a highly available production profile.
+- Bundled databases and Redis do not provide automated cross-cluster failover.
+- Backup Jobs cover configured state exports but do not test restoration.
+- NetworkPolicy is not chart-managed; namespace and ingress isolation belong to
+  the platform policy layer.
+- Reverse-proxy middleware objects and downstream OIDC client registration remain
+  external to this chart.
+
 <!-- @AI-METADATA
 type: design
 title: Authelia Chart Design

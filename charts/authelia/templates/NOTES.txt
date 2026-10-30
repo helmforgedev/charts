@@ -1,6 +1,6 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 =============================================================================
-Authelia authentication gateway deployed successfully!
+1. Installation summary
 =============================================================================
 
 Release:            {{ .Release.Name }}
@@ -14,7 +14,7 @@ Storage Backend:    {{ include "authelia.dbType" . }}
 Session Redis:      {{ if .Values.redis.enabled }}enabled{{ else }}disabled{{ end }}
 
 =============================================================================
-ACCESS
+2. Access
 =============================================================================
 
 {{- if .Values.ingress.enabled }}
@@ -38,7 +38,7 @@ Then open:
 {{- end }}
 
 =============================================================================
-CONFIGURATION
+3. Configuration summary
 =============================================================================
 
 - Authelia configuration is rendered into Secret `{{ include "authelia.fullname" . }}-config`.
@@ -72,7 +72,7 @@ CONFIGURATION
 {{- end }}
 
 =============================================================================
-GETTING STARTED
+4. Getting started
 =============================================================================
 
 1. Wait for Authelia to become ready:
@@ -89,7 +89,29 @@ GETTING STARTED
    http://{{ include "authelia.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local/api/authz/forward-auth
 
 =============================================================================
-VALIDATION
+5. Next steps
+=============================================================================
+
+- Replace the disabled example account with a real Argon2 password hash.
+- Configure SMTP before relying on password reset or device enrollment email.
+- Verify cookie domains, trusted proxy headers and access-control rules against
+  every protected application.
+- Store the JWT, session and storage encryption keys in a durable Secret backup.
+
+=============================================================================
+6. Validation
+=============================================================================
+
+Validate native health through the Service:
+  kubectl run authelia-health -n {{ .Release.Namespace }} --rm -i --restart=Never --image=docker.io/library/busybox:1.37 -- \
+    wget -qO- http://{{ include "authelia.fullname" . }}:{{ .Values.service.port }}/api/health
+
+Check rollout and ready endpoints:
+  kubectl rollout status deployment/{{ include "authelia.fullname" . }} -n {{ .Release.Namespace }} --timeout=600s
+  kubectl get endpoints -n {{ .Release.Namespace }} {{ include "authelia.fullname" . }}
+
+=============================================================================
+7. Troubleshooting
 =============================================================================
 
 Inspect recent logs from every pod/container in the release:
@@ -119,7 +141,7 @@ Check backup CronJob status:
 {{- end }}
 
 =============================================================================
-PRODUCTION REMINDERS
+8. Warnings and production reminders
 =============================================================================
 
 - Set stable GitOps secrets through `secrets.existingSecret` or explicit secret values.
@@ -128,6 +150,12 @@ PRODUCTION REMINDERS
 - Configure SMTP for production notifications and password reset workflows.
 - Prefer PostgreSQL plus Redis for production or multi-pod operational models.
 - Back up SQLite data or database state before upgrades.
+- Never rotate or discard the storage encryption key without an explicit
+  migration and tested recovery plan; enrolled MFA credentials depend on it.
+
+=============================================================================
+9. Additional resources
+=============================================================================
 
 Documentation:
   Chart: https://helmforge.dev/docs/charts/authelia

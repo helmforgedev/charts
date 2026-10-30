@@ -48,6 +48,26 @@
         "type": "object"
       }
     },
+    "containerPorts": {
+      "type": "object",
+      "description": "Container listener ports used to generate the Authelia server and metrics addresses.",
+      "additionalProperties": false,
+      "required": ["http", "metrics"],
+      "properties": {
+        "http": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 65535,
+          "description": "Main HTTP listener port."
+        },
+        "metrics": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 65535,
+          "description": "Prometheus metrics listener port."
+        }
+      }
+    },
     "config": {
       "type": "object",
       "description": "Authelia configuration rendered as configuration.yml and mounted into the container.",
@@ -61,9 +81,6 @@
           "type": "object",
           "description": "Server configuration.",
           "properties": {
-            "address": {
-              "type": "string"
-            },
             "disable_healthcheck": {
               "type": "boolean",
               "description": "Disable healthcheck.sh env file (recommended for Kubernetes)."
@@ -118,9 +135,6 @@
               "properties": {
                 "enabled": {
                   "type": "boolean"
-                },
-                "address": {
-                  "type": "string"
                 }
               }
             }
@@ -185,7 +199,39 @@
         },
         "authentication_backend": {
           "type": "object",
-          "description": "Authentication backend (file or ldap - mutually exclusive)."
+          "description": "Authentication backend (file or ldap - mutually exclusive).",
+          "properties": {
+            "password_reset": {
+              "type": "object",
+              "properties": {
+                "disable": { "type": "boolean" }
+              }
+            },
+            "refresh_interval": { "type": "string" },
+            "file": {
+              "type": "object",
+              "properties": {
+                "path": { "type": "string" },
+                "password": {
+                  "type": "object",
+                  "properties": {
+                    "algorithm": { "type": "string" },
+                    "argon2": {
+                      "type": "object",
+                      "properties": {
+                        "variant": { "type": "string" },
+                        "iterations": { "type": "integer" },
+                        "memory": { "type": "integer" },
+                        "parallelism": { "type": "integer" },
+                        "key_length": { "type": "integer" },
+                        "salt_length": { "type": "integer" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
         },
         "password_policy": {
           "type": "object",
@@ -301,11 +347,28 @@
         },
         "storage": {
           "type": "object",
-          "description": "Storage configuration. Overridden by the chart based on database.type."
+          "description": "Storage configuration. Overridden by the chart based on database.type.",
+          "properties": {
+            "local": {
+              "type": "object",
+              "properties": {
+                "path": { "type": "string" }
+              }
+            }
+          }
         },
         "notifier": {
           "type": "object",
-          "description": "Notifier configuration (filesystem or smtp - mutually exclusive)."
+          "description": "Notifier configuration (filesystem or smtp - mutually exclusive).",
+          "properties": {
+            "disable_startup_check": { "type": "boolean" },
+            "filesystem": {
+              "type": "object",
+              "properties": {
+                "filename": { "type": "string" }
+              }
+            }
+          }
         },
         "identity_providers": {
           "type": "object",
@@ -373,7 +436,21 @@
         },
         "users": {
           "type": "object",
-          "description": "Inline user definitions (rendered as users_database.yml)."
+          "description": "Inline user definitions (rendered as users_database.yml).",
+          "additionalProperties": true,
+          "properties": {
+            "admin": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "disabled": { "type": "boolean" },
+                "displayname": { "type": "string" },
+                "password": { "type": "string" },
+                "email": { "type": "string" },
+                "groups": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
         }
       }
     },
@@ -465,6 +542,10 @@
         "annotations": {
           "type": "object",
           "description": "Annotations for the ServiceAccount."
+        },
+        "automountServiceAccountToken": {
+          "type": "boolean",
+          "description": "Mount a Kubernetes API token into the workload."
         }
       }
     },
@@ -612,7 +693,23 @@
     },
     "resources": {
       "type": "object",
-      "description": "CPU and memory requests/limits."
+      "description": "CPU and memory requests/limits.",
+      "properties": {
+        "requests": {
+          "type": "object",
+          "properties": {
+            "cpu": { "type": "string" },
+            "memory": { "type": "string" }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "cpu": { "type": "string" },
+            "memory": { "type": "string" }
+          }
+        }
+      }
     },
     "podSecurityContext": {
       "type": "object",
@@ -686,13 +783,59 @@
         }
       }
     },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["temporarySize"],
+      "properties": {
+        "temporarySize": {
+          "type": "string",
+          "pattern": "^[0-9]+(?:Ei|Pi|Ti|Gi|Mi|Ki|E|P|T|G|M|K)?$",
+          "description": "Maximum size of the writable /tmp emptyDir."
+        }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "ingressFrom"],
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Create an ingress NetworkPolicy for Authelia."
+        },
+        "ingressFrom": {
+          "type": "array",
+          "description": "Optional Kubernetes NetworkPolicy peers allowed to connect.",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
     "waitForServices": {
       "type": "object",
       "description": "Dependency wait init container settings.",
       "properties": {
         "resources": {
           "type": "object",
-          "description": "CPU and memory requests/limits for wait init containers."
+          "description": "CPU and memory requests/limits for wait init containers.",
+          "properties": {
+            "requests": {
+              "type": "object",
+              "properties": {
+                "cpu": { "type": "string" },
+                "memory": { "type": "string" }
+              }
+            },
+            "limits": {
+              "type": "object",
+              "properties": {
+                "cpu": { "type": "string" },
+                "memory": { "type": "string" }
+              }
+            }
+          }
         }
       }
     },
@@ -908,8 +1051,32 @@
         "standalone": {
           "type": "object",
           "properties": {
-            "persistence": { "type": "object" },
-            "resources": { "type": "object" }
+            "persistence": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "size": { "type": "string" }
+              }
+            },
+            "resources": {
+              "type": "object",
+              "properties": {
+                "requests": {
+                  "type": "object",
+                  "properties": {
+                    "cpu": { "type": "string" },
+                    "memory": { "type": "string" }
+                  }
+                },
+                "limits": {
+                  "type": "object",
+                  "properties": {
+                    "cpu": { "type": "string" },
+                    "memory": { "type": "string" }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -939,8 +1106,32 @@
         "standalone": {
           "type": "object",
           "properties": {
-            "persistence": { "type": "object" },
-            "resources": { "type": "object" }
+            "persistence": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "size": { "type": "string" }
+              }
+            },
+            "resources": {
+              "type": "object",
+              "properties": {
+                "requests": {
+                  "type": "object",
+                  "properties": {
+                    "cpu": { "type": "string" },
+                    "memory": { "type": "string" }
+                  }
+                },
+                "limits": {
+                  "type": "object",
+                  "properties": {
+                    "cpu": { "type": "string" },
+                    "memory": { "type": "string" }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -968,8 +1159,32 @@
         "standalone": {
           "type": "object",
           "properties": {
-            "persistence": { "type": "object" },
-            "resources": { "type": "object" }
+            "persistence": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "size": { "type": "string" }
+              }
+            },
+            "resources": {
+              "type": "object",
+              "properties": {
+                "requests": {
+                  "type": "object",
+                  "properties": {
+                    "cpu": { "type": "string" },
+                    "memory": { "type": "string" }
+                  }
+                },
+                "limits": {
+                  "type": "object",
+                  "properties": {
+                    "cpu": { "type": "string" },
+                    "memory": { "type": "string" }
+                  }
+                }
+              }
+            }
           }
         }
       }

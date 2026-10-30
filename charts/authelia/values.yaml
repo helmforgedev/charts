@@ -21,6 +21,14 @@ image:
 
 imagePullSecrets: []
 
+# -- Container listener ports. The chart generates Authelia's server and metrics
+# addresses from these values so Kubernetes ports and the real process stay aligned.
+containerPorts:
+  # -- Main HTTP listener port.
+  http: 9091
+  # -- Prometheus metrics listener port.
+  metrics: 9959
+
 # =============================================================================
 # Authelia Configuration
 # =============================================================================
@@ -34,7 +42,6 @@ config:
 
   # -- Server configuration
   server:
-    address: "tcp://:9091/"
     # -- Disable healthcheck.sh env file (recommended for Kubernetes)
     disable_healthcheck: true
     buffers:
@@ -54,7 +61,6 @@ config:
   telemetry:
     metrics:
       enabled: false
-      address: "tcp://:9959/metrics"
 
   # -- TOTP configuration
   totp:
@@ -290,6 +296,8 @@ serviceAccount:
   name: ""
   # -- Annotations for the ServiceAccount
   annotations: {}
+  # -- Disable automatic API token mounting; Authelia does not use the Kubernetes API.
+  automountServiceAccountToken: false
 
 # =============================================================================
 # Service
@@ -399,10 +407,23 @@ securityContext:
   runAsGroup: 1000
   runAsNonRoot: true
   allowPrivilegeEscalation: false
-  readOnlyRootFilesystem: false
+  readOnlyRootFilesystem: true
   capabilities:
     drop:
       - ALL
+
+# -- Writable runtime storage used with the read-only image filesystem.
+runtime:
+  # -- Maximum size of the `/tmp` emptyDir.
+  temporarySize: 128Mi
+
+# -- Ingress isolation for the Authelia Pod. Empty peers allow all sources to
+# the declared HTTP and optional metrics listeners while blocking other ports.
+networkPolicy:
+  # -- Create the application NetworkPolicy.
+  enabled: true
+  # -- Optional Kubernetes NetworkPolicy peers allowed to connect.
+  ingressFrom: []
 
 waitForServices:
   # -- Resources for dependency wait init containers

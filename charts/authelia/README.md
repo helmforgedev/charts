@@ -19,6 +19,16 @@ Deploy [Authelia](https://www.authelia.com) on Kubernetes — an authentication 
 - **External Secrets Operator** — opt-in ExternalSecret via `externalSecrets.enabled=true` (GR-061)
 - **Dual-stack** — `service.ipFamilyPolicy` / `service.ipFamilies` (GR-058)
 
+## Architecture
+
+The chart runs the official Authelia image behind a named-port Service and
+optional Ingress or HTTPRoute. A rendered configuration Secret and separate
+credential/user Secrets are mounted read-only. SQLite uses the application PVC;
+production profiles can select bundled or external PostgreSQL/MySQL and optional
+Redis session storage. Native health and metrics listeners follow
+`containerPorts`, while the ingress-only NetworkPolicy limits reachable Pod
+ports without blocking external identity, mail or storage dependencies.
+
 ## Installation
 
 **HTTPS repository:**
@@ -122,6 +132,8 @@ postgresql:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `config` | (see values.yaml) | Full Authelia configuration rendered as YAML |
+| `containerPorts.http` | `9091` | Native Authelia HTTP listener |
+| `containerPorts.metrics` | `9959` | Native Prometheus listener |
 | `secrets.jwtSecret` | `""` | JWT secret — **auto-generated** on first install if empty |
 | `secrets.sessionSecret` | `""` | Session secret — **auto-generated** on first install if empty |
 | `secrets.storageEncryptionKey` | `""` | Storage key — **auto-generated** on first install if empty |
@@ -136,6 +148,8 @@ postgresql:
 | `externalSecrets.enabled` | `false` | Render ExternalSecret for credentials (requires ESO) |
 | `service.ipFamilyPolicy` | `~` | Dual-stack policy: SingleStack, PreferDualStack, RequireDualStack |
 | `service.ipFamilies` | `[]` | Dual-stack IP families: IPv4, IPv6 |
+| `networkPolicy.enabled` | `true` | Restrict ingress to declared listeners |
+| `serviceAccount.automountServiceAccountToken` | `false` | Keep Kubernetes API credentials out of the Pod |
 | `metrics.enabled` | `false` | Enable metrics service |
 | `backup.enabled` | `false` | Enable S3 backups |
 | `podSecurityContext.fsGroup` | `1000` | Run with a non-root writable group for persistent data |
@@ -150,9 +164,36 @@ The chart uses HelmForge-maintained subcharts for optional stateful services:
 
 | Dependency | Version | Usage |
 |------------|---------|-------|
-| PostgreSQL | `2.0.4` | Production storage backend |
-| MySQL | `2.0.3` | Production storage backend alternative |
-| Redis | `2.0.0` | Session storage for distributed/HA deployments |
+| PostgreSQL | `2.1.1` | Production storage backend |
+| MySQL | `2.1.1` | Production storage backend alternative |
+| Redis | `3.1.0` | Session storage for distributed/HA deployments |
+
+`containerPorts.http` and `containerPorts.metrics` are the listener source of
+truth. The chart generates `server.address` and `telemetry.metrics.address` from
+them, so the process, probes and named Service targets remain aligned.
+
+## Security
+
+Use stable existing Secrets or External Secrets for the JWT, session and storage
+encryption keys. Treat those values and the selected database as one recovery
+set; losing the storage encryption key permanently makes enrolled TOTP and
+WebAuthn data unreadable. Terminate TLS at a trusted proxy, configure trusted
+headers explicitly and restrict access to the rendered configuration Secret.
+The default read-only root filesystem uses a bounded `/tmp` volume, disables API
+token mounting and restricts ingress to the HTTP and optional metrics listeners.
+Set explicit `networkPolicy.ingressFrom` peers when the platform owns trusted
+proxy namespaces.
+
+## Troubleshooting
+
+- If the Pod does not become ready, inspect `/api/health`, application logs and
+  database or Redis endpoints before restarting it.
+- If a custom port fails, confirm `containerPorts.http` or
+  `containerPorts.metrics`; do not set listener addresses under `config`.
+- If login redirects or cookies fail, verify the public Authelia URL, cookie
+  domain, TLS scheme and reverse-proxy forwarded headers.
+- If MFA data cannot be decrypted, restore the matching database and original
+  storage encryption key. Generating a replacement key does not recover data.
 
 ## Forward Auth Configuration
 
@@ -198,9 +239,8 @@ configuration. Review all intervening releases:
 [4.39.27](https://github.com/authelia/authelia/releases/tag/v4.39.27), and
 [4.39.28](https://github.com/authelia/authelia/releases/tag/v4.39.28).
 
-The Redis dependency is updated to 3.0.0. Its image, standalone storage and
-authentication defaults are unchanged; its probes now respect TLS and the
-configured service port and require a successful PONG response.
+The bundled dependency baseline is PostgreSQL 2.1.1, MySQL 2.1.1 and Redis
+3.1.0. Their documented storage and authentication contracts remain unchanged.
 
 Authelia 4.39.21 changes storage encryption to use HKDF and authenticated
 additional data; 4.39.22 fixes the access-token JWT session migration. Back up
