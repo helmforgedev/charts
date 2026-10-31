@@ -85,14 +85,15 @@ Do not upgrade from chart 2.4.x with `--reuse-values` or
 path, while `--reuse-values` can also omit the newer `networkPolicy` parent map
 and make template rendering fail at `.Values.networkPolicy.enabled`. Export the
 release overrides with
-`(umask 077 && helm get values RELEASE -o yaml > retained-values.yaml)` so the
-file is created with owner-only permissions. In that file, move every
+`(umask 077 && touch retained-values.yaml && chmod 600 retained-values.yaml && helm get values RELEASE -n NAMESPACE -o yaml > retained-values.yaml)`
+so the file has owner-only permissions before Helm writes to it, even if it
+already exists. In that file, move every
 `mysql.primary` setting to the equivalent `mysql.standalone` path and remove
 the `mysql.primary` map. On Helm versions that support `--hide-secret`, preview
 with
-`helm upgrade RELEASE helmforge/matomo --reset-values -f retained-values.yaml --dry-run --hide-secret`.
+`helm upgrade RELEASE helmforge/matomo -n NAMESPACE --reset-values -f retained-values.yaml --dry-run --hide-secret`.
 Then perform the actual upgrade, without either preview-only flag, with
-`helm upgrade RELEASE helmforge/matomo --reset-values -f retained-values.yaml`.
+`helm upgrade RELEASE helmforge/matomo -n NAMESPACE --reset-values -f retained-values.yaml`.
 Use this migrated-file upgrade procedure for every affected release, regardless
 of Helm version. If `--hide-secret` is unavailable, skip the preview rather than
 expose rendered Secret manifests. Run previews only in a trusted environment
