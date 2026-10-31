@@ -6,6 +6,31 @@ and generated assets. Back up both before upgrades.
 
 ## Application Upgrades
 
+Chart 2.5 and later use the bundled MySQL chart's `mysql.standalone` contract.
+Before upgrading from 2.4.x or earlier, move retained `mysql.primary.*` values
+to `mysql.standalone.*`. The chart deliberately rejects the obsolete path so
+persistence settings cannot be ignored silently.
+
+Do not use `--reuse-values` or `--reset-then-reuse-values`. Both retain the
+obsolete `mysql.primary` path, while `--reuse-values` can also omit newly
+introduced parent maps such as `networkPolicy`. Export the release overrides
+with
+`(umask 077 && touch retained-values.yaml && chmod 600 retained-values.yaml && helm get values RELEASE -n NAMESPACE -o yaml > retained-values.yaml)`
+so the file has owner-only permissions before Helm writes to it, even if it
+already exists. In that file, move every
+`mysql.primary` setting to the equivalent `mysql.standalone` path and remove
+the `mysql.primary` map. On Helm versions that support `--hide-secret`, preview
+with
+`helm upgrade RELEASE helmforge/matomo -n NAMESPACE --reset-values -f retained-values.yaml --dry-run --hide-secret`.
+Then perform the actual upgrade, without either preview-only flag, with
+`helm upgrade RELEASE helmforge/matomo -n NAMESPACE --reset-values -f retained-values.yaml`.
+Use this migrated-file upgrade procedure for every affected release, regardless
+of Helm version. If `--hide-secret` is unavailable, skip the preview rather than
+expose rendered Secret manifests. Keep any remaining sensitive output in a
+trusted environment and out of logs. Use an equivalent owner-only creation
+method on non-POSIX systems and remove `retained-values.yaml` immediately after
+the upgrade.
+
 The default `5.14.2-apache` image contains PHP 8.4.27, including the fixes for
 the critical PHP vulnerabilities referenced by the Matomo 5.14.2 security
 notice. Use the new immutable Matomo tag rather than relying on a rebuilt older
