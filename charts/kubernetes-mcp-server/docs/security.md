@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Kubernetes MCP Server Security
 
 ## Read-Only Default
@@ -14,6 +16,11 @@ rbac:
 ```
 
 This keeps the server useful for diagnostics while avoiding cluster mutations.
+
+The official image runs as UID/GID `65532`. The chart enforces that identity,
+`RuntimeDefault` seccomp, a read-only root filesystem, dropped Linux
+capabilities, and disabled privilege escalation by default. The ServiceAccount
+token remains mounted because in-cluster Kubernetes authentication requires it.
 
 ## Write Access
 

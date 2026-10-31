@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Kubernetes MCP Server Operations
 
 ## Access

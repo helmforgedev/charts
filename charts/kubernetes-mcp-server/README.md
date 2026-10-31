@@ -1,8 +1,19 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Kubernetes MCP Server Helm Chart
 
 Kubernetes MCP Server exposes Kubernetes cluster inspection and automation through the Model Context Protocol.
 This chart deploys the official `ghcr.io/containers/kubernetes-mcp-server:v0.0.67` image in HTTP mode with in-cluster authentication,
 read-only safety flags, and least-privilege RBAC by default.
+
+## Features
+
+- Official pinned upstream image and Streamable HTTP transport.
+- Read-only and destructive-operation safeguards enabled by default.
+- In-cluster ServiceAccount authentication with `view` RBAC by default.
+- Optional Ingress, Gateway API, NetworkPolicy, persistence, and PDB resources.
+- Restricted pod and container security contexts matching upstream UID 65532.
+- ConfigMap checksum rollouts for custom TOML configuration.
 
 ## Install
 
@@ -20,7 +31,51 @@ Defaults:
 - `--disable-multi-cluster`
 - ServiceAccount bound to the Kubernetes `view` ClusterRole
 
-## Production Safety
+## Configuration
+
+The process listener is configured with `app.port`; `service.port` controls the
+client-facing Service port. Use `app.env` for explicit variables, `app.envFrom`
+for Secret or ConfigMap sources, and `mcp.configToml` for a complete upstream
+configuration file.
+
+| Value | Default | Purpose |
+|---|---|---|
+| `mcp.readOnly` | `true` | Disables mutating Kubernetes operations. |
+| `mcp.disableDestructive` | `true` | Disables destructive tools. |
+| `rbac.clusterRoleName` | `view` | Selects the ClusterRole bound to the pod. |
+| `app.port` | `8080` | Sets the actual MCP HTTP listener. |
+| `service.port` | `8080` | Sets the Service port exposed to clients. |
+| `mcp.configToml` | empty | Mounts a complete TOML configuration file. |
+| `networkPolicy.enabled` | `false` | Enables ingress and egress isolation. |
+
+See [Operations](docs/operations.md), [Security](docs/security.md), and
+[RBAC](docs/rbac.md) for the complete operational contract.
+
+## Examples
+
+Install the read-only default profile and connect locally:
+
+```bash
+helm install kubernetes-mcp-server helmforge/kubernetes-mcp-server
+kubectl port-forward svc/kubernetes-mcp-server 8080:8080
+```
+
+Render the maintained production example before applying it:
+
+```bash
+helm template kubernetes-mcp-server helmforge/kubernetes-mcp-server \
+  --values examples/production.yaml
+```
+
+## Architecture
+
+The Deployment receives MCP traffic through the Service and authenticates to
+the Kubernetes API with its ServiceAccount token. Optional Ingress and
+HTTPRoute resources expose the Service; the optional TOML ConfigMap and PVC are
+mounted directly into the pod. See [DESIGN.md](DESIGN.md) for the topology and
+trust boundaries.
+
+## Security
 
 Keep the default read-only profile for shared agent environments:
 
@@ -40,6 +95,12 @@ When `networkPolicy.enabled=true`, ingress is restricted to the configured peers
 Setting `networkPolicy.enabled=true` enables egress isolation with built-in DNS and HTTPS allowances; `networkPolicy.extraEgress` appends API server or proxy rules.
 Set `networkPolicy.dnsEgressPeers` when your cluster DNS pods do not use the default kube-system/kube-dns labels.
 
+The official image declares UID/GID `65532`. The chart applies that identity
+with a read-only root filesystem, dropped capabilities, no privilege
+escalation, and `RuntimeDefault` seccomp. These defaults do not change the
+application data or ServiceAccount token paths and remain configurable through
+`podSecurityContext` and `securityContext`.
+
 ## Upgrade Notes
 
 Version `0.0.67` removes the legacy SSE MCP transport, migrates token exchange
@@ -49,6 +110,22 @@ does not set the removed token-exchange options. Existing clients using SSE must
 migrate to Streamable HTTP. Optional upstream environment variables can be
 supplied through `app.extraEnv`; the default HTTP port and read-only chart
 profile are unchanged.
+
+The P2 quality update adds restrictive security defaults without renaming or
+removing values. Upgrades retain all existing value keys. The pinned upstream
+image already runs as UID/GID `65532`, so the explicit identity matches the
+previous runtime rather than changing it.
+
+## Troubleshooting
+
+- If the pod cannot reach Kubernetes, verify the ServiceAccount token and the
+  ClusterRoleBinding selected by `rbac.clusterRoleName`.
+- If probes fail after a port override, set `app.port` to the application
+  listener; changing only `service.port` does not reconfigure the process.
+- If NetworkPolicy is enabled, allow the cluster API endpoint through
+  `networkPolicy.extraEgress` when it is not covered by the built-in rules.
+- If a custom TOML file is rejected, inspect pod logs for the exact upstream
+  validation error; a config checksum automatically rolls out valid changes.
 
 ## Security Scan: `kubernetes-mcp-server`
 

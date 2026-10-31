@@ -1,28 +1,97 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Kubernetes MCP Server Chart Design
 
-This chart runs Kubernetes MCP Server as an in-cluster HTTP MCP endpoint.
-Unlike general web applications, this workload is a control-plane bridge: its effective permissions are the Kubernetes RBAC permissions granted
-to its ServiceAccount.
+## Scope
 
-## Runtime Model
+This chart runs the official Kubernetes MCP Server as an in-cluster Streamable
+HTTP endpoint. It supports inspection-oriented agent workloads, optional
+controlled write access, Ingress or Gateway API exposure, and optional
+persistence for operator-supplied data.
 
-- Workload: Deployment.
-- Protocol: MCP over HTTP.
-- Authentication to Kubernetes: in-cluster ServiceAccount token.
-- Default RBAC: ClusterRoleBinding to `view`.
-- Safety flags: read-only, destructive operations disabled, stateless mode.
+The workload is a control-plane bridge. Its effective permissions are always
+the intersection of the server safety flags, its Kubernetes RBAC binding, and
+any network controls applied by the cluster.
 
-Persistence is disabled by default.
-Because the workload is a Deployment, multi-replica releases with persistence enabled require `ReadWriteMany` storage; the chart rejects a shared `ReadWriteOnce` PVC for scaled deployments.
+## Architecture
 
-## Security Model
+```mermaid
+flowchart LR
+  client[MCP client] --> route[Ingress or HTTPRoute]
+  client --> svc[ClusterIP Service]
+  route --> svc
+  svc --> pod[Kubernetes MCP Server pod]
+  pod --> api[Kubernetes API server]
+  sa[ServiceAccount token] --> pod
+  role[ClusterRole view by default] --> sa
+  config[Optional ConfigMap] --> pod
+  pvc[(Optional PVC)] --> pod
+  policy[Optional NetworkPolicy] --> pod
+```
 
-The chart defaults to inspection-only operation.
-Write access requires both command-line mode changes and stronger RBAC.
-Fully destructive write access is blocked by template validation unless `mcp.allowUnsafeWriteAccess=true` is set.
+The Deployment serves MCP over the named `http` port. The Service targets that
+named port so changing `app.port` updates the process listener without coupling
+it to the client-facing `service.port`.
+
+## Design Choices
+
+- Use the official `ghcr.io/containers/kubernetes-mcp-server` image.
+- Keep read-only, destructive-operation blocking, and stateless mode enabled by
+  default.
+- Bind the ServiceAccount to the built-in `view` ClusterRole by default instead
+  of creating broad chart-owned permissions.
+- Keep ServiceAccount token automounting enabled because in-cluster Kubernetes
+  authentication requires it.
+- Run with the UID and GID declared by the upstream image and apply
+  `RuntimeDefault` seccomp, dropped capabilities, no privilege escalation, and
+  a read-only root filesystem.
+- Trigger a Deployment rollout when the optional TOML ConfigMap changes.
+- Leave external exposure, persistence, and NetworkPolicy opt-in because their
+  correct configuration depends on the target cluster.
+
+## Production Boundary
+
+Production operators are responsible for authenticating and authorizing MCP
+clients before traffic reaches the chart, restricting network access, sizing
+resources, selecting durable storage when persistence is enabled, and backing
+up any persistent data before upgrades.
+
+Multi-replica releases with persistence require a storage class that supports
+`ReadWriteMany`. The chart rejects a shared `ReadWriteOnce` claim when replicas
+are scaled above one.
+
+## Security Boundary
+
+The default server flags and `view` ClusterRole provide inspection access but
+do not replace client authentication. Full write and destructive behavior is
+rejected unless `mcp.allowUnsafeWriteAccess=true` is explicitly set.
+
+The application needs its ServiceAccount token to call the Kubernetes API.
+Operators must not replace `rbac.clusterRoleName` with a broader role without
+also reviewing the MCP toolsets and exposure path. Secrets supplied through
+`app.env` or `app.envFrom` are referenced by the pod; inline values remain in
+Helm release state.
+
+## Observability Boundary
+
+Startup, readiness, and liveness probes verify the named TCP listener. Logs are
+written to the container stream and are not retained by the chart. Metrics and
+distributed tracing can be configured through upstream environment variables,
+but the chart does not create a ServiceMonitor because the pinned release does
+not expose a stable chart-level metrics contract.
+
+## Known Gaps
+
+- The chart does not provide MCP client authentication or authorization.
+- NetworkPolicy cannot infer the Kubernetes API endpoint on every cluster, so
+  operators may need to add API-server egress through `networkPolicy.extraEgress`.
+- The optional persistence mount is generic; the upstream server remains
+  stateless unless an operator configures a feature that writes to it.
+- Metrics scraping is not enabled by default.
 
 ## Non-Goals
 
 - Managing kubeconfigs for out-of-cluster access.
-- Granting cluster-admin by default.
+- Granting cluster-admin permissions by default.
 - Providing public internet exposure for a cluster-control MCP endpoint.
+- Managing an external identity proxy or MCP client credentials.
