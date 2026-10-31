@@ -80,6 +80,19 @@ with an explicit migration message instead of silently ignoring those values.
 For example, migrate `mysql.primary.persistence.size` to
 `mysql.standalone.persistence.size`.
 
+Do not upgrade from chart 2.4.x with `--reuse-values` alone. It can omit the
+newer `networkPolicy` parent map and make template rendering fail at
+`.Values.networkPolicy.enabled`. With Helm 3.14 or later, use
+`helm upgrade RELEASE helmforge/matomo --reset-then-reuse-values --dry-run`
+to preview the rendered release, then repeat the command without `--dry-run`.
+With Helm 3.13 or earlier, export the release overrides with
+`helm get values RELEASE -o yaml > retained-values.yaml`, preview with
+`helm upgrade RELEASE helmforge/matomo --reset-values -f retained-values.yaml --dry-run`,
+then repeat that command without `--dry-run`. The preview can contain rendered
+Kubernetes Secrets. Run it only in a trusted environment and keep its output
+out of logs. Create `retained-values.yaml` with permissions restricted to its
+owner and remove it immediately after the upgrade.
+
 The official image keeps its release code under `/usr/src/matomo`, while this
 chart persists `/var/www/html`. The `sync-matomo-code` init container copies the
 release files into the persistent volume on every web pod start, so changing

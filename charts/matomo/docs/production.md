@@ -11,6 +11,18 @@ Before upgrading from 2.4.x or earlier, move retained `mysql.primary.*` values
 to `mysql.standalone.*`. The chart deliberately rejects the obsolete path so
 persistence settings cannot be ignored silently.
 
+Do not use `--reuse-values` alone. With Helm 3.14 or later, use
+`helm upgrade RELEASE helmforge/matomo --reset-then-reuse-values --dry-run`
+to preview the release with defaults for newly introduced parent maps such as
+`networkPolicy`, then repeat the command without `--dry-run`. With Helm 3.13 or
+earlier, export the release overrides with
+`helm get values RELEASE -o yaml > retained-values.yaml`, preview with
+`helm upgrade RELEASE helmforge/matomo --reset-values -f retained-values.yaml --dry-run`,
+then repeat that command without `--dry-run`. Dry-run output can contain
+rendered Kubernetes Secrets; keep it in a trusted environment and out of logs.
+Restrict `retained-values.yaml` to its owner and remove it immediately after
+the upgrade.
+
 The default `5.14.2-apache` image contains PHP 8.4.27, including the fixes for
 the critical PHP vulnerabilities referenced by the Matomo 5.14.2 security
 notice. Use the new immutable Matomo tag rather than relying on a rebuilt older
