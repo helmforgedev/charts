@@ -2,7 +2,7 @@
 
 # phpMyAdmin
 
-A Helm chart for deploying [phpMyAdmin](https://www.phpmyadmin.net/) on Kubernetes with the official `phpmyadmin/phpmyadmin` image.
+A Helm chart for deploying [phpMyAdmin](https://www.phpmyadmin.net/) on Kubernetes with the official `phpmyadmin` image.
 
 phpMyAdmin is a web UI for administering MySQL and MariaDB. This chart supports development installs,
 internal administration portals, and hardened production-style deployments with External Secrets,
@@ -40,7 +40,7 @@ Open `http://localhost:8080/`.
 
 ## Feature Summary
 
-- Official `phpmyadmin/phpmyadmin` container image.
+- Official `phpmyadmin` container image.
 - Single-server, multi-server, and arbitrary-server login modes.
 - Cookie, config, HTTP, and signon auth mode selection.
 - Optional auto-login with inline Secret, existing Secret, or External Secrets Operator.
