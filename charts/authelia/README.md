@@ -179,8 +179,11 @@ editing the configuration.
 
 Do not upgrade from chart 1.5.17 with `--reuse-values` alone. It can omit the
 newer `networkPolicy` parent map and make template rendering fail at
-`.Values.networkPolicy.enabled`. Use `helm upgrade --reset-then-reuse-values`
-and review the rendered diff before applying the upgrade.
+`.Values.networkPolicy.enabled`. With Helm 3.14 or later, use
+`helm upgrade --reset-then-reuse-values` and review the rendered diff before
+applying the upgrade. With Helm 3.13 or earlier, export the release overrides
+with `helm get values RELEASE -o yaml > retained-values.yaml`, then pass them
+to `helm upgrade --reset-values -f retained-values.yaml RELEASE CHART`.
 
 ## Security
 
