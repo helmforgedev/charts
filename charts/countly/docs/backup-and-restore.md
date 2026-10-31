@@ -25,6 +25,11 @@ backup:
       - --readPreference=secondaryPreferred
 ```
 
+Legacy releases accepted a space-delimited string. That form remains supported
+so existing Helm values continue to render, but new configurations should use
+the array form because each item is passed directly to `mongodump` without shell
+evaluation.
+
 The backup init container never passes a MongoDB URI or password on its command
 line. URI Secrets are mounted only into that container, and the script writes a
 mode `0600` `mongodump --config` file in an isolated in-memory volume. The

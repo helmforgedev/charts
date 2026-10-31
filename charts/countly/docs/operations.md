@@ -27,6 +27,17 @@ processes are listening. The API rejects incomplete event requests by design.
 
 ## Upgrades
 
+Releases before the array-based backup contract may retain a string in
+`backup.database.mongodumpArgs`. The chart converts that legacy space-delimited
+string to individual arguments during rendering. Migrate the value to an array
+when next editing the release configuration.
+
+Do not use `--reuse-values` for this upgrade. It can retain removed chart
+defaults and fail schema validation for required Countly 1.2.0 fields such as
+`serviceAccount.automountServiceAccountToken`. Prefer
+`helm upgrade --reset-then-reuse-values`, then review the rendered diff before
+applying it.
+
 1. Back up MongoDB and verify the resulting object.
 2. Review Countly release notes and enabled plugin compatibility.
 3. Update the chart repository and inspect the rendered diff.

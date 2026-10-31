@@ -61,11 +61,27 @@ async function withForward(remotePort, check) {
   }
 }
 
-await withForward(values.service.port, async port => {
+async function withForwardRetry(remotePort, check, attempts = 3) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      await withForward(remotePort, check);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+  }
+  throw lastError;
+}
+
+await withForwardRetry(values.service.port, async port => {
   const response = await fetch(`http://127.0.0.1:${port}/`, {signal: AbortSignal.timeout(15000), redirect: 'manual'});
   assert.ok(response.status >= 200 && response.status < 500, `Dashboard returned HTTP ${response.status}`);
 });
-await withForward(values.service.apiPort, async port => {
+await withForwardRetry(values.service.apiPort, async port => {
   const response = await fetch(`http://127.0.0.1:${port}/i`, {signal: AbortSignal.timeout(15000), redirect: 'manual'});
   assert.ok(response.status >= 200 && response.status < 500, `Ingestion API returned HTTP ${response.status}`);
 });

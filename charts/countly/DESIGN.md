@@ -9,6 +9,18 @@ NetworkPolicy, and optional MongoDB-to-S3 backup CronJob.
 
 ## Architecture
 
+```mermaid
+flowchart LR
+    SDK[Countly SDK clients] --> API[Service API port]
+    User[Dashboard users] --> Web[Ingress or HTTPRoute]
+    Web --> Dashboard[Service dashboard port]
+    API --> Pod[Countly API and dashboard pod]
+    Dashboard --> Pod
+    Pod --> Mongo[(Bundled or external MongoDB)]
+    Backup[Backup CronJob] --> Mongo
+    Backup --> S3[(S3-compatible storage)]
+```
+
 One Countly pod runs the upstream API and dashboard processes. The API listener
 receives SDK events on `countly.apiPort`; the dashboard listener serves the web
 application on `countly.dashboardPort`. The Service publishes those listeners
@@ -30,8 +42,9 @@ existing Secret, or through External Secrets.
   network boundary.
 - The backup is a two-container pipeline: `mongodump` writes a temporary
   archive and the uploader transfers it to S3-compatible storage.
-- `mongodumpArgs` is an array and is passed as arguments, not evaluated as shell
-  source.
+- `mongodumpArgs` uses an array and is passed as arguments, not evaluated as
+  shell source. Legacy space-delimited strings are split into arguments for
+  upgrade compatibility.
 
 ## Production Boundary
 
