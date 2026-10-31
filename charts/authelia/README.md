@@ -177,6 +177,11 @@ For upgrades from releases before 1.5.18, retained `config.server.address` and
 over the new default ports. Migrate those addresses to `containerPorts` when
 editing the configuration.
 
+Do not upgrade from chart 1.5.17 with `--reuse-values` alone. It can omit the
+newer `networkPolicy` parent map and make template rendering fail at
+`.Values.networkPolicy.enabled`. Use `helm upgrade --reset-then-reuse-values`
+and review the rendered diff before applying the upgrade.
+
 ## Security
 
 Use stable existing Secrets or External Secrets for the JWT, session and storage
