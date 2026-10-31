@@ -17,10 +17,12 @@ rbac:
 
 This keeps the server useful for diagnostics while avoiding cluster mutations.
 
-The official image runs as UID/GID `65532`. The chart enforces that identity,
-`RuntimeDefault` seccomp, a read-only root filesystem, dropped Linux
-capabilities, and disabled privilege escalation by default. The ServiceAccount
-token remains mounted because in-cluster Kubernetes authentication requires it.
+The official image runs as UID/GID `65532`. The chart requires a non-root
+identity without fixing numeric IDs, which allows OpenShift SCCs to assign the
+namespace-specific ranges they require. It also enables `RuntimeDefault`
+seccomp, a read-only root filesystem, dropped Linux capabilities, and disabled
+privilege escalation by default. The ServiceAccount token remains mounted
+because in-cluster Kubernetes authentication requires it.
 
 ## Write Access
 

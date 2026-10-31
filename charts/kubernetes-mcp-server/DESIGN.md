@@ -42,10 +42,13 @@ it to the client-facing `service.port`.
   of creating broad chart-owned permissions.
 - Keep ServiceAccount token automounting enabled because in-cluster Kubernetes
   authentication requires it.
-- Run with the UID and GID declared by the upstream image and apply
-  `RuntimeDefault` seccomp, dropped capabilities, no privilege escalation, and
-  a read-only root filesystem.
-- Trigger a Deployment rollout when the optional TOML ConfigMap changes.
+- Require non-root execution without fixing a UID, GID, or `fsGroup`, allowing
+  OpenShift SCCs to assign namespace-specific IDs. Apply `RuntimeDefault`
+  seccomp, dropped capabilities, no privilege escalation, and a read-only root
+  filesystem.
+- Trigger a Deployment rollout when `mcp.configToml` changes through Helm.
+  Direct edits to the ConfigMap require an explicit Deployment restart because
+  the rendered checksum and `subPath` mount do not update in a running pod.
 - Leave external exposure, persistence, and NetworkPolicy opt-in because their
   correct configuration depends on the target cluster.
 
@@ -58,13 +61,19 @@ up any persistent data before upgrades.
 
 Multi-replica releases with persistence require a storage class that supports
 `ReadWriteMany`. The chart rejects a shared `ReadWriteOnce` claim when replicas
-are scaled above one.
+are scaled above one for chart-created claims. When `persistence.existingClaim`
+is set, the chart cannot inspect its access modes, so the operator must verify
+that the existing claim supports `ReadWriteMany` before scaling.
 
 ## Security Boundary
 
 The default server flags and `view` ClusterRole provide inspection access but
 do not replace client authentication. Full write and destructive behavior is
-rejected unless `mcp.allowUnsafeWriteAccess=true` is explicitly set.
+rejected unless `mcp.allowUnsafeWriteAccess=true` is explicitly set when the
+chart generates arguments from `mcp.*`. A nonempty `app.args` replaces every
+generated safety flag; include `--read-only` or `--disable-destructive` there to
+retain those protections. The default `view` ClusterRole still blocks writes,
+and write access also requires an explicitly bound write-capable role.
 
 The application needs its ServiceAccount token to call the Kubernetes API.
 Operators must not replace `rbac.clusterRoleName` with a broader role without

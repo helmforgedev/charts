@@ -12,7 +12,7 @@ read-only safety flags, and least-privilege RBAC by default.
 - Read-only and destructive-operation safeguards enabled by default.
 - In-cluster ServiceAccount authentication with `view` RBAC by default.
 - Optional Ingress, Gateway API, NetworkPolicy, persistence, and PDB resources.
-- Restricted pod and container security contexts matching upstream UID 65532.
+- Restricted pod and container security contexts compatible with OpenShift SCCs.
 - ConfigMap checksum rollouts for custom TOML configuration.
 
 ## Install
@@ -57,14 +57,16 @@ Install the read-only default profile and connect locally:
 
 ```bash
 helm install kubernetes-mcp-server helmforge/kubernetes-mcp-server
-kubectl port-forward svc/kubernetes-mcp-server 8080:8080
+kubectl port-forward svc/kubernetes-mcp-server-kubernetes-mcp-server 8080:8080
 ```
 
 Render the maintained production example before applying it:
 
 ```bash
+curl -fsSLo kubernetes-mcp-server-production.yaml \
+  https://raw.githubusercontent.com/helmforgedev/charts/main/charts/kubernetes-mcp-server/examples/production.yaml
 helm template kubernetes-mcp-server helmforge/kubernetes-mcp-server \
-  --values examples/production.yaml
+  --values kubernetes-mcp-server-production.yaml
 ```
 
 ## Architecture
@@ -95,11 +97,11 @@ When `networkPolicy.enabled=true`, ingress is restricted to the configured peers
 Setting `networkPolicy.enabled=true` enables egress isolation with built-in DNS and HTTPS allowances; `networkPolicy.extraEgress` appends API server or proxy rules.
 Set `networkPolicy.dnsEgressPeers` when your cluster DNS pods do not use the default kube-system/kube-dns labels.
 
-The official image declares UID/GID `65532`. The chart applies that identity
-with a read-only root filesystem, dropped capabilities, no privilege
-escalation, and `RuntimeDefault` seccomp. These defaults do not change the
-application data or ServiceAccount token paths and remain configurable through
-`podSecurityContext` and `securityContext`.
+The official image declares UID/GID `65532`, but the chart does not fix those
+IDs so OpenShift SCCs can assign namespace-specific values. It requires
+non-root execution with a read-only root filesystem, dropped capabilities, no
+privilege escalation, and `RuntimeDefault` seccomp. These settings remain
+configurable through `podSecurityContext` and `securityContext`.
 
 ## Upgrade Notes
 
@@ -113,8 +115,8 @@ profile are unchanged.
 
 The P2 quality update adds restrictive security defaults without renaming or
 removing values. Upgrades retain all existing value keys. The pinned upstream
-image already runs as UID/GID `65532`, so the explicit identity matches the
-previous runtime rather than changing it.
+image already runs as a non-root user, while OpenShift may safely assign a
+different non-root identity.
 
 ## Troubleshooting
 
