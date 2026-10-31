@@ -33,7 +33,12 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.podSecurityContext }}
+      {{- $podSecurityContext := deepCopy (.Values.podSecurityContext | default dict) }}
+      {{- $runAsUserIsZero := and (hasKey $podSecurityContext "runAsUser") (eq (toString (index $podSecurityContext "runAsUser")) "0") }}
+      {{- if and (not (hasKey $podSecurityContext "runAsNonRoot")) (not $runAsUserIsZero) }}
+      {{- $_ := set $podSecurityContext "runAsNonRoot" true }}
+      {{- end }}
+      {{- with $podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}

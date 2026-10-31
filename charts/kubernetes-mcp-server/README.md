@@ -103,6 +103,11 @@ non-root execution with a read-only root filesystem, dropped capabilities, no
 privilege escalation, and `RuntimeDefault` seccomp. These settings remain
 configurable through `podSecurityContext` and `securityContext`.
 
+For upgrade compatibility, an existing `podSecurityContext.runAsUser: 0`
+override without `runAsNonRoot` remains valid and suppresses the chart's
+automatic non-root flag. Set `runAsNonRoot` explicitly when both keys are
+intended. New installations use non-root execution by default.
+
 ## Upgrade Notes
 
 Version `0.0.67` removes the legacy SSE MCP transport, migrates token exchange

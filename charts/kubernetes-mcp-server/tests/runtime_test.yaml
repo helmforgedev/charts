@@ -41,6 +41,36 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].securityContext.capabilities.drop
           content: ALL
+  - it: preserves a legacy root user override without creating a conflicting non-root flag
+    template: templates/deployment.yaml
+    set:
+      podSecurityContext.runAsUser: 0
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 0
+      - notExists:
+          path: spec.template.spec.securityContext.runAsNonRoot
+  - it: preserves an explicit non-root override
+    template: templates/deployment.yaml
+    set:
+      podSecurityContext.runAsNonRoot: false
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: false
+  - it: does not hide an explicitly conflicting security context
+    template: templates/deployment.yaml
+    set:
+      podSecurityContext.runAsUser: 0
+      podSecurityContext.runAsNonRoot: true
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 0
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
   - it: renders TOML config file
     values:
       - config-values.yaml

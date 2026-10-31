@@ -24,6 +24,11 @@ seccomp, a read-only root filesystem, dropped Linux capabilities, and disabled
 privilege escalation by default. The ServiceAccount token remains mounted
 because in-cluster Kubernetes authentication requires it.
 
+The non-root flag is applied by the template when neither an explicit
+`runAsNonRoot` value nor `runAsUser: 0` is present. This preserves legacy root
+overrides during upgrades. Prefer the non-root default; root execution remains
+an explicit operator decision.
+
 ## Write Access
 
 Write access requires all of the following:

@@ -42,9 +42,11 @@ it to the client-facing `service.port`.
   of creating broad chart-owned permissions.
 - Keep ServiceAccount token automounting enabled because in-cluster Kubernetes
   authentication requires it.
-- Require non-root execution without fixing a UID, GID, or `fsGroup`, allowing
-  OpenShift SCCs to assign namespace-specific IDs. Apply `RuntimeDefault`
-  seccomp, dropped capabilities, no privilege escalation, and a read-only root
+- Require non-root execution by default without fixing a UID, GID, or
+  `fsGroup`, allowing OpenShift SCCs to assign namespace-specific IDs. A legacy
+  `runAsUser: 0` override suppresses the automatic non-root flag unless the
+  operator explicitly sets `runAsNonRoot`. Apply `RuntimeDefault` seccomp,
+  dropped capabilities, no privilege escalation, and a read-only root
   filesystem.
 - Trigger a Deployment rollout when `mcp.configToml` changes through Helm.
   Direct edits to the ConfigMap require an explicit Deployment restart because
