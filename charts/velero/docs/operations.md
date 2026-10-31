@@ -18,6 +18,20 @@ Changing `metrics.containerPort` updates the Velero process argument, container
 port, probes, and named Service target together. `metrics.service.port` changes
 only the Service-facing port.
 
+Charts before 1.6 used `configuration.metricsAddress` and `extraObjects`.
+Retained values using those names remain supported: `metricsAddress` overrides
+the default process listener and `extraObjects` is rendered together with
+`extraManifests`. Migrate to `metrics.containerPort` and `extraManifests` when
+editing the configuration.
+
+Do not upgrade from chart 1.5.1 with `--reuse-values` alone. It can omit the
+newer `networkPolicy` parent map and make template rendering fail at
+`.Values.networkPolicy.enabled`. With Helm 3.14 or later, use
+`helm upgrade --reset-then-reuse-values` and review the rendered diff before
+applying the upgrade. With Helm 3.13 or earlier, export the release overrides
+with `helm get values RELEASE -o yaml > retained-values.yaml`, then pass them
+to `helm upgrade --reset-values -f retained-values.yaml RELEASE CHART`.
+
 ## Backup Verification
 
 Create a small backup and inspect its phase and logs:

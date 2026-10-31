@@ -61,6 +61,15 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if and .Values.credentials.useSecret (or .Values.credentials.existingSecret .Values.credentials.name .Values.credentials.secretContents) -}}true{{- end -}}
 {{- end -}}
 
+{{/* Resolve the metrics listener, preserving the pre-1.6 metricsAddress value. */}}
+{{- define "velero.metricsContainerPort" -}}
+{{- if .Values.configuration.metricsAddress -}}
+{{- trimPrefix ":" .Values.configuration.metricsAddress -}}
+{{- else -}}
+{{- .Values.metrics.containerPort -}}
+{{- end -}}
+{{- end -}}
+
 {{/*
 Compile all validation warnings and fail if any violation is found
 */}}
