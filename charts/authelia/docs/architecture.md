@@ -15,7 +15,9 @@ generates Authelia's address configuration from these values; the defaults are
 
 Retained `config.server.address` and `config.telemetry.metrics.address` values
 from chart releases before 1.5.18 remain upgrade-compatible and override the
-new default ports. New configuration should use `containerPorts`.
+corresponding `containerPorts` values until removed. Remove the matching legacy
+address before changing a listener through `containerPorts`; new configuration
+should use `containerPorts` directly.
 
 ## Configuration
 

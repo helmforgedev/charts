@@ -355,8 +355,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $cfg := deepCopy .Values.config -}}
 
 {{/* Keep Kubernetes ports and the actual Authelia listeners under one contract. */}}
-{{- $_ := set $cfg.server "address" (printf "tcp://:%d/" (int (include "authelia.httpContainerPort" .))) -}}
-{{- $_ := set $cfg.telemetry.metrics "address" (printf "tcp://:%d/metrics" (int (include "authelia.metricsContainerPort" .))) -}}
+{{- $serverAddress := .Values.config.server.address | default (printf "tcp://:%d/" (int .Values.containerPorts.http)) -}}
+{{- $_ := set $cfg.server "address" $serverAddress -}}
+{{- $metricsAddress := .Values.config.telemetry.metrics.address | default (printf "tcp://:%d/metrics" (int .Values.containerPorts.metrics)) -}}
+{{- $_ := set $cfg.telemetry.metrics "address" $metricsAddress -}}
 
 {{/* Override storage based on database.type */}}
 {{- $dbType := include "authelia.dbType" . -}}
