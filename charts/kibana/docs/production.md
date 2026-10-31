@@ -2,24 +2,23 @@
 
 ## Upgrade preparation
 
-Chart 1.2 upgrades the bundled Elasticsearch dependency to 2.x. Migrate custom
+Chart 1.2 upgrades the bundled Elasticsearch dependency to 2.x. Export the
+release overrides, then edit `retained-values.yaml` to move custom
 `bundled-elasticsearch.resources` values to
-`bundled-elasticsearch.master.resources` before upgrading and review the
-dependency's storage and security contracts. Retained `service.targetPort:
+`bundled-elasticsearch.master.resources`. Review the dependency's storage and
+security contracts before upgrading. Retained `service.targetPort:
 http` remains compatible, as does a retained integer or string target equal to
 `containerPorts.http`. A divergent legacy target must be replaced by the real
 Kibana listener.
 
-Do not upgrade from chart 1.1.x with `--reuse-values` alone. With Helm 3.14 or
-later, use
-`helm upgrade RELEASE helmforge/kibana --reset-then-reuse-values --dry-run`
-to preview the release with defaults for newly introduced parent maps such as
-`networkPolicy`, then repeat the command without `--dry-run`. With Helm 3.13 or
-earlier, export the release overrides with
+Do not upgrade from chart 1.1.x with `--reuse-values` alone. Export the release
+overrides with
 `(umask 077 && helm get values RELEASE -o yaml > retained-values.yaml)` so the
-file is created with owner-only permissions, then preview with
+file is created with owner-only permissions. Apply the Elasticsearch value
+migration described above, then preview with
 `helm upgrade RELEASE helmforge/kibana --reset-values -f retained-values.yaml --dry-run`,
-then repeat that command without `--dry-run`. Dry-run output can contain
+then repeat that command without `--dry-run`. This migrated-file procedure
+applies to every Helm version for affected releases. Dry-run output can contain
 rendered Kubernetes Secrets; keep it in a trusted environment and out of logs.
 Use an equivalent owner-only creation method on non-POSIX systems and remove
 `retained-values.yaml` immediately after the upgrade.

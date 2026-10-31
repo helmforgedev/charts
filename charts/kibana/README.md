@@ -68,25 +68,26 @@ A retained integer or string target equal to `containerPorts.http` is also
 accepted. Only a divergent target is rejected with migration guidance so
 routing cannot silently diverge from Kibana's real listener.
 
-The bundled Elasticsearch dependency moved from 1.x to 2.x. Before upgrading,
-move custom `bundled-elasticsearch.resources` settings to
+The bundled Elasticsearch dependency moved from 1.x to 2.x. Export the release
+overrides, then edit `retained-values.yaml` to move custom
+`bundled-elasticsearch.resources` settings to
 `bundled-elasticsearch.master.resources`. The Elasticsearch dependency schema
 rejects the obsolete path instead of ignoring it. Review the Elasticsearch 2.x
 storage and security contracts before upgrading a persistent bundled cluster.
 
 Do not upgrade from chart 1.1.x with `--reuse-values` alone. It can omit the
 newer `networkPolicy` parent map and make template rendering fail at
-`.Values.networkPolicy.enabled`. With Helm 3.14 or later, use
-`helm upgrade RELEASE helmforge/kibana --reset-then-reuse-values --dry-run`
-to preview the rendered release, then repeat the command without `--dry-run`.
-With Helm 3.13 or earlier, export the release overrides with
+`.Values.networkPolicy.enabled`. Export the release overrides with
 `(umask 077 && helm get values RELEASE -o yaml > retained-values.yaml)` so the
-file is created with owner-only permissions, then preview with
+file is created with owner-only permissions. Apply the Elasticsearch value
+migration described above, then preview with
 `helm upgrade RELEASE helmforge/kibana --reset-values -f retained-values.yaml --dry-run`,
-then repeat that command without `--dry-run`. The preview can contain rendered
-Kubernetes Secrets. Run it only in a trusted environment and keep its output
-out of logs. Use an equivalent owner-only creation method on non-POSIX systems
-and remove `retained-values.yaml` immediately after the upgrade.
+then repeat that command without `--dry-run`. Use this migrated-file procedure
+with every Helm version for releases retaining the obsolete Elasticsearch path.
+The preview can contain rendered Kubernetes Secrets. Run it only in a trusted
+environment and keep its output out of logs. Use an equivalent owner-only
+creation method on non-POSIX systems and remove `retained-values.yaml`
+immediately after the upgrade.
 
 ## Production Notes
 
