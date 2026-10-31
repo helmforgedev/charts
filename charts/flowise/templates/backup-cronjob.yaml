@@ -46,7 +46,11 @@ spec:
             - name: postgres-backup
               image: {{ .Values.backup.images.postgresql | quote }}
               command: ["/bin/sh", "/scripts/postgres-backup.sh"]
-              {{- with .Values.backup.database.pgDumpArgs }}
+              {{- $pgDumpArgs := .Values.backup.database.pgDumpArgs }}
+              {{- if kindIs "string" $pgDumpArgs }}
+              {{- $pgDumpArgs = compact (regexSplit "\\s+" (trim $pgDumpArgs) -1) }}
+              {{- end }}
+              {{- with $pgDumpArgs }}
               args:
                 {{- toYaml . | nindent 16 }}
               {{- end }}

@@ -22,6 +22,16 @@ only after measuring model-provider limits and memory use.
 
 ## Upgrades
 
+Existing releases may retain a space-delimited string in
+`backup.database.pgDumpArgs`. The chart converts that legacy form to individual
+arguments. Convert the setting to an array when next editing the release
+configuration.
+
+Do not upgrade from Flowise chart 1.3.13 with `--reuse-values` alone. It can
+omit the newer `networkPolicy` parent map and make template rendering fail at
+`.Values.networkPolicy.enabled`. Use `helm upgrade --reset-then-reuse-values`
+and review the rendered diff before applying the upgrade.
+
 Back up the standalone PVC or PostgreSQL before upgrading. The change from
 `/root/.flowise` to `/home/node/.flowise` does not move files inside the PVC:
 both paths mount the PVC root. Custom absolute paths must be updated manually.
