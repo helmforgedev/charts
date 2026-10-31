@@ -60,6 +60,38 @@ service:
   port: 15602
 ```
 
+## Upgrade compatibility
+
+Chart 1.2 keeps the legacy `service.targetPort: http` value upgrade-compatible;
+the Service routes to the named listener managed by `containerPorts.http`.
+A retained integer or string target equal to `containerPorts.http` is also
+accepted. Only a divergent target is rejected with migration guidance so
+routing cannot silently diverge from Kibana's real listener.
+
+The bundled Elasticsearch dependency moved from 1.x to 2.x. Export the release
+overrides, then edit `retained-values.yaml` to move custom
+`bundled-elasticsearch.resources` settings to
+`bundled-elasticsearch.master.resources`. The Elasticsearch dependency schema
+rejects the obsolete path instead of ignoring it. Review the Elasticsearch 2.x
+storage and security contracts before upgrading a persistent bundled cluster.
+
+Do not upgrade from chart 1.1.x with `--reuse-values` alone. It can omit the
+newer `networkPolicy` parent map and make template rendering fail at
+`.Values.networkPolicy.enabled`. Export the release overrides with
+`(umask 077 && helm get values RELEASE -o yaml > retained-values.yaml)` so the
+file is created with owner-only permissions. Apply the Elasticsearch value
+migration described above. On Helm versions that support `--hide-secret`,
+preview with
+`helm upgrade RELEASE helmforge/kibana --reset-values -f retained-values.yaml --dry-run --hide-secret`.
+Then perform the actual upgrade, without either preview-only flag, with
+`helm upgrade RELEASE helmforge/kibana --reset-values -f retained-values.yaml`.
+Use this migrated-file upgrade procedure for every affected release, regardless
+of Helm version. If `--hide-secret` is unavailable, skip the preview rather than
+expose rendered Secret manifests. Run previews only in a trusted environment
+and keep any remaining sensitive output out of logs. Use an equivalent
+owner-only creation method on non-POSIX systems and remove
+`retained-values.yaml` immediately after the upgrade.
+
 ## Production Notes
 
 Use static encryption keys for HA deployments. Kibana uses these keys for

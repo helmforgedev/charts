@@ -1,5 +1,32 @@
 # Kibana Production Guide
 
+## Upgrade preparation
+
+Chart 1.2 upgrades the bundled Elasticsearch dependency to 2.x. Export the
+release overrides, then edit `retained-values.yaml` to move custom
+`bundled-elasticsearch.resources` values to
+`bundled-elasticsearch.master.resources`. Review the dependency's storage and
+security contracts before upgrading. Retained `service.targetPort:
+http` remains compatible, as does a retained integer or string target equal to
+`containerPorts.http`. A divergent legacy target must be replaced by the real
+Kibana listener.
+
+Do not upgrade from chart 1.1.x with `--reuse-values` alone. Export the release
+overrides with
+`(umask 077 && helm get values RELEASE -o yaml > retained-values.yaml)` so the
+file is created with owner-only permissions. Apply the Elasticsearch value
+migration described above. On Helm versions that support `--hide-secret`,
+preview with
+`helm upgrade RELEASE helmforge/kibana --reset-values -f retained-values.yaml --dry-run --hide-secret`.
+Then perform the actual upgrade, without either preview-only flag, with
+`helm upgrade RELEASE helmforge/kibana --reset-values -f retained-values.yaml`.
+Use this migrated-file upgrade procedure for every affected release, regardless
+of Helm version. If `--hide-secret` is unavailable, skip the preview rather than
+expose rendered Secret manifests. Keep any remaining sensitive output in a
+trusted environment and out of logs. Use an equivalent owner-only creation
+method on non-POSIX systems and remove `retained-values.yaml` immediately after
+the upgrade.
+
 Use production deployments with explicit Elasticsearch authentication, TLS, and
 stable encryption keys.
 
