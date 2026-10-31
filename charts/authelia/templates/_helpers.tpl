@@ -335,12 +335,28 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{/* Renders the Authelia configuration.yml, overriding storage    */}}
 {{/* and session.redis based on chart-level database/redis values  */}}
 
+{{- define "authelia.httpContainerPort" -}}
+{{- if .Values.config.server.address -}}
+{{- regexFind "[0-9]+" (last (splitList ":" .Values.config.server.address)) -}}
+{{- else -}}
+{{- .Values.containerPorts.http -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "authelia.metricsContainerPort" -}}
+{{- if .Values.config.telemetry.metrics.address -}}
+{{- regexFind "[0-9]+" (last (splitList ":" .Values.config.telemetry.metrics.address)) -}}
+{{- else -}}
+{{- .Values.containerPorts.metrics -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "authelia.configuration" -}}
 {{- $cfg := deepCopy .Values.config -}}
 
 {{/* Keep Kubernetes ports and the actual Authelia listeners under one contract. */}}
-{{- $_ := set $cfg.server "address" (printf "tcp://:%d/" (int .Values.containerPorts.http)) -}}
-{{- $_ := set $cfg.telemetry.metrics "address" (printf "tcp://:%d/metrics" (int .Values.containerPorts.metrics)) -}}
+{{- $_ := set $cfg.server "address" (printf "tcp://:%d/" (int (include "authelia.httpContainerPort" .))) -}}
+{{- $_ := set $cfg.telemetry.metrics "address" (printf "tcp://:%d/metrics" (int (include "authelia.metricsContainerPort" .))) -}}
 
 {{/* Override storage based on database.type */}}
 {{- $dbType := include "authelia.dbType" . -}}

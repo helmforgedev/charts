@@ -172,6 +172,11 @@ The chart uses HelmForge-maintained subcharts for optional stateful services:
 truth. The chart generates `server.address` and `telemetry.metrics.address` from
 them, so the process, probes and named Service targets remain aligned.
 
+For upgrades from releases before 1.5.18, retained `config.server.address` and
+`config.telemetry.metrics.address` values remain supported and take precedence
+over the new default ports. Migrate those addresses to `containerPorts` when
+editing the configuration.
+
 ## Security
 
 Use stable existing Secrets or External Secrets for the JWT, session and storage
@@ -189,7 +194,8 @@ proxy namespaces.
 - If the Pod does not become ready, inspect `/api/health`, application logs and
   database or Redis endpoints before restarting it.
 - If a custom port fails, confirm `containerPorts.http` or
-  `containerPorts.metrics`; do not set listener addresses under `config`.
+  `containerPorts.metrics`; legacy listener addresses under `config` take
+  precedence when retained from an older release.
 - If login redirects or cookies fail, verify the public Authelia URL, cookie
   domain, TLS scheme and reverse-proxy forwarded headers.
 - If MFA data cannot be decrypted, restore the matching database and original

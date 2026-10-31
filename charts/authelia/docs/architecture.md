@@ -13,6 +13,10 @@ The chart deploys a single-replica Deployment with `Recreate` strategy.
 generates Authelia's address configuration from these values; the defaults are
 9091 and 9959 respectively.
 
+Retained `config.server.address` and `config.telemetry.metrics.address` values
+from chart releases before 1.5.18 remain upgrade-compatible and override the
+new default ports. New configuration should use `containerPorts`.
+
 ## Configuration
 
 Authelia uses a YAML configuration file (`configuration.yml`) rendered as a Kubernetes Secret.
