@@ -1,6 +1,8 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 apiVersion: apps/v1
 kind: Deployment
+{{- $securityProfile := .Values.securityProfile | default dict }}
+{{- $securityProfileEnabled := get $securityProfile "enabled" | default false }}
 metadata:
   name: {{ include "cronicle.fullname" . }}
   labels:
@@ -25,6 +27,9 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
+      {{- if $securityProfileEnabled }}
+      automountServiceAccountToken: {{ get $securityProfile "automountServiceAccountToken" | default false }}
+      {{- end }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -35,7 +40,13 @@ spec:
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . }}
       {{- end }}
-      {{- with .Values.podSecurityContext }}
+      {{- $podSecurityContext := .Values.podSecurityContext }}
+      {{- if $securityProfileEnabled }}
+      {{- $defaultPodSecurityContext := dict "seccompProfile" (dict "type" "RuntimeDefault") }}
+      {{- $profilePodSecurityContext := get $securityProfile "podSecurityContext" | default $defaultPodSecurityContext }}
+      {{- $podSecurityContext = mergeOverwrite (deepCopy $profilePodSecurityContext) .Values.podSecurityContext }}
+      {{- end }}
+      {{- with $podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -96,7 +107,13 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.securityContext }}
+          {{- $securityContext := .Values.securityContext }}
+          {{- if $securityProfileEnabled }}
+          {{- $defaultContainerSecurityContext := dict "allowPrivilegeEscalation" false "capabilities" (dict "drop" (list "ALL")) }}
+          {{- $profileContainerSecurityContext := get $securityProfile "containerSecurityContext" | default $defaultContainerSecurityContext }}
+          {{- $securityContext = mergeOverwrite (deepCopy $profileContainerSecurityContext) .Values.securityContext }}
+          {{- end }}
+          {{- with $securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}

@@ -19,18 +19,12 @@ single-writer Kubernetes workload with durable filesystem state.
 
 ## Request Flow
 
-```text
-Browser
-   |
-   | port-forward or Ingress
-   v
-Kubernetes Service
-   |
-   v
-Cronicle web server on port 3012
-   |
-   +--> /opt/cronicle/conf/config.json
-   +--> /opt/cronicle/data
+```mermaid
+flowchart LR
+    Browser -->|port-forward or Ingress| Service[Kubernetes Service]
+    Service --> Web[Cronicle web server]
+    Config[config.json] --> Web
+    Web --> Data[/opt/cronicle/data]
 ```
 
 The default chart keeps access private. Operators can enable Ingress once the
@@ -38,13 +32,14 @@ public URL, TLS, and surrounding access controls are ready.
 
 ## Scheduler Flow
 
-```text
-Cronicle scheduler
-   |
-   +--> reads event definitions from /opt/cronicle/data
-   +--> starts jobs inside the Cronicle process
-   +--> writes run logs and history to /opt/cronicle/data
-   +--> sends SMTP notifications when configured
+```mermaid
+flowchart LR
+    Scheduler[Cronicle scheduler] --> State[Read event definitions]
+    Scheduler --> Jobs[Run jobs in the Cronicle process]
+    Jobs --> Logs[Write history and logs]
+    Scheduler --> SMTP[Send configured SMTP notifications]
+    State --> PVC[/opt/cronicle/data]
+    Logs --> PVC
 ```
 
 The chart does not create Kubernetes Jobs for each Cronicle event. Cronicle owns

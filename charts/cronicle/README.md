@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Cronicle Helm Chart
 
 Deploy [Cronicle](https://github.com/jhuckaby/Cronicle) on Kubernetes using the
@@ -65,6 +67,8 @@ kubectl port-forward svc/<release>-cronicle 3012:80
 | `ingress.enabled` | `false` | Enable ingress |
 | `ingress.ingressClassName` | `traefik` | Ingress class (traefik, nginx) |
 | `service.port` | `80` | Service port |
+| `securityProfile.enabled` | `false` | Enable the opt-in compatible hardening profile |
+| `networkPolicy.enabled` | `false` | Create the optional NetworkPolicy |
 
 ## Examples
 
@@ -87,6 +91,37 @@ kubectl port-forward svc/<release>-cronicle 3012:80
 - **Single instance recommended** — filesystem storage is single-writer; horizontal scaling requires shared storage or external database
 - **ReadWriteOnce** — default PVC uses ReadWriteOnce due to filesystem storage
 - **Community image** — uses `soulteary/cronicle` as Cronicle does not publish an official container image
+- **Root image** — the pinned image initializes as root; non-root and read-only-root-filesystem settings require a separately validated image
+
+## Upgrade Compatibility
+
+The P2 quality baseline adds documentation, schema coverage, an optional
+NetworkPolicy, and an optional security profile. Both new features default to
+disabled. The default Deployment keeps the same ServiceAccount token and empty
+security-context behavior as chart version `1.1.11`, so a normal upgrade does
+not change the runtime identity or connectivity of existing jobs.
+
+Validate an upgrade with the same values used by the release:
+
+```bash
+helm upgrade cronicle helmforge/cronicle --namespace cronicle --reuse-values
+kubectl rollout status deployment/cronicle-cronicle --namespace cronicle --timeout=300s
+```
+
+Enable `securityProfile.enabled=true` only after testing existing scheduled
+commands. The profile drops capabilities, blocks privilege escalation, uses
+RuntimeDefault seccomp, and disables ServiceAccount token automount. Explicit
+`podSecurityContext` and `securityContext` keys override profile defaults.
+
+## Troubleshooting
+
+- If the pod does not become ready, inspect `kubectl logs` and verify the PVC
+  is mounted at `/opt/cronicle/data`.
+- If jobs cannot reach dependencies after enabling a custom NetworkPolicy,
+  restore the required DNS, SMTP, and destination egress rules.
+- If an existing job needs a Linux capability or Kubernetes API token, disable
+  the security profile or add the smallest explicit override after review.
+- If UI links point to localhost, set `cronicle.baseUrl` to the public URL.
 
 ## Quality Gates
 

@@ -124,3 +124,58 @@ tests:
     asserts:
       - notExists:
           path: spec.template.spec.initContainers
+
+  - it: should preserve the legacy security contract by default
+    template: templates/deployment.yaml
+    asserts:
+      - notExists:
+          path: spec.template.spec.automountServiceAccountToken
+      - notExists:
+          path: spec.template.spec.securityContext
+      - notExists:
+          path: spec.template.spec.containers[0].securityContext
+
+  - it: should render when new profile values are absent during reuse-values upgrades
+    template: templates/deployment.yaml
+    set:
+      securityProfile: null
+      networkPolicy: null
+    asserts:
+      - isKind:
+          of: Deployment
+      - notExists:
+          path: spec.template.spec.automountServiceAccountToken
+      - notExists:
+          path: spec.template.spec.securityContext
+
+  - it: should apply the opt-in security profile
+    template: templates/deployment.yaml
+    set:
+      securityProfile.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+
+  - it: should preserve explicit security context overrides in the profile
+    template: templates/deployment.yaml
+    set:
+      securityProfile.enabled: true
+      podSecurityContext.seccompProfile.type: Unconfined
+      securityContext.allowPrivilegeEscalation: true
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: Unconfined
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: true
