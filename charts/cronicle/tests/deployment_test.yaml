@@ -179,3 +179,26 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
           value: true
+
+  - it: should retain profile defaults with partial profile contexts
+    template: templates/deployment.yaml
+    set:
+      securityProfile.enabled: true
+      securityProfile.podSecurityContext.fsGroup: 1000
+      securityProfile.containerSecurityContext.readOnlyRootFilesystem: false
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 1000
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
