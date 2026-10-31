@@ -46,10 +46,15 @@ valid.
 5. Confirm the worker stays available and executes a test workflow.
 6. Monitor PostgreSQL, Redis, restarts, and logs before promoting the release.
 
+Do not upgrade from chart 1.3.12 with `--reuse-values` alone. It can omit the
+newer `networkPolicy` parent map and make template rendering fail at
+`.Values.networkPolicy.enabled`. Use `--reset-then-reuse-values` and review the
+rendered diff before applying the upgrade.
+
 ```bash
 helm upgrade automatisch helmforge/automatisch \
   --namespace automatisch \
-  --reuse-values \
+  --reset-then-reuse-values \
   --wait \
   --timeout 10m
 ```
