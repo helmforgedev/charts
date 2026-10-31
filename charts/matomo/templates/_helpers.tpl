@@ -185,6 +185,7 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 
 {{- define "matomo.validate" -}}
+{{- if hasKey .Values.mysql "primary" -}}{{- fail "mysql.primary is no longer supported by the bundled MySQL dependency; migrate its settings to mysql.standalone before upgrading" -}}{{- end -}}
 {{- $databaseMode := include "matomo.databaseMode" . -}}
 {{- if and .Values.ingress.enabled (empty .Values.ingress.hosts) -}}{{- fail "ingress.hosts must contain at least one host when ingress.enabled=true" -}}{{- end -}}
 {{- if and .Values.gatewayAPI.enabled (empty .Values.gatewayAPI.httpRoutes) -}}{{- fail "gatewayAPI.httpRoutes must contain at least one route when gatewayAPI.enabled=true" -}}{{- end -}}

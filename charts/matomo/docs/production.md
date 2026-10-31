@@ -6,6 +6,11 @@ and generated assets. Back up both before upgrades.
 
 ## Application Upgrades
 
+Chart 2.5 and later use the bundled MySQL chart's `mysql.standalone` contract.
+Before upgrading from 2.4.x or earlier, move retained `mysql.primary.*` values
+to `mysql.standalone.*`. The chart deliberately rejects the obsolete path so
+persistence settings cannot be ignored silently.
+
 The default `5.14.2-apache` image contains PHP 8.4.27, including the fixes for
 the critical PHP vulnerabilities referenced by the Matomo 5.14.2 security
 notice. Use the new immutable Matomo tag rather than relying on a rebuilt older

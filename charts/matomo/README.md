@@ -73,6 +73,13 @@ ingress:
 
 ## Upgrades
 
+Before upgrading from chart 2.4.x or earlier, move every retained value under
+`mysql.primary` to the equivalent `mysql.standalone` path. The bundled
+HelmForge MySQL dependency no longer reads `mysql.primary`; the chart now fails
+with an explicit migration message instead of silently ignoring those values.
+For example, migrate `mysql.primary.persistence.size` to
+`mysql.standalone.persistence.size`.
+
 The official image keeps its release code under `/usr/src/matomo`, while this
 chart persists `/var/www/html`. The `sync-matomo-code` init container copies the
 release files into the persistent volume on every web pod start, so changing
