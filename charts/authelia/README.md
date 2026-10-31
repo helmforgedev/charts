@@ -187,6 +187,10 @@ With Helm 3.13 or earlier, export the release overrides with
 `helm get values RELEASE -o yaml > retained-values.yaml`, preview with
 `helm upgrade RELEASE helmforge/authelia --reset-values -f retained-values.yaml --dry-run`,
 then repeat that command without `--dry-run`.
+The preview can contain rendered Kubernetes Secrets. Run it only in a trusted
+environment and keep its output out of logs. Create `retained-values.yaml` with
+permissions restricted to its owner and remove it immediately after the
+upgrade.
 
 ## Security
 
@@ -257,7 +261,7 @@ configuration. Review all intervening releases:
 [4.39.28](https://github.com/authelia/authelia/releases/tag/v4.39.28).
 
 The bundled dependency baseline is PostgreSQL 2.1.1, MySQL 2.1.1 and Redis
-3.1.0. Their documented storage and authentication contracts remain unchanged.
+3.1.1. Their documented storage and authentication contracts remain unchanged.
 
 Authelia 4.39.21 changes storage encryption to use HKDF and authenticated
 additional data; 4.39.22 fixes the access-token JWT session migration. Back up
