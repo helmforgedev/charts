@@ -20,6 +20,57 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].args
           content: --cluster-provider=in-cluster
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - notExists:
+          path: spec.template.spec.securityContext.runAsUser
+      - notExists:
+          path: spec.template.spec.securityContext.runAsGroup
+      - notExists:
+          path: spec.template.spec.securityContext.fsGroup
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+  - it: preserves a legacy root user override without creating a conflicting non-root flag
+    template: templates/deployment.yaml
+    set:
+      podSecurityContext.runAsUser: 0
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 0
+      - notExists:
+          path: spec.template.spec.securityContext.runAsNonRoot
+  - it: preserves an explicit non-root override
+    template: templates/deployment.yaml
+    set:
+      podSecurityContext.runAsNonRoot: false
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: false
+  - it: does not hide an explicitly conflicting security context
+    template: templates/deployment.yaml
+    set:
+      podSecurityContext.runAsUser: 0
+      podSecurityContext.runAsNonRoot: true
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 0
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
   - it: renders TOML config file
     values:
       - config-values.yaml
@@ -34,6 +85,10 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].args
           content: --config
+        template: templates/deployment.yaml
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/config"]
+          pattern: "^[a-f0-9]{64}$"
         template: templates/deployment.yaml
   - it: renders persistence PVC and data mount
     set:

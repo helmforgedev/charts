@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Kubernetes MCP Server RBAC
 
 The chart creates a ClusterRoleBinding when:

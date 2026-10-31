@@ -17,9 +17,14 @@ spec:
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.podAnnotations }}
+      {{- if or .Values.podAnnotations .Values.mcp.configToml }}
       annotations:
+        {{- if .Values.mcp.configToml }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- end }}
     spec:
       serviceAccountName: {{ include "kubernetes-mcp-server.serviceAccountName" . }}
@@ -28,7 +33,12 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.podSecurityContext }}
+      {{- $podSecurityContext := deepCopy (.Values.podSecurityContext | default dict) }}
+      {{- $runAsUserIsZero := and (hasKey $podSecurityContext "runAsUser") (eq (toString (index $podSecurityContext "runAsUser")) "0") }}
+      {{- if and (not (hasKey $podSecurityContext "runAsNonRoot")) (not $runAsUserIsZero) }}
+      {{- $_ := set $podSecurityContext "runAsNonRoot" true }}
+      {{- end }}
+      {{- with $podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
