@@ -80,18 +80,25 @@ with an explicit migration message instead of silently ignoring those values.
 For example, migrate `mysql.primary.persistence.size` to
 `mysql.standalone.persistence.size`.
 
-Do not upgrade from chart 2.4.x with `--reuse-values` alone. It can omit the
-newer `networkPolicy` parent map and make template rendering fail at
-`.Values.networkPolicy.enabled`. With Helm 3.14 or later, use
-`helm upgrade RELEASE helmforge/matomo --reset-then-reuse-values --dry-run`
-to preview the rendered release, then repeat the command without `--dry-run`.
-With Helm 3.13 or earlier, export the release overrides with
-`helm get values RELEASE -o yaml > retained-values.yaml`, preview with
-`helm upgrade RELEASE helmforge/matomo --reset-values -f retained-values.yaml --dry-run`,
-then repeat that command without `--dry-run`. The preview can contain rendered
-Kubernetes Secrets. Run it only in a trusted environment and keep its output
-out of logs. Create `retained-values.yaml` with permissions restricted to its
-owner and remove it immediately after the upgrade.
+Do not upgrade from chart 2.4.x with `--reuse-values` or
+`--reset-then-reuse-values`. Those options retain the obsolete `mysql.primary`
+path, while `--reuse-values` can also omit the newer `networkPolicy` parent map
+and make template rendering fail at `.Values.networkPolicy.enabled`. Export the
+release overrides with
+`(umask 077 && helm get values RELEASE -o yaml > retained-values.yaml)` so the
+file is created with owner-only permissions. In that file, move every
+`mysql.primary` setting to the equivalent `mysql.standalone` path and remove
+the `mysql.primary` map. On Helm versions that support `--hide-secret`, preview
+with
+`helm upgrade RELEASE helmforge/matomo --reset-values -f retained-values.yaml --dry-run --hide-secret`.
+Then perform the actual upgrade, without either preview-only flag, with
+`helm upgrade RELEASE helmforge/matomo --reset-values -f retained-values.yaml`.
+Use this migrated-file upgrade procedure for every affected release, regardless
+of Helm version. If `--hide-secret` is unavailable, skip the preview rather than
+expose rendered Secret manifests. Run previews only in a trusted environment
+and keep any remaining sensitive output out of logs. Use an equivalent
+owner-only creation method on non-POSIX systems and remove
+`retained-values.yaml` immediately after the upgrade.
 
 The official image keeps its release code under `/usr/src/matomo`, while this
 chart persists `/var/www/html`. The `sync-matomo-code` init container copies the

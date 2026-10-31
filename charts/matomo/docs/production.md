@@ -11,16 +11,22 @@ Before upgrading from 2.4.x or earlier, move retained `mysql.primary.*` values
 to `mysql.standalone.*`. The chart deliberately rejects the obsolete path so
 persistence settings cannot be ignored silently.
 
-Do not use `--reuse-values` alone. With Helm 3.14 or later, use
-`helm upgrade RELEASE helmforge/matomo --reset-then-reuse-values --dry-run`
-to preview the release with defaults for newly introduced parent maps such as
-`networkPolicy`, then repeat the command without `--dry-run`. With Helm 3.13 or
-earlier, export the release overrides with
-`helm get values RELEASE -o yaml > retained-values.yaml`, preview with
-`helm upgrade RELEASE helmforge/matomo --reset-values -f retained-values.yaml --dry-run`,
-then repeat that command without `--dry-run`. Dry-run output can contain
-rendered Kubernetes Secrets; keep it in a trusted environment and out of logs.
-Restrict `retained-values.yaml` to its owner and remove it immediately after
+Do not use `--reuse-values` or `--reset-then-reuse-values`. Both retain the
+obsolete `mysql.primary` path, while `--reuse-values` can also omit newly
+introduced parent maps such as `networkPolicy`. Export the release overrides
+with `(umask 077 && helm get values RELEASE -o yaml > retained-values.yaml)` so
+the file is created with owner-only permissions. In that file, move every
+`mysql.primary` setting to the equivalent `mysql.standalone` path and remove
+the `mysql.primary` map. On Helm versions that support `--hide-secret`, preview
+with
+`helm upgrade RELEASE helmforge/matomo --reset-values -f retained-values.yaml --dry-run --hide-secret`.
+Then perform the actual upgrade, without either preview-only flag, with
+`helm upgrade RELEASE helmforge/matomo --reset-values -f retained-values.yaml`.
+Use this migrated-file upgrade procedure for every affected release, regardless
+of Helm version. If `--hide-secret` is unavailable, skip the preview rather than
+expose rendered Secret manifests. Keep any remaining sensitive output in a
+trusted environment and out of logs. Use an equivalent owner-only creation
+method on non-POSIX systems and remove `retained-values.yaml` immediately after
 the upgrade.
 
 The default `5.14.2-apache` image contains PHP 8.4.27, including the fixes for
