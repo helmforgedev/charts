@@ -24,6 +24,11 @@ the default process listener and `extraObjects` is rendered together with
 `extraManifests`. Migrate to `metrics.containerPort` and `extraManifests` when
 editing the configuration.
 
+Do not upgrade from chart 1.5.1 with `--reuse-values` alone. It can omit the
+newer `networkPolicy` parent map and make template rendering fail at
+`.Values.networkPolicy.enabled`. Use `helm upgrade --reset-then-reuse-values`
+and review the rendered diff before applying the upgrade.
+
 ## Backup Verification
 
 Create a small backup and inspect its phase and logs:
