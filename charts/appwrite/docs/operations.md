@@ -25,9 +25,17 @@ Secret referenced by the selected values. This includes external database,
 Redis, SMTP, and backup S3 credentials when configured. If those Secrets are
 managed by another system, include their separate restoration procedure in the
 recovery plan. Read the Appwrite release notes for every skipped version.
-Upgrade the chart with retained values, then run `migrate` in the API Deployment
-while traffic is paused. Verify the health endpoint, an existing account and
-project, worker logs, and persisted files before restoring traffic.
+When upgrading from chart 2.0.7, do not use `--reuse-values` alone: it can omit
+the newer `networkPolicy` parent map and make template rendering fail at
+`.Values.networkPolicy.enabled`. Use `helm upgrade --reset-then-reuse-values`
+and review the rendered diff. Then run `migrate` in the API Deployment while
+traffic is paused. Verify the health endpoint, an existing account and project,
+worker logs, and persisted files before restoring traffic.
+
+Legacy releases accepted `backup.database.mysqldumpArgs` as a
+whitespace-delimited string. That form remains supported during upgrades and is
+normalized to an argument list. Prefer a YAML array for new configuration so
+each argument is explicit and passed without shell evaluation.
 
 Never treat `helm rollback` as a database rollback. Restore the matching
 database, referenced Secrets, PVC snapshots, and old images together when a

@@ -47,7 +47,11 @@ spec:
               image: {{ .Values.backup.images.mariadb | quote }}
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "/scripts/mariadb-backup.sh"]
-              {{- with .Values.backup.database.mysqldumpArgs }}
+              {{- $mysqldumpArgs := .Values.backup.database.mysqldumpArgs }}
+              {{- if kindIs "string" $mysqldumpArgs }}
+              {{- $mysqldumpArgs = compact (regexSplit "[[:space:]\\p{Zs}]+" (trim $mysqldumpArgs) -1) }}
+              {{- end }}
+              {{- with $mysqldumpArgs }}
               args:
                 {{- toYaml . | nindent 16 }}
               {{- end }}
