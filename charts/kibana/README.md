@@ -81,13 +81,14 @@ newer `networkPolicy` parent map and make template rendering fail at
 `(umask 077 && helm get values RELEASE -o yaml > retained-values.yaml)` so the
 file is created with owner-only permissions. Apply the Elasticsearch value
 migration described above, then preview with
-`helm upgrade RELEASE helmforge/kibana --reset-values -f retained-values.yaml --dry-run`,
+`helm upgrade RELEASE helmforge/kibana --reset-values -f retained-values.yaml --dry-run --hide-secret`,
 then repeat that command without `--dry-run`. Use this migrated-file procedure
 with every Helm version for releases retaining the obsolete Elasticsearch path.
-The preview can contain rendered Kubernetes Secrets. Run it only in a trusted
-environment and keep its output out of logs. Use an equivalent owner-only
-creation method on non-POSIX systems and remove `retained-values.yaml`
-immediately after the upgrade.
+`--hide-secret` prevents Helm from printing rendered Kubernetes Secret
+manifests. Run the preview only in a trusted environment and keep any remaining
+sensitive output out of logs. Use an equivalent owner-only creation method on
+non-POSIX systems and remove `retained-values.yaml` immediately after the
+upgrade.
 
 ## Production Notes
 

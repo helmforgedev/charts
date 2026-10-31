@@ -16,11 +16,12 @@ overrides with
 `(umask 077 && helm get values RELEASE -o yaml > retained-values.yaml)` so the
 file is created with owner-only permissions. Apply the Elasticsearch value
 migration described above, then preview with
-`helm upgrade RELEASE helmforge/kibana --reset-values -f retained-values.yaml --dry-run`,
+`helm upgrade RELEASE helmforge/kibana --reset-values -f retained-values.yaml --dry-run --hide-secret`,
 then repeat that command without `--dry-run`. This migrated-file procedure
-applies to every Helm version for affected releases. Dry-run output can contain
-rendered Kubernetes Secrets; keep it in a trusted environment and out of logs.
-Use an equivalent owner-only creation method on non-POSIX systems and remove
+applies to every Helm version for affected releases. `--hide-secret` prevents
+Helm from printing rendered Kubernetes Secret manifests; keep any remaining
+sensitive output in a trusted environment and out of logs. Use an equivalent
+owner-only creation method on non-POSIX systems and remove
 `retained-values.yaml` immediately after the upgrade.
 
 Use production deployments with explicit Elasticsearch authentication, TLS, and
