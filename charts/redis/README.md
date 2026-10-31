@@ -277,6 +277,7 @@ cluster:
 Use the generic extension values when platform-specific integration is needed:
 
 - `commonLabels`
+- `commonAnnotations`
 - `podLabels`
 - `podAnnotations`
 - `annotations`
