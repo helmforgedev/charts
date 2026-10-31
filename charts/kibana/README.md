@@ -64,8 +64,9 @@ service:
 
 Chart 1.2 keeps the legacy `service.targetPort: http` value upgrade-compatible;
 the Service routes to the named listener managed by `containerPorts.http`.
-Any other retained target is rejected with migration guidance so routing cannot
-silently diverge from Kibana's real listener.
+A retained integer or string target equal to `containerPorts.http` is also
+accepted. Only a divergent target is rejected with migration guidance so
+routing cannot silently diverge from Kibana's real listener.
 
 The bundled Elasticsearch dependency moved from 1.x to 2.x. Before upgrading,
 move custom `bundled-elasticsearch.resources` settings to
@@ -79,12 +80,13 @@ newer `networkPolicy` parent map and make template rendering fail at
 `helm upgrade RELEASE helmforge/kibana --reset-then-reuse-values --dry-run`
 to preview the rendered release, then repeat the command without `--dry-run`.
 With Helm 3.13 or earlier, export the release overrides with
-`helm get values RELEASE -o yaml > retained-values.yaml`, preview with
+`(umask 077 && helm get values RELEASE -o yaml > retained-values.yaml)` so the
+file is created with owner-only permissions, then preview with
 `helm upgrade RELEASE helmforge/kibana --reset-values -f retained-values.yaml --dry-run`,
 then repeat that command without `--dry-run`. The preview can contain rendered
 Kubernetes Secrets. Run it only in a trusted environment and keep its output
-out of logs. Create `retained-values.yaml` with permissions restricted to its
-owner and remove it immediately after the upgrade.
+out of logs. Use an equivalent owner-only creation method on non-POSIX systems
+and remove `retained-values.yaml` immediately after the upgrade.
 
 ## Production Notes
 
