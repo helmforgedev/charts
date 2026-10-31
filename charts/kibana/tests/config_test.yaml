@@ -5,6 +5,31 @@ templates:
   - templates/secret.yaml
 
 tests:
+  - it: accepts the legacy default Service target during upgrades
+    template: templates/configmap.yaml
+    set:
+      service.targetPort: http
+    asserts:
+      - isKind:
+          of: ConfigMap
+
+  - it: accepts a retained numeric Service target matching the real listener
+    template: templates/configmap.yaml
+    set:
+      containerPorts.http: 15601
+      service.targetPort: 15601
+    asserts:
+      - isKind:
+          of: ConfigMap
+
+  - it: rejects a legacy Service target that differs from the real listener
+    template: templates/configmap.yaml
+    set:
+      service.targetPort: 5602
+    asserts:
+      - failedTemplate:
+          errorMessage: "service.targetPort is no longer an independent routing value; remove it and set containerPorts.http to the real Kibana listener"
+
   - it: renders kibana.yml with bundled Elasticsearch by default
     template: templates/configmap.yaml
     asserts:

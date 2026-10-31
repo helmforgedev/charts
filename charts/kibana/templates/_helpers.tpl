@@ -168,6 +168,10 @@ app.kubernetes.io/part-of: helmforge
 
 {{- define "kibana.validate" -}}
 {{- $auth := .Values.elasticsearch.auth.type -}}
+{{- $legacyTargetPort := get .Values.service "targetPort" -}}
+{{- if and $legacyTargetPort (ne (toString $legacyTargetPort) "http") (ne (toString $legacyTargetPort) (toString .Values.containerPorts.http)) -}}
+{{- fail "service.targetPort is no longer an independent routing value; remove it and set containerPorts.http to the real Kibana listener" -}}
+{{- end -}}
 {{- if hasKey .Values.extraConfig "server.port" -}}
 {{- fail "extraConfig must not override server.port; use containerPorts.http" -}}
 {{- end -}}
