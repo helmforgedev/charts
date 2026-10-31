@@ -167,6 +167,25 @@ tests:
           path: spec.jobTemplate.spec.template.spec.initContainers[0].args[1]
           value: --readPreference=secondaryPreferred
 
+  - it: should split multiline legacy mongodump arguments during upgrades
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: http://minio:9000
+      backup.s3.bucket: backups
+      backup.s3.accessKey: admin
+      backup.s3.secretKey: admin123
+      backup.database.mongodumpArgs: |-
+        --gzip
+        --readPreference=secondaryPreferred
+    template: backup-cronjob.yaml
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].args[0]
+          value: --gzip
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].args[1]
+          value: --readPreference=secondaryPreferred
+
   - it: should harden backup containers and disable API tokens
     set:
       backup.enabled: true
