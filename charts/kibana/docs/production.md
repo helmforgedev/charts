@@ -9,6 +9,19 @@ dependency's storage and security contracts. Retained `service.targetPort:
 http` remains compatible; any different legacy target must be replaced by the
 real `containerPorts.http` listener.
 
+Do not upgrade from chart 1.1.x with `--reuse-values` alone. With Helm 3.14 or
+later, use
+`helm upgrade RELEASE helmforge/kibana --reset-then-reuse-values --dry-run`
+to preview the release with defaults for newly introduced parent maps such as
+`networkPolicy`, then repeat the command without `--dry-run`. With Helm 3.13 or
+earlier, export the release overrides with
+`helm get values RELEASE -o yaml > retained-values.yaml`, preview with
+`helm upgrade RELEASE helmforge/kibana --reset-values -f retained-values.yaml --dry-run`,
+then repeat that command without `--dry-run`. Dry-run output can contain
+rendered Kubernetes Secrets; keep it in a trusted environment and out of logs.
+Restrict `retained-values.yaml` to its owner and remove it immediately after
+the upgrade.
+
 Use production deployments with explicit Elasticsearch authentication, TLS, and
 stable encryption keys.
 

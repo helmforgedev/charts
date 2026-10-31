@@ -73,6 +73,19 @@ move custom `bundled-elasticsearch.resources` settings to
 rejects the obsolete path instead of ignoring it. Review the Elasticsearch 2.x
 storage and security contracts before upgrading a persistent bundled cluster.
 
+Do not upgrade from chart 1.1.x with `--reuse-values` alone. It can omit the
+newer `networkPolicy` parent map and make template rendering fail at
+`.Values.networkPolicy.enabled`. With Helm 3.14 or later, use
+`helm upgrade RELEASE helmforge/kibana --reset-then-reuse-values --dry-run`
+to preview the rendered release, then repeat the command without `--dry-run`.
+With Helm 3.13 or earlier, export the release overrides with
+`helm get values RELEASE -o yaml > retained-values.yaml`, preview with
+`helm upgrade RELEASE helmforge/kibana --reset-values -f retained-values.yaml --dry-run`,
+then repeat that command without `--dry-run`. The preview can contain rendered
+Kubernetes Secrets. Run it only in a trusted environment and keep its output
+out of logs. Create `retained-values.yaml` with permissions restricted to its
+owner and remove it immediately after the upgrade.
+
 ## Production Notes
 
 Use static encryption keys for HA deployments. Kibana uses these keys for
