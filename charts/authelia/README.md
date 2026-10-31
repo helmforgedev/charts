@@ -166,11 +166,31 @@ The chart uses HelmForge-maintained subcharts for optional stateful services:
 |------------|---------|-------|
 | PostgreSQL | `2.1.1` | Production storage backend |
 | MySQL | `2.1.1` | Production storage backend alternative |
-| Redis | `3.1.0` | Session storage for distributed/HA deployments |
+| Redis | `3.1.1` | Session storage for distributed/HA deployments |
 
 `containerPorts.http` and `containerPorts.metrics` are the listener source of
 truth. The chart generates `server.address` and `telemetry.metrics.address` from
 them, so the process, probes and named Service targets remain aligned.
+
+For upgrades from releases before 1.5.18, retained `config.server.address` and
+`config.telemetry.metrics.address` values remain supported and take precedence
+over the corresponding `containerPorts` values until the legacy addresses are
+removed. Remove the matching legacy address before changing a listener through
+`containerPorts`.
+
+Do not upgrade from chart 1.5.17 with `--reuse-values` alone. It can omit the
+newer `networkPolicy` parent map and make template rendering fail at
+`.Values.networkPolicy.enabled`. With Helm 3.14 or later, use
+`helm upgrade RELEASE helmforge/authelia --reset-then-reuse-values --dry-run`
+to preview the rendered release, then repeat the command without `--dry-run`.
+With Helm 3.13 or earlier, export the release overrides with
+`helm get values RELEASE -o yaml > retained-values.yaml`, preview with
+`helm upgrade RELEASE helmforge/authelia --reset-values -f retained-values.yaml --dry-run`,
+then repeat that command without `--dry-run`.
+The preview can contain rendered Kubernetes Secrets. Run it only in a trusted
+environment and keep its output out of logs. Create `retained-values.yaml` with
+permissions restricted to its owner and remove it immediately after the
+upgrade.
 
 ## Security
 
@@ -189,7 +209,8 @@ proxy namespaces.
 - If the Pod does not become ready, inspect `/api/health`, application logs and
   database or Redis endpoints before restarting it.
 - If a custom port fails, confirm `containerPorts.http` or
-  `containerPorts.metrics`; do not set listener addresses under `config`.
+  `containerPorts.metrics`; legacy listener addresses under `config` take
+  precedence when retained from an older release.
 - If login redirects or cookies fail, verify the public Authelia URL, cookie
   domain, TLS scheme and reverse-proxy forwarded headers.
 - If MFA data cannot be decrypted, restore the matching database and original
@@ -240,7 +261,7 @@ configuration. Review all intervening releases:
 [4.39.28](https://github.com/authelia/authelia/releases/tag/v4.39.28).
 
 The bundled dependency baseline is PostgreSQL 2.1.1, MySQL 2.1.1 and Redis
-3.1.0. Their documented storage and authentication contracts remain unchanged.
+3.1.1. Their documented storage and authentication contracts remain unchanged.
 
 Authelia 4.39.21 changes storage encryption to use HKDF and authenticated
 additional data; 4.39.22 fixes the access-token JWT session migration. Back up
