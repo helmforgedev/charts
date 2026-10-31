@@ -1,5 +1,14 @@
 # Kibana Production Guide
 
+## Upgrade preparation
+
+Chart 1.2 upgrades the bundled Elasticsearch dependency to 2.x. Migrate custom
+`bundled-elasticsearch.resources` values to
+`bundled-elasticsearch.master.resources` before upgrading and review the
+dependency's storage and security contracts. Retained `service.targetPort:
+http` remains compatible; any different legacy target must be replaced by the
+real `containerPorts.http` listener.
+
 Use production deployments with explicit Elasticsearch authentication, TLS, and
 stable encryption keys.
 

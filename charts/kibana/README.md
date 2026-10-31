@@ -60,6 +60,19 @@ service:
   port: 15602
 ```
 
+## Upgrade compatibility
+
+Chart 1.2 keeps the legacy `service.targetPort: http` value upgrade-compatible;
+the Service routes to the named listener managed by `containerPorts.http`.
+Any other retained target is rejected with migration guidance so routing cannot
+silently diverge from Kibana's real listener.
+
+The bundled Elasticsearch dependency moved from 1.x to 2.x. Before upgrading,
+move custom `bundled-elasticsearch.resources` settings to
+`bundled-elasticsearch.master.resources`. The Elasticsearch dependency schema
+rejects the obsolete path instead of ignoring it. Review the Elasticsearch 2.x
+storage and security contracts before upgrading a persistent bundled cluster.
+
 ## Production Notes
 
 Use static encryption keys for HA deployments. Kibana uses these keys for
