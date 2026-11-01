@@ -30,3 +30,27 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: gateway.enabled requires gateway.parentRefs to be populated to create a valid HTTPRoute.
+
+  - it: should require a name in every parent reference
+    set:
+      gateway.enabled: true
+      gateway.parentRefs:
+        - namespace: gateway-system
+    asserts:
+      - failedTemplate:
+          errorMessage: Each gateway.parentRefs entry must define a 'name' field
+
+  - it: should allow a regular expression path without a slash prefix
+    set:
+      gateway.enabled: true
+      gateway.parentRefs:
+        - name: public
+      gateway.pathType: RegularExpression
+      gateway.path: ^/videos/.*
+    asserts:
+      - equal:
+          path: spec.rules[0].matches[0].path.type
+          value: RegularExpression
+      - equal:
+          path: spec.rules[0].matches[0].path.value
+          value: ^/videos/.*

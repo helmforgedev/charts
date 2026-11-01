@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Extensions
+templates:
+  - templates/extra-objects.yaml
+  - templates/tests/test-connection.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render templated extra objects
+    template: templates/extra-objects.yaml
+    set:
+      fullnameOverride: openreel-custom
+      extraObjects:
+        - apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: '{{ include "openreel-video.fullname" . }}-settings'
+          data:
+            mode: browser
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: openreel-custom-settings
+      - equal:
+          path: data.mode
+          value: browser
+
+  - it: should render no extra objects by default
+    template: templates/extra-objects.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render the hardened Helm test pod
+    template: templates/tests/test-connection.yaml
+    asserts:
+      - isKind:
+          of: Pod
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: test
+      - equal:
+          path: spec.containers[0].image
+          value: docker.io/library/busybox:1.37.0
+      - equal:
+          path: spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - contains:
+          path: spec.containers[0].securityContext.capabilities.drop
+          content: ALL
