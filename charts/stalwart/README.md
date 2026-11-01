@@ -18,6 +18,15 @@ server.
 - Prometheus annotations, optional ServiceMonitor, and extra manifests for
   VictoriaMetrics or another operator.
 
+## Architecture
+
+Stalwart runs as a StatefulSet with stable pod and storage identities. Separate
+Services expose mail protocols and HTTP/JMAP, while optional Ingress and Gateway
+API routes connect environment-owned controllers. The single-replica default
+uses a local RocksDB PVC; multi-replica deployments require external shared
+stores for every durable Stalwart state category. See [DESIGN.md](DESIGN.md) for
+the topology and responsibility boundaries.
+
 ## Install
 
 ```bash
@@ -59,12 +68,34 @@ Secrets rather than the Helm release values.
 See [storage and clustering](docs/storage-and-clustering.md) and
 [declarative operations](docs/declarative-operations.md).
 
+## Upgrade safety
+
+Helm upgrades preserve the StatefulSet name, pod ordinals, Services, and PVCs.
+Keep `fullnameOverride`, `persistence.existingClaim`, storage settings, and the
+selected `config.source` stable unless you are intentionally migrating them.
+Review new defaults before using `--reuse-values`; the safer baseline is the
+normal Helm merge with an explicit values file:
+
+```bash
+helm upgrade stalwart oci://ghcr.io/helmforgedev/charts/stalwart \
+  --namespace stalwart --values values.yaml
+```
+
+Back up application data and externally managed configuration before changing
+storage or HA topology. Do not scale above one replica while using the default
+local RocksDB configuration.
+
 ## HA
 
 `replicaCount > 1` fails at template time when a local RocksDB/SQLite DataStore
 or local PVC is selected. An HA deployment needs a shared external DataStore,
 shared blob/search/in-memory backends, and a Coordinator. The latter four are
 database-backed Stalwart objects and belong in an apply plan, not `config.json`.
+For an empty shared database, first install the HA configuration with
+`replicaCount: 1`. After that pod is ready, upgrade the same release to the
+desired replica count. Keep `podManagementPolicy` unchanged: Kubernetes treats
+that StatefulSet field as immutable, and changing it breaks an in-place Helm
+upgrade.
 
 The coordination topic is fixed to `stwt.agora`; dedicate it to one Stalwart
 cluster. Zenoh peer-to-peer is not compiled into the standard image.
@@ -89,6 +120,17 @@ Stalwart serves Prometheus-format metrics at `/metrics/prometheus` when metrics
 are enabled in its database-backed configuration. Add scrape annotations,
 enable the optional ServiceMonitor, or provide a VMServiceScrape through
 `extraManifests`.
+
+## Troubleshooting
+
+- If the pod cannot start, inspect the selected configuration source and verify
+  that its key is `config.json` or matches the configured key.
+- If readiness fails, confirm that the management listener remains enabled and
+  that `ports.management.containerPort` matches the Stalwart configuration.
+- If mail traffic cannot reach the pod, verify the mail Service type, listener
+  ports, NetworkPolicy peers, and controller support for TCPRoute/TLSRoute.
+- If a multi-replica release is unstable, return to one replica and verify that
+  all durable state categories point to shared external stores before scaling.
 
 ## Security Scan
 

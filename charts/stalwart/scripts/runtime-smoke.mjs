@@ -13,14 +13,18 @@ const kubectl = (args, options = {}) => execFileSync(
 );
 
 const selector = `app.kubernetes.io/instance=${release},app.kubernetes.io/name=stalwart`;
+const statefulSets = JSON.parse(kubectl(['get', 'statefulsets', '-l', selector, '-o', 'json'])).items;
+assert.equal(statefulSets.length, 1, 'Stalwart installation must have one StatefulSet');
+const desiredReplicas = statefulSets[0].spec.replicas;
 const pods = JSON.parse(kubectl(['get', 'pods', '-l', selector, '-o', 'json'])).items
   .filter((pod) => !pod.metadata.deletionTimestamp);
-assert.equal(pods.length, 1, 'default Stalwart installation must have one pod');
-const pod = pods[0];
-assert.ok(pod.status.conditions?.some((condition) => condition.type === 'Ready' && condition.status === 'True'));
-const container = pod.spec.containers.find((candidate) => candidate.name === 'stalwart');
-assert.equal(container?.image, 'docker.io/stalwartlabs/stalwart:v0.16.27');
-assert.equal(pod.spec.automountServiceAccountToken, false);
+assert.equal(pods.length, desiredReplicas, 'Stalwart pod count must match StatefulSet replicas');
+for (const pod of pods) {
+  assert.ok(pod.status.conditions?.some((condition) => condition.type === 'Ready' && condition.status === 'True'));
+  const container = pod.spec.containers.find((candidate) => candidate.name === 'stalwart');
+  assert.equal(container?.image, 'docker.io/stalwartlabs/stalwart:v0.16.27');
+  assert.equal(pod.spec.automountServiceAccountToken, false);
+}
 
 const services = JSON.parse(kubectl(['get', 'services', '-l', selector, '-o', 'json'])).items;
 const httpService = services.find((service) => service.metadata.name.endsWith('-http'))?.metadata.name;
@@ -42,4 +46,4 @@ try {
   try { kubectl(['delete', 'pod', smokeName, '--ignore-not-found=true', '--wait=false']); } catch {}
 }
 
-console.log('PASS Stalwart image, live/ready health, and SMTP protocol behavior');
+console.log(`PASS Stalwart ${desiredReplicas}-replica image, live/ready health, and SMTP protocol behavior`);
