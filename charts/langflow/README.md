@@ -12,6 +12,21 @@ The chart generates a URL-safe Fernet encryption key and initial superuser passw
 credentials are empty. These values are reused on upgrades. Runtime probes use Langflow's `/health_check` endpoint so a pod is not marked ready
 until application services and the database are healthy.
 
+## Features
+
+- Authenticated single-replica SQLite deployment with retained credentials and persistent state.
+- External database and chart-created RWX storage validation for horizontal scaling; operators must verify RWX support on existing claims.
+- Ingress, Gateway API, dual-stack Service, PDB, NetworkPolicy, and placement controls.
+- Existing Secret, `envFrom`, and explicit provider-variable support.
+- Startup, readiness, and liveness checks against the native health endpoint.
+- Opt-in hardened runtime profile that leaves existing upgrade behavior unchanged.
+
+## Architecture
+
+The default `Recreate` Deployment runs the official all-in-one image behind a Service and stores local configuration and
+SQLite data on a PVC. Production multi-replica releases use an external SQLAlchemy-compatible database and, when local
+configuration remains persistent, RWX storage. See [DESIGN.md](DESIGN.md) for the topology and responsibility boundaries.
+
 Authentication is required by default (`auth.autoLogin=false`). Automatic login
 is available only as an explicit development setting. The Deployment uses
 `Recreate` so old processes stop before a new version starts database migrations.
@@ -96,7 +111,37 @@ pdb:
 ```
 
 The chart refuses `replicaCount > 1` unless `database.url` or `database.existingSecret` is set.
-When persistence stays enabled for multiple replicas, the PVC must be shared safely with `ReadWriteMany`; otherwise disable persistence for ephemeral local config or keep a single replica.
+When persistence stays enabled for multiple replicas, chart-created claims must use `ReadWriteMany`. The chart cannot inspect the access modes of
+`persistence.existingClaim`, so operators must verify that an existing claim supports safe multi-replica access. Otherwise disable persistence
+for ephemeral local config or keep a single replica.
+
+The security profile is intentionally opt-in so existing releases retain their pod contract. The official image metadata declares user 1000
+and group 0. Enable the verified defaults only after testing custom components:
+
+```yaml
+securityProfile:
+  enabled: true
+```
+
+| Value | Default | Purpose |
+| --- | --- | --- |
+| `app.port` | `7860` | Real Langflow HTTP listener |
+| `auth.autoLogin` | `false` | Development-only automatic login |
+| `auth.existingSecret` | `""` | Existing Secret containing stable auth credentials |
+| `database.mode` | `sqlite` | Select local SQLite or an external database |
+| `database.existingSecret` | `""` | Existing Secret containing the external database URL |
+| `persistence.enabled` | `true` | Persist the config directory and SQLite database |
+| `networkPolicy.enabled` | `false` | Restrict ingress and isolate egress |
+| `securityProfile.enabled` | `false` | Apply verified opt-in runtime hardening |
+
+`global` is accepted for parent-chart compatibility but is not consumed directly by Langflow.
+
+## Examples
+
+- [Simple deployment](examples/simple.yaml)
+- [Production deployment](examples/production.yaml)
+- [Database operations](docs/database.md)
+- [Scaling contract](docs/scaling.md)
 
 ## Provider Secrets
 
@@ -129,3 +174,13 @@ app:
 - [Langflow environment variables](https://docs.langflow.org/environment-variables)
 - [Langflow Kubernetes production guide](https://docs.langflow.org/deployment-kubernetes-prod)
 - [Langflow authentication](https://docs.langflow.org/api-keys-and-authentication)
+
+## Troubleshooting
+
+- If startup or readiness fails, inspect application logs and `/health_check`, then verify the database URL Secret and migrations.
+- If generated credentials change unexpectedly, restore the original auth Secret; replacing `LANGFLOW_SECRET_KEY` can make encrypted provider
+  data unreadable.
+- If multiple replicas are rejected, configure an external database and either RWX persistence or disposable local config.
+- If provider calls fail under NetworkPolicy, add the exact database, model, vector-store, proxy, and DNS destinations required by the flows.
+- If the hardened profile cannot start a custom component, identify its required writable path and mount an explicit volume instead of disabling
+  the remaining controls globally.
