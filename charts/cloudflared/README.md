@@ -16,6 +16,16 @@ Secure, outbound-only connections between your cluster and Cloudflare's network 
 - **External Secrets** — optional External Secrets Operator integration for tunnel tokens
 - **Quick tunnel mode** — optional ephemeral mode for demos and smoke tests
 
+## Architecture
+
+Cloudflared initiates outbound connections from the Deployment to Cloudflare's
+edge. Managed tunnels and URL-mode quick tunnels proxy requests to the
+configured origin URL, which can be a cluster-internal Service. The default
+quick tunnel uses cloudflared's built-in hello-world origin and does not use a
+tunnel token or cluster origin Service. The chart does not render Kubernetes
+Ingress or configure Cloudflare hostnames and routes. See
+[DESIGN.md](DESIGN.md) for the topology and responsibility boundaries.
+
 ## Installation
 
 **HTTPS repository:**
@@ -186,6 +196,22 @@ so the forwarded request path and existing ingress selection remain unchanged.
 Review the
 [official 2026.10.1 release](https://github.com/cloudflare/cloudflared/releases/tag/2026.10.1)
 before production rollout.
+
+For chart upgrades, pin the target version and preserve tunnel mode, Secret name
+and key, replica count, disruption budget, metrics port, and transport options.
+Use `--reuse-values` only after auditing existing overrides. With
+`--reset-values`, restate every non-default tunnel, Secret, availability,
+transport, and monitoring setting. A chart upgrade must not rotate or replace a
+managed tunnel token.
+
+## Troubleshooting
+
+Inspect Pod events and cloudflared logs first. A failing readiness probe means no
+active edge connection; verify DNS and outbound access for the selected HTTP/2
+or QUIC transport. If the tunnel connects but traffic fails, validate the Public
+Hostname route and cluster origin Service independently. Authentication errors
+usually indicate a changed Secret name, key, or token. Metrics availability on
+port 2000 does not prove that a public hostname reaches its origin.
 
 ## Security Scan
 
