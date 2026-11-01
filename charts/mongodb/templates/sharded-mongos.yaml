@@ -19,15 +19,14 @@ spec:
         {{- include "mongodb.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: mongos
     spec:
+      automountServiceAccountToken: {{ if hasKey .Values "automountServiceAccountToken" }}{{ .Values.automountServiceAccountToken }}{{ else }}false{{ end }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
-      {{- with .Values.podSecurityContext }}
       securityContext:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- include "mongodb.podSecurityContext" . | nindent 8 }}
       {{- if include "mongodb.needsKeyFile" . }}
       initContainers:
         - name: init-keyfile

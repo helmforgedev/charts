@@ -27,15 +27,14 @@ spec:
         app.kubernetes.io/component: shard
         mongodb.com/shard: {{ $shardIdx | quote }}
     spec:
+      automountServiceAccountToken: {{ if hasKey $root.Values "automountServiceAccountToken" }}{{ $root.Values.automountServiceAccountToken }}{{ else }}false{{ end }}
       {{- with $root.Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       terminationGracePeriodSeconds: {{ $root.Values.terminationGracePeriodSeconds }}
-      {{- with $root.Values.podSecurityContext }}
       securityContext:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- include "mongodb.podSecurityContext" $root | nindent 8 }}
       {{- if include "mongodb.needsKeyFile" $root }}
       initContainers:
         - name: init-keyfile
@@ -127,7 +126,7 @@ spec:
         {{- end }}
         resources:
           requests:
-            storage: {{ $root.Values.sharded.shards.persistence.size }}
+            storage: {{ include "mongodb.statefulSetStorage" (dict "root" $root "name" (printf "%s-shard%d" (include "mongodb.fullname" $root) $shardIdx) "fallback" $root.Values.sharded.shards.persistence.size) }}
 ---
 apiVersion: v1
 kind: Service

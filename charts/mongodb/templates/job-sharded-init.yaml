@@ -26,14 +26,13 @@ spec:
         app.kubernetes.io/component: sharded-init
     spec:
       restartPolicy: OnFailure
+      automountServiceAccountToken: {{ if hasKey .Values "automountServiceAccountToken" }}{{ .Values.automountServiceAccountToken }}{{ else }}false{{ end }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.podSecurityContext }}
       securityContext:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- include "mongodb.podSecurityContext" . | nindent 8 }}
       {{- if include "mongodb.needsKeyFile" . }}
       initContainers:
         - name: init-keyfile

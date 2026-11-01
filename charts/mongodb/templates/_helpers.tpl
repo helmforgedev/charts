@@ -261,8 +261,37 @@ Common mongod args.
 - "--keyFile"
 - "/etc/mongodb/keyfile/replica-set-key"
 {{- end -}}
+
 {{- else if include "mongodb.isStandalone" . -}}
 - "--bind_ip_all"
+{{- end -}}
+{{- end -}}
+
+{{/*
+Merge pod security defaults in the template so upgrades with --reuse-values
+receive new safe keys while explicit operator values remain authoritative.
+*/}}
+{{- define "mongodb.podSecurityContext" -}}
+{{- $defaults := dict
+  "fsGroup" 999
+  "seccompProfile" (dict "type" "RuntimeDefault")
+-}}
+{{- toYaml (mergeOverwrite (deepCopy $defaults) (default (dict) .Values.podSecurityContext)) -}}
+{{- end -}}
+
+{{/*
+Keep the StatefulSet claim-template size immutable during upgrades. Kubernetes
+rejects changes to volumeClaimTemplates; operators resize the bound PVCs
+directly and the chart preserves the already-applied template value.
+Accepts root, name, and fallback.
+*/}}
+{{- define "mongodb.statefulSetStorage" -}}
+{{- $existing := default (dict) (lookup "apps/v1" "StatefulSet" .root.Release.Namespace .name) -}}
+{{- $claims := dig "spec" "volumeClaimTemplates" (list) $existing -}}
+{{- if gt (len $claims) 0 -}}
+{{- dig "spec" "resources" "requests" "storage" .fallback (index $claims 0) -}}
+{{- else -}}
+{{- .fallback -}}
 {{- end -}}
 {{- end -}}
 
@@ -288,11 +317,10 @@ spec:
     {{- toYaml . | nindent 4 }}
   {{- end }}
   serviceAccountName: {{ include "mongodb.serviceAccountName" .root }}
+  automountServiceAccountToken: {{ if hasKey .root.Values "automountServiceAccountToken" }}{{ .root.Values.automountServiceAccountToken }}{{ else }}false{{ end }}
   terminationGracePeriodSeconds: {{ .root.Values.terminationGracePeriodSeconds }}
-  {{- with .root.Values.podSecurityContext }}
   securityContext:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+    {{- include "mongodb.podSecurityContext" .root | nindent 4 }}
   {{- with .root.Values.nodeSelector }}
   nodeSelector:
     {{- toYaml . | nindent 4 }}

@@ -103,7 +103,21 @@
   Backup is disabled. Enable `backup.enabled=true` with S3 credentials for production restore points.
 {{- end }}
 
-7. Documentation
+7. Troubleshooting
+------------------
+  Inspect pod state and recent events:
+    kubectl describe pod -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+    kubectl get events -n {{ $namespace }} --sort-by=.lastTimestamp
+
+  Verify the retained credential Secret and PVCs before an upgrade:
+    kubectl get secret,pvc -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+  Authentication failures after restoring an old PVC usually indicate that its
+  original root credential Secret or replica-set keyFile was not restored.
+  Rotate credentials with MongoDB procedures; changing auth initialization
+  values does not update users in an initialized data directory.
+
+8. Documentation
 ----------------
   Helm values:
     helm get values {{ .Release.Name }} -n {{ $namespace }}
