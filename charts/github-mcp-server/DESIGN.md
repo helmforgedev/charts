@@ -38,8 +38,9 @@ use ReadWriteMany storage.
   rendered contract. When enabled, it applies RuntimeDefault seccomp, a
   read-only root filesystem, disabled privilege escalation, and dropped Linux
   capabilities. Explicit security contexts override profile defaults.
-- Ingress and Gateway API are mutually exclusive public routing options and
-  require authentication outside the MCP server.
+- Ingress and Gateway API are independent public routing options. Operators
+  should enable at most one unless both routes are intentionally required, and
+  both require authentication outside the MCP server.
 
 ## Production Boundary
 
