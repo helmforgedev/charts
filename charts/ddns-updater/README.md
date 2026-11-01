@@ -21,8 +21,9 @@ This chart currently deploys `qmcgaw/ddns-updater:2.10.0`.
 The single-replica Deployment reads `config.json` from either a chart-managed or
 existing Secret, polls public IP sources, and updates the configured provider
 APIs. A PVC retains update history when persistence is enabled; otherwise the
-history volume is ephemeral. A ClusterIP Service exposes the status UI. The
-`Recreate` strategy prevents two writers from racing during upgrades. See
+history volume is ephemeral. By default, a ClusterIP Service exposes the status
+UI; `service.type` can select NodePort or LoadBalancer instead. The `Recreate`
+strategy prevents two writers from racing during upgrades. See
 [DESIGN.md](DESIGN.md) for the topology and responsibility boundaries.
 
 ## Installation
