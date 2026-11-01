@@ -3,6 +3,15 @@ apiVersion: apps/v1
 kind: Deployment
 {{- $securityProfile := .Values.securityProfile | default dict }}
 {{- $securityProfileEnabled := get $securityProfile "enabled" | default false }}
+{{- $usedMountPaths := dict .Values.persistence.mountPath true }}
+{{- range (.Values.extraVolumeMounts | default list) }}
+{{- if .mountPath }}
+{{- $_ := set $usedMountPaths .mountPath true }}
+{{- end }}
+{{- end }}
+{{- $mountRuntimeTmp := and $securityProfileEnabled (not (hasKey $usedMountPaths "/tmp")) }}
+{{- $mountRuntimeNpm := and $securityProfileEnabled (not (hasKey $usedMountPaths "/app/.npm")) }}
+{{- $mountRuntimeOptNpm := and $securityProfileEnabled (not (hasKey $usedMountPaths "/opt/app-root/src/.npm")) }}
 metadata:
   name: {{ include "langflow.fullname" . }}
   labels:
@@ -32,11 +41,17 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- $podSecurityContext := .Values.podSecurityContext | default dict }}
+      {{- $explicitPodSecurityContext := .Values.podSecurityContext | default dict }}
+      {{- $podSecurityContext := $explicitPodSecurityContext }}
       {{- if $securityProfileEnabled }}
       {{- $defaultPodSecurityContext := dict "runAsNonRoot" true "runAsUser" 1000 "runAsGroup" 0 "seccompProfile" (dict "type" "RuntimeDefault") }}
       {{- $profilePodSecurityContext := get $securityProfile "podSecurityContext" | default dict }}
-      {{- $podSecurityContext = mergeOverwrite (deepCopy $defaultPodSecurityContext) $profilePodSecurityContext $podSecurityContext }}
+      {{- $podSecurityContext = mergeOverwrite (deepCopy $defaultPodSecurityContext) $profilePodSecurityContext $explicitPodSecurityContext }}
+      {{- if hasKey $explicitPodSecurityContext "seccompProfile" }}
+      {{- $_ := set $podSecurityContext "seccompProfile" (deepCopy (get $explicitPodSecurityContext "seccompProfile")) }}
+      {{- else if hasKey $profilePodSecurityContext "seccompProfile" }}
+      {{- $_ := set $podSecurityContext "seccompProfile" (deepCopy (get $profilePodSecurityContext "seccompProfile")) }}
+      {{- end }}
       {{- end }}
       {{- with $podSecurityContext }}
       securityContext:
@@ -160,9 +175,13 @@ spec:
           volumeMounts:
             - name: data
               mountPath: {{ .Values.persistence.mountPath }}
-            {{- if $securityProfileEnabled }}
+            {{- if $mountRuntimeTmp }}
             - { name: runtime-tmp, mountPath: /tmp }
+            {{- end }}
+            {{- if $mountRuntimeNpm }}
             - { name: runtime-npm, mountPath: /app/.npm }
+            {{- end }}
+            {{- if $mountRuntimeOptNpm }}
             - { name: runtime-opt-npm, mountPath: /opt/app-root/src/.npm }
             {{- end }}
             {{- with .Values.extraVolumeMounts }}
@@ -195,9 +214,13 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
-        {{- if $securityProfileEnabled }}
+        {{- if $mountRuntimeTmp }}
         - { name: runtime-tmp, emptyDir: {} }
+        {{- end }}
+        {{- if $mountRuntimeNpm }}
         - { name: runtime-npm, emptyDir: {} }
+        {{- end }}
+        {{- if $mountRuntimeOptNpm }}
         - { name: runtime-opt-npm, emptyDir: {} }
         {{- end }}
         {{- with .Values.extraVolumes }}

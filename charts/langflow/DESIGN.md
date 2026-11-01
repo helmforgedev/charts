@@ -30,8 +30,9 @@ also support `ReadWriteMany`.
 
 - `Recreate` stops the old process before migrations and avoids concurrent
   writers during single-replica upgrades.
-- The chart validates that multiple replicas use an external database and, when
-  persistence is enabled, shared RWX storage.
+- The chart validates that multiple replicas use an external database. It also
+  requires RWX for chart-created persistent claims; operators must verify that
+  an existing claim supports safe multi-replica access.
 - Generated auth credentials are retained with `lookup`; existing Secrets keep
   credential custody outside Helm values.
 - `app.env` and `app.envFrom` expose provider-specific settings without the chart

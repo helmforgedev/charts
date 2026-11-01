@@ -164,3 +164,42 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
           value: false
+  - it: replaces lower-precedence seccomp settings when the type changes
+    template: templates/deployment.yaml
+    set:
+      securityProfile.enabled: true
+      securityProfile.podSecurityContext.seccompProfile.type: Localhost
+      securityProfile.podSecurityContext.seccompProfile.localhostProfile: profiles/langflow.json
+      podSecurityContext.seccompProfile.type: RuntimeDefault
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - notExists:
+          path: spec.template.spec.securityContext.seccompProfile.localhostProfile
+  - it: reuses an extra mount instead of duplicating its path
+    template: templates/deployment.yaml
+    set:
+      securityProfile.enabled: true
+      extraVolumeMounts:
+        - name: custom-tmp
+          mountPath: /tmp
+      extraVolumes:
+        - name: custom-tmp
+          emptyDir: {}
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: custom-tmp
+            mountPath: /tmp
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: runtime-tmp
+            mountPath: /tmp
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: runtime-tmp
+            emptyDir: {}

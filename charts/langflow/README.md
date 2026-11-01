@@ -15,7 +15,7 @@ until application services and the database are healthy.
 ## Features
 
 - Authenticated single-replica SQLite deployment with retained credentials and persistent state.
-- Validated external database and RWX storage contract for horizontal scaling.
+- External database and chart-created RWX storage validation for horizontal scaling; operators must verify RWX support on existing claims.
 - Ingress, Gateway API, dual-stack Service, PDB, NetworkPolicy, and placement controls.
 - Existing Secret, `envFrom`, and explicit provider-variable support.
 - Startup, readiness, and liveness checks against the native health endpoint.
@@ -111,7 +111,9 @@ pdb:
 ```
 
 The chart refuses `replicaCount > 1` unless `database.url` or `database.existingSecret` is set.
-When persistence stays enabled for multiple replicas, the PVC must be shared safely with `ReadWriteMany`; otherwise disable persistence for ephemeral local config or keep a single replica.
+When persistence stays enabled for multiple replicas, chart-created claims must use `ReadWriteMany`. The chart cannot inspect the access modes of
+`persistence.existingClaim`, so operators must verify that an existing claim supports safe multi-replica access. Otherwise disable persistence
+for ephemeral local config or keep a single replica.
 
 The security profile is intentionally opt-in so existing releases retain their pod contract. The official image metadata declares user 1000
 and group 0. Enable the verified defaults only after testing custom components:
