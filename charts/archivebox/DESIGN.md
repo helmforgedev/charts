@@ -1,119 +1,133 @@
-# ArchiveBox Chart Design
+# ArchiveBox design
 
-## Purpose
+## Scope
 
-The `archivebox` chart deploys a single-node ArchiveBox installation for
-self-hosted web archiving. It is optimized for reliable persistent storage,
-Chromium-based captures, simple administrative bootstrap, and optional
-scheduled S3-compatible backups.
+This chart deploys the official ArchiveBox image as one self-hosted web archive.
+It owns the single application workload, durable `/data` claim, Service,
+optional Ingress, administrative Secret, optional S3 backup CronJob, scheduling,
+and health configuration.
 
-ArchiveBox stores both its SQLite database and archived snapshots under
-`/data`. The chart therefore treats persistence as the primary production
-boundary and intentionally runs one application replica with a `Recreate`
-strategy.
+ArchiveBox stores its SQLite database, index, configuration, and every captured
+artifact together under `/data`. The chart therefore treats the complete data
+directory as one consistency and recovery boundary.
 
-## Workload Model
+## Architecture
 
-The chart renders one `Deployment` with a single `archivebox` container. The
-container runs:
-
-```text
-The chart preserves the image entrypoint and default command (`archivebox server --init 0.0.0.0:5797`) so ArchiveBox can perform its supported initialization and migration flow.
+```mermaid
+flowchart LR
+  user[Administrator or reader] --> edge[Ingress optional]
+  edge --> service[ArchiveBox Service]
+  service --> app[Single ArchiveBox Deployment]
+  admin[Admin Secret] --> app
+  app --> data[(ArchiveBox data PVC)]
+  app --> web[Websites and capture dependencies]
+  cron[Backup CronJob optional] --> data
+  s3[S3-compatible object storage] --> cron
+  s3secret[S3 Secret] --> cron
 ```
 
-Key workload decisions:
+The application runs as exactly one Recreate Deployment because SQLite and the
+archive filesystem form a single-writer dataset. Chromium uses a memory-backed
+`/dev/shm` volume while persistent application state remains on `/data`.
 
-- `replicas` is fixed at `1` because SQLite is a single-writer datastore.
-- The deployment uses `Recreate` to avoid concurrent writers against the same
-  data directory during rollout.
-- `/data` is backed by a PVC when persistence is enabled.
-- `/dev/shm` is mounted as a memory-backed `emptyDir` so Chromium has shared
-  memory available for page rendering.
-- Startup, liveness, and readiness probes use the ArchiveBox health endpoint.
+## Main Design Choices
 
-## Storage Model
+- Pin the official multi-architecture image without rebuilding it.
+- Preserve the upstream entrypoint and initialization flow.
+- Fix the workload at one replica with Recreate strategy to prevent overlapping
+  SQLite and archive writers.
+- Persist the full `/data` tree, not only the database.
+- Generate and retain an administrative Secret when no existing Secret is
+  supplied.
+- Use the native `/health/` endpoint for startup, readiness, and liveness.
+- Run the application as UID/GID 911 and scope the root ownership init container
+  to the data mount required by the upstream image.
+- Offer an optional volume-level S3 backup CronJob with pinned tar and uploader
+  images and explicit credential ownership.
 
-ArchiveBox is storage-heavy. The PVC contains:
+## Production Boundary
 
-- SQLite application database.
-- Snapshot metadata.
-- Captured HTML, PDFs, screenshots, WARC files, media, and derived indexes.
+Operators must provide durable expandable storage, size CPU and memory for
+Chromium captures, configure an exact public hostname and TLS edge, restrict
+public archive visibility, and protect administrative and S3 credentials. They
+must also define capture egress, retention, legal policy, and off-cluster backup
+retention for their environment.
 
-The default `persistence.size` is `50Gi`, which is suitable for evaluation and
-small archives. Production installations should size the PVC from expected URL
-volume, capture formats, and retention policy.
+A chart-managed PVC is retained on Helm uninstall, but namespace deletion and
+storage-provider lifecycle remain outside Helm. Consistent backup requires a
+quiesced writer or a storage snapshot mechanism that guarantees application
+consistency. Restore must include the entire `/data` tree and be tested in an
+isolated namespace before it is trusted.
 
-## Access Model
+## Security Boundary
 
-The chart exposes the workload through a ClusterIP `Service` by default.
-Ingress is optional and defaults to the `traefik` ingress class when enabled.
+The main container runs as non-root UID/GID 911, cannot gain privileges, drops
+all Linux capabilities, uses RuntimeDefault seccomp, and receives no Kubernetes
+API token. Credentials are sourced from Secrets rather than ConfigMaps. The
+backup Job receives S3 credentials only when that feature is enabled.
 
-Administrative access is controlled by Kubernetes Secret data. Operators can
-either provide `archivebox.adminPassword` for chart-managed Secret creation or
-reference an existing Secret with `archivebox.existingSecret`.
+The root filesystem remains writable because the pinned application and browser
+tooling do not expose a stable immutable-filesystem contract. NetworkPolicy,
+edge authentication, TLS policy, website capture egress, malicious-content
+isolation, Secret rotation, and object-store access policy belong to the
+operator and platform. `extraEnv`, extra volumes, extra manifests, Ingress
+annotations, and inline credentials are explicit trust-boundary extensions.
 
-ArchiveBox public visibility is controlled by:
+## Observability Boundary
 
-- `archivebox.publicIndex`
-- `archivebox.publicSnapshots`
-- `archivebox.publicAddLinks`
-- `archivebox.allowedHosts`
+Native health probes cover application startup and listener health. Kubernetes
+Deployment, Pod, PVC, CronJob, Job, event, and log signals cover the platform
+surface. Production monitoring should include archive growth, PVC capacity,
+capture failures, Chromium memory pressure, backup success and age, object-store
+upload errors, and public endpoint availability.
 
-## Backup Model
+The pinned release does not provide a stable Prometheus contract consumed by
+this chart, so no ServiceMonitor or unrelated exporter is fabricated.
 
-When `backup.enabled=true`, the chart creates:
+## Known Gaps and Improvement Candidates
 
-- A ConfigMap with backup and upload scripts.
-- A Secret for S3 credentials, unless an existing Secret is used.
-- A CronJob that tars `/data` and uploads the archive with MinIO Client.
+- Recreate upgrades intentionally include downtime.
+- SQLite prevents horizontal scaling and concurrent writers.
+- The backup CronJob reads the live data volume; operators should schedule a
+  quiesced window or use a consistency-capable snapshot workflow.
+- Browser capture of untrusted websites is a high-egress workload and requires
+  platform-level network and threat controls.
+- A writable root filesystem remains necessary for the pinned upstream image.
+- The chart does not install NetworkPolicy or a distributed search backend.
 
-The backup CronJob is deliberately volume-level. It captures the SQLite
-database and snapshot files together from the same PVC. For production use,
-schedule backups during low write activity and test restore procedures before
-depending on the backup pipeline.
+## Explicit Non-Goals
 
-## Security Posture
+- replacing SQLite with an unsupported external database
+- multiple application replicas against one archive
+- installing an Ingress controller, CNI, certificate manager, storage provider,
+  object store, or monitoring stack
+- deciding what content may legally be captured or retained
+- guaranteeing that arbitrary captured web content is safe
+- managing off-cluster backup retention, encryption keys, or disaster-recovery
+  infrastructure
+- treating Helm rollback as a database or archive rollback
 
-The chart uses the official `archivebox/archivebox` image pinned by tag. The
-default pod security model runs as the upstream non-root UID/GID `911` and sets
-`fsGroup` to match the data volume.
+## Validation Strategy
 
-Security tradeoffs:
+The mandatory chart gate validates dependencies, strict lint, every CI values
+profile, unit tests, real CRD schemas, Artifact Hub metadata, and sequential k3d
+runtime behavior. Runtime scenarios cover the default persistent workload,
+Ingress, and the S3 backup resource set, including stable rollout, Service
+endpoints, logs, events, and cleanup.
 
-- The root filesystem is writable because ArchiveBox and its browser tooling
-  write runtime state.
-- Resource limits are intentionally operator-configured because Chromium
-  resource needs vary significantly by capture workload.
-- NetworkPolicy is not rendered by this chart; enforce ingress and egress
-  policy at the namespace or platform layer when required.
+Upgrade validation starts from the latest public package and exercises both
+reset/default values and `--reuse-values`. It verifies the retained PVC and
+administrative Secret, preserves a pre-upgrade marker beside the real SQLite and
+archive data, and requires the Recreate workload to become ready again.
 
-## Operational Expectations
-
-Production operators should configure:
-
-- A durable storage class and an appropriately sized PVC.
-- Explicit CPU and memory requests and limits for Chromium captures.
-- An existing Secret for the admin password.
-- Ingress TLS and an `allowedHosts` value matching the public host.
-- S3-compatible backups and a tested restore workflow.
-
-## Validation
-
-The chart is validated with the HelmForge chart gate:
-
-```bash
-make validate-chart CHART=archivebox
-```
-
-Security posture is tracked with Kubescape:
-
-```bash
-kubescape scan framework "MITRE,NSA,SOC2" charts/archivebox
-```
-
-Latest local scan during this standards backfill:
-
-- MITRE: 100.00%
-- NSA: 65.00%
-- SOC2: 80.00%
-- Aggregate resource score: 75.76%
+<!-- @AI-METADATA
+ type: guide
+ title: ArchiveBox Chart Design
+ description: Explain ArchiveBox architecture, boundaries, and recovery model
+ audience: contributors, operators
+ purpose: Explain chart architecture and limits
+ scope: chart
+ path: charts/archivebox/DESIGN.md
+ version: 1.1
+ date: 2026-11-01
+-->
