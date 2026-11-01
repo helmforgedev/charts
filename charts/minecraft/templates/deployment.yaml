@@ -1,4 +1,10 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- $hasCustomTmpMount := false -}}
+{{- range .Values.extraVolumeMounts -}}
+{{- if eq .mountPath "/tmp" -}}
+{{- $hasCustomTmpMount = true -}}
+{{- end -}}
+{{- end -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -27,6 +33,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
+      automountServiceAccountToken: {{ if hasKey .Values "automountServiceAccountToken" }}{{ .Values.automountServiceAccountToken }}{{ else }}false{{ end }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -34,19 +41,15 @@ spec:
       {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "minecraft.serviceAccountName" . }}
       {{- end }}
-      {{- with .Values.podSecurityContext }}
       securityContext:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- include "minecraft.podSecurityContext" . | nindent 8 }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       containers:
         - name: minecraft
           image: {{ include "minecraft.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          {{- with .Values.securityContext }}
           securityContext:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
+            {{- include "minecraft.securityContext" . | nindent 12 }}
           env:
             - name: EULA
               value: {{ .Values.server.eula | quote }}
@@ -256,6 +259,10 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data
+            {{- if not $hasCustomTmpMount }}
+            - name: minecraft-runtime-tmp
+              mountPath: /tmp
+            {{- end }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -263,6 +270,8 @@ spec:
         - name: mc-monitor
           image: "{{ .Values.metrics.image.repository }}:{{ .Values.metrics.image.tag }}"
           imagePullPolicy: {{ .Values.metrics.image.pullPolicy }}
+          securityContext:
+            {{- include "minecraft.metricsSecurityContext" . | nindent 12 }}
           args:
             - export-for-prometheus
           env:
@@ -283,6 +292,10 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
+        {{- if not $hasCustomTmpMount }}
+        - name: minecraft-runtime-tmp
+          emptyDir: {}
+        {{- end }}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

@@ -52,6 +52,31 @@ For production, operators should define:
 - resource requests and memory/JVM settings appropriate for player count and modpack size
 - staging validation for plugins, mods, datapacks, and resource packs before reusing production PVCs
 
+## Security Boundary
+
+- The server runs as UID/GID 1000 with no Linux capabilities, no privilege escalation, a read-only root filesystem,
+  and the runtime-default seccomp profile.
+- Only `/data` and a chart-managed `/tmp` volume are writable. Operators that replace the image must ensure it supports
+  the same non-root and read-only-root contract or explicitly override the security contexts.
+- The pod does not mount a Kubernetes API token by default. RCON credentials are sourced from a retained Secret or an
+  operator-provided Secret, and should not be exposed outside trusted networks.
+- Network policy, firewalling, SecretStore access controls, and object-store authorization remain operator boundaries.
+
+## Observability Boundary
+
+- Startup, readiness, and liveness probes use `mc-health` from the server image.
+- Optional Prometheus metrics are exported by the `mc-monitor` sidecar; deploying and configuring Prometheus and its
+  operator are outside this chart's scope.
+- Application logs are emitted to container stdout/stderr. Collection, retention, dashboards, and alerting remain the
+  operator's responsibility.
+
+## Known Gaps
+
+- The chart cannot validate third-party mods, plugins, datapacks, or their upgrade compatibility.
+- It does not create NetworkPolicy resources because player, RCON, metrics, DNS, and backup egress requirements vary.
+- Backup retention, restore automation, and object-store lifecycle policies must be implemented and tested externally.
+- High availability requires application-level world replication that the upstream single-server runtime does not offer.
+
 ## Explicit Non-Goals
 
 - managing Bedrock Dedicated Server as a separate product

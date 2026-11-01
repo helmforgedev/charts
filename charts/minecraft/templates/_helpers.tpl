@@ -139,6 +139,44 @@ Image string with tag fallback to appVersion.
 {{- end }}
 
 {{/*
+Merge security defaults in the template so they also apply when Helm
+--reuse-values carries forward a previous chart's partial context maps.
+Explicit release values always win.
+*/}}
+{{- define "minecraft.podSecurityContext" -}}
+{{- $defaults := dict
+  "fsGroup" 1000
+  "fsGroupChangePolicy" "OnRootMismatch"
+  "seccompProfile" (dict "type" "RuntimeDefault")
+-}}
+{{- toYaml (mergeOverwrite (deepCopy $defaults) (default (dict) .Values.podSecurityContext)) -}}
+{{- end -}}
+
+{{- define "minecraft.securityContext" -}}
+{{- $defaults := dict
+  "runAsUser" 1000
+  "runAsGroup" 1000
+  "runAsNonRoot" true
+  "allowPrivilegeEscalation" false
+  "readOnlyRootFilesystem" true
+  "capabilities" (dict "drop" (list "ALL"))
+-}}
+{{- toYaml (mergeOverwrite (deepCopy $defaults) (default (dict) .Values.securityContext)) -}}
+{{- end -}}
+
+{{- define "minecraft.metricsSecurityContext" -}}
+{{- $defaults := dict
+  "runAsUser" 1000
+  "runAsGroup" 1000
+  "runAsNonRoot" true
+  "allowPrivilegeEscalation" false
+  "readOnlyRootFilesystem" true
+  "capabilities" (dict "drop" (list "ALL"))
+-}}
+{{- toYaml (mergeOverwrite (deepCopy $defaults) (default (dict) .Values.metrics.securityContext)) -}}
+{{- end -}}
+
+{{/*
 Validate required runtime settings before rendering workloads.
 */}}
 {{- define "minecraft.validate" -}}

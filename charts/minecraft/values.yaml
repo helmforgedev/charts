@@ -237,17 +237,32 @@ resources: {}
 # Security Context
 # =============================================================================
 
+# -- Mount a Kubernetes API token in the pod. The Minecraft server does not query the Kubernetes API.
+automountServiceAccountToken: false
+
 podSecurityContext:
   # -- Group ID for volume ownership
   fsGroup: 1000
+  # -- Change volume ownership only when the root directory does not already match fsGroup
+  fsGroupChangePolicy: OnRootMismatch
+  # -- Use the container runtime's default seccomp profile
+  seccompProfile:
+    type: RuntimeDefault
 
 securityContext:
   # -- User ID for the server process
   runAsUser: 1000
   # -- Group ID for the server process
   runAsGroup: 1000
+  # -- Require the server process to run as a non-root user
+  runAsNonRoot: true
   # -- Prevent privilege escalation
   allowPrivilegeEscalation: false
+  # -- Keep the image filesystem read-only; /data and /tmp remain writable volumes
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
 
 # =============================================================================
 # Probes
@@ -335,6 +350,17 @@ metrics:
     tag: 0.16.1
     # -- mc-monitor pull policy
     pullPolicy: IfNotPresent
+
+  # -- Security context for the mc-monitor sidecar
+  securityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
 
   # -- Port for the Prometheus metrics endpoint
   port: 8080

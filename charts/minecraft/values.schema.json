@@ -357,6 +357,11 @@
       "type": "object",
       "description": "CPU and memory requests/limits for the server container"
     },
+    "automountServiceAccountToken": {
+      "type": "boolean",
+      "description": "Mount a Kubernetes API token in the pod. The Minecraft server does not query the Kubernetes API.",
+      "default": false
+    },
     "podSecurityContext": {
       "type": "object",
       "description": "Pod-level security context",
@@ -365,6 +370,23 @@
           "type": "integer",
           "description": "Group ID for volume ownership",
           "default": 1000
+        },
+        "fsGroupChangePolicy": {
+          "type": "string",
+          "enum": ["Always", "OnRootMismatch"],
+          "description": "Policy for changing volume ownership",
+          "default": "OnRootMismatch"
+        },
+        "seccompProfile": {
+          "type": "object",
+          "description": "Pod seccomp profile",
+          "properties": {
+            "type": {
+              "type": "string",
+              "description": "Seccomp profile type",
+              "default": "RuntimeDefault"
+            }
+          }
         }
       }
     },
@@ -382,10 +404,31 @@
           "description": "Group ID for the server process",
           "default": 1000
         },
+        "runAsNonRoot": {
+          "type": "boolean",
+          "description": "Require a non-root server process",
+          "default": true
+        },
         "allowPrivilegeEscalation": {
           "type": "boolean",
           "description": "Prevent privilege escalation",
           "default": false
+        },
+        "readOnlyRootFilesystem": {
+          "type": "boolean",
+          "description": "Keep the image filesystem read-only",
+          "default": true
+        },
+        "capabilities": {
+          "type": "object",
+          "description": "Linux capability configuration",
+          "properties": {
+            "drop": {
+              "type": "array",
+              "items": {"type": "string"},
+              "default": ["ALL"]
+            }
+          }
         }
       }
     },
@@ -569,6 +612,10 @@
           "type": "integer",
           "description": "Port for the Prometheus metrics endpoint",
           "default": 8080
+        },
+        "securityContext": {
+          "type": "object",
+          "description": "Container security context for the mc-monitor sidecar"
         },
         "serviceMonitor": {
           "type": "object",
