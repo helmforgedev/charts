@@ -91,8 +91,9 @@ See [values.yaml](values.yaml), [values.schema.json](values.schema.json), [desig
 ## Authentication and networking limits
 
 OIDC enrollment must be restricted at the provider. Closing local registration does not close OIDC enrollment in the
-pinned upstream. Its browser token storage is not an HttpOnly-cookie session. The chart documents these limitations and
-keeps local administrator recovery available. The OIDC runtime fixture verifies S256 PKCE and trusted issuer TLS.
+pinned upstream. ByteStash returns the application token in a `bytestash_token` HttpOnly cookie without exposing it in
+the callback URL. The chart keeps local administrator recovery available. The OIDC runtime fixture verifies S256 PKCE,
+trusted issuer TLS, the cookie contract and callback replay rejection.
 
 The upstream process always trusts proxy headers. Configure the edge to overwrite forwarded headers, constrain accepted
 hostnames and limit pod ingress to that edge. The advertised upstream `ALLOWED_HOSTS` setting is not implemented in the

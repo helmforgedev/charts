@@ -5,7 +5,9 @@ import userService from '/app/src/services/userService.js';
 import userRepository from '/app/src/repositories/userRepository.js';
 import {up_v1_5_0_snippets} from '/app/src/config/migrations/20241117-migration.js';
 try {
- const db=initializeDatabase();
+ const adapter=await initializeDatabase();
+ const db=adapter.db??adapter;
+ if(!db?.exec||!db?.prepare) throw new Error('ByteStash SQLite adapter does not expose the required native database handle');
  db.exec('BEGIN IMMEDIATE');
  try {
  const count=db.prepare('SELECT COUNT(*) AS count FROM users').get().count;
@@ -20,4 +22,4 @@ try {
  }else console.log('Existing administrator retained; password not reset');
  db.exec('COMMIT');
  } catch(error) { db.exec('ROLLBACK'); throw error; }
-}finally{shutdownDatabase();}
+}finally{await shutdownDatabase();}

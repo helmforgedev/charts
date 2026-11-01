@@ -59,15 +59,15 @@ Register a confidential client with callback `https://snippets.example.test/api/
 configured `server.basePath` before `/api` when serving under a subpath. Use an HTTPS issuer and client Secret. Optional
 `oidc.caConfigMap` adds a trusted PEM CA through native Node TLS verification; it does not disable certificate checks.
 
-Restrict assigned users at the identity provider. Upstream 1.5.14 does not apply `ALLOW_NEW_ACCOUNTS=false` as an OIDC
+Restrict assigned users at the identity provider. Upstream 1.6.0 does not apply `ALLOW_NEW_ACCOUNTS=false` as an OIDC
 allowlist once the database has users. Identities are keyed by subject and issuer, not automatically linked by email.
 Mapped username collisions receive a numeric suffix. Administrator access is based on the final username in
 `auth.adminUsernames`; verify that mapping and control provider enrollment. Local administrator login stays available.
 
-The runtime fixture verifies S256 PKCE against standard provider discovery metadata. Upstream stores its application
-token in the callback query and browser storage; the JavaScript-created cookie is not HttpOnly. Avoid callback query
-logging at the proxy and treat XSS protection as part of the application boundary. The chart does not advertise HttpOnly
-sessions that upstream does not implement.
+The runtime fixture verifies S256 PKCE against standard provider discovery metadata. Upstream returns the application
+token in a `bytestash_token` HttpOnly cookie and redirects to `/auth/callback` without a token query parameter. It also
+verifies that replaying a consumed provider callback cannot issue another token cookie. Keep callback registration and
+proxy logging constrained even though the application token is no longer exposed in the callback URL.
 
 ByteStash always trusts reverse-proxy headers. Terminate HTTPS at an edge that overwrites forwarded headers and accepts
 only the configured hostname; restrict `networkPolicy.ingressFrom` to that edge. The upstream `ALLOWED_HOSTS` setting is
