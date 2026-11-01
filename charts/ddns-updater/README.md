@@ -16,6 +16,14 @@ This chart currently deploys `qmcgaw/ddns-updater:2.10.0`.
 - **Ingress support** — expose the web UI with TLS
 - **Restricted runtime** — non-root container, read-only root filesystem, dropped capabilities, and ServiceAccount token automount disabled
 
+## Architecture
+
+The single-replica Deployment reads `config.json` from either a chart-managed or
+existing Secret, polls public IP sources, and updates the configured provider
+APIs. A PVC retains update history, while a ClusterIP Service exposes the status
+UI. The `Recreate` strategy prevents two writers from racing during upgrades.
+See [DESIGN.md](DESIGN.md) for the topology and responsibility boundaries.
+
 ## Installation
 
 **HTTPS repository:**
@@ -125,6 +133,32 @@ Before upgrading, confirm the provider-specific configuration format against the
 ```bash
 kubectl logs -l app.kubernetes.io/name=ddns-updater --all-containers --tail=100
 ```
+
+## Upgrade Safety
+
+Helm upgrades preserve the Deployment, Service, and PVC names. Keep the release
+name, `fullnameOverride`, `persistence.existingClaim`, and configuration Secret
+reference stable. Use an explicit values file with the normal Helm merge:
+
+```bash
+helm upgrade ddns-updater helmforge/ddns-updater \
+  --namespace ddns-updater --values values.yaml
+```
+
+`--reuse-values` also preserves old defaults, so compare stored values with the
+new schema before using it. Back up `config.json` and the update-history PVC,
+then verify both the UI and a provider update after the pod is Ready.
+
+## Troubleshooting
+
+- If the pod cannot start, validate the `config.json` syntax and the configured
+  `existingSecretKey`.
+- If the UI is healthy but records stay stale, inspect the logs for provider
+  errors and verify outbound DNS, public IP checkers, and provider API access.
+- If the UI is unavailable behind Ingress, confirm `ddns.rootUrl`, the Service
+  port, and the Ingress path agree.
+- If an upgrade cannot mount history, verify the existing PVC name, access mode,
+  and StorageClass before changing persistence values.
 
 ## Security Scan
 
