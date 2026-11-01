@@ -60,6 +60,19 @@ default UI, and persistent HTTP sessions in a dedicated SQLite database for
 Docker deployments. The chart's `/config` PVC covers both the main database
 and the session database. Back up that PVC before upgrading.
 
+Chart upgrades preserve the root UID/GID behavior used by previous releases so
+existing SQLite files remain writable. The compatible security defaults only
+prevent privilege escalation, select RuntimeDefault seccomp, and disable API
+token mounts. Both regular upgrades and `--reuse-values` upgrades retain the
+`/config` and `/data` PVC claims.
+
+```bash
+helm upgrade komga helmforge/komga --namespace komga --reset-then-reuse-values
+```
+
+`--reset-then-reuse-values` applies new chart defaults while retaining explicit
+values from the previous release; those explicit values still take precedence.
+
 ## Production Example
 
 ```yaml
@@ -221,6 +234,20 @@ top-level application config files and optional logs before uploading the
 archive to S3. Search indexes are intentionally excluded because Komga can
 rebuild them.
 
+## Security
+
+The default Pod does not receive a Kubernetes API token. Komga and the backup
+containers run with privilege escalation disabled and the runtime-default
+seccomp profile. The upstream image currently starts as root, and the chart
+preserves that UID and its filesystem access by default so upgrades can continue
+reading existing SQLite databases even when an older custom UID created
+restrictive files. Set `runAsUser`, `runAsGroup`, `runAsNonRoot`, or capability
+overrides only after confirming ownership and access on `/config` and `/data`.
+
+Use TLS for external routes and an existing Secret or ExternalSecret for backup
+credentials. NetworkPolicy, storage encryption, and image admission are cluster
+responsibilities.
+
 ## Security Scan
 
 ### Security Scan: `komga`
@@ -246,6 +273,19 @@ The chart creates two separate PVCs:
 - [Design](DESIGN.md)
 - [Backup Guide](docs/backup.md)
 - [Komga Official Docs](https://komga.org/docs/introduction)
+
+## Troubleshooting
+
+```bash
+kubectl get pods,pvc -n komga
+kubectl logs deployment/komga-komga -n komga
+kubectl get events -n komga --sort-by=.lastTimestamp
+```
+
+If Komga cannot open its SQLite database after setting a custom UID or GID,
+restore the prior security context and correct ownership on the `/config` PVC
+before retrying. If a probe fails behind a subpath, ensure
+`komga.contextPath` and the probe paths describe the same route.
 
 <!-- @AI-METADATA
 type: chart-readme

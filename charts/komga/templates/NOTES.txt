@@ -1,54 +1,80 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-Komga has been deployed.
+Komga media server
 
-1. Access
+1. Installation summary
+=======================
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Image: {{ include "komga.image" . }}
 
-  Internal service:
-    http://{{ include "komga.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
-
-  Port-forward:
-    kubectl port-forward svc/{{ include "komga.fullname" . }} {{ .Values.komga.port }}:{{ .Values.service.port }} -n {{ .Release.Namespace }}
-    http://localhost:{{ .Values.komga.port }}
-
+2. Access
+=========
+Internal service: http://{{ include "komga.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}{{ .Values.komga.contextPath }}
+Port-forward: kubectl port-forward svc/{{ include "komga.fullname" . }} {{ .Values.komga.port }}:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+Then open http://localhost:{{ .Values.komga.port }}{{ .Values.komga.contextPath }}
 {{- if .Values.ingress.enabled }}
-  Ingress:
+Ingress routes:
 {{- range .Values.ingress.hosts }}
-    http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+{{- $host := .host }}
+{{- range .paths }}
+  {{ if $.Values.ingress.tls }}https{{ else }}http{{ end }}://{{ $host }}{{ .path }}
 {{- end }}
 {{- end }}
-
+{{- end }}
 {{- if .Values.gateway.enabled }}
-  Gateway API:
+Gateway API routes:
 {{- range .Values.gateway.hostnames }}
-    http://{{ . }}{{ $.Values.gateway.path }}
+  http://{{ . }}{{ $.Values.gateway.path }}
 {{- end }}
 {{- end }}
 
-2. Storage
-  Config/database volume: {{ if .Values.persistence.config.enabled }}persistent{{ else }}ephemeral{{ end }}
-  Library volume: {{ if .Values.persistence.data.enabled }}persistent{{ else }}ephemeral{{ end }}
+3. Configuration and storage
+============================
+Timezone: {{ .Values.komga.timezone }}
+Context path: {{ .Values.komga.contextPath }}
+Session timeout: {{ .Values.komga.sessionTimeout }}
+Config/database volume: {{ if .Values.persistence.config.enabled }}persistent{{ else }}ephemeral{{ end }}
+Library volume: {{ if .Values.persistence.data.enabled }}persistent{{ else }}ephemeral{{ end }}
+Keep /config and /data on storage that supports the access mode requested by this chart.
 
-3. Runtime
-  Timezone: {{ .Values.komga.timezone }}
-  Context path: {{ .Values.komga.contextPath }}
-  Session timeout: {{ .Values.komga.sessionTimeout }}
-{{- $javaToolOptions := .Values.komga.javaToolOptions | default .Values.komga.javaMemory }}
-{{- if $javaToolOptions }}
-  Java options: {{ $javaToolOptions }}
-{{- end }}
+4. Getting started
+==================
+Open the web interface, create the first administrator account, and add libraries under /data.
+Validate the application: kubectl get pods,svc,pvc -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
 
-4. Backup
+5. Security and exposure
+========================
+The Service is internal by default. Use TLS when enabling Ingress or Gateway API.
+With chart defaults, the workload blocks privilege escalation and uses RuntimeDefault seccomp.
+Explicit podSecurityContext or securityContext values take precedence over those defaults.
+The chart always disables Kubernetes API token mounts. UID/GID and filesystem access remain
+compatible with existing PVCs.
+For upgrades from older releases, prefer --reset-then-reuse-values so new defaults are merged
+with prior explicit values. --reuse-values alone may retain older security-context values.
+Store backup credentials in an existing Secret or ExternalSecret for production.
+
+6. Backup and recovery
+======================
 {{- if .Values.backup.enabled }}
-  CronJob enabled on schedule {{ .Values.backup.schedule }}.
-  Target bucket: {{ .Values.backup.s3.bucket }}
-  Credential secret: {{ include "komga.backupSecretName" . }}
+Backup CronJob schedule: {{ .Values.backup.schedule }}
+Target bucket: {{ .Values.backup.s3.bucket }}
+Credential Secret: {{ include "komga.backupSecretName" . }}
 {{- else }}
-  Disabled. Enable backup.enabled and configure backup.s3 for S3-compatible backups.
+Backup is disabled. Enable backup.enabled and configure backup.s3 for S3-compatible backups.
 {{- end }}
+Back up /config before every upgrade. Library media under /data is outside the built-in backup scope.
 
-5. Next steps
-  1. Open Komga and create the first admin account.
-  2. Add libraries that point to subdirectories under /data.
-  3. For production, set resource requests and limits and verify backups.
+7. Troubleshooting and validation
+=================================
+Pods: kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+Logs: kubectl logs deployment/{{ include "komga.fullname" . }} -n {{ .Release.Namespace }}
+Events: kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
+If startup fails after a custom UID/GID change, verify ownership and write access on the /config PVC.
+
+8. Documentation and support
+============================
+Chart documentation: https://helmforge.dev/docs/charts/komga
+Upstream documentation: https://komga.org/docs/introduction
+Support: https://github.com/helmforgedev/charts/issues
 
 Happy Helmforging :)

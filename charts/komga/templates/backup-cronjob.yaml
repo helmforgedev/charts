@@ -21,12 +21,18 @@ spec:
             {{- include "komga.selectorLabels" . | nindent 12 }}
             app.kubernetes.io/component: backup
         spec:
+          automountServiceAccountToken: false
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
           restartPolicy: OnFailure
           initContainers:
             - name: sqlite-backup
               image: "{{ .Values.backup.images.sqlite.repository }}:{{ .Values.backup.images.sqlite.tag }}"
               imagePullPolicy: {{ .Values.backup.images.sqlite.pullPolicy }}
               command: ["/bin/sh", "/scripts/sqlite-backup.sh"]
+              securityContext:
+                allowPrivilegeEscalation: false
               {{- with .Values.backup.resources }}
               resources:
                 {{- toYaml . | nindent 16 }}
@@ -44,6 +50,8 @@ spec:
               image: "{{ .Values.backup.images.uploader.repository }}:{{ .Values.backup.images.uploader.tag }}"
               imagePullPolicy: {{ .Values.backup.images.uploader.pullPolicy }}
               command: ["/bin/sh", "/scripts/upload-backup.sh"]
+              securityContext:
+                allowPrivilegeEscalation: false
               env:
                 - name: S3_ENDPOINT
                   value: {{ .Values.backup.s3.endpoint | quote }}
