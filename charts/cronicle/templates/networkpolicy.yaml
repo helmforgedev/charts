@@ -1,0 +1,29 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- $networkPolicy := .Values.networkPolicy | default dict }}
+{{- if (get $networkPolicy "enabled" | default false) }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "cronicle.fullname" . }}
+  labels:
+    {{- include "cronicle.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "cronicle.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    {{- if (get $networkPolicy "egress" | default list) }}
+    - Egress
+    {{- end }}
+  ingress:
+    {{- if (get $networkPolicy "ingress" | default list) }}
+    {{- toYaml (get $networkPolicy "ingress") | nindent 4 }}
+    {{- else }}
+    - {}
+    {{- end }}
+  {{- with (get $networkPolicy "egress" | default list) }}
+  egress:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

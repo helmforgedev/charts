@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: NetworkPolicy
+templates:
+  - templates/networkpolicy.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not render when values are absent during reuse-values upgrades
+    set:
+      networkPolicy: null
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render an ingress policy when enabled
+    set:
+      networkPolicy.enabled: true
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: spec.podSelector.matchLabels["app.kubernetes.io/name"]
+          value: cronicle
+      - contains:
+          path: spec.policyTypes
+          content: Ingress
+      - equal:
+          path: spec.ingress[0]
+          value: {}
+
+  - it: should render custom ingress and egress rules
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.ingress[0].from[0].namespaceSelector.matchLabels.access: trusted
+      networkPolicy.egress[0].to[0].ipBlock.cidr: 10.0.0.0/8
+    asserts:
+      - equal:
+          path: spec.ingress[0].from[0].namespaceSelector.matchLabels.access
+          value: trusted
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - equal:
+          path: spec.egress[0].to[0].ipBlock.cidr
+          value: 10.0.0.0/8

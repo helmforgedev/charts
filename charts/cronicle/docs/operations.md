@@ -52,6 +52,34 @@ kubectl exec -n cronicle deploy/cronicle-cronicle -- du -sh /opt/cronicle/data
 kubectl logs -n cronicle deploy/cronicle-cronicle --tail=100
 ```
 
+The quality baseline introduced after chart `1.1.11` preserves the previous
+default pod security and ServiceAccount-token behavior. The new
+`securityProfile` and `networkPolicy` features are disabled unless explicitly
+enabled. Test both a normal upgrade and `--reuse-values` before enabling either
+feature in production.
+
+## Optional Security Profile
+
+The community image starts as root, so the chart cannot safely force
+`runAsNonRoot` or a read-only root filesystem. The compatible opt-in profile
+still reduces the pod's privileges:
+
+```yaml
+securityProfile:
+  enabled: true
+```
+
+This profile uses RuntimeDefault seccomp, drops all Linux capabilities, blocks
+privilege escalation, and disables ServiceAccount token automount. Test all
+scheduled commands because jobs execute inside the Cronicle container. Use
+explicit `podSecurityContext` and `securityContext` values for the smallest
+required exceptions.
+
+An optional NetworkPolicy can be enabled independently. With no custom rules,
+it preserves ingress and egress connectivity. Define restrictive rules only
+after inventorying DNS, SMTP, webhook, package repository, and job-specific
+destinations.
+
 Size the PVC according to job log retention. Long-running shell commands and
 chatty jobs can grow the log directory faster than the scheduler metadata.
 
