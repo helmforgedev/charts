@@ -15,6 +15,20 @@ uses the official `docker.io/b3log/siyuan:v3.8.7` image, verified for Linux amd6
   policies.
 - Functional notebook/document tests, pod-replacement persistence checks and quiesced restore into a fresh PVC.
 
+## Architecture and boundaries
+
+One Recreate Deployment runs the native kernel and writes the complete workspace
+on one PVC. The Service, optional Ingress or HTTPRoute, native access-code Secret,
+optional OIDC Secret, and External Secrets resources surround that single writer.
+The chart bypasses the root entrypoint and provides explicit writable workspace,
+home, and temporary mounts for the restricted UID/GID 1000 process.
+
+The chart owns workload and Kubernetes integration resources. TLS termination,
+identity-provider assignment, off-cluster backup transport, metrics collection,
+certificate monitoring, and storage-provider lifecycle remain platform
+responsibilities. See [DESIGN.md](DESIGN.md) for the Mermaid topology, security
+and observability boundaries, known gaps, and explicit non-goals.
+
 ## Install
 
 ```bash
@@ -103,6 +117,14 @@ The runtime fixture exercises real discovery, JWKS/RS256 validation, authorizati
 identity claims. Its instant-login Node provider is disposable test infrastructure and must never be deployed as an
 identity service.
 
+## Examples
+
+- [minimal private workspace](examples/minimal.yaml)
+- [production settings](examples/production.yaml)
+- [External Secrets credentials](examples/external-secrets.yaml)
+- [native OIDC](examples/oidc.yaml)
+- [Gateway API exposure](examples/gateway-api.yaml)
+
 ## External Secrets
 
 ```yaml
@@ -176,10 +198,21 @@ Take a quiesced backup first. Review upstream storage-format changes and allow R
 manifests and image, not data migrations. Restore a compatible workspace backup when an older version cannot read newer
 storage.
 
-SiYuan v3.8.6 expands mind maps and database calendars, improves startup,
-synchronization, index recovery and large-document performance, and fixes security
-and database transaction issues. Review the
-[upstream release](https://github.com/siyuan-note/siyuan/releases/tag/v3.8.6).
+The pinned application release is SiYuan v3.8.7. Review the
+[upstream release](https://github.com/siyuan-note/siyuan/releases/tag/v3.8.7)
+before upgrading production workspaces.
+
+## Troubleshooting
+
+- If startup or readiness stays incomplete, inspect the kernel logs and
+  `/api/system/bootProgress`, confirm the PVC is writable by UID/GID 1000, and
+  increase the startup budget for a large index.
+- If OIDC login is denied, verify the exact issuer and callback, HTTPS egress,
+  client Secret key, and every configured claim rule. Keep `allowAll` disabled.
+- If a Recreate upgrade is waiting, confirm the old Pod terminated and the RWO
+  claim detached before diagnosing the new Pod.
+- If the workspace appears empty, verify the mounted claim and
+  `persistence.existingClaim`; do not start another writer against the old claim.
 
 ## Security Scan
 
