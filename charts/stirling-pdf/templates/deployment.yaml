@@ -16,6 +16,7 @@ spec:
         {{- with .Values.podLabels }}{{ toYaml . | nindent 8 }}{{- end }}
       annotations:
         checksum/credentials: {{ toJson .Values.auth | sha256sum }}
+        checksum/secret: {{ toJson .Values.auth | sha256sum }}
         {{- with .Values.podAnnotations }}{{ toYaml . | nindent 8 }}{{- end }}
     spec:
       serviceAccountName: {{ include "stirling-pdf.serviceAccountName" . }}
@@ -81,12 +82,27 @@ spec:
           {{- with .Values.envFrom }}
           envFrom: {{ toYaml . | nindent 12 }}{{- end }}
           resources: {{ toYaml .Values.resources | nindent 12 }}
-          {{- range $name, $probe := .Values.probes }}
-          {{- if $probe.enabled }}
-          {{ $name }}Probe:
-            httpGet: {path: {{ printf "%s%s" $.Values.server.basePath $probe.path | quote }}, port: http}
-            {{- omit $probe "enabled" "path" | toYaml | nindent 12 }}
-          {{- end }}{{- end }}
+          {{- with .Values.probes.startup }}
+          {{- if .enabled }}
+          startupProbe:
+            httpGet: {path: {{ printf "%s%s" $.Values.server.basePath .path | quote }}, port: http}
+            {{- omit . "enabled" "path" | toYaml | nindent 12 }}
+          {{- end }}
+          {{- end }}
+          {{- with .Values.probes.liveness }}
+          {{- if .enabled }}
+          livenessProbe:
+            httpGet: {path: {{ printf "%s%s" $.Values.server.basePath .path | quote }}, port: http}
+            {{- omit . "enabled" "path" | toYaml | nindent 12 }}
+          {{- end }}
+          {{- end }}
+          {{- with .Values.probes.readiness }}
+          {{- if .enabled }}
+          readinessProbe:
+            httpGet: {path: {{ printf "%s%s" $.Values.server.basePath .path | quote }}, port: http}
+            {{- omit . "enabled" "path" | toYaml | nindent 12 }}
+          {{- end }}
+          {{- end }}
           volumeMounts:
             - {name: workspace, mountPath: /configs, subPath: configs}
             - {name: workspace, mountPath: /customFiles, subPath: customFiles}

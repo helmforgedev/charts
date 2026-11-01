@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Authenticated native Prometheus
 
 Enable metrics.enabled for /actuator/prometheus on a separate ClusterIP Service. It rejects requests without a valid

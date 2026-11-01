@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Network isolation contract
+templates:
+  - templates/networkpolicy.yaml
+tests:
+  - it: isolates ingress and egress by default
+    asserts:
+      - contains:
+          path: spec.policyTypes
+          content: Ingress
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: http
+  - it: can disable only egress isolation
+    set:
+      networkPolicy.egressIsolation: false
+    asserts:
+      - notContains:
+          path: spec.policyTypes
+          content: Egress
+      - notExists:
+          path: spec.egress
