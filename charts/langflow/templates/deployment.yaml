@@ -1,6 +1,8 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 apiVersion: apps/v1
 kind: Deployment
+{{- $securityProfile := .Values.securityProfile | default dict }}
+{{- $securityProfileEnabled := get $securityProfile "enabled" | default false }}
 metadata:
   name: {{ include "langflow.fullname" . }}
   labels:
@@ -30,7 +32,13 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.podSecurityContext }}
+      {{- $podSecurityContext := .Values.podSecurityContext | default dict }}
+      {{- if $securityProfileEnabled }}
+      {{- $defaultPodSecurityContext := dict "runAsNonRoot" true "runAsUser" 1000 "runAsGroup" 0 "seccompProfile" (dict "type" "RuntimeDefault") }}
+      {{- $profilePodSecurityContext := get $securityProfile "podSecurityContext" | default dict }}
+      {{- $podSecurityContext = mergeOverwrite (deepCopy $defaultPodSecurityContext) $profilePodSecurityContext $podSecurityContext }}
+      {{- end }}
+      {{- with $podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -135,7 +143,13 @@ spec:
             timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
             failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
           {{- end }}
-          {{- with .Values.securityContext }}
+          {{- $securityContext := .Values.securityContext | default dict }}
+          {{- if $securityProfileEnabled }}
+          {{- $defaultContainerSecurityContext := dict "allowPrivilegeEscalation" false "readOnlyRootFilesystem" true "capabilities" (dict "drop" (list "ALL")) }}
+          {{- $profileContainerSecurityContext := get $securityProfile "containerSecurityContext" | default dict }}
+          {{- $securityContext = mergeOverwrite (deepCopy $defaultContainerSecurityContext) $profileContainerSecurityContext $securityContext }}
+          {{- end }}
+          {{- with $securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
@@ -146,6 +160,11 @@ spec:
           volumeMounts:
             - name: data
               mountPath: {{ .Values.persistence.mountPath }}
+            {{- if $securityProfileEnabled }}
+            - { name: runtime-tmp, mountPath: /tmp }
+            - { name: runtime-npm, mountPath: /app/.npm }
+            - { name: runtime-opt-npm, mountPath: /opt/app-root/src/.npm }
+            {{- end }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
@@ -176,6 +195,11 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
+        {{- if $securityProfileEnabled }}
+        - { name: runtime-tmp, emptyDir: {} }
+        - { name: runtime-npm, emptyDir: {} }
+        - { name: runtime-opt-npm, emptyDir: {} }
+        {{- end }}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
