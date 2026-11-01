@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Backup and recovery
 
 Back up the whole workspace claim and all credential Secrets, including a generated initial-password Secret. It includes

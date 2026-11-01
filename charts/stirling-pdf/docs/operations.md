@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Production operations
 
 Use a dedicated HTTPS origin and existing administrator Secret. Restrict document processing to trusted users. Native

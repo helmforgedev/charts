@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Ingress contract
+templates:
+  - templates/ingress.yaml
+tests:
+  - it: omits ingress by default
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: routes a configured host to the application service
+    set:
+      ingress.enabled: true
+      ingress.ingressClassName: nginx
+      ingress.hosts:
+        - host: pdf.example.test
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+      - equal:
+          path: spec.rules[0].host
+          value: pdf.example.test
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.port.number
+          value: 8080
