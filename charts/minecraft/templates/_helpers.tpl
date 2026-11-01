@@ -146,7 +146,7 @@ Explicit release values always win.
 {{- define "minecraft.podSecurityContext" -}}
 {{- $defaults := dict
   "fsGroup" 1000
-  "fsGroupChangePolicy" "OnRootMismatch"
+  "fsGroupChangePolicy" "Always"
   "seccompProfile" (dict "type" "RuntimeDefault")
 -}}
 {{- toYaml (mergeOverwrite (deepCopy $defaults) (default (dict) .Values.podSecurityContext)) -}}

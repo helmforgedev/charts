@@ -338,7 +338,7 @@ Security Scan: Kubescape local scan against `MITRE,NSA,SOC2` reports a 78.79% re
 |-----------|---------|-------------|
 | `automountServiceAccountToken` | `false` | Mount a Kubernetes API token in the server pod |
 | `podSecurityContext.fsGroup` | `1000` | Filesystem group for persistent data |
-| `podSecurityContext.fsGroupChangePolicy` | `OnRootMismatch` | Avoid recursive ownership changes when the PVC already has the correct group |
+| `podSecurityContext.fsGroupChangePolicy` | `Always` | Recursively repair ownership, including files created by older releases |
 | `podSecurityContext.seccompProfile.type` | `RuntimeDefault` | Seccomp profile for the pod |
 | `securityContext.runAsUser` | `1000` | UID for the server process |
 | `securityContext.runAsGroup` | `1000` | GID for the server process |
