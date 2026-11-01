@@ -1,86 +1,136 @@
-# Liwan Chart Design
+# Liwan design
 
-This chart deploys Liwan as a single-instance web analytics service using the official `ghcr.io/explodingcamera/liwan:1.8.0` image.
+## Scope
 
-## Product Model
+This chart deploys the official Liwan image as one privacy-focused web
+analytics service backed by embedded DuckDB. It owns the Kubernetes workload,
+durable `/data` storage, internal Service, optional Ingress or HTTPRoute,
+optional ingress NetworkPolicy, scheduling, and health configuration.
 
-Liwan is a compact Rust service for privacy-focused web analytics. It serves the UI, receives tracking events, and
-stores analytics data through an embedded DuckDB database. The runtime data directory is mounted at `/data`.
+The chart does not replace Liwan's storage engine, add a distributed control
+plane, or make the embedded database safe for concurrent writers.
 
-The chart does not model an external database because the upstream application is designed around local embedded storage.
-The Kubernetes contract is therefore a single pod with durable storage, predictable networking, and explicit public URL
-configuration.
+## Architecture
 
-## Default Topology
+```mermaid
+flowchart LR
+  browser[Dashboard browser] --> edge[Ingress or Gateway API]
+  website[Tracked website] --> edge
+  edge --> service[Liwan Service]
+  service --> app[Single Liwan Deployment]
+  app --> data[(Data PVC)]
+  app --> geo[Upstream GeoIP and application endpoints]
+  policy[Optional ingress NetworkPolicy] --> app
+  operator[Quiesced backup process] --> data
+```
 
-Defaults target a production-safe single instance:
+Liwan serves the dashboard and tracking endpoint from one Rust process. DuckDB,
+analytics history, and runtime assets share `/data`. The Deployment is fixed at
+one replica and uses Recreate so old and new writers never overlap during a
+normal rollout.
 
-- `replicas: 1`
-- `strategy.type: Recreate`
-- `persistence.enabled: true`
-- one PVC mounted at `/data`
-- Service on port `80` targeting container port `9042`
-- ServiceAccount token automount disabled
-- non-root UID/GID `1000`
-- `RuntimeDefault` seccomp profile
-- dropped Linux capabilities
+## Main Design Choices
 
-`Recreate` is intentional. DuckDB is embedded and single-writer oriented, so the chart avoids overlapping pods during rollout.
+- Pin the official multi-architecture image without rebuilding it.
+- Keep the application listener in `liwan.port` distinct from `service.port` and
+  route the Service through the named `http` target port.
+- Render exactly one replica with Recreate strategy because DuckDB is an
+  embedded, single-writer database.
+- Persist the complete `/data` directory by default and support externally
+  managed claims through `persistence.existingClaim`.
+- Keep `liwan.baseUrl` explicit because generated tracking URLs must match the
+  operator's public TLS endpoint.
+- Support both Ingress and Gateway API without installing either controller.
+- Offer an opt-in ingress NetworkPolicy. An empty peer list permits only pods in
+  the release namespace, while explicit peers support dedicated edge namespaces.
+- Disable ServiceAccount token automount and run the application as non-root
+  with dropped capabilities and RuntimeDefault seccomp.
 
-## Persistence
+## Production Boundary
 
-The `/data` volume stores the DuckDB analytics database and runtime data such as GeoIP assets. The default PVC size is
-`2Gi`, which is enough for small installations and test environments. Production installations should size the PVC based
-on traffic volume and retention expectations.
+Operators must provide a suitable expandable StorageClass or existing PVC,
+configure the public URL and TLS edge, size CPU, memory, and storage for traffic
+and retention, and protect backups outside the cluster. They must also configure
+trusted proxy addresses precisely when an edge supplies forwarded client IPs.
 
-When `persistence.enabled=false`, the chart uses `emptyDir`. That mode is only appropriate for demos and CI because analytics history is lost when the pod is replaced.
+The chart retains a chart-managed PVC when Helm deletes the release, but
+namespace deletion and storage-provider lifecycle are outside Helm. Consistent
+backup requires pausing incoming writes or stopping the Deployment before
+snapshotting `/data`. Restore must be rehearsed in an isolated namespace.
 
-## Public URL
+## Security Boundary
 
-`liwan.baseUrl` renders `LIWAN_BASE_URL`. Set it to the external URL before installing tracking snippets. Without a
-public base URL, the UI can still run, but generated tracker URLs can point at an internal or incomplete endpoint.
+The default container runs as UID/GID 1000, cannot gain privileges, drops all
+Linux capabilities, uses RuntimeDefault seccomp, and receives no Kubernetes API
+token. The data claim is the only chart-managed durable write surface.
 
-## Exposure
+NetworkPolicy enforcement depends on the cluster CNI and is disabled by default
+to preserve the established networking contract. When enabled, it isolates
+ingress to same-namespace pods unless explicit peers are supplied. Public edge
+authentication, TLS policy, trusted proxy configuration, dashboard access,
+tracking consent, and retention compliance remain operator responsibilities.
 
-The chart supports three exposure paths:
+`liwan.extraEnv`, extra volumes, extra manifests, annotations, and explicit
+NetworkPolicy peers extend the trust boundary and must be reviewed as privileged
+configuration. The chart rejects the removed `LIWAN_USE_FORWARD_HEADERS`
+setting so upgrades cannot silently restore unsafe unrestricted proxy trust.
 
-- ClusterIP Service for internal or port-forward access
-- Kubernetes Ingress with class, hosts, paths, and TLS
-- Gateway API HTTPRoute for clusters using Gateway controllers
+## Observability Boundary
 
-Ingress and Gateway API are independent. Operators should enable one public routing path per release unless they intentionally need both during migration.
+Startup, liveness, and readiness probes verify the configured TCP listener.
+Kubernetes Deployment, Pod, PVC, event, and log signals cover workload health.
+Operators should monitor public tracking requests, dashboard availability,
+storage growth, backup age, restart count, and edge certificate expiry.
 
-## Security Choices
+The pinned application does not expose a stable Prometheus contract consumed by
+this chart, so no ServiceMonitor or unrelated exporter is fabricated. Analytics
+business metrics in DuckDB are not a substitute for platform health signals.
 
-Liwan does not need Kubernetes API access, so `serviceAccount.automountServiceAccountToken` defaults to `false`.
+## Known Gaps and Improvement Candidates
 
-The pod and container security contexts default to:
+- Recreate upgrades intentionally include downtime.
+- Embedded DuckDB prevents horizontal scaling and concurrent writers.
+- TCP probes prove listener availability but not a complete authenticated
+  dashboard workflow.
+- NetworkPolicy is opt-in because existing installations may depend on traffic
+  from namespaces that cannot be inferred by the chart.
+- The chart does not coordinate quiesced backups or retention jobs.
+- A read-only root filesystem is not enabled until the upstream image's complete
+  temporary-file contract can be validated across releases.
 
-- non-root UID/GID `1000`
-- `fsGroup: 1000`
-- `fsGroupChangePolicy: OnRootMismatch`
-- `seccompProfile.type: RuntimeDefault`
-- `allowPrivilegeEscalation: false`
-- `capabilities.drop: [ALL]`
+## Explicit Non-Goals
 
-`readOnlyRootFilesystem` is not forced by default because the upstream image behavior around temporary files is not a stable chart contract. Persistent application data remains isolated to `/data`.
+- replacing DuckDB with an external database
+- horizontal autoscaling or multiple writers against one data directory
+- installing an Ingress controller, Gateway API CRDs, CNI, certificate manager,
+  storage provider, or monitoring stack
+- operating a trusted proxy or identity provider
+- deciding tracking consent, privacy policy, or analytics retention requirements
+- transporting, encrypting, or retaining off-cluster backups
+- treating Helm rollback as a database rollback
 
-## Scaling
+## Validation Strategy
 
-The chart intentionally renders one replica and does not expose `replicaCount`. Horizontal scaling would require a
-different storage model than embedded DuckDB. Run separate Liwan releases for isolated sites or environments.
+The mandatory chart gate validates dependencies, strict lint, every CI values
+profile, unit tests, real CRD schemas, Artifact Hub metadata, and sequential k3d
+runtime scenarios. Runtime validation checks rollout readiness, Service
+endpoints, the application listener, stable pods and logs, persistent storage,
+Ingress, Gateway API, dual-stack rendering, trusted-proxy configuration, and the
+opt-in NetworkPolicy.
 
-## Validation Scope
+Upgrade validation starts from the latest public chart package and exercises
+both reset/default values and `--reuse-values`. It verifies that the same PVC
+and a pre-upgrade marker remain available and that the application becomes ready
+after the Recreate rollout.
 
-The chart has unit tests for:
-
-- Deployment strategy and image selection
-- non-root and hardened security contexts
-- ServiceAccount token automount
-- PVC and `emptyDir` behavior
-- base URL environment wiring
-- Ingress rendering
-- Gateway API HTTPRoute rendering
-- dual-stack Service fields
-
-Behavioral validation uses the default persistent single-pod topology in k3d.
+<!-- @AI-METADATA
+ type: guide
+ title: Liwan Chart Design
+ description: Explain Liwan architecture, boundaries, and operational tradeoffs
+ audience: contributors, operators
+ purpose: Explain chart architecture and limits
+ scope: chart
+ path: charts/liwan/DESIGN.md
+ version: 1.1
+ date: 2026-11-01
+-->

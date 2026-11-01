@@ -1,34 +1,27 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-Liwan deployment summary
+Liwan deployment
 
-Chart: {{ .Chart.Name }}
-Version: {{ .Chart.Version }}
-AppVersion: {{ .Chart.AppVersion }}
+1. Installation summary
+=======================
 Release: {{ .Release.Name }}
 Namespace: {{ .Release.Namespace }}
+Image: {{ include "liwan.image" . }}
+Exactly one DuckDB writer is deployed with Recreate strategy.
 
-Access
-
+2. Access
+=========
 {{- if .Values.ingress.enabled }}
 Ingress is enabled.
 {{- range $host := .Values.ingress.hosts }}
-- Web UI: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+- Dashboard: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
 - Tracker: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/script.js
 {{- end }}
 {{- else }}
-Run this command to access Liwan locally:
-
-  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "liwan.fullname" . }} 9042:{{ .Values.service.port }}
-
-Then open:
-
-  http://localhost:9042/
+kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "liwan.fullname" . }} 9042:{{ .Values.service.port }}
+Open http://localhost:9042/ after the Pod becomes ready.
 {{- end }}
 {{- if .Values.gatewayAPI.enabled }}
-
-Gateway API
-
-An HTTPRoute was rendered.
+An HTTPRoute was rendered. Confirm its Accepted and ResolvedRefs conditions.
 {{- with .Values.gatewayAPI.hostnames }}
 Hostnames:
 {{- range . }}
@@ -37,41 +30,52 @@ Hostnames:
 {{- end }}
 {{- end }}
 
-Configuration
-
+3. Configuration
+================
 {{- if .Values.liwan.baseUrl }}
-Base URL: {{ .Values.liwan.baseUrl }}
+Public base URL: {{ .Values.liwan.baseUrl }}
 {{- else }}
-Base URL: not configured. Set liwan.baseUrl to the public URL before installing tracking snippets.
+Public base URL is not configured. Set liwan.baseUrl before installing trackers.
 {{- end }}
+Trust only the exact Ingress or Gateway proxy addresses through
+LIWAN_TRUSTED_PROXIES. Never use unrestricted proxy trust.
+
+4. Persistence and backup
+=========================
 {{- if .Values.persistence.enabled }}
-Persistence: enabled, claim {{ include "liwan.dataClaimName" . }}
+Persistence: enabled
+Data claim: {{ include "liwan.dataClaimName" . }}
+Quiesce incoming writes or stop the Deployment before snapshotting /data.
 {{- else }}
-Persistence: disabled. Analytics data is stored on emptyDir and is lost when the pod restarts.
+Persistence: disabled. Data is stored on emptyDir and is lost with the Pod.
 {{- end }}
-{{- with .Values.service.ipFamilyPolicy }}
-Service IP family policy: {{ . }}
-{{- end }}
+Test restore into an isolated namespace and protect copies off-cluster.
 
-Next steps
+5. Availability and resources
+==============================
+Recreate upgrades intentionally include downtime and prevent concurrent writers.
+Do not scale this Deployment or attach the claim to another running release.
+Set CPU, memory, and PVC capacity for traffic volume and retention.
 
-1. Wait for the pod:
-   kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=liwan -n {{ .Release.Namespace }} --timeout=300s
+6. Monitoring and network
+=========================
+kubectl logs -n {{ .Release.Namespace }} deployment/{{ include "liwan.fullname" . }} --tail=100
+Monitor restarts, public tracking requests, PVC growth, and backup age.
+{{- $networkPolicy := .Values.networkPolicy | default dict }}
+NetworkPolicy enabled: {{ $networkPolicy.enabled | default false }}
+NetworkPolicy enforcement requires a compatible CNI. Explicitly allow the edge.
 
-2. Check recent logs:
-   kubectl logs -l app.kubernetes.io/name=liwan -n {{ .Release.Namespace }} --all-containers --tail=50
+7. Upgrade and recovery
+=======================
+Back up /data, review upstream storage changes, and watch the Recreate rollout.
+helm upgrade {{ .Release.Name }} helmforge/liwan -n {{ .Release.Namespace }} -f values.yaml
+kubectl rollout status -n {{ .Release.Namespace }} deployment/{{ include "liwan.fullname" . }}
+Helm rollback changes manifests and images; it does not reverse DuckDB migrations.
 
-3. Create a site in the Liwan UI and install the generated tracking snippet.
-
-Troubleshooting
-
-Describe the pod:
-  kubectl describe pod -l app.kubernetes.io/name=liwan -n {{ .Release.Namespace }}
-
-Inspect release resources:
-  kubectl get all,pvc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-
-Documentation: https://helmforge.dev/docs/charts/liwan
-Upstream: https://liwan.dev
+8. Documentation and support
+=============================
+https://helmforge.dev/docs/charts/liwan
+https://github.com/helmforgedev/charts/issues
+https://liwan.dev
 
 Happy Helmforging :)
