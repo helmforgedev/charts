@@ -61,6 +61,22 @@ The Recreate strategy stops the old pair before starting the new pair. Expect
 downtime; there is no rolling session transfer. Verify the same public identity,
 native registration and relay behavior after upgrading.
 
+Prefer an explicit values file with reset semantics so the new chart defaults are
+applied while operator choices remain reviewable:
+
+```bash
+helm repo update
+helm upgrade rustdesk helmforge/rustdesk-server -n rustdesk \
+  --reset-values -f production-values.yaml --wait --timeout 5m
+```
+
+`--reuse-values` is supported for this chart's published value contract, but it
+also retains an explicitly configured old `image.tag`. When upgrading across an
+application image change, set the intended new pinned tag explicitly or use the
+reset-values workflow. After either path, assert the live image, PVC claim name,
+public key and client protocol behavior instead of treating a successful Helm
+revision as sufficient evidence.
+
 Helm rollback changes Kubernetes configuration, not database contents. If an
 upstream version changes persisted formats, restore a compatible backup together
 with its application version. Never run two releases against one restored claim.
