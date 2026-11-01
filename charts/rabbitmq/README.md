@@ -166,6 +166,46 @@ externalSecrets:
 - keep the Erlang cookie stable across restarts and upgrades
 - enable TLS when clients connect outside a trusted internal network boundary
 - restrict Management UI exposure
+- the default pod runs as UID 100 and GID 101 with RuntimeDefault seccomp,
+  privilege escalation disabled, all Linux capabilities dropped, and a
+  read-only root filesystem
+- only `/var/lib/rabbitmq` and `/tmp` are writable through explicit volumes
+- a non-root init container restores the Erlang cookie to owner-only mode after
+  Kubernetes applies the volume filesystem group, including on legacy PVCs
+- the ServiceAccount token is not mounted because RabbitMQ 4.1 and later peer
+  discovery uses StatefulSet ordinals instead of querying the Kubernetes API
+
+### Upgrades and credential retention
+
+The chart reuses the username, password, and Erlang cookie from its existing
+managed Secret during upgrades. This applies to both `--reset-values` and
+`--reuse-values`, preventing the Secret from drifting away from credentials
+stored in the persistent RabbitMQ database.
+
+Security defaults are merged by the workload template, so they also apply when
+`--reuse-values` carries forward the previous chart's empty security-context
+maps. Explicit security-context keys and an explicit
+`automountServiceAccountToken` value continue to override chart defaults.
+
+Changing `auth.username`, `auth.password`, or `auth.erlangCookie` on an existing
+release does not rotate live broker credentials. Perform rotation with RabbitMQ
+administration tooling first, then move the synchronized credentials to an
+existing Secret or External Secrets provider.
+
+The default official image and earlier public chart versions use UID `100` and
+GID `101`, which is the tested in-place upgrade path. Before upgrading a release
+that used a custom image or custom process identity, inspect the existing cookie
+ownership and keep the pod identity aligned:
+
+```bash
+kubectl exec -n <namespace> <rabbitmq-pod> -- stat -c '%u:%g %a' /var/lib/rabbitmq/.erlang.cookie
+```
+
+Set `podSecurityContext.runAsUser`, `runAsGroup`, and `fsGroup` to that image's
+numeric identity before the upgrade. The non-root init container can then
+restore mode `0600`. To migrate the PVC to UID `100`, first use an explicitly
+authorized one-time maintenance pod to change ownership while RabbitMQ is
+stopped; the hardened chart intentionally does not run a root init container.
 
 ### Queues and topology
 
@@ -205,6 +245,9 @@ externalSecrets:
 | `auth.password` | Application password | `""` |
 | `auth.erlangCookie` | Erlang cookie | `""` |
 | `auth.existingSecret` | Existing secret for credentials | `""` |
+| `automountServiceAccountToken` | Mount a Kubernetes API token in the pod | `false` |
+| `podSecurityContext` | Pod identity, filesystem group, and seccomp defaults | UID `100`, GID/fsGroup `101`, `RuntimeDefault` |
+| `securityContext` | Container hardening defaults | non-root, read-only root, no escalation, drop `ALL` |
 | `queueDefaults.type` | `quorum` or `classic` | `quorum` |
 | `management.enabled` | Enable management plugin/UI | `true` |
 | `management.referrerPolicy` | Management UI Referrer-Policy header; empty uses browser default | `no-referrer` |

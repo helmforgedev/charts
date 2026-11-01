@@ -81,14 +81,28 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $secretName := include "rabbitmq.secretName" . -}}
 {{- if .Values.auth.existingSecret -}}
 {{- "" -}}
+{{- else -}}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace $secretName -}}
+{{- if and $existing (hasKey $existing.data "rabbitmq-password") -}}
+{{- index $existing.data "rabbitmq-password" | b64dec -}}
 {{- else if .Values.auth.password -}}
 {{- .Values.auth.password -}}
 {{- else -}}
-{{- $existing := lookup "v1" "Secret" .Release.Namespace $secretName -}}
-{{- if $existing -}}
-{{- index $existing.data "rabbitmq-password" | b64dec -}}
-{{- else -}}
 {{- randAlphaNum 24 -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "rabbitmq.username" -}}
+{{- $secretName := include "rabbitmq.secretName" . -}}
+{{- if .Values.auth.existingSecret -}}
+{{- "" -}}
+{{- else -}}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace $secretName -}}
+{{- if and $existing (hasKey $existing.data "rabbitmq-username") -}}
+{{- index $existing.data "rabbitmq-username" | b64dec -}}
+{{- else -}}
+{{- .Values.auth.username -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}
@@ -97,12 +111,12 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $secretName := include "rabbitmq.secretName" . -}}
 {{- if .Values.auth.existingSecret -}}
 {{- "" -}}
-{{- else if .Values.auth.erlangCookie -}}
-{{- .Values.auth.erlangCookie -}}
 {{- else -}}
 {{- $existing := lookup "v1" "Secret" .Release.Namespace $secretName -}}
-{{- if $existing -}}
+{{- if and $existing (hasKey $existing.data "rabbitmq-erlang-cookie") -}}
 {{- index $existing.data "rabbitmq-erlang-cookie" | b64dec -}}
+{{- else if .Values.auth.erlangCookie -}}
+{{- .Values.auth.erlangCookie -}}
 {{- else -}}
 {{- randAlphaNum 32 -}}
 {{- end -}}
@@ -149,6 +163,32 @@ amqps
 {{- else -}}
 amqp
 {{- end -}}
+{{- end -}}
+
+{{/*
+Merge security defaults in the template so they also apply when Helm
+--reuse-values carries forward the previous chart's empty context maps.
+Explicit keys from the release values always win.
+*/}}
+{{- define "rabbitmq.podSecurityContext" -}}
+{{- $defaults := dict
+  "runAsUser" 100
+  "runAsGroup" 101
+  "fsGroup" 101
+  "fsGroupChangePolicy" "OnRootMismatch"
+  "seccompProfile" (dict "type" "RuntimeDefault")
+-}}
+{{- toYaml (mergeOverwrite (deepCopy $defaults) (default (dict) .Values.podSecurityContext)) -}}
+{{- end -}}
+
+{{- define "rabbitmq.securityContext" -}}
+{{- $defaults := dict
+  "runAsNonRoot" true
+  "allowPrivilegeEscalation" false
+  "readOnlyRootFilesystem" true
+  "capabilities" (dict "drop" (list "ALL"))
+-}}
+{{- toYaml (mergeOverwrite (deepCopy $defaults) (default (dict) .Values.securityContext)) -}}
 {{- end -}}
 
 {{- define "rabbitmq.ingressPortName" -}}

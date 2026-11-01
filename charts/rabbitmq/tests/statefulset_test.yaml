@@ -35,6 +35,101 @@ tests:
           path: spec.replicas
           value: 1
 
+  - it: should apply the default pod hardening
+    template: statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 100
+      - equal:
+          path: spec.template.spec.securityContext.runAsGroup
+          value: 101
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 101
+      - equal:
+          path: spec.template.spec.securityContext.fsGroupChangePolicy
+          value: OnRootMismatch
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: rabbitmq-runtime-tmp
+            mountPath: /tmp
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: rabbitmq-runtime-tmp
+            emptyDir: {}
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: cookie-permissions
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsNonRoot
+          value: true
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: 'chmod 600 /var/lib/rabbitmq/.erlang.cookie'
+
+  - it: should preserve explicit security overrides
+    template: statefulset.yaml
+    set:
+      automountServiceAccountToken: true
+      podSecurityContext:
+        runAsUser: 200
+        runAsGroup: 202
+        fsGroup: 202
+        seccompProfile:
+          type: Unconfined
+      securityContext:
+        allowPrivilegeEscalation: true
+        readOnlyRootFilesystem: false
+        capabilities:
+          drop:
+            - NET_RAW
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 200
+      - equal:
+          path: spec.template.spec.securityContext.runAsGroup
+          value: 202
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 202
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: Unconfined
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: false
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: NET_RAW
+
   - it: should have 3 replicas in cluster mode
     template: statefulset.yaml
     set:
@@ -142,3 +237,54 @@ tests:
       - equal:
           path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
           value: 8Gi
+
+  - it: should keep an unrelated user-supplied tmp volume separate
+    template: statefulset.yaml
+    set:
+      extraVolumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 128Mi
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tmp
+            emptyDir:
+              sizeLimit: 128Mi
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: rabbitmq-runtime-tmp
+            mountPath: /tmp
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: rabbitmq-runtime-tmp
+            emptyDir: {}
+
+  - it: should not add a managed tmp volume or mount when the user supplies the mount path
+    template: statefulset.yaml
+    set:
+      extraVolumes:
+        - name: custom-tmp
+          emptyDir: {}
+      extraVolumeMounts:
+        - name: custom-tmp
+          mountPath: /tmp
+    asserts:
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: rabbitmq-runtime-tmp
+            emptyDir: {}
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: rabbitmq-runtime-tmp
+            mountPath: /tmp
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: custom-tmp
+            mountPath: /tmp

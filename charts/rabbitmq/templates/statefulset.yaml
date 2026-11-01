@@ -1,5 +1,11 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- include "rabbitmq.validateAll" . -}}
+{{- $hasCustomTmpMount := false -}}
+{{- range .Values.extraVolumeMounts -}}
+{{- if eq .mountPath "/tmp" -}}
+{{- $hasCustomTmpMount = true -}}
+{{- end -}}
+{{- end -}}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -34,15 +40,14 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ include "rabbitmq.serviceAccountName" . }}
+      automountServiceAccountToken: {{ if hasKey .Values "automountServiceAccountToken" }}{{ .Values.automountServiceAccountToken }}{{ else }}false{{ end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.podSecurityContext }}
       securityContext:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- include "rabbitmq.podSecurityContext" . | nindent 8 }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -62,6 +67,22 @@ spec:
       {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
       {{- end }}
+      initContainers:
+        - name: cookie-permissions
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - |
+              if [ -f /var/lib/rabbitmq/.erlang.cookie ]; then
+                chmod 600 /var/lib/rabbitmq/.erlang.cookie
+              fi
+          securityContext:
+            {{- include "rabbitmq.securityContext" . | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/rabbitmq
       containers:
         - name: rabbitmq
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -165,10 +186,8 @@ spec:
                   - -ec
                   - rabbitmq-upgrade await_online_quorum_plus_one && rabbitmq-upgrade drain
           {{- end }}
-          {{- with .Values.securityContext }}
           securityContext:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
+            {{- include "rabbitmq.securityContext" . | nindent 12 }}
           volumeMounts:
             - name: config
               mountPath: /etc/rabbitmq/rabbitmq.conf
@@ -188,6 +207,10 @@ spec:
             {{- end }}
             - name: data
               mountPath: /var/lib/rabbitmq
+            {{- if not $hasCustomTmpMount }}
+            - name: rabbitmq-runtime-tmp
+              mountPath: /tmp
+            {{- end }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -199,6 +222,10 @@ spec:
         - name: config
           configMap:
             name: {{ include "rabbitmq.configurationName" . }}
+        {{- if not $hasCustomTmpMount }}
+        - name: rabbitmq-runtime-tmp
+          emptyDir: {}
+        {{- end }}
         {{- if .Values.tls.enabled }}
         - name: tls
           secret:
