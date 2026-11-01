@@ -3,7 +3,7 @@
 Deploy [Papra](https://github.com/papra-hq/papra), a private document archive with extraction, full-text search and
 organization-based access control. The chart uses the official `ghcr.io/papra-hq/papra:26.7.0-rootless` image.
 
-## Production defaults
+## Features and production defaults
 
 - A single writer with Recreate upgrades, a retained 5 GiB PVC and explicit resource limits.
 - Non-root UID/GID 1000, read-only root filesystem, dropped capabilities and no Kubernetes API token.
@@ -17,6 +17,13 @@ organization-based access control. The chart uses the official `ghcr.io/papra-hq
 
 Papra does not use PostgreSQL, MySQL or Redis. Its local database and libSQL client share the application's native
 migrations. The chart keeps one application replica across all storage combinations.
+
+## Architecture
+
+Papra runs as a single `Recreate` Deployment behind a ClusterIP Service. The pod mounts one durable workspace for the
+local database, documents, and task queue plus ephemeral writable home and temporary directories. Optional Ingress and
+Gateway API resources publish the Service. Remote libSQL and S3 integrations remain external services. See
+[DESIGN.md](DESIGN.md) for the topology, ownership boundaries, security model, and explicit non-goals.
 
 ## Installation and access
 
@@ -57,6 +64,34 @@ not automatically migrate existing originals; use the upstream migration procedu
 plan.
 
 See [storage and recovery](docs/recovery.md) and [external storage examples](examples/external-storage.yaml).
+
+## Configuration
+
+The complete contract is defined by [values.yaml](values.yaml) and validated by
+[values.schema.json](values.schema.json). Common production settings are:
+
+| Value | Default | Purpose |
+| --- | --- | --- |
+| `server.publicUrl` | `http://localhost:1221` | Exact browser-facing origin used by native authentication |
+| `auth.existingSecret` | `""` | Stable session-signing Secret managed outside the release |
+| `bootstrap.existingSecret` | `""` | Existing Secret containing the initial administrator password |
+| `auth.allowRegistration` | `false` | Enable native email/password signup |
+| `database.remoteUrl` | `""` | Remote `libsql://` or HTTPS database URL; empty uses local SQLite |
+| `storage.driver` | `filesystem` | Original-document storage: `filesystem` or `s3` |
+| `persistence.enabled` | `true` | Use durable storage for application state |
+| `networkPolicy.enabled` | `true` | Render default-deny-aware ingress and egress policy |
+| `tasks.workerEnabled` | `true` | Consume the durable native background queue |
+| `gatewayAPI.enabled` | `false` | Render configured Gateway API HTTPRoutes |
+
+`global` is accepted for parent-chart compatibility but is not consumed by Papra. Keep chart-owned database,
+authentication, and storage variables out of `extraEnv`; use the typed values and Secret references above.
+
+## Examples
+
+- [Production baseline](examples/production.yaml)
+- [External storage](examples/external-storage.yaml)
+- [Database and document encryption](examples/encryption.yaml)
+- [Operations](docs/operations.md), [task lifecycle](docs/tasks.md), and [recovery](docs/recovery.md)
 
 ## Encryption and key retention
 
@@ -139,6 +174,19 @@ make validate-chart CHART=papra
 ```
 
 The complete gate, security scan and release evidence must be green before publication.
+
+## Troubleshooting
+
+- If bootstrap does not complete, inspect the init-container logs and confirm the administrator Secret, database
+  connectivity, PVC ownership, and exact `server.publicUrl`. A query error is never treated as an empty database.
+- If readiness fails, test `/api/health` from inside the pod and verify the local or remote database plus trusted CA
+  configuration. `/api/ping` only proves process liveness.
+- If documents remain pending, inspect `db/tasks.sqlite`, worker logs, and `tasks.workerEnabled`; do not delete or rewrite
+  queue rows without an upstream-supported recovery procedure.
+- If traffic is blocked, verify the CNI enforces NetworkPolicy and add the ingress controller and required S3, libSQL,
+  mail, or identity-provider destinations explicitly.
+- Before rollback or storage/key changes, follow [the recovery procedure](docs/recovery.md); Helm rollback does not undo
+  application data migrations.
 
 ## Security Scan: `papra`
 

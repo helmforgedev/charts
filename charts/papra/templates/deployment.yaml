@@ -70,12 +70,21 @@ spec:
           {{- with .Values.envFrom }}
           envFrom: {{ toYaml . | nindent 12 }}{{- end }}
           resources: {{ toYaml .Values.resources | nindent 12 }}
-          {{- range $name, $probe := .Values.probes }}
-          {{- if $probe.enabled }}
-          {{ $name }}Probe:
-            httpGet: {path: {{ $probe.path | quote }}, port: http}
-            {{- omit $probe "enabled" "path" | toYaml | nindent 12 }}
-          {{- end }}{{- end }}
+          {{- if .Values.probes.startup.enabled }}
+          startupProbe:
+            httpGet: {path: {{ .Values.probes.startup.path | quote }}, port: http}
+            {{- omit .Values.probes.startup "enabled" "path" | toYaml | nindent 12 }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet: {path: {{ .Values.probes.readiness.path | quote }}, port: http}
+            {{- omit .Values.probes.readiness "enabled" "path" | toYaml | nindent 12 }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet: {path: {{ .Values.probes.liveness.path | quote }}, port: http}
+            {{- omit .Values.probes.liveness "enabled" "path" | toYaml | nindent 12 }}
+          {{- end }}
           volumeMounts:
             {{- include "papra.mounts" . | nindent 12 }}
       volumes:
