@@ -19,7 +19,18 @@ amd64, arm64 and arm/v7. RustDesk Server is AGPL-3.0; this chart is Apache-2.0.
 There is no Pro console, external SQL database, multi-replica mode or Prometheus
 endpoint in this OSS chart.
 
-## Install and connect
+## Features and architecture
+
+- One ordered hbbs rendezvous and hbbr relay pair using the official image.
+- Persistent server identity and SQLite peer associations on one retained PVC.
+- Native TCP/UDP Service plus optional WebSocket Ingress and Gateway API routes.
+- Restricted non-root containers, default NetworkPolicy and optional ESO identity.
+- Protocol-level runtime validation for registration, key rejection and relaying.
+
+See [DESIGN.md](DESIGN.md) for the component topology, design decisions,
+production boundaries and intentional limitations.
+
+## Installation and connection
 
 ```bash
 helm repo add helmforge https://repo.helmforge.dev
@@ -62,6 +73,16 @@ distinct rendezvous and relay hostnames. `gatewayAPI.httpRoutes[]` selects `hbbs
 or `hbbr` through `component` and defaults to that component's WebSocket backend.
 These HTTP routes do not expose native TCP/UDP or install a web client. Configure
 TLS and long-lived connection support in the chosen controller.
+
+## Examples
+
+Use [simple.yaml](examples/simple.yaml) for a private evaluation,
+[production.yaml](examples/production.yaml) for explicit identity and network
+admission, [nodeport.yaml](examples/nodeport.yaml) for fixed native ports, or
+[gateway.yaml](examples/gateway.yaml) for WebSocket HTTPRoutes.
+[staging.yaml](examples/staging.yaml) provides a PVC-backed staging LoadBalancer
+profile, and [external-secrets.yaml](examples/external-secrets.yaml) demonstrates
+provider-managed identity.
 
 ## Identity, storage and availability
 
@@ -124,6 +145,15 @@ Run that command from the HelmForge ops repository. The full gate includes Helm
 lint, all rendered CI profiles, helm-unittest, real CRD schemas, Artifact Hub lint
 and behavioral k3d validation. Cloud load balancer and external TLS acceptance
 remain deployment-specific. See [design decisions](DESIGN.md).
+
+## Troubleshooting
+
+Inspect both component logs and recent events, then confirm that hbbs and hbbr
+report the same public key and can write to the PVC as UID/GID 1000. If clients
+cannot connect, verify every public TCP/UDP mapping independently; an HTTP route
+does not expose native listeners. The scratch image has no shell, so use an
+approved maintenance Pod for offline inspection or recovery. See the networking,
+security and backup guides linked above for detailed diagnosis boundaries.
 
 ## Security Scan: `rustdesk-server`
 
