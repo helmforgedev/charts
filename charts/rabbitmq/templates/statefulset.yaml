@@ -46,16 +46,14 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ include "rabbitmq.serviceAccountName" . }}
-      automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
+      automountServiceAccountToken: {{ if hasKey .Values "automountServiceAccountToken" }}{{ .Values.automountServiceAccountToken }}{{ else }}false{{ end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.podSecurityContext }}
       securityContext:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- include "rabbitmq.podSecurityContext" . | nindent 8 }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -86,10 +84,8 @@ spec:
               if [ -f /var/lib/rabbitmq/.erlang.cookie ]; then
                 chmod 600 /var/lib/rabbitmq/.erlang.cookie
               fi
-          {{- with .Values.securityContext }}
           securityContext:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
+            {{- include "rabbitmq.securityContext" . | nindent 12 }}
           volumeMounts:
             - name: data
               mountPath: /var/lib/rabbitmq
@@ -196,10 +192,8 @@ spec:
                   - -ec
                   - rabbitmq-upgrade await_online_quorum_plus_one && rabbitmq-upgrade drain
           {{- end }}
-          {{- with .Values.securityContext }}
           securityContext:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
+            {{- include "rabbitmq.securityContext" . | nindent 12 }}
           volumeMounts:
             - name: config
               mountPath: /etc/rabbitmq/rabbitmq.conf

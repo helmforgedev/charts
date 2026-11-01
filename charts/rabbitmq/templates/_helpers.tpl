@@ -165,6 +165,32 @@ amqp
 {{- end -}}
 {{- end -}}
 
+{{/*
+Merge security defaults in the template so they also apply when Helm
+--reuse-values carries forward the previous chart's empty context maps.
+Explicit keys from the release values always win.
+*/}}
+{{- define "rabbitmq.podSecurityContext" -}}
+{{- $defaults := dict
+  "runAsUser" 100
+  "runAsGroup" 101
+  "fsGroup" 101
+  "fsGroupChangePolicy" "OnRootMismatch"
+  "seccompProfile" (dict "type" "RuntimeDefault")
+-}}
+{{- toYaml (mergeOverwrite (deepCopy $defaults) (default (dict) .Values.podSecurityContext)) -}}
+{{- end -}}
+
+{{- define "rabbitmq.securityContext" -}}
+{{- $defaults := dict
+  "runAsNonRoot" true
+  "allowPrivilegeEscalation" false
+  "readOnlyRootFilesystem" true
+  "capabilities" (dict "drop" (list "ALL"))
+-}}
+{{- toYaml (mergeOverwrite (deepCopy $defaults) (default (dict) .Values.securityContext)) -}}
+{{- end -}}
+
 {{- define "rabbitmq.ingressPortName" -}}
 {{- if and .Values.tls.enabled .Values.management.ingress.useTlsPort -}}
 management-tls

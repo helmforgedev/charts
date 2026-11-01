@@ -88,6 +88,48 @@ tests:
           path: spec.template.spec.initContainers[0].command[2]
           pattern: 'chmod 600 /var/lib/rabbitmq/.erlang.cookie'
 
+  - it: should preserve explicit security overrides
+    template: statefulset.yaml
+    set:
+      automountServiceAccountToken: true
+      podSecurityContext:
+        runAsUser: 200
+        runAsGroup: 202
+        fsGroup: 202
+        seccompProfile:
+          type: Unconfined
+      securityContext:
+        allowPrivilegeEscalation: true
+        readOnlyRootFilesystem: false
+        capabilities:
+          drop:
+            - NET_RAW
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 200
+      - equal:
+          path: spec.template.spec.securityContext.runAsGroup
+          value: 202
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 202
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: Unconfined
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: false
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: NET_RAW
+
   - it: should have 3 replicas in cluster mode
     template: statefulset.yaml
     set:

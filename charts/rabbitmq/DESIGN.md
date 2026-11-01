@@ -101,6 +101,9 @@ rotation during Helm upgrades by reusing the existing managed Secret. Operators
 must rotate live credentials with RabbitMQ tooling because environment variables
 only seed users when the broker database is first created. TLS is optional, so
 deployments without it must keep AMQP and the Management UI on trusted networks.
+Security contexts are merged with chart defaults in the workload template so
+Helm `--reuse-values` upgrades from releases with empty legacy context maps still
+receive the hardened baseline while preserving explicit per-key overrides.
 
 ## Observability Boundary
 

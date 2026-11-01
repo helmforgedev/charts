@@ -182,6 +182,11 @@ managed Secret during upgrades. This applies to both `--reset-values` and
 `--reuse-values`, preventing the Secret from drifting away from credentials
 stored in the persistent RabbitMQ database.
 
+Security defaults are merged by the workload template, so they also apply when
+`--reuse-values` carries forward the previous chart's empty security-context
+maps. Explicit security-context keys and an explicit
+`automountServiceAccountToken` value continue to override chart defaults.
+
 Changing `auth.username`, `auth.password`, or `auth.erlangCookie` on an existing
 release does not rotate live broker credentials. Perform rotation with RabbitMQ
 administration tooling first, then move the synchronized credentials to an
