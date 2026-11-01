@@ -187,6 +187,21 @@ release does not rotate live broker credentials. Perform rotation with RabbitMQ
 administration tooling first, then move the synchronized credentials to an
 existing Secret or External Secrets provider.
 
+The default official image and earlier public chart versions use UID `100` and
+GID `101`, which is the tested in-place upgrade path. Before upgrading a release
+that used a custom image or custom process identity, inspect the existing cookie
+ownership and keep the pod identity aligned:
+
+```bash
+kubectl exec -n <namespace> <rabbitmq-pod> -- stat -c '%u:%g %a' /var/lib/rabbitmq/.erlang.cookie
+```
+
+Set `podSecurityContext.runAsUser`, `runAsGroup`, and `fsGroup` to that image's
+numeric identity before the upgrade. The non-root init container can then
+restore mode `0600`. To migrate the PVC to UID `100`, first use an explicitly
+authorized one-time maintenance pod to change ownership while RabbitMQ is
+stopped; the hardened chart intentionally does not run a root init container.
+
 ### Queues and topology
 
 - in production, prefer quorum queues over mirrored classic queues

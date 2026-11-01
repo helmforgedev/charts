@@ -1,5 +1,17 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- include "rabbitmq.validateAll" . -}}
+{{- $hasCustomTmpVolume := false -}}
+{{- range .Values.extraVolumes -}}
+{{- if eq .name "tmp" -}}
+{{- $hasCustomTmpVolume = true -}}
+{{- end -}}
+{{- end -}}
+{{- $hasCustomTmpMount := false -}}
+{{- range .Values.extraVolumeMounts -}}
+{{- if eq .mountPath "/tmp" -}}
+{{- $hasCustomTmpMount = true -}}
+{{- end -}}
+{{- end -}}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -207,8 +219,10 @@ spec:
             {{- end }}
             - name: data
               mountPath: /var/lib/rabbitmq
+            {{- if not $hasCustomTmpMount }}
             - name: tmp
               mountPath: /tmp
+            {{- end }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -220,8 +234,10 @@ spec:
         - name: config
           configMap:
             name: {{ include "rabbitmq.configurationName" . }}
+        {{- if and (not $hasCustomTmpVolume) (not $hasCustomTmpMount) }}
         - name: tmp
           emptyDir: {}
+        {{- end }}
         {{- if .Values.tls.enabled }}
         - name: tls
           secret:

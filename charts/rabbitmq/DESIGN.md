@@ -90,6 +90,12 @@ chart versions. The ServiceAccount token is not
 mounted: RabbitMQ 4.1 and later Kubernetes peer discovery derives the seed node
 from StatefulSet ordinals and does not query the Kubernetes API.
 
+The supported in-place path from earlier public chart versions uses the official
+image identity `100:101`. Custom images with a different historical PVC owner
+must keep `podSecurityContext` aligned with that numeric identity or perform an
+explicit, one-time ownership migration before enabling these defaults. The
+chart does not silently introduce a root volume-permissions container.
+
 The chart protects the generated username, password, and Erlang cookie from
 rotation during Helm upgrades by reusing the existing managed Secret. Operators
 must rotate live credentials with RabbitMQ tooling because environment variables

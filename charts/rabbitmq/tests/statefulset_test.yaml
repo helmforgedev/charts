@@ -195,3 +195,49 @@ tests:
       - equal:
           path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
           value: 8Gi
+
+  - it: should reuse a user-supplied tmp volume without duplicating it
+    template: statefulset.yaml
+    set:
+      extraVolumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 128Mi
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tmp
+            emptyDir:
+              sizeLimit: 128Mi
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tmp
+            mountPath: /tmp
+
+  - it: should not add a managed tmp volume or mount when the user supplies the mount path
+    template: statefulset.yaml
+    set:
+      extraVolumes:
+        - name: custom-tmp
+          emptyDir: {}
+      extraVolumeMounts:
+        - name: custom-tmp
+          mountPath: /tmp
+    asserts:
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: tmp
+            emptyDir: {}
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tmp
+            mountPath: /tmp
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: custom-tmp
+            mountPath: /tmp
