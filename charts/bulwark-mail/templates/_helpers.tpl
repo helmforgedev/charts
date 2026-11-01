@@ -82,6 +82,34 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
+{{- define "bulwark-mail.readinessPath" -}}
+{{- if .Values.probes.readiness.path -}}
+{{- .Values.probes.readiness.path -}}
+{{- else if .Values.sharedStore.enabled -}}
+/api/ready
+{{- else -}}
+/api/health
+{{- end -}}
+{{- end -}}
+
+{{- define "bulwark-mail.sharedStoreSecretName" -}}
+{{- default (include "bulwark-mail.secretName" .) .Values.sharedStore.existingSecret -}}
+{{- end -}}
+
+{{- define "bulwark-mail.updateStrategy" -}}
+{{- if and .Values.sharedStore.enabled (not .Values.persistence.enabled) -}}
+RollingUpdate
+{{- else -}}
+Recreate
+{{- end -}}
+{{- end -}}
+
+{{- define "bulwark-mail.multiReplica" -}}
+{{- if or (gt (int .Values.replicaCount) 1) .Values.autoscaling.enabled -}}
+true
+{{- end -}}
+{{- end -}}
+
 {{- define "bulwark-mail.httpRouteName" -}}
 {{- $root := .root -}}
 {{- $route := .route -}}
@@ -111,16 +139,34 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "bulwark-mail.validate" -}}
-{{- if ne (int .Values.replicaCount) 1 -}}
-{{- fail "replicaCount must be 1 because Bulwark writes mutable state to a single ReadWriteOnce data volume" -}}
+{{- if lt (int .Values.replicaCount) 1 -}}
+{{- fail "replicaCount must be at least 1" -}}
+{{- end -}}
+{{- if not .Values.sharedStore.enabled -}}
+{{- if gt (int .Values.replicaCount) 1 -}}
+{{- fail "replicaCount above 1 requires sharedStore.enabled=true; without the shared store Bulwark writes mutable state to a single ReadWriteOnce data volume" -}}
 {{- end -}}
 {{- if .Values.autoscaling.enabled -}}
-{{- fail "autoscaling.enabled is not supported for the single-writer Bulwark data contract" -}}
+{{- fail "autoscaling.enabled requires sharedStore.enabled=true; without the shared store Bulwark writes mutable state to a single ReadWriteOnce data volume" -}}
+{{- end -}}
+{{- if .Values.pdb.enabled -}}
+{{- fail "pdb.enabled requires sharedStore.enabled=true and more than one replica" -}}
+{{- end -}}
+{{- else -}}
+{{- if and (empty .Values.sharedStore.url) (empty .Values.sharedStore.existingSecret) (empty .Values.secrets.existingSecret) -}}
+{{- fail "sharedStore.enabled requires sharedStore.url or an existing Secret (sharedStore.existingSecret or secrets.existingSecret) holding sharedStore.existingSecretKey" -}}
+{{- end -}}
+{{- if and .Values.persistence.enabled (include "bulwark-mail.multiReplica" .) -}}
+{{- fail "persistence.enabled must be false with more than one replica or autoscaling; the shared store holds all state and one ReadWriteOnce volume cannot follow pods to other nodes" -}}
+{{- end -}}
+{{- if and .Values.autoscaling.enabled (gt (int .Values.autoscaling.minReplicas) (int .Values.autoscaling.maxReplicas)) -}}
+{{- fail "autoscaling.minReplicas must not exceed autoscaling.maxReplicas" -}}
+{{- end -}}
 {{- end -}}
 {{- if and (eq .Values.config.mode "declarative") (empty .Values.config.jmap.serverUrl) -}}
 {{- fail "declarative mode requires config.jmap.serverUrl" -}}
 {{- end -}}
-{{- if and (eq .Values.config.mode "wizard") (not .Values.persistence.enabled) -}}
+{{- if and (eq .Values.config.mode "wizard") (not .Values.persistence.enabled) (not .Values.sharedStore.enabled) -}}
 {{- fail "persistence.enabled must be true in wizard mode so setup and admin state survive pod replacement" -}}
 {{- end -}}
 {{- if and .Values.secrets.sessionSecret (lt (len .Values.secrets.sessionSecret) 32) -}}
@@ -145,9 +191,6 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- if and .Values.ingress.enabled .Values.gatewayAPI.enabled -}}
 {{- fail "ingress.enabled and gatewayAPI.enabled are mutually exclusive" -}}
-{{- end -}}
-{{- if .Values.pdb.enabled -}}
-{{- fail "pdb.enabled is not supported while replicaCount is restricted to 1" -}}
 {{- end -}}
 {{- range .Values.ingress.hosts }}
 {{- range (.paths | default (list (dict "path" "/"))) }}
@@ -178,6 +221,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- fail "secrets.generate must be true when secrets.existingSecret is empty" -}}
 {{- end -}}
 {{- $reservedEnv := list "HOSTNAME" "PORT" "SESSION_SECRET" "JMAP_SERVER_URL" "ALLOW_CUSTOM_JMAP_ENDPOINT" "JMAP_SERVERS" "JMAP_SERVER_AUTO_PICK_BY_DOMAIN" "APP_NAME" "STALWART_FEATURES" "SETTINGS_SYNC_ENABLED" "SETTINGS_DATA_DIR" "ADMIN_CONFIG_DIR" "ADMIN_STATE_DIR" "TELEMETRY_DATA_DIR" "VERSION_CHECK_DATA_DIR" "ADMIN_CONFIG_READONLY" "ADMIN_PASSWORD" "ADMIN_SESSION_TTL" "STALWART_ADMIN_ACCESS" "OAUTH_ENABLED" "OAUTH_ONLY" "OAUTH_CLIENT_ID" "OAUTH_CLIENT_SECRET" "OAUTH_ISSUER_URL" "BULWARK_JWT_AUTH_SECRET" "BULWARK_STALWART_MASTER_USER" "BULWARK_STALWART_MASTER_PASSWORD" -}}
+{{- if .Values.sharedStore.enabled -}}
+{{- $reservedEnv = concat $reservedEnv (list "REDIS_URL" "REDIS_URL_FILE" "REDIS_KEY_PREFIX") -}}
+{{- end -}}
 {{- range .Values.extraEnv }}
 {{- if has .name $reservedEnv -}}
 {{- fail (printf "extraEnv must not override chart-managed environment variable %s" .name) -}}

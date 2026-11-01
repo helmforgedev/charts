@@ -16,7 +16,13 @@ One PVC is mounted at `/app/data`. Bulwark owns these subdirectories:
 
 ## Why one PVC
 
-The directories participate in one application lifecycle. A single mount avoids duplicate declarations of the same claim and supports a coherent snapshot. The chart is intentionally single-replica and uses Recreate upgrades.
+The directories participate in one application lifecycle. A single mount avoids duplicate declarations of the same claim and supports a coherent snapshot. Without the shared store the chart is single-replica and uses Recreate upgrades.
+
+## Shared store
+
+With `sharedStore.enabled: true` the same state lives in the external Redis-protocol store instead of the PVC, and several replicas run with `persistence.enabled: false`. Back up the store (its AOF or RDB files) together with the runtime Secret. The session secret still encrypts user settings, so the two must come from the same recovery point.
+
+To move an existing release, upgrade once with the store enabled, one replica, and the existing PVC; Bulwark imports the files into an empty store on first start and never changes them. Then disable persistence and scale up. The retained PVC stays as a fallback. To go back, follow the upstream export steps in [Running several instances](https://bulwarkmail.org/docs/deployment/multi-instance#moving-an-existing-install).
 
 ## Backup
 

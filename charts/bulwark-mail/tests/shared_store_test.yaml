@@ -1,0 +1,257 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: bulwark-mail shared store
+templates:
+  - templates/deployment.yaml
+  - templates/secret.yaml
+  - templates/pdb.yaml
+  - templates/hpa.yaml
+tests:
+  - it: leaves the single-instance deployment unchanged without the shared store
+    template: templates/deployment.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_URL
+          any: true
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_KEY_PREFIX
+          any: true
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+  - it: wires REDIS_URL from the runtime Secret
+    template: templates/deployment.yaml
+    values:
+      - shared-store-values.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_URL
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-bulwark-mail
+                key: shared-store-url
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_KEY_PREFIX
+          any: true
+  - it: uses the existing Secret and custom key for REDIS_URL
+    template: templates/deployment.yaml
+    values:
+      - shared-store-values.yaml
+    set:
+      secrets.existingSecret: bulwark-runtime
+      sharedStore.existingSecretKey: redis-url
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_URL
+            valueFrom:
+              secretKeyRef:
+                name: bulwark-runtime
+                key: redis-url
+  - it: reads REDIS_URL from a dedicated store Secret
+    template: templates/deployment.yaml
+    values:
+      - shared-store-values.yaml
+    set:
+      sharedStore.url: ""
+      sharedStore.existingSecret: valkey-url
+      sharedStore.existingSecretKey: url
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_URL
+            valueFrom:
+              secretKeyRef:
+                name: valkey-url
+                key: url
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SESSION_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-bulwark-mail
+                key: session-secret
+  - it: keeps the store URL out of the generated Secret when a dedicated Secret is used
+    template: templates/secret.yaml
+    values:
+      - shared-store-values.yaml
+    set:
+      sharedStore.existingSecret: valkey-url
+    asserts:
+      - notExists:
+          path: stringData.shared-store-url
+  - it: rolls the pods when the store settings change
+    template: templates/deployment.yaml
+    values:
+      - shared-store-values.yaml
+    asserts:
+      - exists:
+          path: spec.template.metadata.annotations["checksum/shared-store"]
+  - it: adds no store checksum without the shared store
+    template: templates/deployment.yaml
+    asserts:
+      - notExists:
+          path: spec.template.metadata.annotations["checksum/shared-store"]
+  - it: exports a custom key prefix
+    template: templates/deployment.yaml
+    values:
+      - shared-store-values.yaml
+    set:
+      sharedStore.keyPrefix: "tenant-a:"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_KEY_PREFIX
+            value: "tenant-a:"
+  - it: rolls replicas one at a time when no volume is mounted
+    template: templates/deployment.yaml
+    values:
+      - shared-store-values.yaml
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: RollingUpdate
+      - equal:
+          path: spec.template.spec.volumes[0].emptyDir
+          value: {}
+  - it: keeps Recreate while one replica still mounts its old volume
+    template: templates/deployment.yaml
+    set:
+      sharedStore.enabled: true
+      sharedStore.url: redis://:store-password@valkey:6379/0
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - equal:
+          path: spec.template.spec.volumes[0].persistentVolumeClaim.claimName
+          value: RELEASE-NAME-bulwark-mail
+  - it: probes readiness on /api/ready and liveness on /api/health with the shared store
+    template: templates/deployment.yaml
+    values:
+      - shared-store-values.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /api/ready
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /api/health
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /api/health
+  - it: honours an explicit readiness path
+    template: templates/deployment.yaml
+    set:
+      probes.readiness.path: /api/ready
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /api/ready
+  - it: stores the inline shared store URL in the generated Secret
+    template: templates/secret.yaml
+    values:
+      - shared-store-values.yaml
+    asserts:
+      - equal:
+          path: stringData.shared-store-url
+          value: redis://:store-password@valkey:6379/0
+  - it: omits the shared store URL from the Secret while the store is disabled
+    template: templates/secret.yaml
+    set:
+      sharedStore.url: redis://:store-password@valkey:6379/0
+    asserts:
+      - notExists:
+          path: stringData.shared-store-url
+  - it: omits the replica count and renders an HPA when autoscaling
+    template: templates/deployment.yaml
+    values:
+      - shared-store-values.yaml
+    set:
+      autoscaling.enabled: true
+      autoscaling.minReplicas: 2
+      autoscaling.maxReplicas: 6
+    asserts:
+      - notExists:
+          path: spec.replicas
+  - it: renders the HorizontalPodAutoscaler for the Deployment
+    template: templates/hpa.yaml
+    values:
+      - shared-store-values.yaml
+    set:
+      autoscaling.enabled: true
+      autoscaling.minReplicas: 2
+      autoscaling.maxReplicas: 6
+      autoscaling.targetCPUUtilizationPercentage: 70
+    asserts:
+      - isKind:
+          of: HorizontalPodAutoscaler
+      - equal:
+          path: spec.scaleTargetRef.name
+          value: RELEASE-NAME-bulwark-mail
+      - equal:
+          path: spec.minReplicas
+          value: 2
+      - equal:
+          path: spec.maxReplicas
+          value: 6
+      - equal:
+          path: spec.metrics[0].resource.target.averageUtilization
+          value: 70
+  - it: renders no HPA by default
+    template: templates/hpa.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: renders a PDB for several replicas
+    template: templates/pdb.yaml
+    values:
+      - shared-store-values.yaml
+    set:
+      pdb.enabled: true
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: spec.minAvailable
+          value: 1
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/name"]
+          value: bulwark-mail
+  - it: renders the PDB from the autoscaling minimum
+    template: templates/pdb.yaml
+    values:
+      - shared-store-values.yaml
+    set:
+      replicaCount: 1
+      pdb.enabled: true
+      autoscaling.enabled: true
+      autoscaling.minReplicas: 2
+      autoscaling.maxReplicas: 4
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget
+  - it: skips the PDB when only one replica can run
+    template: templates/pdb.yaml
+    values:
+      - shared-store-values.yaml
+    set:
+      replicaCount: 1
+      pdb.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0

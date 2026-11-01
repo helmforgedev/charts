@@ -10,9 +10,11 @@ metadata:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
+  {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
+  {{- end }}
   strategy:
-    type: Recreate
+    type: {{ include "bulwark-mail.updateStrategy" . }}
   selector:
     matchLabels:
       {{- include "bulwark-mail.selectorLabels" . | nindent 6 }}
@@ -26,6 +28,9 @@ spec:
       annotations:
         checksum/config: {{ dict "config" .Values.config "branding" .Values.branding | toJson | sha256sum }}
         checksum/secret-contract: {{ dict "secrets" .Values.secrets "externalSecrets" .Values.externalSecrets | toJson | sha256sum }}
+        {{- if .Values.sharedStore.enabled }}
+        checksum/shared-store: {{ .Values.sharedStore | toJson | sha256sum }}
+        {{- end }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -109,6 +114,17 @@ spec:
             {{- if .Values.config.admin.readOnly }}
             - name: ADMIN_CONFIG_READONLY
               value: "true"
+            {{- end }}
+            {{- if .Values.sharedStore.enabled }}
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "bulwark-mail.sharedStoreSecretName" . | quote }}
+                  key: {{ .Values.sharedStore.existingSecretKey | quote }}
+            {{- with .Values.sharedStore.keyPrefix }}
+            - name: REDIS_KEY_PREFIX
+              value: {{ . | quote }}
+            {{- end }}
             {{- end }}
             {{- with .Values.config.jmap.serverUrl }}
             - name: JMAP_SERVER_URL
@@ -234,7 +250,7 @@ spec:
           {{- if .Values.probes.readiness.enabled }}
           readinessProbe:
             httpGet:
-              path: /api/health
+              path: {{ include "bulwark-mail.readinessPath" . }}
               port: http
             initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
