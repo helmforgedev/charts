@@ -22,15 +22,14 @@ spec:
         {{- include "mongodb.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: configsvr
     spec:
+      automountServiceAccountToken: {{ if hasKey .Values "automountServiceAccountToken" }}{{ .Values.automountServiceAccountToken }}{{ else }}false{{ end }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
-      {{- with .Values.podSecurityContext }}
       securityContext:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- include "mongodb.podSecurityContext" . | nindent 8 }}
       {{- if include "mongodb.needsKeyFile" . }}
       initContainers:
         - name: init-keyfile
@@ -122,7 +121,7 @@ spec:
         {{- end }}
         resources:
           requests:
-            storage: {{ .Values.sharded.configServer.persistence.size }}
+            storage: {{ include "mongodb.statefulSetStorage" (dict "root" . "name" (printf "%s-configsvr" (include "mongodb.fullname" .)) "fallback" .Values.sharded.configServer.persistence.size) }}
 ---
 apiVersion: v1
 kind: Service

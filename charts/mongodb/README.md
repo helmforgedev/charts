@@ -48,7 +48,7 @@ Read before choosing an architecture:
 ## Key Features
 
 - **Official `mongo` image** — no vendor lock-in, standard paths (`/data/db`)
-- **Auto keyFile generation** — replica set internal auth handled automatically
+- **Upgrade-safe credential generation** — generated root credentials and replica set keyFiles are retained with persistent data
 - **Optional arbiter** — one lightweight voting member for cost-constrained replica sets
 - **Helm hook Jobs** — idempotent `rs.initiate()` and shard registration
 - **Prometheus exporter** — optional `percona/mongodb_exporter` sidecar + ServiceMonitor
@@ -252,7 +252,8 @@ deciding constraint, and review the
 | `extraVolumes` | Extra volumes | `[]` |
 | `extraVolumeMounts` | Extra volume mounts | `[]` |
 | `extraManifests` | Arbitrary K8s manifests | `[]` |
-| `podSecurityContext` | Pod-level security context (`fsGroup: 999` by default) | `{"fsGroup":999}` |
+| `automountServiceAccountToken` | Mount a Kubernetes API token in MongoDB pods and hook jobs | `false` |
+| `podSecurityContext` | Pod-level security context (`fsGroup: 999` and RuntimeDefault seccomp) | `{"fsGroup":999,"seccompProfile":{"type":"RuntimeDefault"}}` |
 | `securityContext` | Container-level security context (empty for compatibility) | `{}` |
 | `initContainerSecurityContext` | Init container security context (root, CHOWN only) | `{"runAsNonRoot":false,"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"],"add":["CHOWN"]}}` |
 | `nodeSelector` | Node selector | `{}` |
@@ -300,9 +301,22 @@ upstream procedure, then raise FCV to `9.0` only after all members are healthy
 and rollback is no longer required. Review the
 [MongoDB 9.0 release notes](https://www.mongodb.com/docs/manual/release-notes/9.0/)
 before reusing existing PVCs.
-Keep replica set keyFiles and root credentials stable across `helm upgrade`;
-those values are initialized by MongoDB and should be rotated with MongoDB
-administrative commands instead of changing chart values.
+The chart keeps generated root credentials and replica set keyFiles stable
+across `helm upgrade`, including upgrades with `--reset-values` or
+`--reuse-values`, and retains them when persistent releases are removed. These
+credentials are bound to the initialized data directory. Rotate them with
+MongoDB administrative commands and a coordinated Secret update instead of
+changing initialization values. Back up both the PVC data and its credential
+Secrets; restoring only one side can make the database inaccessible.
+
+StatefulSet claim-template sizes are immutable. During upgrades the chart keeps
+the size already applied to each MongoDB StatefulSet, including when
+`--reset-values` would otherwise restore the default and make Kubernetes reject
+the upgrade. Resize the bound PVCs through the storage class workflow; updating
+`persistence.size` alone does not resize an existing claim.
+It also does not change the size used for PVCs created by future scale-up.
+Before adding members after expanding existing PVCs, confirm that the retained
+claim-template size can hold a new member's initial synchronization.
 
 Enabling or disabling `arbiter.enabled` on an existing replica set reconciles
 the arbiter membership through the post-upgrade hook. Increasing

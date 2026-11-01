@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: StatefulSet upgrade compatibility
+templates:
+  - statefulset.yaml
+  - configmap.yaml
+release:
+  name: test
+  namespace: default
+kubernetesProvider:
+  scheme:
+    "apps/v1/StatefulSet":
+      gvr:
+        group: apps
+        version: v1
+        resource: statefulsets
+      namespaced: true
+  objects:
+    - apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: test-mongodb
+        namespace: default
+      spec:
+        volumeClaimTemplates:
+          - metadata:
+              name: data
+            spec:
+              resources:
+                requests:
+                  storage: 2Gi
+tests:
+  - it: should preserve the immutable claim-template size from the installed StatefulSet
+    template: statefulset.yaml
+    set:
+      persistence.size: 8Gi
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+          value: 2Gi
