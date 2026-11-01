@@ -20,10 +20,12 @@ migrations. The chart keeps one application replica across all storage combinati
 
 ## Architecture
 
-Papra runs as a single `Recreate` Deployment behind a ClusterIP Service. The pod mounts one durable workspace for the
-local database, documents, and task queue plus ephemeral writable home and temporary directories. Optional Ingress and
-Gateway API resources publish the Service. Remote libSQL and S3 integrations remain external services. See
-[DESIGN.md](DESIGN.md) for the topology, ownership boundaries, security model, and explicit non-goals.
+Papra runs as a single `Recreate` Deployment behind a ClusterIP Service by default. With
+`persistence.enabled=true`, the pod mounts one durable workspace for the local database, documents, and task queue plus
+ephemeral writable home and temporary directories. Disabling persistence replaces that workspace with disposable
+`emptyDir` storage that does not survive pod replacement. Optional Ingress and Gateway API resources publish the
+configured Service. Remote libSQL and S3 integrations remain external services. See [DESIGN.md](DESIGN.md) for the
+topology, ownership boundaries, security model, and explicit non-goals.
 
 ## Installation and access
 

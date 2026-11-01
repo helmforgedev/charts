@@ -22,10 +22,12 @@ flowchart LR
   ESO[External Secrets Operator] -. materializes .-> Secrets
 ```
 
-The PVC holds the local application database, filesystem originals, and the
-separate native task queue. S3 can replace filesystem document storage, and
-libSQL can replace the application database, but neither removes every local
-durability requirement.
+With the default `persistence.enabled=true`, the PVC holds the local application
+database, filesystem originals, and the separate native task queue. When
+persistence is disabled for disposable tests, the `emptyDir` workspace and all
+of that local state are lost on pod replacement. S3 can replace filesystem
+document storage, and libSQL can replace the application database, but neither
+removes every local durability requirement.
 
 ## Key Design Decisions
 
@@ -86,8 +88,9 @@ pinned release, so the chart does not create a misleading ServiceMonitor.
 - Secret refresh does not restart environment-based consumers automatically.
 - A remote database does not make native jobs or document processing safe for
   multiple replicas.
-- Storage-driver and encryption-key changes require an operator-run migration
-  and recovery plan.
+- Storage-driver changes and replacement or removal of existing encryption keys
+  require an operator-run migration and recovery plan. Adding a document key-ring
+  version affects only new documents and does not rewrap existing ones.
 
 ## Non-Goals
 
