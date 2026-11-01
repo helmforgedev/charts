@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: OpenCloud persistence contract
+templates:
+  - pvc.yaml
+tests:
+  - it: retains the generated claim by default
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+      - equal:
+          path: spec.resources.requests.storage
+          value: 20Gi
+  - it: omits a generated claim when an existing claim is selected
+    set:
+      persistence.existingClaim: restored-opencloud
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: supports an explicit empty storage class
+    set:
+      persistence.storageClass: '-'
+    asserts:
+      - equal:
+          path: spec.storageClassName
+          value: ''

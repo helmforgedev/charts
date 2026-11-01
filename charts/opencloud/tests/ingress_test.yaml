@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: OpenCloud Ingress contract
+templates:
+  - ingress.yaml
+tests:
+  - it: omits the Ingress by default
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: routes the configured HTTPS hostname to the application Service
+    set:
+      ingress.enabled: true
+      ingress.ingressClassName: nginx
+      ingress.hosts:
+        - host: files.example.test
+          paths:
+            - path: /
+              pathType: Prefix
+      ingress.tls:
+        - secretName: files-tls
+          hosts: [files.example.test]
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+      - equal:
+          path: spec.rules[0].host
+          value: files.example.test
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.port.number
+          value: 9200
+      - equal:
+          path: spec.tls[0].secretName
+          value: files-tls
