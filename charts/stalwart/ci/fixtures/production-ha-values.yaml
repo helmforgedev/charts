@@ -1,0 +1,155 @@
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: v1
+kind: Secret
+metadata:
+  name: stalwart-postgres
+type: Opaque
+stringData:
+  POSTGRES_USER: stalwart
+  POSTGRES_PASSWORD: stalwart-runtime-password
+  POSTGRES_DB: stalwart
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: stalwart-store-credentials
+type: Opaque
+stringData:
+  STALWART_DB_PASSWORD: stalwart-runtime-password
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: stalwart-bootstrap
+type: Opaque
+stringData:
+  config.json: |
+    {
+      "@type": "PostgreSql",
+      "host": "stalwart-postgres",
+      "port": 5432,
+      "database": "stalwart",
+      "authUsername": "stalwart",
+      "authSecret": {
+        "@type": "EnvironmentVariable",
+        "variableName": "STALWART_DB_PASSWORD"
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stalwart-postgres
+  labels:
+    app.kubernetes.io/name: stalwart-postgres
+    helmforge.dev/runtime-fixture: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: stalwart-postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: stalwart-postgres
+        helmforge.dev/runtime-fixture: "true"
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: postgres
+          image: docker.io/library/postgres:18.6-trixie
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          envFrom:
+            - secretRef:
+                name: stalwart-postgres
+          ports:
+            - name: postgres
+              containerPort: 5432
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - --username=stalwart
+                - --dbname=stalwart
+            initialDelaySeconds: 5
+            periodSeconds: 2
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: stalwart-postgres
+  labels:
+    helmforge.dev/runtime-fixture: "true"
+spec:
+  selector:
+    app.kubernetes.io/name: stalwart-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: stalwart-postgres-ready
+  labels:
+    helmforge.dev/runtime-fixture: "true"
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 120
+  template:
+    metadata:
+      labels:
+        helmforge.dev/runtime-fixture: "true"
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: wait
+          image: docker.io/library/postgres:18.6-trixie
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          command:
+            - sh
+            - -ec
+            - until pg_isready --host=stalwart-postgres --username=stalwart --dbname=stalwart; do sleep 2; done
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
