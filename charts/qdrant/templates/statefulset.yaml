@@ -1,4 +1,35 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- $containerRunsAsRoot := and (hasKey .Values.securityContext "runAsUser") (eq (int (get .Values.securityContext "runAsUser")) 0) -}}
+{{- $dataPath := trimSuffix "/" .Values.persistence.mountPath -}}
+{{- $effectiveStoragePath := $dataPath -}}
+{{- $effectiveSnapshotPath := trimSuffix "/" .Values.snapshots.path -}}
+{{- $effectiveTempPath := "" -}}
+{{- $effectiveInitPath := printf "%s/.qdrant-initialized" $dataPath -}}
+{{- $unknownPathOverride := false -}}
+{{- $hasStoragePathOverride := false -}}
+{{- $hasSnapshotPathOverride := false -}}
+{{- $hasInitPathOverride := false -}}
+{{- range concat .Values.app.env .Values.app.extraEnv -}}
+  {{- if or (eq .name "QDRANT__STORAGE__STORAGE_PATH") (eq .name "QDRANT__STORAGE__SNAPSHOTS_PATH") (eq .name "QDRANT__STORAGE__TEMP_PATH") (eq .name "QDRANT_INIT_FILE_PATH") -}}
+    {{- if eq .name "QDRANT__STORAGE__STORAGE_PATH" -}}{{- $hasStoragePathOverride = true -}}{{- end -}}
+    {{- if eq .name "QDRANT__STORAGE__SNAPSHOTS_PATH" -}}{{- $hasSnapshotPathOverride = true -}}{{- end -}}
+    {{- if eq .name "QDRANT_INIT_FILE_PATH" -}}{{- $hasInitPathOverride = true -}}{{- end -}}
+    {{- if hasKey . "value" -}}
+      {{- if eq .name "QDRANT__STORAGE__STORAGE_PATH" -}}{{- $effectiveStoragePath = trimSuffix "/" (toString .value) -}}{{- end -}}
+      {{- if eq .name "QDRANT__STORAGE__SNAPSHOTS_PATH" -}}{{- $effectiveSnapshotPath = trimSuffix "/" (toString .value) -}}{{- end -}}
+      {{- if eq .name "QDRANT__STORAGE__TEMP_PATH" -}}{{- $effectiveTempPath = trimSuffix "/" (toString .value) -}}{{- end -}}
+      {{- if eq .name "QDRANT_INIT_FILE_PATH" -}}{{- $effectiveInitPath = trimSuffix "/" (toString .value) -}}{{- end -}}
+    {{- else -}}
+      {{- $unknownPathOverride = true -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- $storageOnData := or (eq $dataPath $effectiveStoragePath) (hasPrefix (printf "%s/" $dataPath) $effectiveStoragePath) -}}
+{{- $snapshotOnData := or (eq $dataPath $effectiveSnapshotPath) (hasPrefix (printf "%s/" $dataPath) $effectiveSnapshotPath) -}}
+{{- $tempOnData := or (empty $effectiveTempPath) (eq $dataPath $effectiveTempPath) (hasPrefix (printf "%s/" $dataPath) $effectiveTempPath) -}}
+{{- $initOnData := or (eq $dataPath $effectiveInitPath) (hasPrefix (printf "%s/" $dataPath) $effectiveInitPath) -}}
+{{- $configHasTempPath := regexMatch "(?m)^[[:space:]]*temp_path[[:space:]]*:" (.Values.config.localYaml | default "") -}}
+{{- $pathsOnData := and $storageOnData $snapshotOnData $tempOnData $initOnData (not $unknownPathOverride) (not $configHasTempPath) -}}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -29,9 +60,18 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.podSecurityContext }}
+      {{- if .Values.podSecurityContext }}
       securityContext:
-        {{- toYaml . | nindent 8 }}
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- else if and (not $containerRunsAsRoot) $pathsOnData }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: Always
+        seccompProfile:
+          type: RuntimeDefault
       {{- end }}
       {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName | quote }}
@@ -81,10 +121,18 @@ spec:
               value: {{ .Values.app.port | quote }}
             - name: QDRANT__SERVICE__GRPC_PORT
               value: {{ .Values.app.grpcPort | quote }}
+            {{- if not $hasStoragePathOverride }}
             - name: QDRANT__STORAGE__STORAGE_PATH
               value: {{ .Values.persistence.mountPath | quote }}
+            {{- end }}
+            {{- if not $hasSnapshotPathOverride }}
             - name: QDRANT__STORAGE__SNAPSHOTS_PATH
               value: {{ .Values.snapshots.path | quote }}
+            {{- end }}
+            {{- if not $hasInitPathOverride }}
+            - name: QDRANT_INIT_FILE_PATH
+              value: {{ printf "%s/.qdrant-initialized" $dataPath | quote }}
+            {{- end }}
             - name: QDRANT__CLUSTER__P2P__PORT
               value: {{ .Values.cluster.p2pPort | quote }}
             {{- if .Values.cluster.enabled }}
@@ -144,6 +192,13 @@ spec:
           {{- with .Values.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
+          {{- else }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: {{ $pathsOnData }}
+            capabilities:
+              drop:
+                - ALL
           {{- end }}
           {{- with .Values.resources }}
           resources:
