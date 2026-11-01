@@ -17,10 +17,11 @@ flowchart LR
   User[User traffic] --> Edge[Cloudflare edge]
   Pod[cloudflared Deployment] -->|outbound tunnel| Edge
   Edge -->|tunnel route| Pod
-  Pod --> Origin[Cluster origin Service]
+  Pod --> Origin[Cluster origin Service<br/>managed or URL-mode quick tunnel]
+  Pod --> HelloWorld[Built-in hello-world origin<br/>default quick tunnel]
   Prometheus[Prometheus] -. optional scrape .-> Metrics[Metrics Service]
   Metrics --> Pod
-  Secret[Tunnel token Secret] --> Pod
+  Secret[Tunnel token Secret<br/>managed tunnel only] --> Pod
 ```
 
 The chart does not render Kubernetes Ingress resources. Public hostnames,

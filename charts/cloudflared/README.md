@@ -19,10 +19,12 @@ Secure, outbound-only connections between your cluster and Cloudflare's network 
 ## Architecture
 
 Cloudflared initiates outbound connections from the Deployment to Cloudflare's
-edge. The edge forwards matching tunnel routes back through those connections,
-and cloudflared proxies requests to cluster-internal origin Services. The chart
-does not render Kubernetes Ingress or configure Cloudflare hostnames and routes.
-See [DESIGN.md](DESIGN.md) for the topology and responsibility boundaries.
+edge. Managed tunnels and URL-mode quick tunnels proxy requests to the
+configured origin URL, which can be a cluster-internal Service. The default
+quick tunnel uses cloudflared's built-in hello-world origin and does not use a
+tunnel token or cluster origin Service. The chart does not render Kubernetes
+Ingress or configure Cloudflare hostnames and routes. See
+[DESIGN.md](DESIGN.md) for the topology and responsibility boundaries.
 
 ## Installation
 
