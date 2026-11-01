@@ -106,7 +106,9 @@ database and certificate material authority.
 
 For production, enable `networkPolicy.enabled` and add egress rules for the DNS
 providers, certificate deployment targets, SMTP relays, webhook endpoints, and
-ACME endpoints required by your workflows.
+ACME endpoints required by your workflows. Setting `networkPolicy.extraEgress`
+also allows TCP 443 to `0.0.0.0/0` and `::/0`; account for this broad HTTPS
+exception when modeling egress.
 
 ## Security Scan
 

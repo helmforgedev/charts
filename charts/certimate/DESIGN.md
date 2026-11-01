@@ -72,6 +72,10 @@ installs should enable it and model required egress explicitly: DNS provider
 APIs, ACME endpoints, SMTP, webhook receivers, SSH/API targets, and Kubernetes
 services used by deployment tasks.
 
+When `networkPolicy.extraEgress` is set, the chart also allows TCP 443 to
+`0.0.0.0/0` and `::/0`. Account for this broad HTTPS exception when modeling
+egress.
+
 ## Design decisions
 
 The chart uses the official pinned image without a wrapper or sidecar. PocketBase
