@@ -71,6 +71,7 @@ helm get values rustdesk -n rustdesk -o yaml > current-overrides.yaml
 # Review current-overrides.yaml and update any intentionally changed image tag.
 helm repo update
 helm upgrade rustdesk helmforge/rustdesk-server -n rustdesk \
+  --version <reviewed-chart-version> \
   --reset-values -f current-overrides.yaml --wait --timeout 5m
 ```
 
