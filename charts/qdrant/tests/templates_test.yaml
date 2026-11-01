@@ -12,6 +12,87 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].image
           value: docker.io/qdrant/qdrant:v1.19.2
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.securityContext.fsGroupChangePolicy
+          value: Always
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: QDRANT_INIT_FILE_PATH
+            value: /qdrant/storage/.qdrant-initialized
+  - it: preserves explicit security context overrides without merging defaults
+    template: templates/statefulset.yaml
+    set:
+      podSecurityContext.runAsUser: 2000
+      securityContext.readOnlyRootFilesystem: false
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 2000
+      - notExists:
+          path: spec.template.spec.securityContext.runAsNonRoot
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: false
+      - notExists:
+          path: spec.template.spec.containers[0].securityContext.capabilities
+  - it: preserves an explicit root container identity without a conflicting pod fallback
+    template: templates/statefulset.yaml
+    set:
+      securityContext.runAsUser: 0
+    asserts:
+      - notExists:
+          path: spec.template.spec.securityContext
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 0
+  - it: keeps the image filesystem writable when snapshots are outside the data volume
+    template: templates/statefulset.yaml
+    set:
+      persistence.mountPath: /data
+      snapshots.path: /qdrant/storage/snapshots
+    asserts:
+      - notExists:
+          path: spec.template.spec.securityContext
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: false
+  - it: uses the compatibility fallback for an effective snapshot path override
+    template: templates/statefulset.yaml
+    set:
+      app.env:
+        - name: QDRANT__STORAGE__SNAPSHOTS_PATH
+          value: /qdrant/snapshots
+    asserts:
+      - notExists:
+          path: spec.template.spec.securityContext
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: false
+  - it: uses the compatibility fallback for an external temporary path
+    template: templates/statefulset.yaml
+    set:
+      config.localYaml: |
+        storage:
+          temp_path: /qdrant/work
+    asserts:
+      - notExists:
+          path: spec.template.spec.securityContext
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: false
   - it: renders service
     template: templates/service.yaml
     asserts:
