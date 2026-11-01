@@ -88,3 +88,45 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].livenessProbe.timeoutSeconds
           value: 9
+  - it: preserves the previous security contract by default
+    template: templates/deployment.yaml
+    asserts:
+      - notExists:
+          path: spec.template.spec.securityContext
+      - notExists:
+          path: spec.template.spec.containers[0].securityContext
+  - it: tolerates an absent security profile during reuse-values upgrades
+    template: templates/deployment.yaml
+    set:
+      securityProfile: null
+    asserts:
+      - isKind:
+          of: Deployment
+      - notExists:
+          path: spec.template.spec.containers[0].securityContext
+  - it: merges profile defaults and explicit overrides
+    template: templates/deployment.yaml
+    set:
+      securityProfile.enabled: true
+      securityProfile.podSecurityContext.fsGroup: 1000
+      securityProfile.containerSecurityContext.runAsUser: 1000
+      securityContext.readOnlyRootFilesystem: false
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 1000
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: false

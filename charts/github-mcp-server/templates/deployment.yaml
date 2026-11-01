@@ -1,6 +1,8 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 apiVersion: apps/v1
 kind: Deployment
+{{- $securityProfile := .Values.securityProfile | default dict }}
+{{- $securityProfileEnabled := get $securityProfile "enabled" | default false }}
 metadata:
   name: {{ include "github-mcp-server.fullname" . }}
   labels:
@@ -28,7 +30,13 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.podSecurityContext }}
+      {{- $podSecurityContext := .Values.podSecurityContext | default dict }}
+      {{- if $securityProfileEnabled }}
+      {{- $defaultPodSecurityContext := dict "seccompProfile" (dict "type" "RuntimeDefault") }}
+      {{- $profilePodSecurityContext := get $securityProfile "podSecurityContext" | default dict }}
+      {{- $podSecurityContext = mergeOverwrite (deepCopy $defaultPodSecurityContext) $profilePodSecurityContext $podSecurityContext }}
+      {{- end }}
+      {{- with $podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -118,7 +126,13 @@ spec:
             timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
             failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
           {{- end }}
-          {{- with .Values.securityContext }}
+          {{- $securityContext := .Values.securityContext | default dict }}
+          {{- if $securityProfileEnabled }}
+          {{- $defaultContainerSecurityContext := dict "allowPrivilegeEscalation" false "readOnlyRootFilesystem" true "capabilities" (dict "drop" (list "ALL")) }}
+          {{- $profileContainerSecurityContext := get $securityProfile "containerSecurityContext" | default dict }}
+          {{- $securityContext = mergeOverwrite (deepCopy $defaultContainerSecurityContext) $profileContainerSecurityContext $securityContext }}
+          {{- end }}
+          {{- with $securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
