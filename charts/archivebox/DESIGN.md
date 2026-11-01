@@ -21,8 +21,8 @@ flowchart LR
   admin[Admin Secret] --> app
   app --> data[(ArchiveBox data PVC)]
   app --> web[Websites and capture dependencies]
-  cron[Backup CronJob optional] --> data
-  s3[S3-compatible object storage] --> cron
+  data --> cron[Backup CronJob optional]
+  cron --> s3[S3-compatible object storage]
   s3secret[S3 Secret] --> cron
 ```
 
@@ -62,9 +62,10 @@ isolated namespace before it is trusted.
 ## Security Boundary
 
 The main container runs as non-root UID/GID 911, cannot gain privileges, drops
-all Linux capabilities, uses RuntimeDefault seccomp, and receives no Kubernetes
-API token. Credentials are sourced from Secrets rather than ConfigMaps. The
-backup Job receives S3 credentials only when that feature is enabled.
+all Linux capabilities, and uses RuntimeDefault seccomp. The chart creates no
+RBAC permissions; platform ServiceAccount token automount policy still applies.
+Credentials are sourced from Secrets rather than ConfigMaps. The backup Job
+receives S3 credentials only when that feature is enabled.
 
 The root filesystem remains writable because the pinned application and browser
 tooling do not expose a stable immutable-filesystem contract. NetworkPolicy,

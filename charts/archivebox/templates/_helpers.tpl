@@ -110,6 +110,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{/* Validate backup configuration */}}
 {{- define "archivebox.backupEnabled" -}}
 {{- if .Values.backup.enabled -}}
+  {{- if not .Values.persistence.enabled -}}
+    {{- fail "persistence.enabled must be true when backup.enabled is true" -}}
+  {{- end -}}
   {{- if not .Values.backup.s3.endpoint -}}
     {{- fail "backup.s3.endpoint is required when backup.enabled is true" -}}
   {{- end -}}
