@@ -30,3 +30,64 @@ tests:
     asserts:
       - notExists:
           path: spec.replicas
+
+  - it: should render health probes and writable runtime storage
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /healthz
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.port
+          value: http
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].mountPath
+          value: /tmp
+      - equal:
+          path: spec.template.spec.volumes[0].emptyDir.sizeLimit
+          value: 64Mi
+
+  - it: should support disabling probes and the temporary volume
+    set:
+      probes.liveness.enabled: false
+      probes.readiness.enabled: false
+      tmpVolume.enabled: false
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].livenessProbe
+      - notExists:
+          path: spec.template.spec.containers[0].readinessProbe
+      - notExists:
+          path: spec.template.spec.containers[0].volumeMounts
+      - notExists:
+          path: spec.template.spec.volumes
+
+  - it: should render placement and metadata overrides
+    set:
+      podAnnotations:
+        example.com/checksum: abc123
+      podLabels:
+        example.com/tier: frontend
+      priorityClassName: production
+      nodeSelector:
+        kubernetes.io/os: linux
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: media
+          effect: NoSchedule
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["example.com/checksum"]
+          value: abc123
+      - equal:
+          path: spec.template.metadata.labels["example.com/tier"]
+          value: frontend
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: production
+      - equal:
+          path: spec.template.spec.nodeSelector["kubernetes.io/os"]
+          value: linux
+      - equal:
+          path: spec.template.spec.tolerations[0].key
+          value: dedicated

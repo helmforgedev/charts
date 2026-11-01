@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Ingress
+templates:
+  - templates/ingress.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render class host path annotations and TLS
+    set:
+      ingress.enabled: true
+      ingress.ingressClassName: traefik
+      ingress.annotations:
+        cert-manager.io/cluster-issuer: production
+      ingress.hosts:
+        - host: openreel.example.com
+          paths:
+            - path: /editor
+              pathType: Prefix
+      ingress.tls:
+        - secretName: openreel-tls
+          hosts:
+            - openreel.example.com
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: spec.ingressClassName
+          value: traefik
+      - equal:
+          path: metadata.annotations["cert-manager.io/cluster-issuer"]
+          value: production
+      - equal:
+          path: spec.rules[0].host
+          value: openreel.example.com
+      - equal:
+          path: spec.rules[0].http.paths[0].path
+          value: /editor
+      - equal:
+          path: spec.tls[0].secretName
+          value: openreel-tls
+
+  - it: should omit ingress by default
+    asserts:
+      - hasDocuments:
+          count: 0

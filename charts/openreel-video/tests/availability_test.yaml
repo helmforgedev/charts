@@ -1,0 +1,77 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Availability resources
+templates:
+  - templates/hpa.yaml
+  - templates/pdb.yaml
+  - templates/serviceaccount.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render the default disruption budget
+    template: templates/pdb.yaml
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: spec.minAvailable
+          value: 1
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/component"]
+          value: web
+
+  - it: should omit the disruption budget when disabled
+    template: templates/pdb.yaml
+    set:
+      pdb.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render autoscaling targets
+    template: templates/hpa.yaml
+    set:
+      autoscaling.enabled: true
+      autoscaling.minReplicas: 2
+      autoscaling.maxReplicas: 6
+      autoscaling.targetCPUUtilizationPercentage: 60
+      autoscaling.targetMemoryUtilizationPercentage: 75
+    asserts:
+      - isKind:
+          of: HorizontalPodAutoscaler
+      - equal:
+          path: spec.minReplicas
+          value: 2
+      - equal:
+          path: spec.maxReplicas
+          value: 6
+      - equal:
+          path: spec.metrics[0].resource.target.averageUtilization
+          value: 60
+      - equal:
+          path: spec.metrics[1].resource.target.averageUtilization
+          value: 75
+
+  - it: should omit autoscaling when disabled
+    template: templates/hpa.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render a dedicated service account without token automount
+    template: templates/serviceaccount.yaml
+    asserts:
+      - isKind:
+          of: ServiceAccount
+      - equal:
+          path: automountServiceAccountToken
+          value: false
+
+  - it: should omit the service account when an existing one is selected
+    template: templates/serviceaccount.yaml
+    set:
+      serviceAccount.create: false
+      serviceAccount.name: shared-openreel
+    asserts:
+      - hasDocuments:
+          count: 0
