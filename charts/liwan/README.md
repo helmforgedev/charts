@@ -17,6 +17,7 @@ data in embedded DuckDB under `/data`.
 - Public URL wiring through `LIWAN_BASE_URL`
 - Ingress and Gateway API exposure options
 - Dual-stack Service support
+- Opt-in ingress NetworkPolicy with explicit peer support
 - Non-root security context with token automount disabled
 - Extra manifests, volumes, mounts, labels, and annotations for platform integration
 
@@ -116,14 +117,17 @@ endpoint.
 | `service.port` | `80` | Kubernetes Service port. |
 | `service.ipFamilyPolicy` | `null` | Optional Service IP family policy. |
 | `service.ipFamilies` | `[]` | Optional ordered IP families. |
+| `networkPolicy.enabled` | `false` | Enable ingress isolation for the Liwan pod. |
+| `networkPolicy.ingressFrom` | `[]` | Allowed peers; empty permits same-namespace pods. |
 | `ingress.enabled` | `false` | Render an Ingress. |
 | `gatewayAPI.enabled` | `false` | Render a Gateway API HTTPRoute. |
 | `serviceAccount.automountServiceAccountToken` | `false` | Mount a Kubernetes API token into the pod. |
 | `extraManifests` | `[]` | Additional Kubernetes resources to render with the release. |
 
-## Upgrade to 1.7
+## Upgrade to 1.8
 
-Liwan 1.7 trusts only loopback proxies and `X-Forwarded-For` by default.
+Liwan 1.8 retains the secure proxy contract introduced in 1.7: only loopback
+proxies and `X-Forwarded-For` are trusted by default.
 Behind an Ingress or Gateway, configure the actual proxy IPs or CIDRs through
 `liwan.extraEnv`; otherwise analytics records the connecting proxy address.
 For example, set `LIWAN_TRUSTED_PROXIES` to `10.42.0.0/16` only when that range
@@ -133,8 +137,32 @@ trust arbitrary client-controlled headers or use the unrestricted `*` proxy
 setting. The removed `LIWAN_USE_FORWARD_HEADERS` setting now fails chart
 validation with a migration message.
 
-Review the [upstream 1.7 release](https://github.com/explodingcamera/liwan/releases/tag/liwan-v1.7.0)
-before upgrading. Back up the persistent data directory before the rollout.
+Review the [upstream 1.8 release](https://github.com/explodingcamera/liwan/releases/tag/liwan-v1.8.0)
+before upgrading. Back up the persistent data directory before the rollout and
+keep exactly one writer during recovery.
+
+## Network isolation
+
+NetworkPolicy is disabled by default so upgrades preserve established ingress
+paths. Enable it only after identifying the namespace and Pod selectors used by
+your Ingress or Gateway controller:
+
+```yaml
+networkPolicy:
+  enabled: true
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-system
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: ingress-controller
+```
+
+An empty `ingressFrom` permits same-namespace pods. Enforcement requires a CNI
+that implements Kubernetes NetworkPolicy. Set `podSelector` labels to match the
+actual edge controller. NetworkPolicies are additive, so inspect every policy
+selecting the Liwan Pod before relying on this policy for isolation.
 
 ## Operations
 
@@ -168,6 +196,17 @@ Default security posture:
 
 Resource requests and limits are intentionally user-defined because Liwan traffic profiles vary by site. Set them for
 production to satisfy cluster policy and capacity planning.
+
+## Troubleshooting
+
+- If the Pod is pending, confirm the PVC is bound and the requested StorageClass
+  exists.
+- If tracking records the proxy address, configure only the actual proxy CIDRs in
+  `LIWAN_TRUSTED_PROXIES` and verify the forwarded header name.
+- If NetworkPolicy blocks traffic, compare the edge Pod and namespace labels with
+  `networkPolicy.ingressFrom` before widening access.
+- If data appears missing, verify the mounted claim and never start a second
+  writer against the previous DuckDB directory.
 
 ## Security Scan: `liwan`
 

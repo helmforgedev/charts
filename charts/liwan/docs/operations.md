@@ -42,6 +42,16 @@ liwan:
 
 If the UI loads but tracking scripts fail, verify that the public URL, Ingress host, TLS host, and browser URL all match.
 
+## NetworkPolicy
+
+NetworkPolicy is opt-in to avoid changing existing ingress paths during an
+upgrade. When enabled with an empty `ingressFrom`, only Pods in the release
+namespace may connect. Supply the exact namespace and Pod selectors used by the
+edge controller for public deployments. Verify enforcement in a non-production
+namespace because support depends on the cluster CNI. Kubernetes NetworkPolicies
+are additive: another policy selecting the Liwan Pod can permit additional
+ingress, so inspect all applicable policies before relying on isolation.
+
 ## Backups
 
 Back up the PVC mounted at `/data`.
