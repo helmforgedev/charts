@@ -132,9 +132,10 @@ rendered Kubernetes configuration, not document-parser safety.
 
 ## Upgrade and recovery
 
-Before an application-version upgrade, stop new traffic, finish conversions and archive the complete workspace claim
-plus credential Secrets. Upgrade in place with the same release name; resource names, credential keys and workspace
-mounts remain stable. Verify native login, a real conversion, retained API keys and pipeline state after rollout.
+Before an application-version upgrade, stop new traffic, finish conversions, scale the Deployment to zero and wait for
+the pod to terminate. Then archive the complete workspace claim plus credential Secrets. Upgrade in place with the same
+release name; resource names, credential keys and workspace mounts remain stable. Verify native login, a real
+conversion, retained API keys and pipeline state after rollout.
 
 For disaster recovery, restore into a fresh PVC with compatible ownership and set `persistence.existingClaim`. Start
 with the original application image before moving forward. Helm rollback restores Kubernetes manifests but cannot undo
