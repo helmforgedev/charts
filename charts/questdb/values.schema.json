@@ -15,18 +15,125 @@
     "image": {"type": "object", "additionalProperties": false, "required": ["repository", "tag", "pullPolicy"], "properties": {"repository": {"const": "docker.io/questdb/questdb"}, "tag": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+@sha256:[a-f0-9]{64}$"}, "pullPolicy": {"enum": ["Always", "IfNotPresent", "Never"]}}},
     "imagePullSecrets": {"type": "array", "items": {"type": "object"}},
     "questdb": {"type": "object", "additionalProperties": false, "required": ["pgUser", "httpUser", "existingSecret", "pgPasswordKey", "httpPasswordKey", "serverConfig", "extraEnv", "envFrom"], "properties": {"pgUser": {"type": "string", "minLength": 1}, "httpUser": {"type": "string", "minLength": 1}, "existingSecret": {"type": "string"}, "pgPasswordKey": {"type": "string", "minLength": 1}, "httpPasswordKey": {"type": "string", "minLength": 1}, "serverConfig": {"type": "object", "additionalProperties": {"type": ["string", "number", "integer", "boolean"]}}, "extraEnv": {"type": "array", "items": {"type": "object"}}, "envFrom": {"type": "array", "items": {"type": "object"}}}},
-    "persistence": {"$ref": "#/$defs/persistence"},
+    "persistence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "existingClaim", "storageClass", "accessModes", "size", "retain", "annotations"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "existingClaim": {"type": "string"},
+        "storageClass": {"type": "string"},
+        "accessModes": {"type": "array", "minItems": 1, "items": {"enum": ["ReadWriteOnce", "ReadOnlyMany", "ReadWriteMany", "ReadWriteOncePod"]}},
+        "size": {"type": "string", "pattern": "^[1-9][0-9]*(Ei|Pi|Ti|Gi|Mi|Ki)$"},
+        "retain": {"type": "boolean"},
+        "annotations": {"type": "object"}
+      }
+    },
     "serviceAccount": {"type": "object", "additionalProperties": false, "required": ["create", "name", "annotations", "automountServiceAccountToken"], "properties": {"create": {"type": "boolean"}, "name": {"type": "string"}, "annotations": {"type": "object"}, "automountServiceAccountToken": {"type": "boolean"}}},
     "service": {"type": "object", "additionalProperties": false, "required": ["type", "annotations", "pgWireEnabled", "ilpTcpEnabled", "ipFamilyPolicy", "ipFamilies"], "properties": {"type": {"enum": ["ClusterIP", "NodePort", "LoadBalancer"]}, "annotations": {"type": "object"}, "pgWireEnabled": {"type": "boolean"}, "ilpTcpEnabled": {"type": "boolean"}, "ipFamilyPolicy": {"type": "string"}, "ipFamilies": {"type": "array", "items": {"enum": ["IPv4", "IPv6"]}}}},
     "metrics": {"type": "object", "additionalProperties": false, "required": ["enabled", "annotations", "serviceMonitor"], "properties": {"enabled": {"type": "boolean"}, "annotations": {"type": "object"}, "serviceMonitor": {"type": "object", "additionalProperties": false, "required": ["enabled", "interval", "scrapeTimeout", "labels"], "properties": {"enabled": {"type": "boolean"}, "interval": {"type": "string"}, "scrapeTimeout": {"type": "string"}, "labels": {"type": "object"}}}}},
     "ingress": {"type": "object", "additionalProperties": false, "required": ["enabled", "ingressClassName", "annotations", "hosts", "tls"], "properties": {"enabled": {"type": "boolean"}, "ingressClassName": {"type": "string"}, "annotations": {"type": "object"}, "hosts": {"type": "array"}, "tls": {"type": "array"}}},
     "gatewayAPI": {"type": "object", "additionalProperties": false, "required": ["enabled", "httpRoutes"], "properties": {"enabled": {"type": "boolean"}, "httpRoutes": {"type": "array"}}},
     "externalSecrets": {"type": "object", "additionalProperties": false, "required": ["enabled", "refreshInterval", "items"], "properties": {"enabled": {"type": "boolean"}, "refreshInterval": {"type": "string"}, "items": {"type": "array"}}},
-    "probes": {"type": "object", "additionalProperties": {"$ref": "#/$defs/probe"}},
-    "resources": {"type": "object"},
-    "podSecurityContext": {"type": "object"},
-    "securityContext": {"type": "object"},
-    "updateStrategy": {"type": "object"},
+    "probes": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/probe"},
+      "properties": {
+        "startup": {
+          "type": "object",
+          "required": ["enabled", "initialDelaySeconds", "periodSeconds", "timeoutSeconds", "failureThreshold"],
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "initialDelaySeconds": {"type": "integer", "minimum": 0},
+            "periodSeconds": {"type": "integer", "minimum": 1},
+            "timeoutSeconds": {"type": "integer", "minimum": 1},
+            "failureThreshold": {"type": "integer", "minimum": 1}
+          }
+        },
+        "liveness": {
+          "type": "object",
+          "required": ["enabled", "initialDelaySeconds", "periodSeconds", "timeoutSeconds", "failureThreshold"],
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "initialDelaySeconds": {"type": "integer", "minimum": 0},
+            "periodSeconds": {"type": "integer", "minimum": 1},
+            "timeoutSeconds": {"type": "integer", "minimum": 1},
+            "failureThreshold": {"type": "integer", "minimum": 1}
+          }
+        },
+        "readiness": {
+          "type": "object",
+          "required": ["enabled", "initialDelaySeconds", "periodSeconds", "timeoutSeconds", "failureThreshold"],
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "initialDelaySeconds": {"type": "integer", "minimum": 0},
+            "periodSeconds": {"type": "integer", "minimum": 1},
+            "timeoutSeconds": {"type": "integer", "minimum": 1},
+            "failureThreshold": {"type": "integer", "minimum": 1}
+          }
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "properties": {
+        "requests": {
+          "type": "object",
+          "properties": {
+            "cpu": {"type": ["string", "number"]},
+            "memory": {"type": ["string", "number"]}
+          }
+        },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "cpu": {"type": ["string", "number"]},
+            "memory": {"type": ["string", "number"]}
+          }
+        }
+      }
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "properties": {
+        "runAsNonRoot": {"type": "boolean"},
+        "runAsUser": {"type": "integer", "minimum": 0},
+        "runAsGroup": {"type": "integer", "minimum": 0},
+        "fsGroup": {"type": "integer", "minimum": 0},
+        "fsGroupChangePolicy": {"type": "string"},
+        "seccompProfile": {
+          "type": "object",
+          "properties": {
+            "type": {"type": "string"},
+            "localhostProfile": {"type": "string"}
+          }
+        }
+      }
+    },
+    "securityContext": {
+      "type": "object",
+      "properties": {
+        "allowPrivilegeEscalation": {"type": "boolean"},
+        "readOnlyRootFilesystem": {"type": "boolean"},
+        "runAsNonRoot": {"type": "boolean"},
+        "runAsUser": {"type": "integer", "minimum": 0},
+        "runAsGroup": {"type": "integer", "minimum": 0},
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "add": {"type": "array", "items": {"type": "string"}},
+            "drop": {"type": "array", "items": {"type": "string"}}
+          }
+        }
+      }
+    },
+    "updateStrategy": {
+      "type": "object",
+      "properties": {
+        "type": {"type": "string"},
+        "rollingUpdate": {"type": "object"}
+      }
+    },
     "podAnnotations": {"type": "object"},
     "podLabels": {"type": "object"},
     "priorityClassName": {"type": "string"},
