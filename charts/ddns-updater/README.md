@@ -20,9 +20,10 @@ This chart currently deploys `qmcgaw/ddns-updater:2.10.0`.
 
 The single-replica Deployment reads `config.json` from either a chart-managed or
 existing Secret, polls public IP sources, and updates the configured provider
-APIs. A PVC retains update history, while a ClusterIP Service exposes the status
-UI. The `Recreate` strategy prevents two writers from racing during upgrades.
-See [DESIGN.md](DESIGN.md) for the topology and responsibility boundaries.
+APIs. A PVC retains update history when persistence is enabled; otherwise the
+history volume is ephemeral. A ClusterIP Service exposes the status UI. The
+`Recreate` strategy prevents two writers from racing during upgrades. See
+[DESIGN.md](DESIGN.md) for the topology and responsibility boundaries.
 
 ## Installation
 
@@ -137,17 +138,24 @@ kubectl logs -l app.kubernetes.io/name=ddns-updater --all-containers --tail=100
 ## Upgrade Safety
 
 Helm upgrades preserve the Deployment, Service, and PVC names. Keep the release
-name, `fullnameOverride`, `persistence.existingClaim`, and configuration Secret
-reference stable. Use an explicit values file with the normal Helm merge:
+name, `nameOverride`, `fullnameOverride`, `persistence.existingClaim`, and
+configuration Secret reference stable. Export the stored overrides, review them
+against the new schema, and use a complete values file with the normal Helm
+merge:
 
 ```bash
+helm get values ddns-updater --namespace ddns-updater -o yaml > values.yaml
 helm upgrade ddns-updater helmforge/ddns-updater \
   --namespace ddns-updater --values values.yaml
 ```
 
-`--reuse-values` also preserves old defaults, so compare stored values with the
-new schema before using it. Back up `config.json` and the update-history PVC,
-then verify both the UI and a provider update after the pod is Ready.
+The file must retain every non-default setting, especially
+`config.existingSecret` or `config.settings`; omitting both can replace the
+active configuration with an empty chart-managed Secret. `--reuse-values`
+preserves stored overrides but also preserves old defaults, so compare the
+stored values with the new schema before using it. Back up `config.json` and the
+update-history PVC, then verify both the UI and a provider update after the pod
+is Ready.
 
 ## Troubleshooting
 

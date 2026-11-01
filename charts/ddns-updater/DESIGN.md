@@ -14,10 +14,10 @@ and namespace egress policy.
 
 ```mermaid
 flowchart LR
-  Checkers[Public IP checkers] --> Pod[ddns-updater Deployment]
+  Pod[ddns-updater Deployment] --> Checkers[Public IP checkers]
   Secret[config.json Secret] --> Pod
   Pod --> Providers[DNS provider APIs]
-  Pod --> PVC[Update history PVC]
+  Pod -. persistence enabled .-> PVC[Update history PVC]
   User[Operator browser] --> Service[Web UI Service]
   Ingress[Optional Ingress] -. exposure .-> Service
   Service --> Pod
