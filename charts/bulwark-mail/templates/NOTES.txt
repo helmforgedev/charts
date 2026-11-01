@@ -10,12 +10,19 @@ Bulwark Mail has been installed.
 - Application: Bulwark Mail {{ .Chart.AppVersion }}
 - Image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
 - Configuration mode: {{ .Values.config.mode }}
+{{- if .Values.autoscaling.enabled }}
+- Replicas: {{ .Values.autoscaling.minReplicas }}-{{ .Values.autoscaling.maxReplicas }} (HorizontalPodAutoscaler)
+{{- else }}
 - Replicas: {{ .Values.replicaCount }}
-- Update strategy: Recreate
+{{- end }}
+- Update strategy: {{ include "bulwark-mail.updateStrategy" . }}
 - ServiceAccount: {{ include "bulwark-mail.serviceAccountName" . }}
 - Application listener: {{ .Values.containerPorts.http }}
 - Service: {{ include "bulwark-mail.fullname" . }}:{{ .Values.service.port }} -> http
 - Persistence: {{ ternary "enabled" "disabled" .Values.persistence.enabled }}
+{{- if .Values.sharedStore.enabled }}
+- Shared store: enabled (REDIS_URL from Secret {{ include "bulwark-mail.sharedStoreSecretName" . }}, key {{ .Values.sharedStore.existingSecretKey }})
+{{- end }}
 - External Stalwart/JMAP dependency: required for normal mail operation
 
 Bulwark is a JMAP web client. This chart intentionally does not install
@@ -69,9 +76,15 @@ Wizard mode is active. Open the service and follow `/setup` to configure:
   - the Bulwark administrator password;
   - optional OAuth/OIDC login;
   - branding and feature policy.
+{{- if .Values.sharedStore.enabled }}
+
+The wizard writes its state to the shared store, so every replica sees the
+completed setup.
+{{- else }}
 
 The wizard writes state below `/app/data`; persistence is mandatory so that
 the completed setup survives pod replacement.
+{{- end }}
 {{- else }}
 
 Declarative mode is active. The chart configured:
@@ -137,9 +150,16 @@ committed values file; use an existing Secret or External Secrets.
 {{- with .Values.service.ipFamilyPolicy }}
 - Service IP family policy: {{ . }}{{ with $.Values.service.ipFamilies }} ({{ join ", " . }}){{ end }}
 {{- end }}
+{{- if .Values.sharedStore.enabled }}
+
+The shared store holds settings, admin configuration, admin runtime state,
+telemetry state, and update-check state for every replica. Back it up together
+with the runtime Secret. `/tmp` is an emptyDir.
+{{- else }}
 
 The single `/app/data` PVC contains settings, admin configuration, admin
 runtime state, telemetry state, and update-check state. `/tmp` is an emptyDir.
+{{- end }}
 
 6. Validation commands
 ======================
@@ -163,6 +183,12 @@ Check Service endpoints:
 Check the health contract from the pod:
 
   kubectl -n {{ .Release.Namespace }} exec deployment/{{ include "bulwark-mail.fullname" . }} -- wget -qO- http://127.0.0.1:{{ .Values.containerPorts.http }}/api/health
+{{- if .Values.sharedStore.enabled }}
+
+Check readiness and the shared store from the pod (expects "store":"redis"):
+
+  kubectl -n {{ .Release.Namespace }} exec deployment/{{ include "bulwark-mail.fullname" . }} -- wget -qO- http://127.0.0.1:{{ .Values.containerPorts.http }}/api/ready
+{{- end }}
 
 {{- if eq .Values.config.mode "declarative" }}
 Check the public configuration contract:
@@ -197,6 +223,13 @@ state remains below `/app/data` and temporary files below `/tmp`.
 
 If the wizard restarts after pod replacement, verify the PVC is Bound and is
 mounted at `/app/data`.
+{{- if .Values.sharedStore.enabled }}
+
+If pods stay unready, `/api/ready` answers 503 while a pod starts or cannot
+reach the shared store. Check the logs for store errors, the key
+{{ .Values.sharedStore.existingSecretKey }} in Secret {{ include "bulwark-mail.sharedStoreSecretName" . }}, and any
+NetworkPolicy egress rule to the store.
+{{- end }}
 
 If OAuth login fails, inspect issuer discovery from the pod and verify the
 client redirect URI, scopes, and Secret key names.

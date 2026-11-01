@@ -23,8 +23,20 @@ image:
 # -- Optional image pull secrets for private registries or mirrors.
 imagePullSecrets: []
 
-# -- Number of Bulwark pods. Only one is supported because the application mutates a single data volume.
+# -- Number of Bulwark pods. Values above 1 require sharedStore.enabled=true and persistence.enabled=false.
 replicaCount: 1
+
+sharedStore:
+  # -- Share all Bulwark state through an external Redis-protocol store (Valkey, Redis 5+, KeyDB, Dragonfly). Required for more than one replica, autoscaling, and the PDB. Needs a Bulwark image released after 1.19.1.
+  enabled: false
+  # -- Store URL including its password, for example redis://:password@valkey:6379/0, or rediss:// for TLS. Written to the generated runtime Secret; ignored when an existing Secret is selected. Prefer an existing Secret in production.
+  url: ""
+  # -- Existing Secret holding the store URL. Empty reads it from the runtime Secret (secrets.existingSecret or the generated one).
+  existingSecret: ""
+  # -- Key holding the store URL, exported as REDIS_URL.
+  existingSecretKey: shared-store-url
+  # -- Prefix of every store key, exported as REDIS_KEY_PREFIX. Empty keeps the upstream default bulwark:. Set a distinct prefix per release when several releases share one store.
+  keyPrefix: ""
 
 config:
   # -- Configuration mode. wizard uses the setup UI; declarative requires an operator-provided JMAP server URL.
@@ -246,8 +258,10 @@ probes:
     # -- Liveness probe failure threshold.
     failureThreshold: 3
   readiness:
-    # -- Enable the readiness probe on /api/health.
+    # -- Enable the readiness probe.
     enabled: true
+    # -- Readiness probe path. Empty selects /api/ready when sharedStore.enabled=true and /api/health otherwise. /api/ready also reports an unreachable store but exists only in Bulwark images released after 1.19.1.
+    path: ""
     # -- Readiness probe initial delay.
     initialDelaySeconds: 0
     # -- Readiness probe period.
@@ -290,19 +304,19 @@ securityContext:
     type: RuntimeDefault
 
 pdb:
-  # -- Create a PodDisruptionBudget. Unsupported while Bulwark is restricted to one replica and rejected when true.
+  # -- Create a PodDisruptionBudget. Requires sharedStore.enabled=true and is rendered only with more than one replica.
   enabled: false
   # -- Minimum available pods during voluntary disruptions.
   minAvailable: 1
 
 autoscaling:
-  # -- Enable autoscaling. Unsupported for Bulwark's single-writer storage contract and rejected when true.
+  # -- Render a HorizontalPodAutoscaler. Requires sharedStore.enabled=true and persistence.enabled=false.
   enabled: false
-  # -- Minimum replicas reserved for a future upstream HA contract.
+  # -- Minimum replicas managed by the HorizontalPodAutoscaler.
   minReplicas: 1
-  # -- Maximum replicas reserved for a future upstream HA contract.
+  # -- Maximum replicas managed by the HorizontalPodAutoscaler.
   maxReplicas: 1
-  # -- Target CPU utilization reserved for a future upstream HA contract.
+  # -- Target average CPU utilization in percent of the CPU request.
   targetCPUUtilizationPercentage: 80
 
 networkPolicy:

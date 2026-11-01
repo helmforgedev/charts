@@ -50,12 +50,13 @@ The existing Secret must contain `session-secret`; add `admin-password`, `oauth-
 
 The chart creates a single `Deployment` with `Recreate` strategy. Bulwark stores encrypted settings, admin configuration, admin runtime state, telemetry state, and update-check state below `/app/data`. A single PVC backs that root, while `/tmp` uses `emptyDir`.
 
-The single-writer contract is enforced:
+Without the shared store, the single-writer contract is enforced:
 
 - `replicaCount` must remain `1`;
-- autoscaling is rejected;
-- the PDB is omitted for the supported single replica;
+- autoscaling and the PDB are rejected;
 - one PVC is mounted once at `/app/data`, avoiding duplicate claim attachments.
+
+With `sharedStore.enabled: true`, Bulwark keeps all state in an external Redis-protocol store instead, and the chart allows several replicas, autoscaling, and a PDB. See [Several replicas](#several-replicas).
 
 ## Image and security
 
@@ -81,6 +82,47 @@ Defaults match the upstream image user:
 `config.mode: declarative` requires `config.jmap.serverUrl`, which is exported as `JMAP_SERVER_URL`. Admin read-only behavior is independent: leave `config.admin.readOnly: false` during bootstrap so `ADMIN_PASSWORD` can persist `admin.json`, then opt in after the configuration exists.
 
 Upstream admin files have higher precedence than environment values. When reusing a wizard-created PVC, remove stale admin overrides before expecting declarative values to take effect.
+
+## Several replicas
+
+Bulwark images released after 1.19.1 can share their state through one Redis-protocol store (Valkey, Redis 5 or newer, KeyDB, Dragonfly, or a managed service). Every replica then sees the same admin configuration, plugins, branding, user settings, sign-in limits, and sessions, so any number of replicas runs behind the plain Service without sticky sessions and without a data volume. Upstream documentation: [Running several instances](https://bulwarkmail.org/docs/deployment/multi-instance).
+
+The chart does not install the store. Run one next to Bulwark, for example with the [HelmForge Valkey chart](https://helmforge.dev/docs/charts/valkey), and configure it with `maxmemory-policy noeviction` and persistence (`appendonly yes`) so that it never drops Bulwark state. Redis Cluster is not supported upstream; a single endpoint is.
+
+```yaml
+image:
+  tag: "<a release after 1.19.1>"
+replicaCount: 3
+sharedStore:
+  enabled: true
+  existingSecret: bulwark-mail-store   # key shared-store-url: redis://:password@valkey:6379/0
+config:
+  mode: declarative
+  jmap:
+    serverUrl: https://mail.example.com
+persistence:
+  enabled: false
+pdb:
+  enabled: true
+```
+
+With the shared store enabled:
+
+- the store URL is exported as `REDIS_URL` from `sharedStore.existingSecret`, or from the runtime Secret (`secrets.existingSecret` or the generated one) under `sharedStore.existingSecretKey`. `sharedStore.url` writes it into the generated Secret for local tests; it becomes part of Helm release state;
+- `sharedStore.keyPrefix` sets `REDIS_KEY_PREFIX` when several releases share one store;
+- every replica receives the same `SESSION_SECRET` from the runtime Secret;
+- the readiness probe moves to `/api/ready`, which answers 503 while a pod starts or cannot reach the store. Liveness and startup stay on `/api/health`, so a store outage takes pods out of the Service without restarting them. Set `probes.readiness.path` to override;
+- `replicaCount` above 1, `autoscaling.enabled`, and `pdb.enabled` are accepted. `persistence.enabled` must be `false` with more than one replica or autoscaling, because one ReadWriteOnce volume cannot follow pods to other nodes and the store holds all state;
+- the Deployment uses `RollingUpdate` when no volume is mounted, and `Recreate` while one replica still mounts its old volume;
+- wizard mode no longer needs a volume, because the setup state is written to the store.
+
+The default readiness settings remove a pod after about 60 seconds of failures (`periodSeconds: 10`, `failureThreshold: 6`). Lower them, for example to `periodSeconds: 5` and `failureThreshold: 3`, to react to a store outage faster.
+
+To move an existing single-instance release, back up the PVC, then upgrade with `sharedStore.enabled: true` while keeping `replicaCount: 1` and the existing volume. On first start against an empty store Bulwark imports everything from `/app/data` and logs what it imported. Then upgrade again with `persistence.enabled: false` and more replicas. The retained PVC is no longer mounted; delete it after a verified backup.
+
+If `networkPolicy.egress.enabled` is true, add an `extraEgress` rule that allows the store's port. Store data includes the admin password hash, OAuth client secrets, and encrypted user settings: require a password, use `rediss://` across untrusted networks, restrict access to the Bulwark pods, and back the store up together with the runtime Secret.
+
+`extraEnv` may not set `REDIS_URL`, `REDIS_URL_FILE`, or `REDIS_KEY_PREFIX` while the chart manages the store. If you set `PLUGIN_SIGNING_KEY_FILE` through `extraEnv`, it applies to every replica, which is what upstream requires.
 
 ## JMAP networking
 
@@ -146,7 +188,7 @@ Set `service.ipFamilyPolicy` to `SingleStack`, `PreferDualStack`, or `RequireDua
 
 ## Probes and runtime acceptance
 
-Startup, liveness, and readiness probes call `/api/health`. The chart-owned runtime smoke additionally verifies:
+Startup, liveness, and readiness probes call `/api/health`. With the shared store, readiness calls `/api/ready` instead; `probes.readiness.path` overrides either default. `/api/ready` exists only in Bulwark images released after 1.19.1. The chart-owned runtime smoke additionally verifies:
 
 - the exact deterministic image;
 - the configured application listener and independent Service port;
@@ -162,6 +204,7 @@ Startup, liveness, and readiness probes call `/api/health`. The chart-owned runt
 - [Ingress](examples/ingress.yaml)
 - [Gateway API](examples/gateway-api.yaml)
 - [External Secrets](examples/external-secrets.yaml)
+- [Several replicas with a shared store](examples/shared-store.yaml)
 
 ## Operational guides
 
@@ -179,7 +222,10 @@ Startup, liveness, and readiness probes call `/api/health`. The chart-owned runt
 | `config.jmap.serverUrl` | empty | Public external JMAP URL |
 | `config.settingsSync` | `true` | Encrypted server-side settings |
 | `config.telemetry` | `off` | Explicit upstream telemetry choice |
-| `replicaCount` | `1` | Enforced single-writer topology |
+| `replicaCount` | `1` | Single writer; above 1 requires the shared store |
+| `sharedStore.enabled` | `false` | Share state through an external Redis-protocol store |
+| `sharedStore.existingSecret` | empty | Secret holding the store URL; empty uses the runtime Secret |
+| `probes.readiness.path` | empty | `/api/ready` with the shared store, `/api/health` otherwise |
 | `persistence.size` | `5Gi` | Single `/app/data` PVC |
 | `persistence.retain` | `true` | Keep generated PVC on uninstall |
 | `containerPorts.http` | `3000` | Next.js application listener configured through `PORT` |
@@ -190,14 +236,14 @@ The complete, validated contract is documented inline in [values.yaml](values.ya
 
 ## Upgrades
 
-Use `Recreate` intentionally: the old pod releases the RWO volume before the new pod starts. Back up data and the session Secret first. Review upstream changes for state migrations, environment renames, and new writable directories.
+Without the shared store, `Recreate` is intentional: the old pod releases the RWO volume before the new pod starts. Back up data and the session Secret first. Review upstream changes for state migrations, environment renames, and new writable directories.
 
 ## Non-goals
 
 This chart intentionally does not:
 
 - deploy Stalwart or another JMAP server;
-- support multiple Bulwark replicas or HPA;
+- install the shared store, or support multiple Bulwark replicas or HPA without it;
 - rewrite arbitrary subpaths for the published image;
 - create certificate, Gateway, ingress-controller, or External Secrets CRDs;
 - configure DNS, SMTP, IMAP, or mail delivery.

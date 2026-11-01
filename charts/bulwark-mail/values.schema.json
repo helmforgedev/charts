@@ -4,7 +4,7 @@
   "description": "Configuration contract for the HelmForge Bulwark Mail chart",
   "type": "object",
   "additionalProperties": false,
-  "required": ["image", "replicaCount", "config", "branding", "secrets", "persistence", "serviceAccount", "containerPorts", "service", "ingress", "gatewayAPI", "externalSecrets", "probes", "resources", "podSecurityContext", "securityContext", "pdb", "autoscaling", "networkPolicy"],
+  "required": ["image", "replicaCount", "sharedStore", "config", "branding", "secrets", "persistence", "serviceAccount", "containerPorts", "service", "ingress", "gatewayAPI", "externalSecrets", "probes", "resources", "podSecurityContext", "securityContext", "pdb", "autoscaling", "networkPolicy"],
   "properties": {
     "global": {
       "type": "object",
@@ -35,6 +35,18 @@
       }
     },
     "replicaCount": { "type": "integer", "minimum": 1 },
+    "sharedStore": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "url", "existingSecret", "existingSecretKey", "keyPrefix"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "url": { "type": "string", "pattern": "^(rediss?://.+)?$" },
+        "existingSecret": { "type": "string" },
+        "existingSecretKey": { "$ref": "#/definitions/secretKey" },
+        "keyPrefix": { "type": "string", "maxLength": 128 }
+      }
+    },
     "config": {
       "type": "object",
       "additionalProperties": false,
@@ -329,9 +341,10 @@
         "readiness": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["enabled", "initialDelaySeconds", "periodSeconds", "timeoutSeconds", "failureThreshold"],
+          "required": ["enabled", "path", "initialDelaySeconds", "periodSeconds", "timeoutSeconds", "failureThreshold"],
           "properties": {
             "enabled": { "type": "boolean" },
+            "path": { "type": "string", "pattern": "^(/.*)?$" },
             "initialDelaySeconds": { "type": "integer", "minimum": 0 },
             "periodSeconds": { "type": "integer", "minimum": 1 },
             "timeoutSeconds": { "type": "integer", "minimum": 1 },
@@ -420,8 +433,8 @@
       "required": ["enabled", "minReplicas", "maxReplicas", "targetCPUUtilizationPercentage"],
       "properties": {
         "enabled": { "type": "boolean" },
-        "minReplicas": { "type": "integer", "const": 1 },
-        "maxReplicas": { "type": "integer", "const": 1 },
+        "minReplicas": { "type": "integer", "minimum": 1 },
+        "maxReplicas": { "type": "integer", "minimum": 1 },
         "targetCPUUtilizationPercentage": { "type": "integer", "minimum": 1, "maximum": 100 }
       }
     },

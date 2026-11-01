@@ -10,11 +10,13 @@ The container runs as UID/GID 1001 with a read-only root filesystem, no privileg
 
 Use `secrets.existingSecret` or External Secrets in production. Inline values are intended for local validation and become part of Helm release state.
 
+With the shared store, the store holds what the data volume would hold, including the admin password hash, OAuth client secrets in admin configuration, and encrypted user settings. Require a store password, use `rediss://` across untrusted networks, keep the URL in an existing Secret, and restrict store access to the Bulwark pods.
+
 The JWT master integration can impersonate mailboxes. Keep it disabled unless required, restrict network access to the calling platform, and rotate both signing and master credentials on suspected exposure.
 
 ## Network policy
 
-Enable NetworkPolicy only when the cluster enforces it. The base egress policy allows DNS and configured JMAP ports. Add rules for every enabled external integration, such as OAuth discovery, update checks, extension marketplace, translation provider, or push relay.
+Enable NetworkPolicy only when the cluster enforces it. The base egress policy allows DNS and configured JMAP ports. Add rules for the shared store and every enabled external integration, such as OAuth discovery, update checks, extension marketplace, translation provider, or push relay.
 
 ## Telemetry
 
