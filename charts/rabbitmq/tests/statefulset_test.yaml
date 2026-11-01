@@ -71,12 +71,12 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
-            name: tmp
+            name: rabbitmq-runtime-tmp
             mountPath: /tmp
       - contains:
           path: spec.template.spec.volumes
           content:
-            name: tmp
+            name: rabbitmq-runtime-tmp
             emptyDir: {}
       - equal:
           path: spec.template.spec.initContainers[0].name
@@ -238,7 +238,7 @@ tests:
           path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
           value: 8Gi
 
-  - it: should reuse a user-supplied tmp volume without duplicating it
+  - it: should keep an unrelated user-supplied tmp volume separate
     template: statefulset.yaml
     set:
       extraVolumes:
@@ -255,8 +255,13 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
-            name: tmp
+            name: rabbitmq-runtime-tmp
             mountPath: /tmp
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: rabbitmq-runtime-tmp
+            emptyDir: {}
 
   - it: should not add a managed tmp volume or mount when the user supplies the mount path
     template: statefulset.yaml
@@ -271,12 +276,12 @@ tests:
       - notContains:
           path: spec.template.spec.volumes
           content:
-            name: tmp
+            name: rabbitmq-runtime-tmp
             emptyDir: {}
       - notContains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
-            name: tmp
+            name: rabbitmq-runtime-tmp
             mountPath: /tmp
       - contains:
           path: spec.template.spec.containers[0].volumeMounts

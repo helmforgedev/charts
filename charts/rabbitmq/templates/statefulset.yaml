@@ -1,11 +1,5 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- include "rabbitmq.validateAll" . -}}
-{{- $hasCustomTmpVolume := false -}}
-{{- range .Values.extraVolumes -}}
-{{- if eq .name "tmp" -}}
-{{- $hasCustomTmpVolume = true -}}
-{{- end -}}
-{{- end -}}
 {{- $hasCustomTmpMount := false -}}
 {{- range .Values.extraVolumeMounts -}}
 {{- if eq .mountPath "/tmp" -}}
@@ -214,7 +208,7 @@ spec:
             - name: data
               mountPath: /var/lib/rabbitmq
             {{- if not $hasCustomTmpMount }}
-            - name: tmp
+            - name: rabbitmq-runtime-tmp
               mountPath: /tmp
             {{- end }}
             {{- with .Values.extraVolumeMounts }}
@@ -228,8 +222,8 @@ spec:
         - name: config
           configMap:
             name: {{ include "rabbitmq.configurationName" . }}
-        {{- if and (not $hasCustomTmpVolume) (not $hasCustomTmpMount) }}
-        - name: tmp
+        {{- if not $hasCustomTmpMount }}
+        - name: rabbitmq-runtime-tmp
           emptyDir: {}
         {{- end }}
         {{- if .Values.tls.enabled }}
