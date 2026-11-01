@@ -26,6 +26,35 @@ tests:
           path: spec.template.spec.containers[0].ports[0].containerPort
           value: 25600
 
+  - it: should use compatible restricted security defaults
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+
+  - it: should preserve explicit security context overrides
+    set:
+      podSecurityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      securityContext:
+        runAsNonRoot: true
+        readOnlyRootFilesystem: false
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+
   - it: should set SERVER_PORT env
     asserts:
       - contains:
