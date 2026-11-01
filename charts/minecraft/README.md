@@ -316,7 +316,7 @@ Security Scan: Kubescape local scan against `MITRE,NSA,SOC2` reports a 78.79% re
 | `externalSecrets.apiVersion` | `external-secrets.io/v1` | ESO API version |
 | `externalSecrets.refreshInterval` | `"0"` | Refresh interval (`"0"` = create-once bootstrap) |
 | `externalSecrets.secretStoreRef.name` | `""` | SecretStore / ClusterSecretStore name — **required** |
-| `externalSecrets.secretStoreRef.kind` | `ClusterSecretStore` | Store kind |
+| `externalSecrets.secretStoreRef.kind` | `SecretStore` | Store kind |
 | `externalSecrets.data` | `[]` | Data mappings — **must** include entry with `secretKey` matching `rcon.existingSecretKey` |
 
 > `externalSecrets.enabled=true` with `rcon.enabled=true` requires `rcon.existingSecret` to prevent credential drift.
@@ -331,6 +331,25 @@ Security Scan: Kubescape local scan against `MITRE,NSA,SOC2` reports a 78.79% re
 | `topologySpreadConstraints` | `[]` | Topology spread |
 | `priorityClassName` | `""` | Priority class |
 | `terminationGracePeriodSeconds` | `120` | Shutdown grace period |
+
+### Security
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `automountServiceAccountToken` | `false` | Mount a Kubernetes API token in the server pod |
+| `podSecurityContext.fsGroup` | `1000` | Filesystem group for persistent data |
+| `podSecurityContext.fsGroupChangePolicy` | `Always` | Recursively repair ownership, including files created by older releases |
+| `podSecurityContext.seccompProfile.type` | `RuntimeDefault` | Seccomp profile for the pod |
+| `securityContext.runAsUser` | `1000` | UID for the server process |
+| `securityContext.runAsGroup` | `1000` | GID for the server process |
+| `securityContext.runAsNonRoot` | `true` | Require a non-root server process |
+| `securityContext.allowPrivilegeEscalation` | `false` | Prevent privilege escalation |
+| `securityContext.readOnlyRootFilesystem` | `true` | Keep the image filesystem read-only; `/data` and `/tmp` remain writable volumes |
+| `securityContext.capabilities.drop` | `[ALL]` | Linux capabilities removed from the server process |
+
+Upgrades from releases that stored partial security-context maps are supported with both `--reset-values` and
+`--reuse-values`. The chart merges missing hardening defaults while retaining explicit per-key operator overrides.
+Custom images must support UID/GID 1000 and a read-only root filesystem, or provide matching context overrides.
 
 ## Resources Generated
 

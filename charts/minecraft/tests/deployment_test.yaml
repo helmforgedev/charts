@@ -299,11 +299,121 @@ tests:
             name: MODRINTH_PROJECTS
             value: "geyser:beta"
 
-  - it: should set security context
+  - it: should apply upgrade-safe security defaults
     asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
       - equal:
           path: spec.template.spec.securityContext.fsGroup
           value: 1000
       - equal:
+          path: spec.template.spec.securityContext.fsGroupChangePolicy
+          value: Always
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
           path: spec.template.spec.containers[0].securityContext.runAsUser
           value: 1000
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: minecraft-runtime-tmp
+            mountPath: /tmp
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: minecraft-runtime-tmp
+            emptyDir: {}
+
+  - it: should preserve explicit security overrides
+    set:
+      automountServiceAccountToken: true
+      podSecurityContext:
+        fsGroup: 2000
+        fsGroupChangePolicy: Always
+        seccompProfile:
+          type: Unconfined
+      securityContext:
+        runAsUser: 2000
+        runAsGroup: 2000
+        runAsNonRoot: true
+        allowPrivilegeEscalation: true
+        readOnlyRootFilesystem: false
+        capabilities:
+          drop:
+            - NET_RAW
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 2000
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: Unconfined
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 2000
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: false
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: NET_RAW
+
+  - it: should not add managed tmp storage when the operator mounts tmp
+    set:
+      extraVolumes:
+        - name: custom-tmp
+          emptyDir: {}
+      extraVolumeMounts:
+        - name: custom-tmp
+          mountPath: /tmp
+    asserts:
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: minecraft-runtime-tmp
+            emptyDir: {}
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: minecraft-runtime-tmp
+            mountPath: /tmp
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: custom-tmp
+            mountPath: /tmp
+
+  - it: should harden the optional metrics sidecar
+    set:
+      metrics.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.containers[1].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[1].securityContext.readOnlyRootFilesystem
+          value: true
+      - contains:
+          path: spec.template.spec.containers[1].securityContext.capabilities.drop
+          content: ALL
