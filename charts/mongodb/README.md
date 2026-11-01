@@ -314,6 +314,9 @@ the size already applied to each MongoDB StatefulSet, including when
 `--reset-values` would otherwise restore the default and make Kubernetes reject
 the upgrade. Resize the bound PVCs through the storage class workflow; updating
 `persistence.size` alone does not resize an existing claim.
+It also does not change the size used for PVCs created by future scale-up.
+Before adding members after expanding existing PVCs, confirm that the retained
+claim-template size can hold a new member's initial synchronization.
 
 Enabling or disabling `arbiter.enabled` on an existing replica set reconciles
 the arbiter membership through the post-upgrade hook. Increasing
