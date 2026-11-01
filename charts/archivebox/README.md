@@ -56,6 +56,17 @@ kubectl port-forward svc/<release>-archivebox 8000:80
 - [Runtime architecture](docs/architecture.md)
 - [Backup guide](docs/backup.md)
 
+One Recreate Deployment owns the complete `/data` dataset: SQLite, indexes,
+configuration, and captured artifacts. The optional backup CronJob reads that
+same claim and uploads a volume archive to S3-compatible storage. Never run two
+writers against the claim, even when the StorageClass supports ReadWriteMany.
+
+The chart owns Kubernetes workload, storage, routing, credentials, and optional
+backup resources. TLS policy, capture-egress controls, malicious-content
+isolation, storage lifecycle, off-cluster retention, and monitoring remain
+platform responsibilities. See [DESIGN.md](DESIGN.md) for the Mermaid topology,
+security and observability boundaries, gaps, and explicit non-goals.
+
 ## Examples
 
 - [Minimal local installation](examples/simple.yaml)
@@ -124,6 +135,18 @@ Expected follow-up hardening is operator-dependent:
 - **Chromium resources** - requires at least 2Gi RAM for Chromium headless
   rendering
 - **`/dev/shm`** - automatically mounted as memory-backed tmpfs for Chromium
+
+## Troubleshooting
+
+- If startup remains incomplete, inspect the init-container and application
+  logs, confirm `/data` is writable by UID/GID 911, and allow enough time for
+  migrations on a large archive.
+- If captures fail, check Chromium memory pressure, DNS and outbound network
+  policy, the target site's behavior, and per-URL timeout settings.
+- If the UI rejects the public hostname, align `archivebox.allowedHosts` with
+  the Ingress host and TLS name.
+- If backup Jobs fail, inspect both containers, verify the S3 endpoint and Secret
+  keys, and test restore of the full archive before relying on retention.
 
 ## More Information
 
