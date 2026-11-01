@@ -53,9 +53,12 @@ edge caching, and capacity planning. Scaling improves static asset availability
 but does not add server-side video processing because editing remains in the
 browser.
 
-ExternalName mode creates only a DNS alias Service. It does not deploy the
-OpenReel workload at the external target, validate that target, or apply the
-chart's security and availability controls to it.
+ExternalName mode changes only the Service into a DNS alias; the chart still
+renders its local Deployment and Helm test. The local pods are not selected by
+the Service in this mode. Helm test requests follow the alias to the external
+target and require its `/healthz`, landing page, and COEP header to match the
+OpenReel image contract. The chart does not deploy or apply its local security
+and availability controls to that external target.
 
 ## Security Boundary
 

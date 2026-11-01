@@ -141,8 +141,9 @@ from cluster namespaces and denies all egress.
 
 ## Troubleshooting
 
-- If probes fail, confirm `service.targetPort` is `8080` and inspect
-  `kubectl logs deploy/RELEASE-openreel-video`.
+- If probes fail, confirm `service.targetPort` is `8080` and inspect logs with
+  `kubectl logs -l app.kubernetes.io/instance=RELEASE --all-containers`, replacing
+  `RELEASE` with the Helm release name and adding `-n NAMESPACE` when needed.
 - If the editor loads but browser APIs fail, verify that the edge preserves
   `Cross-Origin-Opener-Policy` and `Cross-Origin-Embedder-Policy` headers.
 - If traffic stops after enabling NetworkPolicy, add the intended ingress or
