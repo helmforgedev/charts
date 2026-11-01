@@ -88,6 +88,24 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].livenessProbe.timeoutSeconds
           value: 9
+  - it: uses Recreate for a chart-managed ReadWriteOncePod claim
+    template: templates/deployment.yaml
+    set:
+      persistence.enabled: true
+      persistence.accessModes[0]: ReadWriteOncePod
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+  - it: leaves strategy unchanged when ReadWriteOncePod belongs to an existing claim
+    template: templates/deployment.yaml
+    set:
+      persistence.enabled: true
+      persistence.existingClaim: existing-rwop
+      persistence.accessModes[0]: ReadWriteOncePod
+    asserts:
+      - notExists:
+          path: spec.strategy
   - it: preserves the previous security contract by default
     template: templates/deployment.yaml
     asserts:

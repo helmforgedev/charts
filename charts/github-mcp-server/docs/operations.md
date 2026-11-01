@@ -53,11 +53,12 @@ helm rollback github-mcp-server <revision> --wait
 A rollback restores Kubernetes manifests and chart values; it does not restore
 or rotate an externally managed GitHub credential. Rotate tokens in the Secret,
 then restart the Deployment so every pod receives the new environment value.
-Confirm the configured `github.readOnly` mode after rotation. Exercise a
-representative read operation from each enabled toolset for read-only releases;
-for write-enabled releases, exercise the explicitly approved read or write
-operation for each enabled toolset. Never print the Secret or token in
-diagnostic output.
+Confirm the effective runtime mode after rotation. If `app.args` is nonempty,
+inspect those upstream arguments instead of relying on `github.readOnly`.
+Exercise a representative read operation from each enabled toolset for
+read-only releases; for write-enabled releases, exercise the explicitly
+approved read or write operation for each enabled toolset. Never print the
+Secret or token in diagnostic output.
 
 For scaled releases, wait until all replicas are Ready before directing clients
 to the new version. Keep persistence disabled unless the runtime actually needs
