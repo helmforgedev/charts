@@ -3,18 +3,24 @@
 This chart packages `ddns-updater` as a single-replica dynamic DNS controller
 with a web status UI and optional persistent update history.
 
+## Scope
+
+The chart owns the Deployment, configuration Secret reference, PVC, Service,
+optional Ingress, and pod security settings. Operators own DNS provider
+accounts, API credentials, public DNS zones, ingress controllers, certificates,
+and namespace egress policy.
+
 ## Architecture
 
-```text
-Public IP checkers
-  |
-  v
-ddns-updater pod
-  |
-  +-- reads config.json from a Kubernetes Secret
-  +-- writes update history to /updater/data
-  +-- calls configured DNS provider APIs
-  +-- serves status UI on the ClusterIP Service
+```mermaid
+flowchart LR
+  Pod[ddns-updater Deployment] --> Checkers[Public IP checkers]
+  Secret[config.json Secret] --> Pod
+  Pod --> Providers[DNS provider APIs]
+  Pod -. persistence enabled .-> PVC[Update history PVC]
+  User[Operator browser] --> Service[Web UI Service]
+  Ingress[Optional Ingress] -. exposure .-> Service
+  Service --> Pod
 ```
 
 The application is intentionally deployed with `Recreate` strategy and one
@@ -47,6 +53,34 @@ production so tokens are not exposed in Helm release values.
 NetworkPolicy is not rendered by this chart because DNS provider access and
 public IP detection endpoints vary by deployment. Platform policy should define
 egress boundaries for the namespaces where this chart runs.
+
+## Production Boundary
+
+Production operators must provide a restorable `config.json`, protect provider
+credentials, retain the PVC when update history matters, and verify that public
+IP detection plus provider API endpoints are reachable. The chart does not make
+the single-writer controller highly available.
+
+## Security Boundary
+
+The chart supplies non-root, read-only, capability-free container defaults and
+disables ServiceAccount token automount. Operators control Secret creation and
+rotation, web UI authentication or private exposure, TLS, and provider-scoped
+API permissions. Inline settings remain visible in Helm release history.
+
+## Observability Boundary
+
+Kubernetes probes validate the web listener, while the UI and container logs
+report provider update results. The chart does not install metrics collection,
+log retention, or provider-specific alerts; operators must monitor failed or
+stale DNS updates externally.
+
+## Known Gaps
+
+- Provider-specific settings are intentionally not schema-validated.
+- The chart has no built-in NetworkPolicy because required egress varies.
+- The application is a single writer and does not support horizontal replicas.
+- Web UI authentication and public exposure policy are environment-owned.
 
 ## Non-Goals
 
