@@ -70,12 +70,25 @@ spec:
           {{- with .Values.envFrom }}
           envFrom: {{ toYaml . | nindent 12 }}{{- end }}
           resources: {{ toYaml .Values.resources | nindent 12 }}
-          {{- range $name, $probe := .Values.probes }}
-          {{- if $probe.enabled }}
-          {{ $name }}Probe:
-            httpGet: {path: {{ $probe.path | quote }}, port: http}
-            {{- omit $probe "enabled" "path" | toYaml | nindent 12 }}
-          {{- end }}{{- end }}
+          {{- $probes := .Values.probes | default dict }}
+          {{- $startupProbe := get $probes "startup" | default dict }}
+          {{- $readinessProbe := get $probes "readiness" | default dict }}
+          {{- $livenessProbe := get $probes "liveness" | default dict }}
+          {{- if (get $startupProbe "enabled") }}
+          startupProbe:
+            httpGet: {path: {{ get $startupProbe "path" | quote }}, port: http}
+            {{- omit $startupProbe "enabled" "path" | toYaml | nindent 12 }}
+          {{- end }}
+          {{- if (get $readinessProbe "enabled") }}
+          readinessProbe:
+            httpGet: {path: {{ get $readinessProbe "path" | quote }}, port: http}
+            {{- omit $readinessProbe "enabled" "path" | toYaml | nindent 12 }}
+          {{- end }}
+          {{- if (get $livenessProbe "enabled") }}
+          livenessProbe:
+            httpGet: {path: {{ get $livenessProbe "path" | quote }}, port: http}
+            {{- omit $livenessProbe "enabled" "path" | toYaml | nindent 12 }}
+          {{- end }}
           volumeMounts:
             {{- include "papra.mounts" . | nindent 12 }}
       volumes:
