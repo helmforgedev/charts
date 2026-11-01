@@ -61,13 +61,17 @@ The Recreate strategy stops the old pair before starting the new pair. Expect
 downtime; there is no rolling session transfer. Verify the same public identity,
 native registration and relay behavior after upgrading.
 
-Prefer an explicit values file with reset semantics so the new chart defaults are
-applied while operator choices remain reviewable:
+Before using reset semantics, export the current user-supplied overrides and
+review them into a complete upgrade file. It must preserve every required
+non-default setting, especially `persistence.existingClaim`, identity Secret
+references, public ports, storage class and security-context ownership:
 
 ```bash
+helm get values rustdesk -n rustdesk -o yaml > current-overrides.yaml
+# Review current-overrides.yaml and update any intentionally changed image tag.
 helm repo update
 helm upgrade rustdesk helmforge/rustdesk-server -n rustdesk \
-  --reset-values -f production-values.yaml --wait --timeout 5m
+  --reset-values -f current-overrides.yaml --wait --timeout 5m
 ```
 
 `--reuse-values` is supported for this chart's published value contract, but it

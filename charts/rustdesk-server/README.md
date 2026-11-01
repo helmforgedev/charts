@@ -79,8 +79,10 @@ TLS and long-lived connection support in the chosen controller.
 Use [simple.yaml](examples/simple.yaml) for a private evaluation,
 [production.yaml](examples/production.yaml) for explicit identity and network
 admission, [nodeport.yaml](examples/nodeport.yaml) for fixed native ports, or
-[gateway.yaml](examples/gateway.yaml) for WebSocket HTTPRoutes. The staging and
-External Secrets examples cover disposable testing and provider-managed identity.
+[gateway.yaml](examples/gateway.yaml) for WebSocket HTTPRoutes.
+[staging.yaml](examples/staging.yaml) provides a PVC-backed staging LoadBalancer
+profile, and [external-secrets.yaml](examples/external-secrets.yaml) demonstrates
+provider-managed identity.
 
 ## Identity, storage and availability
 

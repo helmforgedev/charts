@@ -16,7 +16,7 @@ features. Clients and remote desktop permissions remain independently managed.
 
 ```mermaid
 flowchart LR
-  Client["RustDesk clients"] -->|"TCP/UDP 21115-21116"| Service["Kubernetes Service"]
+  Client["RustDesk clients"] -->|"TCP 21115-21116; UDP 21116"| Service["Kubernetes Service"]
   Client -->|"TCP 21117"| Service
   Service --> HBBS["hbbs rendezvous<br/>restartable init container"]
   Service --> HBBR["hbbr relay<br/>application container"]
@@ -94,11 +94,13 @@ it is not an off-cluster backup and namespace deletion can still remove it.
 
 The Pod runs as UID/GID 1000, drops all capabilities, prevents privilege escalation,
 uses RuntimeDefault seccomp, mounts no Kubernetes API token and keeps the image
-filesystem read-only. The writable data volume necessarily contains the generated
-private identity and peer database. An existing Secret is mounted read-only, but
-its provider, rotation and access policy remain operator responsibilities. The
-public server key authenticates the server to clients; it does not authenticate
-users or authorize access to remote devices.
+filesystem read-only. When the chart generates identity, the writable data volume
+contains the private key and peer database. With `auth.existingSecret`, the active
+key files come from read-only Secret mounts while the volume holds application
+data. Operators must protect and back up whichever identity source applies; Secret
+provider, rotation and access policy remain their responsibilities. The public
+server key authenticates the server to clients; it does not authenticate users or
+authorize access to remote devices.
 
 ### Networking and trust
 
