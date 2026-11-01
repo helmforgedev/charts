@@ -35,6 +35,59 @@ tests:
           path: spec.replicas
           value: 1
 
+  - it: should apply the default pod hardening
+    template: statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 100
+      - equal:
+          path: spec.template.spec.securityContext.runAsGroup
+          value: 101
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 101
+      - equal:
+          path: spec.template.spec.securityContext.fsGroupChangePolicy
+          value: OnRootMismatch
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tmp
+            mountPath: /tmp
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tmp
+            emptyDir: {}
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: cookie-permissions
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsNonRoot
+          value: true
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: 'chmod 600 /var/lib/rabbitmq/.erlang.cookie'
+
   - it: should have 3 replicas in cluster mode
     template: statefulset.yaml
     set:

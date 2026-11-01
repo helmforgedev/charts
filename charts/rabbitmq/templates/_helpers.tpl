@@ -81,14 +81,28 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $secretName := include "rabbitmq.secretName" . -}}
 {{- if .Values.auth.existingSecret -}}
 {{- "" -}}
+{{- else -}}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace $secretName -}}
+{{- if and $existing (hasKey $existing.data "rabbitmq-password") -}}
+{{- index $existing.data "rabbitmq-password" | b64dec -}}
 {{- else if .Values.auth.password -}}
 {{- .Values.auth.password -}}
 {{- else -}}
-{{- $existing := lookup "v1" "Secret" .Release.Namespace $secretName -}}
-{{- if $existing -}}
-{{- index $existing.data "rabbitmq-password" | b64dec -}}
-{{- else -}}
 {{- randAlphaNum 24 -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "rabbitmq.username" -}}
+{{- $secretName := include "rabbitmq.secretName" . -}}
+{{- if .Values.auth.existingSecret -}}
+{{- "" -}}
+{{- else -}}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace $secretName -}}
+{{- if and $existing (hasKey $existing.data "rabbitmq-username") -}}
+{{- index $existing.data "rabbitmq-username" | b64dec -}}
+{{- else -}}
+{{- .Values.auth.username -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}
@@ -97,12 +111,12 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $secretName := include "rabbitmq.secretName" . -}}
 {{- if .Values.auth.existingSecret -}}
 {{- "" -}}
-{{- else if .Values.auth.erlangCookie -}}
-{{- .Values.auth.erlangCookie -}}
 {{- else -}}
 {{- $existing := lookup "v1" "Secret" .Release.Namespace $secretName -}}
-{{- if $existing -}}
+{{- if and $existing (hasKey $existing.data "rabbitmq-erlang-cookie") -}}
 {{- index $existing.data "rabbitmq-erlang-cookie" | b64dec -}}
+{{- else if .Values.auth.erlangCookie -}}
+{{- .Values.auth.erlangCookie -}}
 {{- else -}}
 {{- randAlphaNum 32 -}}
 {{- end -}}

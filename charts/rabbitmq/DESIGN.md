@@ -78,6 +78,43 @@ Recommended production baseline:
 - pod distribution with affinity or topology spread constraints
 - TLS for clients outside trusted internal networks
 
+## Security Boundary
+
+The default pod runs with the numeric identity used by the official image
+(`100:101`), RuntimeDefault seccomp, no privilege escalation, no Linux
+capabilities, and a read-only root filesystem. Only `/var/lib/rabbitmq` and
+`/tmp` are writable through explicit volumes. A non-root init container restores
+the Erlang cookie to owner-only mode after Kubernetes applies the volume
+filesystem group; this preserves compatibility with PVCs created by earlier
+chart versions. The ServiceAccount token is not
+mounted: RabbitMQ 4.1 and later Kubernetes peer discovery derives the seed node
+from StatefulSet ordinals and does not query the Kubernetes API.
+
+The chart protects the generated username, password, and Erlang cookie from
+rotation during Helm upgrades by reusing the existing managed Secret. Operators
+must rotate live credentials with RabbitMQ tooling because environment variables
+only seed users when the broker database is first created. TLS is optional, so
+deployments without it must keep AMQP and the Management UI on trusted networks.
+
+## Observability Boundary
+
+TCP startup, readiness, and liveness probes verify listener availability. The
+optional Prometheus plugin and ServiceMonitor expose broker metrics, but the
+chart does not install a monitoring stack, alerts, dashboards, or log collector.
+Operators remain responsible for alerts covering unavailable replicas, queue
+growth, unacknowledged messages, disk and memory alarms, and certificate expiry.
+
+## Known Gaps
+
+- NetworkPolicy is not managed because permitted client, DNS, federation, and
+  monitoring flows are deployment-specific.
+- Backup and restore automation is outside the chart; durable data still needs
+  storage-level protection and tested recovery procedures.
+- Credential rotation is not automated and must be coordinated through
+  RabbitMQ before any externally managed Secret is updated.
+- The chart does not create RabbitMQ users, virtual hosts, policies, exchanges,
+  queues, federation links, or shovels after initial bootstrap.
+
 ## Non-Goals
 
 - operator-like day-2 lifecycle automation
