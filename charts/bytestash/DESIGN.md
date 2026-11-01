@@ -113,8 +113,8 @@ monitoring, and off-cluster backup monitoring belong to the platform.
 
 - Native OIDC cannot express chart-level email-domain or group admission; apply
   that policy at the identity provider.
-- Session duration and revocation remain controlled by the upstream token
-  implementation rather than by chart-level policy.
+- `auth.tokenExpiry` configures session duration, which the upstream token
+  implementation enforces; token revocation remains upstream-controlled.
 - Proxy hostname validation depends on the ingress or Gateway implementation.
 - The snapshot workflow does not copy data outside the cluster.
 - There is no application-native Prometheus endpoint or supported HA topology.
