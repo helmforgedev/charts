@@ -91,8 +91,11 @@ local RocksDB configuration.
 or local PVC is selected. An HA deployment needs a shared external DataStore,
 shared blob/search/in-memory backends, and a Coordinator. The latter four are
 database-backed Stalwart objects and belong in an apply plan, not `config.json`.
-Use `podManagementPolicy: OrderedReady` for the first start against an empty
-shared database so only one replica initializes the schema at a time.
+For an empty shared database, first install the HA configuration with
+`replicaCount: 1`. After that pod is ready, upgrade the same release to the
+desired replica count. Keep `podManagementPolicy` unchanged: Kubernetes treats
+that StatefulSet field as immutable, and changing it breaks an in-place Helm
+upgrade.
 
 The coordination topic is fixed to `stwt.agora`; dedicate it to one Stalwart
 cluster. Zenoh peer-to-peer is not compiled into the standard image.

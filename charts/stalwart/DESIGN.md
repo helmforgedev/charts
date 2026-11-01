@@ -51,9 +51,10 @@ StatefulSet identity provides stable hostnames and node leases. More than one
 replica requires an external shared DataStore and disables the local data PVC.
 Blob, search, in-memory, coordinator, and role objects live in the DataStore;
 the production HA example installs them through the CLI apply Job. The chart
-cannot prove an external service is itself highly available. The HA example
-uses ordered pod startup to avoid concurrent schema initialization against an
-empty shared database.
+cannot prove an external service is itself highly available. An empty shared
+database should be initialized by one replica before the release scales out.
+This two-phase bootstrap keeps the StatefulSet's immutable pod management
+policy stable across later upgrades.
 
 ## Exposure
 
