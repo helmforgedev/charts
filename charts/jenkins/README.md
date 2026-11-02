@@ -108,7 +108,9 @@ credentials remain stable when Helm can look up the live Secret during an
 install or upgrade. Offline rendering cannot perform that lookup, so GitOps
 workflows that render manifests before applying them must use
 `admin.existingSecret` or `externalSecrets` to avoid Secret and Jenkins
-credential drift.
+credential drift. When `externalSecrets.enabled=true`,
+`admin.existingSecret` is required and becomes the target Secret name managed
+by the ExternalSecret.
 
 ## Examples
 
@@ -118,8 +120,11 @@ review every credential, storage, resource, and network setting, and create the
 Secret it references before installation:
 
 ```bash
+helm repo update
+JENKINS_CHART_VERSION="$(helm search repo helmforge/jenkins --versions | awk 'NR == 2 { print $2; exit }')"
+test -n "${JENKINS_CHART_VERSION}"
 curl -fsSLo jenkins-production-values.yaml \
-  https://raw.githubusercontent.com/helmforgedev/charts/main/charts/jenkins/examples/production.yaml
+  "https://raw.githubusercontent.com/helmforgedev/charts/jenkins-v${JENKINS_CHART_VERSION}/charts/jenkins/examples/production.yaml"
 kubectl create namespace jenkins --dry-run=client -o yaml | kubectl apply -f -
 kubectl create secret generic jenkins-admin \
   --namespace jenkins \
@@ -127,6 +132,7 @@ kubectl create secret generic jenkins-admin \
   --from-literal=jenkins-admin-password='replace-with-a-strong-password'
 helm upgrade --install jenkins helmforge/jenkins \
   --namespace jenkins \
+  --version "${JENKINS_CHART_VERSION}" \
   --values jenkins-production-values.yaml
 ```
 
