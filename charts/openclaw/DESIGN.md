@@ -135,10 +135,11 @@ identity and state. With `--reuse-values`, Helm intentionally retains the
 installed image tag until an explicit tag override is supplied. Operators must
 back up custom values and every referenced Secret before either path.
 
-`--reset-values` also clears configured `persistence.existingClaim` and
-`auth.existingSecret` values unless they are supplied again. Operators using
-existing resources must reapply both overrides so the StatefulSet continues to
-mount the intended PVC and gateway-token Secret.
+`--reset-values` resets all custom values. Reapply every non-default value that
+identifies a resource or Secret field, including `nameOverride`,
+`fullnameOverride`, and `auth.key` when configured. Reapply
+`persistence.existingClaim` and `auth.existingSecret` when using existing
+resources so the StatefulSet continues to use the intended PVC and Secret.
 
 Recovery activates only into an empty home volume. Interrupted activation fails
 closed and requires inspection rather than overwriting existing state. Native
