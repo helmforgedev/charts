@@ -26,7 +26,8 @@ rules without replacing the chart-generated DNS, cluster, internet, and
 
 - Single-controller StatefulSet with stable `JENKINS_HOME` storage identity.
 - Official Jenkins LTS image pinned to a JDK 21 tag.
-- Stable chart-generated admin credentials or operator-managed Secret keys.
+- Stable chart-generated admin credentials during live Helm operations, or
+  operator-managed Secret keys for rendered GitOps workflows.
 - Optional Configuration as Code and pinned plugin bootstrap.
 - Optional namespaced RBAC for Kubernetes plugin agents.
 - Ingress and Gateway API routing with a named HTTP service target port.
@@ -87,7 +88,11 @@ values file.
 
 Listener and Service ports are intentionally separate. Changing
 `controller.httpPort` changes the Jenkins process and Pod probe target;
-changing only `service.httpPort` changes the Service-facing port.
+changing only `service.httpPort` changes the Service-facing port. Do not set
+`--httpPort` in `controller.jenkinsOpts`; a user-supplied argument takes
+precedence over the generated argument while the container port and probes
+still use `controller.httpPort`. If an existing deployment already supplies
+that argument, its value must exactly match `controller.httpPort`.
 
 ## Admin Credentials
 
@@ -98,18 +103,31 @@ kubectl get secret jenkins-admin -o jsonpath='{.data.jenkins-admin-password}' | 
 ```
 
 Use `admin.existingSecret` with `admin.existingSecretUserKey` and
-`admin.existingSecretPasswordKey` to manage credentials externally.
+`admin.existingSecretPasswordKey` to manage credentials externally. Generated
+credentials remain stable when Helm can look up the live Secret during an
+install or upgrade. Offline rendering cannot perform that lookup, so GitOps
+workflows that render manifests before applying them must use
+`admin.existingSecret` or `externalSecrets` to avoid Secret and Jenkins
+credential drift.
 
 ## Examples
 
 Production, JCasC, Gateway API, and External Secrets examples are maintained in
-the [`examples/`](./examples/) directory. Copy an example into a values file and
-review every credential, storage, resource, and network setting before use:
+the [`examples/`](./examples/) directory. Download the production values file,
+review every credential, storage, resource, and network setting, and create the
+Secret it references before installation:
 
 ```bash
+curl -fsSLo jenkins-production-values.yaml \
+  https://raw.githubusercontent.com/helmforgedev/charts/main/charts/jenkins/examples/production.yaml
+kubectl create namespace jenkins --dry-run=client -o yaml | kubectl apply -f -
+kubectl create secret generic jenkins-admin \
+  --namespace jenkins \
+  --from-literal=jenkins-admin-user=admin \
+  --from-literal=jenkins-admin-password='replace-with-a-strong-password'
 helm upgrade --install jenkins helmforge/jenkins \
-  --namespace jenkins --create-namespace \
-  --values examples/production.yaml
+  --namespace jenkins \
+  --values jenkins-production-values.yaml
 ```
 
 ## Plugins and JCasC

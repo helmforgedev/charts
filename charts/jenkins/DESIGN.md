@@ -66,14 +66,24 @@ plugin coordinates, extra environment variables, volumes, and manifests are
 operator-controlled inputs and must be reviewed as trusted configuration.
 NetworkPolicy is opt-in because plugin downloads, SCM hosts, update centers,
 Kubernetes API access, and build dependencies vary by installation.
+Enabling it with defaults permits ingress from every Pod in the release
+namespace and permits both all-cluster and all-IPv4 egress through
+`networkPolicy.egress.allowCluster=true` and `allowInternet=true`. Set those
+egress switches to `false`, retain only the required DNS and explicit extra
+rules, and configure the ingress namespace and Pod selectors for a restrictive
+policy. Set `networkPolicy.ingress.enabled=false` to deny all ingress.
 
 ## Observability Boundary
 
 Kubernetes startup, readiness, and liveness probes check the Jenkins login
-endpoint on the real controller listener. The chart exposes controller logs and
-events through standard Kubernetes APIs and can render a ServiceMonitor for the
-Jenkins Prometheus plugin endpoint. It does not install that plugin, Prometheus,
-alert rules, dashboards, log aggregation, or pipeline-level monitoring.
+endpoint on `controller.httpPort`. Operators must not independently override
+that listener with `--httpPort` in `controller.jenkinsOpts`; if retained for
+compatibility, its value must equal `controller.httpPort` so the process,
+container port, NetworkPolicy, and probes stay aligned. The chart exposes
+controller logs and events through standard Kubernetes APIs and can render a
+ServiceMonitor for the Jenkins Prometheus plugin endpoint. It does not install
+that plugin, Prometheus, alert rules, dashboards, log aggregation, or
+pipeline-level monitoring.
 
 Operators should alert on controller readiness, restarts, PVC capacity, JVM
 pressure, queue depth, executor saturation, failed plugin initialization, and
