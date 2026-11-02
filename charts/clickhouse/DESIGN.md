@@ -23,9 +23,10 @@ flowchart LR
 The chart renders one StatefulSet replica, a client Service, and a headless
 Service. The ConfigMap controls the HTTP, native TCP, interserver, and optional
 Prometheus listeners. Named container and Service ports use the same values.
-The official image initializes the configured database and user only when the
-data directory is empty. A data PVC therefore represents both durable data and
-the initialized identity boundary.
+The official image initializes the configured database only when the data
+directory is empty, but rewrites the chart-configured user file on every start.
+A data PVC therefore represents the durable database boundary, while the
+referenced Secret and container lifecycle control that user's credentials.
 
 ## Design Decisions
 
@@ -51,25 +52,29 @@ queries, restore procedures, capacity forecasts, or upstream compatibility for
 custom XML supplied through `extraConfig` and `extraUsersConfig`.
 
 The single replica has planned downtime during restart, rescheduling, storage
-reattachment, and node maintenance. The default PDB does not render for one
-replica because it could block voluntary maintenance without providing high
-availability. Use an operator when recovery objectives require replication or
-automated failover.
+reattachment, and node maintenance. This chart never renders its PDB: the only
+supported replica count is `1`, and a PDB would block voluntary maintenance
+without providing high availability. Use an operator when recovery objectives
+require replication or automated failover.
 
 ## Security Boundary
 
-The server runs as UID/GID `101`, drops Linux capabilities, disables privilege
-escalation, and does not mount a ServiceAccount token. Its root filesystem
-remains writable because the official image and ClickHouse runtime write
-outside the mounted data path. NetworkPolicy is opt-in and must explicitly
-allow every required client, DNS, monitoring, and external dependency path.
+By default, the server runs as UID/GID `101`, drops Linux capabilities,
+disables privilege escalation, and does not mount a ServiceAccount token. Its
+root filesystem remains writable because the official image and ClickHouse
+runtime write outside the mounted data path. Review every pod and container
+security-context override because custom values can weaken these controls.
+NetworkPolicy is opt-in and must explicitly allow every required client, DNS,
+monitoring, and external dependency path.
 
 The empty password default is only for isolated evaluation. Production users
-must provide an existing Secret or ExternalSecret. Credentials passed to the
-official entrypoint initialize an empty data directory; changing the Kubernetes
-Secret does not rotate an already persisted ClickHouse user. Extra environment
-variables, XML fragments, containers, volumes, and manifests are trusted
-operator input and can weaken this boundary.
+must provide an existing Secret or ExternalSecret. On every container start,
+the official entrypoint writes the chart-configured user to
+`users.d/default-user.xml`; updating the referenced Secret and restarting the
+StatefulSet therefore rotates that user even when the data PVC is populated.
+Users managed separately through SQL retain their own lifecycle. Extra
+environment variables, XML fragments, containers, volumes, and manifests are
+trusted operator input and can weaken this boundary.
 
 ## Observability Boundary
 
@@ -90,7 +95,8 @@ restore procedures work.
 
 - There is no in-chart sharding, replication, Keeper, ZooKeeper, failover, or
   topology migration.
-- Secret updates do not rotate users already stored on the data PVC.
+- Secret updates require a StatefulSet restart to rotate the chart-configured
+  user; SQL-managed users have a separate lifecycle.
 - Backup creation, off-cluster retention, restore testing, and point-in-time
   recovery remain operator responsibilities.
 - NetworkPolicy cannot infer client, monitoring, DNS, object storage, or remote

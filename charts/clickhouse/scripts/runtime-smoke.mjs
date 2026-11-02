@@ -15,11 +15,13 @@ const container = pod.spec.containers.find(c => c.name === 'clickhouse');
 const httpPort = container.ports.find(p => p.name === 'http')?.containerPort;
 const tcpPort = container.ports.find(p => p.name === 'tcp')?.containerPort;
 assert.ok(httpPort && tcpPort, 'Named HTTP and TCP container ports required');
-const version = requestedVersion || container.image.split('@')[0].split(':').at(-1);
-assert.ok(version, 'Expected ClickHouse version required');
+const versionSource = requestedVersion || container.image.split('@')[0].split(':').at(-1);
+const version = versionSource?.match(/^\d+(?:\.\d+){1,3}/)?.[0];
+assert.ok(version, 'Numeric ClickHouse image version required');
 const exec = args => k(['exec', pod.metadata.name, '-c', 'clickhouse', '--', ...args]).trim();
 const sql = query => exec(['sh', '-ec', 'clickhouse-client --host 127.0.0.1 --port "$2" --user "$CLICKHOUSE_USER" --password "${CLICKHOUSE_PASSWORD:-}" --database "$CLICKHOUSE_DB" --multiquery --query "$1"', 'sh', query, String(tcpPort)]);
-assert.ok(sql('SELECT version()').startsWith(version + '.'));
+const serverVersion = sql('SELECT version()');
+assert.ok(serverVersion === version || serverVersion.startsWith(`${version}.`));
 assert.equal(sql(`SELECT line FROM url('http://127.0.0.1:${httpPort}/ping', 'LineAsString', 'line String')`), 'Ok.');
 if (action !== 'verify') {
   sql('SET enable_full_text_index=1; CREATE TABLE helmforge_upgrade_fixture (id UInt64, body String, INDEX body_idx body TYPE text(tokenizer = splitByNonAlpha)) ENGINE=MergeTree ORDER BY id');

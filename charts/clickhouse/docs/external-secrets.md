@@ -23,9 +23,11 @@ externalSecrets:
               key: prod/clickhouse/password
 ```
 
-The official image reads `CLICKHOUSE_PASSWORD` only during first initialization
-of an empty data directory. Rotate passwords with SQL once a data volume already
-exists.
+The official image rewrites the chart-configured user in
+`users.d/default-user.xml` on every container start. To rotate that password,
+update the external value, wait for the Kubernetes Secret to refresh, and
+restart the StatefulSet. Test authentication after the restart. Users managed
+separately through SQL retain their own lifecycle.
 
 <!-- @AI-METADATA
 type: chart-docs
