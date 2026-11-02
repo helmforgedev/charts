@@ -91,6 +91,32 @@ Before production use, operators should define:
 - upgrade sequencing for Elasticsearch, Kibana, plugins, index templates, and ILM policies
 - node-level `vm.max_map_count=262144`; the privileged init container is an explicit compatibility fallback
 
+## Security Boundary
+
+Elasticsearch pods run as a non-root user, drop all Linux capabilities, prevent privilege escalation, and use the
+runtime-default seccomp profile. The development and staging profiles leave X-Pack security disabled; production HA
+enables it, but operators remain responsible for trusted credentials, TLS issuer policy, certificate rotation, and
+restricting client access. Credentials can be provided through an existing Secret or External Secrets.
+
+The chart does not create a NetworkPolicy. Cluster operators must enforce the required client, transport, DNS, backup,
+and monitoring paths with their network controls. `sysctlInit.enabled` is an opt-in compatibility fallback that runs a
+privileged init container; configuring `vm.max_map_count` on Kubernetes nodes is the preferred production approach.
+
+## Observability Boundary
+
+When enabled, exporter sidecars expose Elasticsearch metrics through a dedicated Service. The chart can also create a
+ServiceMonitor, PrometheusRule, and Grafana dashboard ConfigMaps. It does not install Prometheus or Grafana, route
+alerts, collect logs or traces, or prove that snapshots can be restored. Operators own those systems and their
+retention, availability, and access controls.
+
+## Known Gaps
+
+- no chart-managed NetworkPolicy
+- no automatic snapshot restore or restore verification
+- no automatic major-version migration or plugin compatibility validation
+- no cross-cluster replication or remote-cluster orchestration
+- privileged `vm.max_map_count` initialization is available only as an explicit opt-in fallback
+
 ## Explicit Non-Goals
 
 - Elasticsearch operator behavior
