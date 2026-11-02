@@ -14,12 +14,13 @@ tested first, followed by an explicit opt-in and real native database acceptance
 flowchart LR
   client[Authorized SQL client] --> service[SQL Service]
   service --> sql[SQL Server StatefulSet]
-  sql --> data[(Retained data PVC)]
+  sql -->|persistence enabled| data[(Retained data PVC)]
+  sql -->|persistence disabled| ephemeral[(Ephemeral emptyDir)]
   auth[Authentication Secret] --> sql
   tls[TLS Secret] --> sql
   config[Bootstrap ConfigMap] --> sql
-  backup[Backup CronJob] --> staging[(Backup staging PVC)]
-  sql --> staging
+  backup[Backup CronJob when enabled] --> staging[(Backup staging PVC when enabled)]
+  sql -->|backup enabled| staging
   backup --> s3[S3-compatible storage]
   exporter[Optional SQL exporter] --> sql
   prometheus[Prometheus] --> exporter

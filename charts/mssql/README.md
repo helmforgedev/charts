@@ -23,10 +23,12 @@ horizontal autoscaling, log backups or point-in-time recovery.
 
 ## Architecture
 
-The chart deploys one SQL Server StatefulSet behind a TCP Service. A retained data
-PVC stores system and user databases, while optional backup and metrics workloads
-use dedicated identities, selectors and least-privilege SQL logins. See
-[DESIGN.md](DESIGN.md) for the topology, trust boundaries and intentional gaps.
+The chart deploys one SQL Server StatefulSet behind a TCP Service. By default, a
+retained data PVC stores system and user databases. When `persistence.enabled` is
+false, the chart uses ephemeral `emptyDir` storage that does not retain databases
+across Pod recreation or rescheduling. Optional backup and metrics workloads use
+dedicated identities, selectors and least-privilege SQL logins. See [DESIGN.md](DESIGN.md)
+for the topology, trust boundaries and intentional gaps.
 
 ## Install and select an edition
 
@@ -61,9 +63,9 @@ Secret reference with `sql.edition: ProductKey`.
 
 ## Configuration
 
-The complete contract is documented in [values.yaml](values.yaml) and enforced by
-[values.schema.json](values.schema.json). These settings define the most common
-installation choices:
+The complete contract is documented in [values.yaml](values.yaml), with field-level
+validation in [values.schema.json](values.schema.json) and cross-field guardrails in
+the chart templates. These settings define the most common installation choices:
 
 | Value | Default | Purpose |
 |---|---|---|
@@ -82,9 +84,10 @@ installation choices:
 | `metrics.enabled` | `false` | Enable the authenticated SQL exporter |
 | `externalSecrets.enabled` | `false` | Render ExternalSecret resources for supplied item definitions |
 
-Helm schema validation rejects incompatible editions, insufficient memory,
-invalid identifiers and incomplete backup, metrics or External Secrets contracts
-before resources reach the cluster.
+Schema validation rejects invalid field types, enums, patterns and identifiers.
+Chart guardrails reject incompatible editions, insufficient memory headroom and
+incomplete backup, metrics or External Secrets contracts before resources reach
+the cluster.
 
 ## Connect securely
 
@@ -224,8 +227,8 @@ bootstrap container logs and confirm that retained SQL credentials still match
 the persisted `master` database:
 
 ```sh
-kubectl logs statefulset/database-mssql -n database -c mssql
-kubectl describe pod -n database -l app.kubernetes.io/instance=database
+kubectl logs statefulset/<statefulset-name> -n <namespace> -c mssql
+kubectl describe pod -n <namespace> -l 'app.kubernetes.io/instance=<release>,app.kubernetes.io/component=server'
 ```
 
 For TLS failures, verify that clients trust `ca.crt` and connect through a DNS name
