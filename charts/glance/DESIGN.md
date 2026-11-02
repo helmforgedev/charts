@@ -109,9 +109,12 @@ do not cause incidental rollouts. Updating a referenced Secret requires a
 controlled rollout or an external reloader. Rotating the signing key invalidates
 existing sessions; retaining it preserves sessions across restarts.
 
-Backups comprise values and configuration, static assets, and the credential
-source. There is no database or application PVC to copy, and browser-local data
-must be recovered from the browser profile.
+Backups comprise values and configuration, static assets, and authentication
+credentials. When the chart generates `auth.password` and `auth.secretKey`,
+back up the chart-owned authentication Secret so restores retain credentials
+and sessions; alternatively, configure and back up `auth.existingSecret`.
+There is no database or application PVC to copy, and browser-local data must be
+recovered from the browser profile.
 
 ## Known Gaps
 
