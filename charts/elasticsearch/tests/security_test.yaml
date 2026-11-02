@@ -6,6 +6,22 @@ templates:
   - templates/configmap.yaml
 
 tests:
+  - it: applies the runtime default seccomp profile to Elasticsearch pods
+    template: templates/statefulset-master.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+
+  - it: preserves an explicit pod seccomp profile override
+    set:
+      podSecurityContext.seccompProfile.type: Unconfined
+    template: templates/statefulset-master.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: Unconfined
+
   - it: configures PEM certificates without conflicting keystore settings
     set:
       security.enabled: true
