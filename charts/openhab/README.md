@@ -81,6 +81,7 @@ helm install my-openhab helmforge/openhab -f values.yaml
 - Three persistent volumes (userdata, conf, addons) with configurable sizes
 - ConfigMap-based startup sync for sitemaps, things, and items into the writable conf PVC
 - Correct security context (`fsGroup: 9001`; `runAsUser`/`runAsGroup` intentionally unset — entrypoint manages privilege drop via gosu)
+- Capability-free, non-escalating helper containers with read-only root filesystems
 - Startup/liveness/readiness probes via `/rest/uuid` (returns 200, no auth required)
 - Optional Ingress with websocket annotation guidance for `/rest/events`
 - Optional Gateway API HTTPRoute for shared Gateway deployments

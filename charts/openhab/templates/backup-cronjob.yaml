@@ -42,15 +42,25 @@ spec:
             app.kubernetes.io/component: backup
         spec:
           restartPolicy: OnFailure
+          automountServiceAccountToken: false
           securityContext:
             runAsUser: 9001
             runAsGroup: 9001
+            runAsNonRoot: true
             fsGroup: 9001
+            seccompProfile:
+              type: RuntimeDefault
           initContainers:
             - name: backup
               image: "{{ .Values.backup.images.utility.repository }}:{{ .Values.backup.images.utility.tag }}"
               imagePullPolicy: {{ .Values.backup.images.utility.pullPolicy }}
               command: ["/bin/sh", "/scripts/backup.sh"]
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
               {{- with .Values.backup.resources }}
               resources:
                 {{- toYaml . | nindent 16 }}
@@ -82,6 +92,12 @@ spec:
               image: "{{ .Values.backup.images.uploader.repository }}:{{ .Values.backup.images.uploader.tag }}"
               imagePullPolicy: {{ .Values.backup.images.uploader.pullPolicy }}
               command: ["/bin/sh", "/scripts/upload.sh"]
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
               env:
                 - name: S3_ENDPOINT
                   value: {{ .Values.backup.s3.endpoint | quote }}

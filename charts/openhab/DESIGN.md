@@ -1,128 +1,143 @@
 # openHAB Chart Design
 
-## Purpose
+## Scope
 
 The `openhab` chart deploys the official openHAB home automation platform as a
-single Kubernetes workload with persistent storage, optional GitOps-managed
-configuration, optional Prometheus scraping, and optional S3-compatible backups.
+single Kubernetes workload with durable application directories, optional
+GitOps-managed configuration, optional Prometheus discovery, and optional
+S3-compatible backups. openHAB is stateful and does not support clustering, so
+the chart enforces one replica instead of presenting horizontal scaling as a
+production capability.
 
-openHAB is stateful and is not a horizontally scalable application. The chart
-therefore treats `replicaCount: 1` as a hard product constraint rather than a
-tunable capacity setting.
+## Architecture
 
-## Workload Model
+```mermaid
+flowchart LR
+  client[Authorized user or automation] --> http[HTTP Service]
+  http --> app[openHAB StatefulSet]
+  karaf[Optional Karaf Service] --> app
+  gateway[Optional Ingress or HTTPRoute] --> http
+  config[Optional configuration ConfigMaps] --> sync[Hardened sync init container]
+  sync --> conf[(conf PVC)]
+  app --> conf
+  app --> userdata[(userdata PVC)]
+  app --> addons[(addons PVC)]
+  prometheus[Optional Prometheus] --> http
+  backup[Optional hardened backup CronJob] --> userdata
+  backup --> conf
+  backup --> s3[S3-compatible storage]
+```
 
-The chart uses a StatefulSet so pod identity and PVC attachment are stable
-across restarts. The rendered StatefulSet always uses one replica, even though
-`replicaCount` is exposed for validation and documentation. Setting
-`replicaCount` higher than one fails during template rendering to prevent
-multiple instances from writing to the same openHAB data directories.
+The StatefulSet supplies stable Pod identity and PVC attachment. The main
+Service exposes the UI and REST API on port 8080 by default. Karaf SSH is a
+separate, disabled-by-default administrative path. Ingress and Gateway API
+resources route only to the HTTP Service.
 
-The service exposes the HTTP UI and REST API on port 8080 by default. The Karaf
-SSH console is modeled as an optional second service and remains disabled by
-default because it provides administrative access to the OSGi runtime.
+## Main Design Choices
 
-## Storage Design
+### Singleton enforcement
 
-openHAB has three durable directory classes:
+The rendered StatefulSet always uses one replica. `replicaCount` remains in the
+values contract so invalid requests fail with a clear message before multiple
+instances can write to the same openHAB directories.
 
-- `/openhab/userdata` stores JSONDB, runtime state, persistence data, cache, and
-  logs.
-- `/openhab/conf` stores user-editable configuration files, including items,
-  things, sitemaps, rules, and service configuration.
-- `/openhab/addons` stores drop-in addon JAR files.
+### Storage separation
 
-The chart creates one PVC per directory by default. Each PVC can be sized
-independently or replaced with an existing claim for migration scenarios.
+The chart creates independent PVCs for `/openhab/userdata`, `/openhab/conf`, and
+`/openhab/addons`. Each area can instead reference an existing claim and an
+optional subpath, including the supported pattern where several logical areas
+share one pre-provisioned PVC without rendering duplicate volume declarations.
 
-## Configuration Design
+### Writable configuration synchronization
 
-The chart intentionally does not try to bootstrap the first openHAB administrator
-account. openHAB creates that account through the first-boot setup wizard and
-persists it under `userdata`. The optional admin Secret is only an operational
-reference for teams that want to store the chosen credentials in Kubernetes.
+GitOps configuration for sitemaps, things, and items is copied from ConfigMaps
+into the writable `conf` PVC by an init container. Direct ConfigMap mounts are
+not used because they are read-only and conflict with the official entrypoint's
+ownership reconciliation. A checksum annotation rolls the Pod when managed
+configuration changes.
 
-GitOps configuration is handled through ConfigMaps for sitemaps, things, and
-items. These files are copied into the writable `/openhab/conf` PVC by a
-`sync-configmaps` initContainer before openHAB starts. The chart deliberately
-does not mount ConfigMap files directly under `/openhab/conf` because Kubernetes
-ConfigMap volumes are read-only and the official openHAB entrypoint performs a
-recursive `chown` of `/openhab` during bootstrap.
+### Native first-boot administration
 
-The StatefulSet carries a checksum of the rendered ConfigMaps, so a Helm upgrade
-that changes managed configuration rolls the pod and re-runs the sync. This
-trades immediate file-level reload for a reliable bootstrap path compatible with
-the official image.
+The chart does not attempt to inject the first administrator. openHAB creates
+that account through its setup wizard and persists it under `userdata`. The
+optional admin Secret is an operational reference only and does not configure
+the application.
 
-## Security Model
+## Production Boundary
 
-The official openHAB image eventually runs the application as UID/GID `9001`,
-but its entrypoint must start as root to create or reconcile the `openhab`
-user/group, adjust directory ownership, and then drop privileges with `gosu`.
-For that reason, the chart must not force `runAsUser`, `runAsGroup`, or
-`capabilities.drop: ALL` on the main container.
+The chart owns Kubernetes resources, storage attachment, probes, configuration
+sync, and optional backup execution. Operators own StorageClass durability,
+PVC snapshots, S3 retention and restore drills, ingress TLS, DNS, binding
+configuration, device-network reachability, and application-level upgrades.
 
-The compatible default hardening set is:
+StatefulSet identity reduces attachment ambiguity but does not provide openHAB
+high availability. Pod replacement and chart upgrades interrupt the singleton
+while it restarts and reloads OSGi bundles. The three data areas should remain
+durable. The chart backup explicitly includes `userdata` and `conf`, but not
+`/openhab/addons`. When these areas share a claim, incidental addons coverage
+depends on their configured subpaths and must not be treated as a backup.
+Protect unreproducible addons by snapshotting the entire PVC or using a
+path-aware archive that explicitly includes the configured addons subpath.
 
-- `serviceAccount.automountServiceAccountToken: false`
-- `podSecurityContext.fsGroup: 9001`
-- `podSecurityContext.seccompProfile.type: RuntimeDefault`
-- `securityContext.allowPrivilegeEscalation: false`
-- `securityContext.readOnlyRootFilesystem: false`
+## Security Boundary
 
-`readOnlyRootFilesystem` remains false because the OSGi/Karaf runtime writes to
-internal runtime paths that cannot all be moved to a separate volume. This is a
-documented product exception, not an omission.
+The official image starts as root so its entrypoint can reconcile UID/GID 9001,
+adjust mounted-directory ownership, and then drop privileges through `gosu`.
+The main container therefore cannot force `runAsUser`, `runAsGroup`, a read-only
+root filesystem, or removal of every Linux capability without breaking startup.
+It still disables privilege escalation and uses the Pod's `RuntimeDefault`
+seccomp profile.
 
-## Networking
+Chart-owned helper containers do not share that exception. Config sync,
+subpath preparation, backup, and upload helpers drop all capabilities, disable
+privilege escalation, use read-only root filesystems, and run as non-root
+UID/GID 9001. Every chart-owned Pod disables ServiceAccount token automount by
+default.
 
-The HTTP Service supports explicit `ipFamilyPolicy` and `ipFamilies` values for
-dual-stack clusters. The Karaf Service has its own IP family settings so
-operators can validate both paths independently.
+The chart does not generate a generic NetworkPolicy because openHAB bindings can
+require different LAN devices, brokers, discovery protocols, and cloud APIs.
+Operators must define site-specific ingress and egress policy after inventorying
+those paths. Karaf should remain a ClusterIP service accessed through a trusted
+administrative path.
 
-Ingress is optional. The documentation calls out long-lived connections for
-`/rest/events`, which require proxy timeout settings on controllers such as
-nginx. Gateway API support renders an HTTPRoute when an existing Gateway
-controller owns the ingress plane.
+## Observability Boundary
 
-NetworkPolicy is not generated by this chart today because smart home
-integrations vary widely by binding and often require outbound access to local
-network devices, MQTT brokers, bridges, or cloud APIs. Cluster operators should
-layer site-specific egress policy around the chart when the required device
-network paths are known.
+Startup, readiness, and liveness probes use `/rest/uuid`, which becomes
+available without authentication when the REST API is ready. The startup window
+allows slow first boot and OSGi bundle initialization. Metrics discovery is
+optional because the openHAB Metrics addon must first be installed inside the
+application; the chart can then add scrape annotations or a ServiceMonitor.
 
-## Observability
+The chart verifies workload readiness and clean container behavior. Operators
+remain responsible for alerting on application semantics, binding failures,
+device availability, rule execution, backup freshness, PVC capacity, and S3
+retention.
 
-The chart uses `/rest/uuid` for startup, readiness, and liveness probes because
-it is available without authentication once the REST API is ready. The startup
-probe has a 10-minute window to account for OSGi bundle initialization on slow
-hardware or first boot.
+## Known Gaps
 
-Metrics are optional because the openHAB Metrics addon must be installed inside
-openHAB. When enabled, the chart can add classic Prometheus scrape annotations or
-render a ServiceMonitor for Prometheus Operator.
+- The singleton has planned downtime during Pod replacement and upgrade.
+- The chart cannot bootstrap the first administrator through supported native
+  openHAB configuration.
+- Backups are full archives; scheduling does not provide point-in-time recovery
+  or automatically test restores.
+- Generic network policy cannot safely predict every home-automation binding's
+  LAN, multicast, broker, and cloud requirements.
+- Metrics require an application addon that Helm cannot install reliably before
+  first boot.
 
-## Backup Design
+## Explicit Non-Goals
 
-The backup feature is an optional CronJob that creates a compressed archive from
-selected openHAB directories and uploads it to S3-compatible storage with the
-MinIO client. The job uses separate backup and upload containers sharing a
-temporary `emptyDir`.
-
-Backup credentials can come from chart-managed Secret values or from an existing
-Secret. The default backup containers include resource requests and limits so
-enabling backups does not introduce unconstrained workloads.
+- Running more than one openHAB replica or providing application clustering.
+- Managing physical devices, bindings, rules, or the first-boot setup wizard.
+- Acting as a certificate authority, ingress controller, Gateway controller,
+  Prometheus Operator, External Secrets Operator, or S3 lifecycle manager.
+- Claiming high availability from StatefulSet identity or persistent storage.
+- Replacing storage snapshots, off-cluster backup retention, and restore drills.
 
 ## Validation Expectations
 
-The chart must pass:
-
-- `make standards-check CHART=openhab`
-- `helm lint --strict charts/openhab`
-- `helm unittest charts/openhab`
-- `make validate-chart CHART=openhab`
-
-Runtime validation must cover default install plus CI scenarios for ConfigMaps,
-Ingress, Gateway API, External Secrets, monitoring, backup, namespace override,
-Karaf, full values, and dual-stack rendering. The External Secrets CI scenario
-must use the HelmForge fake store in the k3d lab.
+The chart must pass `make validate-chart CHART=openhab` end to end. Runtime
+coverage includes default installation plus ConfigMaps, Ingress, Gateway API,
+External Secrets, monitoring, backup, namespace override, shared PVCs, Karaf,
+full values, and dual-stack scenarios. The External Secrets scenario uses the
+HelmForge fake store in the k3d lab.

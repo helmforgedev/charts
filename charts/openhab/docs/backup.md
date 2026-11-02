@@ -16,7 +16,10 @@ The backup runs as a two-stage Kubernetes Job:
    - Configures the MinIO client with your S3 credentials
    - Uploads the archive to `s3://<bucket>/<prefix>/<filename>`
 
-Both containers run with the same UID/GID (9001) as openHAB, ensuring read access to the PVCs.
+Both containers run with the same UID/GID (9001) as openHAB, ensuring read
+access to the PVCs. They drop all Linux capabilities, use read-only root
+filesystems, disable privilege escalation, and do not mount a Kubernetes API
+token.
 
 > **Storage access mode:** The backup Job mounts the same PVCs as the openHAB
 > StatefulSet. If the Job and StatefulSet can run on different nodes, those
@@ -43,14 +46,21 @@ backup:
 
 | Directory            | Default | Description                               |
 |----------------------|---------|-------------------------------------------|
-| `/openhab/userdata`  | ✅      | JSONDB, persistence data, rules state     |
-| `/openhab/conf`      | ✅      | Items, things, sitemaps, rules files      |
+| `/openhab/userdata`  | Yes     | JSONDB, persistence data, rules state     |
+| `/openhab/conf`      | Yes     | Items, things, sitemaps, rules files      |
+| `/openhab/addons`    | No      | Drop-in JAR files                         |
 
 **Always excluded from `userdata`:**
 
 - `userdata/logs` — log files (not needed for restore)
 - `userdata/tmp` — temporary files
 - `userdata/cache` — OSGi bundle cache (rebuilt automatically on startup)
+
+The CronJob does not explicitly include `/openhab/addons`. When addons shares a
+claim with `userdata` or `conf`, incidental coverage depends on the configured
+subpaths and must not be treated as a backup. Protect unreproducible JAR files
+by snapshotting the entire PVC or using a path-aware archive that explicitly
+includes the configured addons subpath.
 
 ### Backing Up Only Userdata
 
@@ -116,7 +126,7 @@ backup:
 
 ## Resource Limits
 
-By default, backup containers have no resource limits set. For production use:
+Backup containers use these resource requests and limits by default:
 
 ```yaml
 backup:
