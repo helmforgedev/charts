@@ -6,7 +6,10 @@ The chart packages the official OpenClaw gateway as one persistent StatefulSet
 replica. The gateway owns SQLite state, agent directories, device identities,
 sessions, and workspaces. Kubernetes replaces the existing Pod before admitting
 its successor. This is a single-writer deployment with planned downtime, not an
-HA service or a tenant-isolation boundary.
+HA service or a tenant-isolation boundary. If storage permits multi-node
+attachment, never force-delete a Pod on an unreachable node until the old
+writer is confirmed stopped or fenced; otherwise, the replacement and old Pod
+can write concurrently.
 
 The chart owns the StatefulSet, Services, configuration, generated or referenced
 gateway-token Secret, optional routing and telemetry resources, persistent
@@ -64,6 +67,11 @@ authentication is never bypassed. A generated token is recovered through Helm
 carry `helm.sh/resource-policy: keep`. Upgrades therefore retain gateway
 identity, paired devices, sessions, and agent state.
 
+Offline renders such as `helm template` cannot query the cluster and generate a
+new token on each render. Applying that output can replace the live token and
+disconnect existing clients. Render-only or GitOps deployments must configure
+`auth.existingSecret` instead of relying on a generated token.
+
 ### Keep remote access explicit
 
 The default minimal tool profile exposes only session status. Providers and
@@ -114,10 +122,10 @@ metrics on loopback and exposes a private Prometheus Service. This avoids
 runtime plugin downloads and avoids giving Prometheus a gateway operator token.
 Traces, logs, and model-content export are disabled by the chart integration.
 
-Kubernetes readiness proves that the authenticated gateway health contract is
-available. It does not prove provider reachability, channel delivery, model
-quality, or cost accuracy. Provider usage metrics are operational signals, not
-a financial accounting guarantee.
+Kubernetes readiness checks the gateway's unauthenticated `/startupz` health
+response. It does not prove client authentication, provider reachability,
+channel delivery, model quality, or cost accuracy. Provider usage metrics are
+operational signals, not a financial accounting guarantee.
 
 ## Upgrade and Recovery
 
@@ -126,6 +134,11 @@ Normal upgrades preserve the retained PVC and generated token Secret. With
 identity and state. With `--reuse-values`, Helm intentionally retains the
 installed image tag until an explicit tag override is supplied. Operators must
 back up custom values and every referenced Secret before either path.
+
+`--reset-values` also clears configured `persistence.existingClaim` and
+`auth.existingSecret` values unless they are supplied again. Operators using
+existing resources must reapply both overrides so the StatefulSet continues to
+mount the intended PVC and gateway-token Secret.
 
 Recovery activates only into an empty home volume. Interrupted activation fails
 closed and requires inspection rather than overwriting existing state. Native
