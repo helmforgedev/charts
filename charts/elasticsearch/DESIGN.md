@@ -93,10 +93,11 @@ Before production use, operators should define:
 
 ## Security Boundary
 
-Elasticsearch pods run as a non-root user, drop all Linux capabilities, prevent privilege escalation, and use the
-runtime-default seccomp profile. The development and staging profiles leave X-Pack security disabled; production HA
-enables it, but operators remain responsible for trusted credentials, TLS issuer policy, certificate rotation, and
-restricting client access. Credentials can be provided through an existing Secret or External Secrets.
+By default, Elasticsearch pods run as a non-root user, drop all Linux capabilities, prevent privilege escalation, and
+use the runtime-default seccomp profile. Explicit `podSecurityContext` and `securityContext` overrides can change these
+settings. The development and staging profiles leave X-Pack security disabled; production HA enables it, but operators
+remain responsible for trusted credentials, TLS issuer policy, certificate rotation, and restricting client access.
+Credentials can be provided through an existing Secret or External Secrets.
 
 The chart does not create a NetworkPolicy. Cluster operators must enforce the required client, transport, DNS, backup,
 and monitoring paths with their network controls. `sysctlInit.enabled` is an opt-in compatibility fallback that runs a
