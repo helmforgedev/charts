@@ -65,6 +65,11 @@ networkPolicy:
 | `networkPolicy.enabled` | Render NetworkPolicy | `false` |
 | `service.ipFamilyPolicy` | Service dual-stack policy | `""` |
 
+`service.ports.http`, `service.ports.tcp`, and
+`service.ports.interserver` configure both the ClickHouse server listeners and
+the matching named container and Service ports. Override them only as one
+contract; clients and NetworkPolicy rules must use the resulting ports.
+
 ## Examples
 
 - [Standalone](examples/standalone.yaml)
@@ -135,6 +140,21 @@ restore procedures first.
 
 The Helm test now authenticates through the configured Secret, verifies the
 running version, and executes an `EXPLAIN ANALYZE` query introduced in 26.7.
+
+## Troubleshooting
+
+- If readiness fails after a port override, confirm the rendered ConfigMap,
+  named container ports, Service ports, and client settings all use the same
+  `service.ports.*` values.
+- If credentials appear unchanged after editing a Secret, remember that the
+  official image initializes users only on an empty data directory. Manage
+  existing users with SQL and test authentication before restarting.
+- If writes fail, inspect PVC binding, storage permissions for UID/GID `101`,
+  available capacity, and ClickHouse server logs.
+- If metrics are unavailable, enable `metrics.enabled` before enabling the
+  ServiceMonitor and verify that NetworkPolicy permits the scraper.
+- If Helm rejects `replicaCount`, keep the standalone value at `1` or migrate
+  to an operator-managed topology with Keeper and explicit replication.
 
 <!-- @AI-METADATA
 type: chart-readme
