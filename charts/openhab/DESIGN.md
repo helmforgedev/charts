@@ -73,8 +73,9 @@ configuration, device-network reachability, and application-level upgrades.
 StatefulSet identity reduces attachment ambiguity but does not provide openHAB
 high availability. Pod replacement and chart upgrades interrupt the singleton
 while it restarts and reloads OSGi bundles. The three data areas should remain
-durable and should be backed up together when configuration is not fully
-reproducible from Git.
+durable. The chart backup covers `userdata` and `conf`; operators must snapshot
+or archive the independent `addons` PVC separately when it contains artifacts
+that cannot be reproduced from another source.
 
 ## Security Boundary
 
@@ -87,8 +88,9 @@ seccomp profile.
 
 Chart-owned helper containers do not share that exception. Config sync,
 subpath preparation, backup, and upload helpers drop all capabilities, disable
-privilege escalation, and use read-only root filesystems. Backup Pods also run
-as non-root UID/GID 9001. ServiceAccount token automount is disabled by default.
+privilege escalation, use read-only root filesystems, and run as non-root
+UID/GID 9001. Every chart-owned Pod disables ServiceAccount token automount by
+default.
 
 The chart does not generate a generic NetworkPolicy because openHAB bindings can
 require different LAN devices, brokers, discovery protocols, and cloud APIs.
