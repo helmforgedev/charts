@@ -56,10 +56,11 @@ backup:
 - `userdata/tmp` — temporary files
 - `userdata/cache` — OSGi bundle cache (rebuilt automatically on startup)
 
-The `/openhab/addons` data area is outside the CronJob archive. Protect it
-separately when it contains JAR files that cannot be reproduced from another
-source. If addons shares a claim with another data area, snapshot the entire
-PVC or use a path-aware archive that includes the configured addons subpath.
+The CronJob does not explicitly include `/openhab/addons`. When addons shares a
+claim with `userdata` or `conf`, incidental coverage depends on the configured
+subpaths and must not be treated as a backup. Protect unreproducible JAR files
+by snapshotting the entire PVC or using a path-aware archive that explicitly
+includes the configured addons subpath.
 
 ### Backing Up Only Userdata
 
