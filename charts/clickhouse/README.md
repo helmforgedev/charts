@@ -17,7 +17,7 @@ helm install clickhouse oci://ghcr.io/helmforgedev/helm/clickhouse
 
 - Official ClickHouse image pinned to `26.9.21` from the stable channel.
 - StatefulSet with persistent data volume.
-- Client Service exposing HTTP `8123` and native TCP `9000`.
+- Client Service exposing HTTP `8123` and native TCP `9000` by default.
 - Headless Service for stable pod DNS.
 - Built-in Prometheus metrics endpoint.
 - ServiceMonitor support.
