@@ -25,6 +25,12 @@ tests:
     template: templates/deployment.yaml
     asserts:
       - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /api/healthz
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /api/healthz
+      - equal:
           path: spec.template.spec.containers[0].readinessProbe.httpGet.path
           value: /api/healthz
   - it: uses conservative rolling availability
@@ -137,6 +143,28 @@ tests:
       probes.liveness.enabled: false
     asserts:
       - notExists:
+          path: spec.template.spec.containers[0].livenessProbe
+      - exists:
+          path: spec.template.spec.containers[0].readinessProbe
+  - it: tolerates a removed probes map from existing values
+    template: templates/deployment.yaml
+    set:
+      probes: null
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].startupProbe
+      - notExists:
+          path: spec.template.spec.containers[0].livenessProbe
+      - notExists:
+          path: spec.template.spec.containers[0].readinessProbe
+  - it: tolerates a removed individual probe from existing values
+    template: templates/deployment.yaml
+    set:
+      probes.startup: null
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].startupProbe
+      - exists:
           path: spec.template.spec.containers[0].livenessProbe
       - exists:
           path: spec.template.spec.containers[0].readinessProbe

@@ -44,14 +44,31 @@ spec:
           {{- with .Values.envFrom }}
           envFrom: {{ toYaml . | nindent 12 }}{{- end }}
           resources: {{ toYaml .Values.resources | nindent 12 }}
-          {{- range $name, $probe := .Values.probes }}
-          {{- if $probe.enabled }}
-          {{ $name }}Probe:
+          {{- $probes := .Values.probes | default dict }}
+          {{- $startupProbe := get $probes "startup" | default dict }}
+          {{- $livenessProbe := get $probes "liveness" | default dict }}
+          {{- $readinessProbe := get $probes "readiness" | default dict }}
+          {{- if $startupProbe.enabled }}
+          startupProbe:
             httpGet:
-              path: {{ $probe.path }}
+              path: {{ $startupProbe.path }}
               port: http
-            {{- omit $probe "enabled" "path" | toYaml | nindent 12 }}
-          {{- end }}{{- end }}
+            {{- omit $startupProbe "enabled" "path" | toYaml | nindent 12 }}
+          {{- end }}
+          {{- if $livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ $livenessProbe.path }}
+              port: http
+            {{- omit $livenessProbe "enabled" "path" | toYaml | nindent 12 }}
+          {{- end }}
+          {{- if $readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ $readinessProbe.path }}
+              port: http
+            {{- omit $readinessProbe "enabled" "path" | toYaml | nindent 12 }}
+          {{- end }}
           volumeMounts:
             - name: config
               mountPath: /app/config
