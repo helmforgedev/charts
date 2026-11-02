@@ -228,6 +228,33 @@ tests:
       - equal:
           path: spec.jobTemplate.spec.template.spec.securityContext.fsGroup
           value: 9001
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+
+  - it: should harden both backup containers
+    set:
+      backup.enabled: true
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
 
   - it: should set resource guardrails for backup containers
     set:

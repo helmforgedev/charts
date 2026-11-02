@@ -27,6 +27,11 @@ securityContext:
 runtime attack surface without removing the capabilities required during
 startup.
 
+The entrypoint exception applies only to the main openHAB container. The
+ConfigMap sync, persistence subpath, backup, and upload helpers run with
+`allowPrivilegeEscalation: false`, a read-only root filesystem, and all Linux
+capabilities dropped. Backup Pods additionally run as non-root UID/GID 9001.
+
 ### Why readOnlyRootFilesystem is false
 
 openHAB (OSGi/Karaf) writes to several directories at runtime:
