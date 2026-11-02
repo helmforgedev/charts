@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 
-const [context, namespace, release, version = '26.9.16', action = 'smoke'] = process.argv.slice(2);
+const [context, namespace, release, requestedVersion, action = 'smoke'] = process.argv.slice(2);
 assert.ok(context?.startsWith('k3d-helmforge-') && namespace && release);
 const k = args => execFileSync('kubectl', ['--context', context, '-n', namespace, ...args], {
   encoding: 'utf8', timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'],
@@ -11,10 +11,18 @@ const pods = JSON.parse(k(['get', 'pods', '-l', `app.kubernetes.io/instance=${re
 const pod = pods.find(p => !p.metadata.deletionTimestamp && p.status.conditions?.some(c => c.type === 'Ready' && c.status === 'True')
   && p.spec.containers.some(c => c.name === 'clickhouse'));
 assert.ok(pod, 'Ready ClickHouse server required');
+const container = pod.spec.containers.find(c => c.name === 'clickhouse');
+const httpPort = container.ports.find(p => p.name === 'http')?.containerPort;
+const tcpPort = container.ports.find(p => p.name === 'tcp')?.containerPort;
+assert.ok(httpPort && tcpPort, 'Named HTTP and TCP container ports required');
+const versionSource = requestedVersion || container.image.split('@')[0].split(':').at(-1);
+const version = versionSource?.match(/^\d+(?:\.\d+){1,3}/)?.[0];
+assert.ok(version, 'Numeric ClickHouse image version required');
 const exec = args => k(['exec', pod.metadata.name, '-c', 'clickhouse', '--', ...args]).trim();
-const sql = query => exec(['sh', '-ec', 'clickhouse-client --host 127.0.0.1 --user "$CLICKHOUSE_USER" --password "${CLICKHOUSE_PASSWORD:-}" --database "$CLICKHOUSE_DB" --multiquery --query "$1"', 'sh', query]);
-assert.ok(sql('SELECT version()').startsWith(version + '.'));
-assert.equal(sql("SELECT line FROM url('http://127.0.0.1:8123/ping', 'LineAsString', 'line String')"), 'Ok.');
+const sql = query => exec(['sh', '-ec', 'clickhouse-client --host 127.0.0.1 --port "$2" --user "$CLICKHOUSE_USER" --password "${CLICKHOUSE_PASSWORD:-}" --database "$CLICKHOUSE_DB" --multiquery --query "$1"', 'sh', query, String(tcpPort)]);
+const serverVersion = sql('SELECT version()');
+assert.ok(serverVersion === version || serverVersion.startsWith(`${version}.`));
+assert.equal(sql(`SELECT line FROM url('http://127.0.0.1:${httpPort}/ping', 'LineAsString', 'line String')`), 'Ok.');
 if (action !== 'verify') {
   sql('SET enable_full_text_index=1; CREATE TABLE helmforge_upgrade_fixture (id UInt64, body String, INDEX body_idx body TYPE text(tokenizer = splitByNonAlpha)) ENGINE=MergeTree ORDER BY id');
   sql("INSERT INTO helmforge_upgrade_fixture SELECT number, concat('HelmForge fox ', toString(number)) FROM numbers(5)");
@@ -26,7 +34,7 @@ if (action === 'verify') sql('ALTER TABLE helmforge_upgrade_fixture MATERIALIZE 
 sql('OPTIMIZE TABLE helmforge_upgrade_fixture FINAL');
 assert.equal(sql("SELECT count(), sum(id) FROM helmforge_upgrade_fixture WHERE hasAnyTokens(body, ['fox']) SETTINGS force_data_skipping_indices='body_idx'"), '10\t45');
 if (version.startsWith('26.8.')) assert.equal(sql("SELECT value FROM system.merge_tree_settings WHERE name='text_index_serialization_version'"), 'v2_with_positions');
-const metrics = pod.spec.containers.find(c => c.name === 'clickhouse').ports.find(p => p.name === 'metrics');
+const metrics = container.ports.find(p => p.name === 'metrics');
 if (metrics) {
   const output = sql(`SELECT line FROM url('http://127.0.0.1:${metrics.containerPort}/metrics', 'LineAsString', 'line String') WHERE startsWith(line, 'ClickHouseMetrics_') OR startsWith(line, 'ClickHouseProfileEvents_') LIMIT 2`);
   assert.match(output, /^ClickHouse(?:Metrics|ProfileEvents)_/m);

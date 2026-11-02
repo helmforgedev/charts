@@ -17,11 +17,11 @@ helm install clickhouse oci://ghcr.io/helmforgedev/helm/clickhouse
 
 - Official ClickHouse image pinned to `26.9.21` from the stable channel.
 - StatefulSet with persistent data volume.
-- Client Service exposing HTTP `8123` and native TCP `9000`.
+- Client Service exposing HTTP `8123` and native TCP `9000` by default.
 - Headless Service for stable pod DNS.
 - Built-in Prometheus metrics endpoint.
 - ServiceMonitor support.
-- External Secrets integration for the initial password.
+- External Secrets integration for the chart-configured user's password.
 - NetworkPolicy and dual-stack Service fields.
 - Explicit guardrail blocking unsafe Helm-only replication.
 
@@ -57,13 +57,18 @@ networkPolicy:
 | `image.repository` | Official image repository | `docker.io/clickhouse/clickhouse-server` |
 | `image.tag` | Official full-version tag | `26.9.21` |
 | `clickhouse.database` | Initial database | `default` |
-| `clickhouse.user` | Initial user | `default` |
-| `clickhouse.password` | Initial password | `""` |
+| `clickhouse.user` | User managed by the image entrypoint | `default` |
+| `clickhouse.password` | Password managed by the image entrypoint | `""` |
 | `persistence.enabled` | Persist data volume | `true` |
 | `persistence.size` | Data PVC size | `20Gi` |
 | `metrics.enabled` | Built-in Prometheus endpoint | `false` |
 | `networkPolicy.enabled` | Render NetworkPolicy | `false` |
 | `service.ipFamilyPolicy` | Service dual-stack policy | `""` |
+
+`service.ports.http`, `service.ports.tcp`, and
+`service.ports.interserver` configure both the ClickHouse server listeners and
+the matching named container and Service ports. Override them only as one
+contract; clients and NetworkPolicy rules must use the resulting ports.
 
 ## Examples
 
@@ -135,6 +140,23 @@ restore procedures first.
 
 The Helm test now authenticates through the configured Secret, verifies the
 running version, and executes an `EXPLAIN ANALYZE` query introduced in 26.7.
+
+## Troubleshooting
+
+- If readiness fails after a port override, confirm the rendered ConfigMap,
+  named container ports, Service ports, and client settings all use the same
+  `service.ports.*` values.
+- To rotate the chart-configured user, update the referenced Secret and restart
+  the StatefulSet. The official image rewrites `users.d/default-user.xml` on
+  every start, including with a populated data directory. Test authentication
+  after the restart; users managed separately through SQL retain their own
+  lifecycle.
+- If writes fail, inspect PVC binding, storage permissions for UID/GID `101`,
+  available capacity, and ClickHouse server logs.
+- If metrics are unavailable, enable `metrics.enabled` before enabling the
+  ServiceMonitor and verify that NetworkPolicy permits the scraper.
+- If Helm rejects `replicaCount`, keep the standalone value at `1` or migrate
+  to an operator-managed topology with Keeper and explicit replication.
 
 <!-- @AI-METADATA
 type: chart-readme
