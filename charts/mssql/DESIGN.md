@@ -1,6 +1,6 @@
 # SQL Server deployment design
 
-## A licensed database with an explicit startup boundary
+## Scope
 
 Version and edition are independent. The official MCR tag/digest selects engine
 bits; `MSSQL_PID` selects the edition, with a documented Developer alias across
@@ -8,7 +8,24 @@ bits; `MSSQL_PID` selects the edition, with a documented Developer alias across
 No SQL resources are rendered before EULA opt-in. The consent-only default is
 tested first, followed by an explicit opt-in and real native database acceptance.
 
-## Stateful single writer
+## Architecture
+
+```mermaid
+flowchart LR
+  client[Authorized SQL client] --> service[SQL Service]
+  service --> sql[SQL Server StatefulSet]
+  sql --> data[(Retained data PVC)]
+  auth[Authentication Secret] --> sql
+  tls[TLS Secret] --> sql
+  config[Bootstrap ConfigMap] --> sql
+  backup[Backup CronJob] --> staging[(Backup staging PVC)]
+  sql --> staging
+  backup --> s3[S3-compatible storage]
+  exporter[Optional SQL exporter] --> sql
+  prometheus[Prometheus] --> exporter
+```
+
+### Stateful single writer
 
 A singleton StatefulSet preserves hostname and storage identity. RollingUpdate
 replaces the only Pod, so upgrades intentionally include downtime. This is not
@@ -17,7 +34,9 @@ system database/encryption state distinct from transient backup staging. A backu
 worker uses required same-node affinity to permit RWO mounts; RWOP staging is not
 supported because the SQL Pod and backup Job must both access it.
 
-## Startup, secrets and SQL provisioning
+## Main Design Choices
+
+### Startup, secrets and SQL provisioning
 
 A small Python supervisor runs the official Microsoft entrypoint, retaining its
 permission checks and edition mapping. It waits for native authenticated SQL,
@@ -32,7 +51,7 @@ used for provisioning; readiness, metrics and backup have separate logins.
 Liveness is a TCP check so a readiness credential error is not directly converted
 into a process restart.
 
-## Encrypted transport
+### Encrypted transport
 
 SQL Server requires TLS. A generated private CA and certificate are retained, or
 an existing Secret supplies the trust material. An unprivileged init container
@@ -40,7 +59,7 @@ copies key/certificate to an in-memory volume with mode 0600. Private keys are
 not mounted in exporter or backup Pods. Local probes intentionally trust only
 loopback; remote SQL clients verify certificate chain and DNS identity.
 
-## Native backup plus portable object upload
+### Native backup plus portable object upload
 
 Native SQL S3 backup excludes Express. A uniform disk-to-S3 path uses native
 COPY_ONLY/CHECKSUM backup in the server, then AWS CLI upload with per-file SHA-256
@@ -49,7 +68,7 @@ SQL Agent. Failed runs retain local artifacts; successful runs delete only their
 own files. Retention stays with explicit bucket lifecycle policy. There is no
 log-backup/PITR claim or automatic overwrite restore path.
 
-## Operational separation
+## Production Boundary
 
 SQL, backup and metrics Pods have distinct component selectors. Only the SQL Pod
 backs the database Service. NetworkPolicies separately control client admission,
@@ -58,7 +77,13 @@ explicit backup-only option, never a general API credential on the database Pod.
 Metrics require native SQL query success and cannot substitute for object-storage
 backup completion evidence.
 
-## Restricted execution and the official binary capability
+Production operators own edition licensing, storage and memory sizing, external
+certificate lifecycle, SQL credential rotation, database recovery objectives,
+bucket lifecycle policy, restore drills, monitoring retention and alert routing.
+Upgrades of the singleton StatefulSet include downtime and must be preceded by a
+verified native backup and tested against the selected SQL Server engine version.
+
+## Security Boundary
 
 The database runs as non-root with a read-only root filesystem, disabled privilege
 escalation and a RuntimeDefault seccomp profile. Every container drops all Linux
@@ -69,3 +94,35 @@ port 1433. This requirement was verified with the pinned image in k3d. Init,
 exporter and backup containers retain an empty capability set. SYS_PTRACE is not
 enabled; crash-dump collection requiring it is outside the default security
 profile.
+
+The chart enforces TLS, non-root execution, a read-only root filesystem,
+RuntimeDefault seccomp, disabled service-account token automount and explicit
+NetworkPolicy peers by default. Existing Secrets and External Secrets remain under
+their external owner's access and rotation controls. The chart cannot validate a
+commercial license, protect retained Secrets after uninstall or secure traffic
+outside the Kubernetes and SQL Server boundaries it creates.
+
+## Observability Boundary
+
+Authenticated readiness proves that bootstrap and declared provisioning completed;
+TCP liveness proves only that the listener is reachable. The optional exporter,
+ServiceMonitor and PrometheusRule expose SQL availability and database state. They
+do not prove backup upload completion, restore viability, storage durability or
+application query correctness. Operators must monitor CronJobs, S3 completion
+manifests, staging capacity and recovery drills separately.
+
+## Known Gaps
+
+- StatefulSet updates require downtime because the chart deploys one SQL writer.
+- Native full backups do not provide transaction-log backup or point-in-time recovery.
+- Retained generated credentials and TLS material require explicit lifecycle management.
+- The chart cannot exercise paid editions without a separately licensed runtime environment.
+- Abrupt node loss can leave backup staging files that require deliberate cleanup.
+
+## Explicit Non-Goals
+
+- SQL Server Always On availability groups, replication or automatic failover
+- horizontal scaling, read replicas or multi-writer storage
+- automatic database restore, destructive overwrite or point-in-time recovery
+- SQL Agent job management for chart backup scheduling
+- issuing Microsoft licenses or validating product-key entitlement

@@ -5,7 +5,7 @@ instance. The chart separates engine version from edition, requires explicit EUL
 acceptance, provisions declared application databases and supplies native backups
 uploaded to S3 without excluding Express users.
 
-## Production contract
+## Features
 
 - One StatefulSet Pod and one database writer, including system databases and keys.
 - Official MCR image pinned by release and digest, Linux amd64 only.
@@ -20,6 +20,13 @@ uploaded to S3 without excluding Express users.
 This is a singleton deployment. Pod recovery and StatefulSet upgrades involve
 downtime. It does not configure Always On, replication, automatic database failover,
 horizontal autoscaling, log backups or point-in-time recovery.
+
+## Architecture
+
+The chart deploys one SQL Server StatefulSet behind a TCP Service. A retained data
+PVC stores system and user databases, while optional backup and metrics workloads
+use dedicated identities, selectors and least-privilege SQL logins. See
+[DESIGN.md](DESIGN.md) for the topology, trust boundaries and intentional gaps.
 
 ## Install and select an edition
 
@@ -51,6 +58,33 @@ See [editions and version compatibility](docs/editions.md), [2022](examples/2022
 [development](examples/developer.yaml), [staging](examples/staging.yaml) and
 [production](examples/production.yaml). Product keys are accepted only through a
 Secret reference with `sql.edition: ProductKey`.
+
+## Configuration
+
+The complete contract is documented in [values.yaml](values.yaml) and enforced by
+[values.schema.json](values.schema.json). These settings define the most common
+installation choices:
+
+| Value | Default | Purpose |
+|---|---|---|
+| `license.acceptEULA` | `false` | Explicitly accept Microsoft's EULA and render SQL resources |
+| `sql.edition` | `Express` | Select the licensed SQL Server edition independently of the image |
+| `sql.memoryLimitMB` | `3072` | Cap native SQL Server memory while leaving container headroom |
+| `auth.existingSecret` | `""` | Reuse credentials instead of generating retained passwords |
+| `tls.existingSecret` | `""` | Reuse a TLS Secret instead of generating retained certificates |
+| `persistence.enabled` | `true` | Persist system and user databases |
+| `persistence.size` | `20Gi` | Set the generated data PVC capacity |
+| `persistence.retain` | `true` | Retain generated data and recovery material on uninstall |
+| `service.type` | `ClusterIP` | Select SQL TCP Service exposure |
+| `service.port` | `1433` | Set the client-facing SQL Service port |
+| `networkPolicy.enabled` | `true` | Restrict SQL, monitoring and backup network paths |
+| `backup.enabled` | `false` | Enable native full backup and S3 upload |
+| `metrics.enabled` | `false` | Enable the authenticated SQL exporter |
+| `externalSecrets.enabled` | `false` | Render ExternalSecret resources for supplied item definitions |
+
+Helm schema validation rejects incompatible editions, insufficient memory,
+invalid identifiers and incomplete backup, metrics or External Secrets contracts
+before resources reach the cluster.
 
 ## Connect securely
 
@@ -170,6 +204,35 @@ Alerts cover unavailable/missing scrape targets and databases outside ONLINE.
 Exporter SQL metrics do not prove a successful S3 upload. Monitor the backup CronJob,
 remote completion manifests, staging capacity and `.last-success` as distinct signals.
 See [metrics values](examples/metrics.yaml).
+
+## Examples
+
+- [Simple Express deployment](examples/simple.yaml)
+- [SQL Server 2022](examples/2022.yaml)
+- [Developer edition](examples/developer.yaml)
+- [Staging](examples/staging.yaml)
+- [Production](examples/production.yaml)
+- [S3 backup](examples/backup-s3.yaml)
+- [Prometheus metrics](examples/metrics.yaml)
+- [External Secrets](examples/external-secrets.yaml)
+
+## Troubleshooting
+
+If only the consent ConfigMap is rendered, set `license.acceptEULA=true` after
+reviewing Microsoft's license. For a Pod that never becomes Ready, inspect the
+bootstrap container logs and confirm that retained SQL credentials still match
+the persisted `master` database:
+
+```sh
+kubectl logs statefulset/database-mssql -n database -c mssql
+kubectl describe pod -n database -l app.kubernetes.io/instance=database
+```
+
+For TLS failures, verify that clients trust `ca.crt` and connect through a DNS name
+present in the server certificate. For backup failures, inspect the CronJob, its
+latest Job and `/backup/.last-failure` before removing any orphaned staging files.
+The detailed recovery and credential procedures are in [operations](docs/operations.md)
+and [backup and restore](docs/backup.md).
 
 ## Validation and security scan
 
