@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: OpenClaw upgrade and recovery contracts
+templates:
+  - configmap.yaml
+  - secret.yaml
+  - storage.yaml
+  - service.yaml
+  - headless-service.yaml
+  - statefulset.yaml
+tests:
+  - it: retains the generated gateway identity with persistent state
+    template: secret.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+      - exists:
+          path: data.gateway-token
+  - it: delegates gateway identity to an existing Secret
+    template: secret.yaml
+    set:
+      auth.existingSecret: shared-gateway-token
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: retains the chart-owned persistent claim
+    template: storage.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+      - equal:
+          path: spec.resources.requests.storage
+          value: 10Gi
+  - it: does not replace an externally managed claim
+    template: storage.yaml
+    set:
+      persistence.existingClaim: existing-agent-home
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: keeps the public Service contract independent from its target port
+    template: service.yaml
+    set:
+      service.port: 443
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 443
+      - equal:
+          path: spec.ports[0].targetPort
+          value: api
+  - it: keeps a stable StatefulSet identity and retained data claim
+    template: statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.serviceName
+          value: RELEASE-NAME-openclaw-headless
+      - equal:
+          path: spec.template.spec.volumes[0].persistentVolumeClaim.claimName
+          value: RELEASE-NAME-openclaw-data
