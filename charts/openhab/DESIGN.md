@@ -73,9 +73,11 @@ configuration, device-network reachability, and application-level upgrades.
 StatefulSet identity reduces attachment ambiguity but does not provide openHAB
 high availability. Pod replacement and chart upgrades interrupt the singleton
 while it restarts and reloads OSGi bundles. The three data areas should remain
-durable. The chart backup covers `userdata` and `conf`; operators must snapshot
-or archive the independent `addons` PVC separately when it contains artifacts
-that cannot be reproduced from another source.
+durable. The chart backup covers `userdata` and `conf`; operators must protect
+the `/openhab/addons` data area separately when it contains artifacts that
+cannot be reproduced from another source. For a shared claim, snapshot the
+entire PVC or use a path-aware archive that includes the configured addons
+subpath.
 
 ## Security Boundary
 
