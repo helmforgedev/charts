@@ -63,7 +63,13 @@ helm install mariadb helmforge/mariadb
 helm install mariadb oci://ghcr.io/helmforgedev/helm/mariadb
 ```
 
-## Architecture Selection
+## Examples
+
+The repository includes complete examples for standalone, replication,
+production replication, and legacy volume-root upgrades under `examples/`.
+The smallest architecture overrides are:
+
+### Architecture selection
 
 ```yaml
 # Standalone (default)
@@ -233,19 +239,41 @@ This chart uses MariaDB-native features:
 | `dual-stack.yaml` | Dual-stack service policy |
 | `external-secrets.yaml` | External Secrets Operator integration |
 
+## Troubleshooting
+
+Inspect the StatefulSet, MariaDB logs, and recent namespace events before
+changing probes or credentials:
+
+```bash
+kubectl get statefulset,pod,pvc,service -l app.kubernetes.io/instance=<release>
+kubectl logs statefulset/<release> --all-containers --tail=200
+kubectl get events --sort-by=.lastTimestamp
+```
+
+- If MariaDB reports `lost+found` as a database, preserve an existing
+  volume-root installation with `persistence.subPath: ""`; see
+  [docs/datadir-subpath.md](docs/datadir-subpath.md).
+- If a replica stays unready, verify that the source is writable, the
+  replication credentials are stable, and both replication threads are
+  running before enabling `requireRunningReplication`.
+- If the metrics sidecar cannot connect, verify the password Secret and keep
+  `tls.client.enabled` aligned with the server TLS configuration.
+- If a `NetworkPolicy` is enabled, allow application traffic on `service.port`
+  and scraper traffic on `service.metricsPort` when metrics are enabled.
+
 ## More Information
 
 - [MariaDB documentation](https://mariadb.com/kb/en/)
 - [Chart source](https://github.com/helmforgedev/charts/tree/main/charts/mariadb)
 - [Datadir subPath migration](docs/datadir-subpath.md)
 
-### 🟢 Security Scan: `mariadb`
+### Security Scan: `mariadb`
 
 | Framework | Score |
 |---|---|
 | MITRE + NSA + SOC2 | **89.898994%** |
 
-> ✅ Security posture acceptable.
+Security posture acceptable.
 
 <!-- @AI-METADATA
 type: chart-readme

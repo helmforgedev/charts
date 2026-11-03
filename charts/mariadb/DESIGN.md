@@ -84,7 +84,20 @@ storage drivers that do not honor `fsGroup` on subPath directories. It renders a
 root initContainer with `CHOWN` and `FOWNER`, so it requires a Pod Security
 exception and is not part of the default path.
 
-## Production Controls
+## Design Decisions
+
+- StatefulSets own stable pod and PVC identities in both architectures so Helm
+  upgrades do not replace database storage.
+- Replication uses a fixed writable source and MariaDB GTID rather than adding
+  an in-chart failover controller that could promote multiple sources.
+- Passwords are read from one chart-managed or existing Secret so the database,
+  replication bootstrap, exporter, and backup clients use the same credentials.
+- Configuration presets provide safe starting points, while `config.myCnf`
+  remains an explicit operator-controlled escape hatch.
+- Optional integrations render only when enabled and do not install their
+  cluster-level operators or CRDs.
+
+## Production Boundary
 
 Production installations should explicitly configure:
 
@@ -96,6 +109,39 @@ Production installations should explicitly configure:
 - `metrics.enabled`
 - `resources` or resource presets
 - scheduling constraints and disruption budgets
+
+The chart creates Kubernetes workloads and configuration, but the operator owns
+capacity planning, backup retention, restore drills, replication health, source
+promotion, and application-level compatibility with the selected MariaDB image.
+
+## Security Boundary
+
+The default containers run as UID/GID 999 with `RuntimeDefault` seccomp,
+privilege escalation disabled, and all Linux capabilities dropped. Passwords
+can be supplied by an existing Secret or an ExternalSecret. TLS and ingress
+NetworkPolicy are opt-in because certificate issuance, trust distribution, and
+cluster traffic policy belong to the platform operator.
+
+The chart does not rotate database credentials or certificates. Enabling the
+root `prepareDataDir` init container deliberately crosses the default restricted
+Pod Security boundary and requires an operator-approved namespace exception.
+
+## Observability Boundary
+
+Optional `mysqld-exporter` metrics and ServiceMonitor resources expose database
+health to an existing Prometheus stack. Kubernetes probes verify process,
+writable-source, and read-only-replica state. The chart does not install
+Prometheus, define alert thresholds, retain metrics, or infer data durability
+from pod readiness; operators must alert on replication lag, backup completion,
+storage capacity, connection saturation, and restore success.
+
+## Known Gaps
+
+- no automatic source election, promotion, or fencing
+- no proxy that redirects writes after a source change
+- no point-in-time recovery workflow or automated restore verification
+- no automated migration between volume-root and subPath datadir layouts
+- no certificate or credential rotation controller
 
 ## Non-Goals
 

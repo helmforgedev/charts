@@ -99,11 +99,110 @@
     },
     "standalone": {
       "type": "object",
-      "description": "Standalone mode settings"
+      "description": "Standalone mode settings",
+      "properties": {
+        "serverId": { "type": "integer", "minimum": 1 },
+        "resourcesPreset": { "type": "string", "enum": ["none", "small", "medium", "large"] },
+        "persistence": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "storageClass": { "type": "string" },
+            "accessModes": { "type": "array", "items": { "type": "string" } },
+            "size": { "type": "string" }
+          }
+        },
+        "resources": { "type": "object" }
+      }
     },
     "replication": {
       "type": "object",
-      "description": "Replication mode settings"
+      "description": "Replication mode settings",
+      "properties": {
+        "source": {
+          "type": "object",
+          "properties": {
+            "serverId": { "type": "integer", "minimum": 1 },
+            "resourcesPreset": { "type": "string", "enum": ["none", "small", "medium", "large"] },
+            "persistence": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "storageClass": { "type": "string" },
+                "accessModes": { "type": "array", "items": { "type": "string" } },
+                "size": { "type": "string" }
+              }
+            },
+            "resources": { "type": "object" },
+            "probes": {
+              "type": "object",
+              "properties": {
+                "requireWritable": { "type": "boolean" }
+              }
+            },
+            "affinity": { "type": "object" },
+            "tolerations": { "type": "array", "items": { "type": "object" } }
+          }
+        },
+        "readReplicas": {
+          "type": "object",
+          "properties": {
+            "serverIdBase": { "type": "integer", "minimum": 1 },
+            "resourcesPreset": { "type": "string", "enum": ["none", "small", "medium", "large"] },
+            "replicaCount": { "type": "integer", "minimum": 0 },
+            "persistence": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "storageClass": { "type": "string" },
+                "accessModes": { "type": "array", "items": { "type": "string" } },
+                "size": { "type": "string" }
+              }
+            },
+            "resources": { "type": "object" },
+            "probes": {
+              "type": "object",
+              "properties": {
+                "requireReadOnly": { "type": "boolean" },
+                "requireRunningReplication": { "type": "boolean" }
+              }
+            },
+            "affinity": { "type": "object" },
+            "tolerations": { "type": "array", "items": { "type": "object" } }
+          }
+        },
+        "binlog": {
+          "type": "object",
+          "properties": {
+            "format": { "type": "string", "enum": ["ROW", "STATEMENT", "MIXED"] },
+            "retentionDays": { "type": "integer", "minimum": 0 },
+            "expireLogsSeconds": { "type": "integer", "minimum": 0 },
+            "syncBinlog": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "replicaTuning": {
+          "type": "object",
+          "properties": {
+            "parallelWorkers": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "pdb": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "minAvailable": { "type": ["integer", "string"] },
+            "maxUnavailable": { "type": ["integer", "string"] }
+          }
+        },
+        "scheduling": {
+          "type": "object",
+          "properties": {
+            "enableDefaultPodAntiAffinity": { "type": "boolean" },
+            "enableDefaultTopologySpread": { "type": "boolean" },
+            "topologyKey": { "type": "string" }
+          }
+        }
+      }
     },
     "service": {
       "type": "object",
@@ -121,33 +220,209 @@
     },
     "metrics": {
       "type": "object",
-      "description": "Prometheus metrics exporter"
+      "description": "Prometheus metrics exporter",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "resourcesPreset": { "type": "string", "enum": ["none", "small", "medium"] },
+        "service": {
+          "type": "object",
+          "properties": {
+            "annotations": { "type": "object" }
+          }
+        },
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": { "type": "string" },
+            "tag": { "type": "string" },
+            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+          }
+        },
+        "resources": { "type": "object" },
+        "serviceMonitor": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "interval": { "type": "string" },
+            "labels": { "type": "object" }
+          }
+        }
+      }
     },
     "tls": {
       "type": "object",
-      "description": "TLS configuration"
+      "description": "TLS configuration",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "existingSecret": { "type": "string" },
+        "caFilename": { "type": "string" },
+        "certFilename": { "type": "string" },
+        "keyFilename": { "type": "string" },
+        "requireSecureTransport": { "type": "boolean" },
+        "client": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "ssl": { "type": "boolean" }
+          }
+        }
+      }
     },
     "backup": {
       "type": "object",
-      "description": "S3 backup CronJob configuration"
+      "description": "S3 backup CronJob configuration",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "schedule": { "type": "string" },
+        "suspend": { "type": "boolean" },
+        "concurrencyPolicy": { "type": "string", "enum": ["Allow", "Forbid", "Replace"] },
+        "successfulJobsHistoryLimit": { "type": "integer", "minimum": 0 },
+        "failedJobsHistoryLimit": { "type": "integer", "minimum": 0 },
+        "backoffLimit": { "type": "integer", "minimum": 0 },
+        "archivePrefix": { "type": "string" },
+        "resources": { "type": "object" },
+        "images": {
+          "type": "object",
+          "properties": {
+            "uploader": {
+              "type": "object",
+              "properties": {
+                "repository": { "type": "string" },
+                "tag": { "type": "string" },
+                "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+              }
+            },
+            "mariadb": {
+              "type": "object",
+              "properties": {
+                "repository": { "type": "string" },
+                "tag": { "type": "string" },
+                "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+              }
+            }
+          }
+        },
+        "s3": {
+          "type": "object",
+          "properties": {
+            "endpoint": { "type": "string" },
+            "bucket": { "type": "string" },
+            "prefix": { "type": "string" },
+            "createBucketIfNotExists": { "type": "boolean" },
+            "existingSecret": { "type": "string" },
+            "existingSecretAccessKeyKey": { "type": "string" },
+            "existingSecretSecretKeyKey": { "type": "string" },
+            "accessKey": { "type": "string" },
+            "secretKey": { "type": "string" }
+          }
+        },
+        "database": {
+          "type": "object",
+          "properties": {
+            "mariadbdumpArgs": { "type": "string" }
+          }
+        }
+      }
     },
     "networkPolicy": {
       "type": "object",
-      "description": "NetworkPolicy configuration"
+      "description": "NetworkPolicy configuration",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "ingress": {
+          "type": "object",
+          "properties": {
+            "allowSameNamespace": { "type": "boolean" },
+            "extraFrom": { "type": "array", "items": { "type": "object" } }
+          }
+        },
+        "metrics": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "allowSameNamespace": { "type": "boolean" },
+            "extraFrom": { "type": "array", "items": { "type": "object" } }
+          }
+        }
+      }
     },
     "pdb": {
       "type": "object",
-      "description": "PodDisruptionBudget configuration"
+      "description": "PodDisruptionBudget configuration",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "minAvailable": { "type": ["integer", "string"] },
+        "maxUnavailable": { "type": ["integer", "string"] }
+      }
     },
     "serviceAccount": {
       "type": "object",
-      "description": "ServiceAccount configuration"
+      "description": "ServiceAccount configuration",
+      "properties": {
+        "create": { "type": "boolean" },
+        "name": { "type": "string" },
+        "annotations": { "type": "object" }
+      }
     },
-    "livenessProbe": { "type": "object" },
-    "readinessProbe": { "type": "object" },
-    "startupProbe": { "type": "object" },
-    "podSecurityContext": { "type": "object" },
-    "securityContext": { "type": "object" },
+    "livenessProbe": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "readinessProbe": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "startupProbe": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "properties": {
+        "fsGroup": { "type": "integer" },
+        "fsGroupChangePolicy": { "type": "string", "enum": ["Always", "OnRootMismatch"] },
+        "seccompProfile": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string", "enum": ["RuntimeDefault", "Localhost", "Unconfined"] }
+          }
+        }
+      }
+    },
+    "securityContext": {
+      "type": "object",
+      "properties": {
+        "runAsUser": { "type": "integer" },
+        "runAsGroup": { "type": "integer" },
+        "runAsNonRoot": { "type": "boolean" },
+        "allowPrivilegeEscalation": { "type": "boolean" },
+        "readOnlyRootFilesystem": { "type": "boolean" },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "drop": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
     "podLabels": { "type": "object" },
     "podAnnotations": { "type": "object" },
     "annotations": { "type": "object" },
