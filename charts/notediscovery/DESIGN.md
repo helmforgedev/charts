@@ -3,6 +3,38 @@
 This chart deploys NoteDiscovery as a self-hosted knowledge base using the
 official `ghcr.io/gamosoft/notediscovery:0.32.1` image.
 
+## Architecture
+
+```mermaid
+flowchart LR
+  users[Trusted users] --> edge[Ingress or Gateway API]
+  edge --> service[NoteDiscovery Service]
+  service --> app[Singleton NoteDiscovery Deployment]
+  config[ConfigMap or Secret config.yaml] --> app
+  eso[External Secrets Operator optional] -. materializes .-> config
+  app --> notes[(Markdown data PVC)]
+  app --> plugins[(Plugin data on PVC)]
+  mcp[MCP clients] --> service
+```
+
+One application process serves the browser UI, API and MCP endpoint. A
+`Recreate` Deployment keeps the default single-writer topology from overlapping
+during rollouts, while a persistent claim holds notes and copied plugin data.
+
+## Design Decisions
+
+- Use the official pinned image and its native `/app/data` contract.
+- Default to one replica and `Recreate` because upstream stores mutable Markdown
+  and related state on one filesystem without distributed coordination.
+- Preserve upstream's file-based configuration model by rendering one complete
+  `config.yaml` in either a ConfigMap or Secret.
+- Copy bundled plugins into `notediscovery.pluginsDir` without replacing plugins
+  already managed by the user. The default path is under `persistence.mountPath`.
+  A custom path must also be under `persistence.mountPath`; otherwise the copied
+  plugins are neither persisted nor mounted into the application container.
+- Keep Ingress, Gateway API and External Secrets as optional integrations rather
+  than installing their controllers.
+
 ## Product Model
 
 NoteDiscovery serves the UI and API from one Python process and stores durable
@@ -82,13 +114,52 @@ the complete `config.yaml` Secret. The expected production pattern is:
 
 This keeps sensitive configuration outside the chart values while preserving the upstream config-file contract.
 
-## Security Choices
+## Security Boundary
 
 The chart uses a non-root security context, drops Linux capabilities, disables
 ServiceAccount token automount, and supports NetworkPolicy.
 `readOnlyRootFilesystem` remains false because the upstream Python application
 and image may need write access outside the mounted note directory during
 startup.
+
+Authentication protects the application boundary but does not provide tenant
+isolation inside one release. Notes, uploaded content, the complete config file
+and plugin code share one trust domain. Operators own TLS termination, credential
+rotation, public-origin restrictions, controller security and access to backups
+or storage snapshots.
+
+## Production Boundary
+
+The chart owns Kubernetes resources, generated configuration, probes, rollout
+strategy and optional exposure integrations. Operators own StorageClass
+durability, capacity monitoring, backups, restore tests, public DNS and TLS,
+identity policy, plugin provenance and maintenance downtime for the singleton
+writer. Multi-replica deployments additionally require an operator-provided
+claim whose storage semantics are safe for concurrent writers.
+
+## Observability Boundary
+
+The chart exposes startup, liveness and readiness results through Kubernetes and
+leaves application logs on standard output for the cluster logging stack. It
+does not install a metrics collector, ServiceMonitor, alert rules or log backend.
+Probe success confirms HTTP availability, not search correctness, note durability,
+MCP authorization or remaining PVC capacity.
+
+## Known Gaps
+
+- the default singleton has downtime during upgrades, drains and rescheduling
+- upstream requires a writable root filesystem beyond the mounted data path
+- the chart does not provide application-native metrics or backup automation
+- multi-writer safety depends on storage and upstream behavior outside the chart
+- External Secrets, Gateway API and Ingress behavior depends on installed controllers
+
+## Non-Goals
+
+- horizontal scaling or transparent high availability on the generated claim
+- multi-tenant isolation within one NoteDiscovery release
+- installing or managing ingress, Gateway API or External Secrets controllers
+- automatic backup, restore, credential rotation or certificate issuance
+- validating third-party plugin safety or MCP client authorization policy
 
 ## Validation Scope
 
