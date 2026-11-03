@@ -69,8 +69,10 @@ storage because the official image serves read-only configuration and content.
 Apache access and error logs are redirected to container output and are the
 primary request-level evidence. HTTP probes and the Helm test verify `/healthz`
 through the actual listener and Service. When enabled, the exporter scrapes the
-local `mod_status` endpoint and exposes Prometheus metrics; a ServiceMonitor is
-rendered only for clusters that already provide its CRD and operator.
+local `mod_status` endpoint and exposes Prometheus metrics. The chart renders a
+ServiceMonitor when both metrics flags are enabled; the cluster must provide
+the ServiceMonitor CRD, and a Prometheus Operator must select the object for
+scraping.
 
 Operators remain responsible for log collection, alert rules, dashboards,
 external availability checks, TLS telemetry, and monitoring the routing

@@ -199,14 +199,13 @@ metrics:
     enabled: true
     labels:
       release: prometheus
-
-serverStatus:
-  enabled: true
-  require: "all granted"
 ```
 
-In production, combine metrics with NetworkPolicy and ServiceMonitor selectors
-so `mod_status` is reachable only from trusted scrape paths.
+`metrics.enabled` also renders the local `mod_status` endpoint required by the
+sidecar. Use `serverStatus.enabled` only when status is needed without the
+exporter; keep its `Require` expression restricted. In production, combine
+metrics with NetworkPolicy and ServiceMonitor selectors so only trusted scrape
+paths can reach the exporter port.
 
 ## Network Policy
 
@@ -256,8 +255,8 @@ paths to match your served content.
   `/healthz` remains served on `containerPorts.http`.
 - If Basic Auth prevents startup, verify that `basicAuth.existingSecret`
   exists and contains `basicAuth.htpasswdKey` in the release namespace.
-- If metrics are unavailable, enable both `metrics.enabled` and
-  `serverStatus.enabled`, then allow the metrics port through NetworkPolicy.
+- If metrics are unavailable, enable `metrics.enabled`, verify the exporter can
+  reach local `mod_status`, and allow the metrics port through NetworkPolicy.
 - If an HTTPRoute is not accepted, inspect its parent status and confirm that
   the referenced Gateway permits routes from the release namespace.
 
