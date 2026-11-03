@@ -219,6 +219,19 @@
           "type": "object",
           "additionalProperties": true
         },
+        "headless": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "annotations": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "publishNotReadyAddresses": {
+              "type": "boolean"
+            }
+          }
+        },
         "ipFamilyPolicy": {
           "type": "string",
           "enum": [
@@ -241,7 +254,15 @@
         },
         "ports": {
           "type": "object",
-          "additionalProperties": true
+          "additionalProperties": true,
+          "properties": {
+            "client": { "type": "integer", "minimum": 1, "maximum": 65535 },
+            "tls": { "type": "integer", "minimum": 1, "maximum": 65535 },
+            "follower": { "type": "integer", "minimum": 1, "maximum": 65535 },
+            "election": { "type": "integer", "minimum": 1, "maximum": 65535 },
+            "admin": { "type": "integer", "minimum": 1, "maximum": 65535 },
+            "metrics": { "type": "integer", "minimum": 1, "maximum": 65535 }
+          }
         }
       }
     },
@@ -254,6 +275,23 @@
         },
         "allowSameNamespace": {
           "type": "boolean"
+        },
+        "client": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "namespaceSelectors": { "type": "array", "items": { "type": "object" } },
+            "podSelectors": { "type": "array", "items": { "type": "object" } },
+            "ipBlocks": { "type": "array", "items": { "type": "object" } }
+          }
+        },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "namespaceSelectors": { "type": "array", "items": { "type": "object" } },
+            "podSelectors": { "type": "array", "items": { "type": "object" } }
+          }
         },
         "egress": {
           "type": "object",
@@ -301,6 +339,16 @@
         "size": {
           "type": "string",
           "minLength": 1
+        },
+        "dataLogDir": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "storageClass": { "type": "string" },
+            "accessModes": { "type": "array", "items": { "type": "string" } },
+            "size": { "type": "string", "minLength": 1 }
+          }
         }
       }
     },
@@ -315,6 +363,16 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 65535
+        },
+        "service": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "annotations": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
         },
         "serviceMonitor": {
           "type": "object",
@@ -331,6 +389,18 @@
             },
             "scrapeTimeout": {
               "type": "string"
+            },
+            "additionalLabels": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "relabelings": {
+              "type": "array",
+              "items": { "type": "object" }
+            },
+            "metricRelabelings": {
+              "type": "array",
+              "items": { "type": "object" }
             }
           }
         },
@@ -343,6 +413,10 @@
             },
             "namespace": {
               "type": "string"
+            },
+            "additionalLabels": {
+              "type": "object",
+              "additionalProperties": true
             },
             "rules": {
               "type": "array",
@@ -396,27 +470,82 @@
     },
     "podSecurityContext": {
       "type": "object",
-      "additionalProperties": true
+      "additionalProperties": true,
+      "properties": {
+        "fsGroup": { "type": "integer", "minimum": 0 },
+        "fsGroupChangePolicy": {
+          "type": "string",
+          "enum": ["Always", "OnRootMismatch"]
+        }
+      }
     },
     "securityContext": {
       "type": "object",
-      "additionalProperties": true
+      "additionalProperties": true,
+      "properties": {
+        "allowPrivilegeEscalation": { "type": "boolean" },
+        "capabilities": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "drop": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "runAsNonRoot": { "type": "boolean" },
+        "runAsUser": { "type": "integer", "minimum": 0 },
+        "runAsGroup": { "type": "integer", "minimum": 0 }
+      }
     },
     "resources": {
       "type": "object",
-      "additionalProperties": true
+      "additionalProperties": true,
+      "properties": {
+        "requests": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "cpu": { "type": ["string", "number"] },
+            "memory": { "type": ["string", "number"] }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "memory": { "type": ["string", "number"] }
+          }
+        }
+      }
     },
     "livenessProbe": {
       "type": "object",
-      "additionalProperties": true
+      "additionalProperties": true,
+      "properties": {
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
     },
     "readinessProbe": {
       "type": "object",
-      "additionalProperties": true
+      "additionalProperties": true,
+      "properties": {
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
     },
     "startupProbe": {
       "type": "object",
-      "additionalProperties": true
+      "additionalProperties": true,
+      "properties": {
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
     },
     "terminationGracePeriodSeconds": {
       "type": "integer",
@@ -424,7 +553,13 @@
     },
     "updateStrategy": {
       "type": "object",
-      "additionalProperties": true
+      "additionalProperties": true,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["RollingUpdate", "OnDelete"]
+        }
+      }
     },
     "podLabels": {
       "type": "object",
@@ -517,11 +652,25 @@
         },
         "secretStoreRef": {
           "type": "object",
-          "additionalProperties": true
+          "additionalProperties": true,
+          "properties": {
+            "name": { "type": "string" },
+            "kind": {
+              "type": "string",
+              "enum": ["SecretStore", "ClusterSecretStore"]
+            }
+          }
         },
         "target": {
           "type": "object",
-          "additionalProperties": true
+          "additionalProperties": true,
+          "properties": {
+            "name": { "type": "string" },
+            "creationPolicy": {
+              "type": "string",
+              "enum": ["Owner", "Orphan", "Merge", "None"]
+            }
+          }
         },
         "data": {
           "type": "array",

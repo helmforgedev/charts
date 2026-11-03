@@ -21,7 +21,7 @@ helm install zookeeper helmforge/zookeeper -f values.yaml
 helm install zookeeper oci://ghcr.io/helmforgedev/helm/zookeeper -f values.yaml
 ```
 
-## What This Chart Covers
+## Features
 
 - official Apache ZooKeeper image with pinned `3.9.6` default tag
 - replicated StatefulSet ensemble with stable pod DNS
@@ -93,6 +93,15 @@ metrics:
   serviceMonitor:
     enabled: true
 ```
+
+## Example Configurations
+
+- [`examples/standalone.yaml`](examples/standalone.yaml) provides an ephemeral single-node development deployment.
+- [`examples/production.yaml`](examples/production.yaml) provides a persistent three-node ensemble with quorum-safe disruption settings.
+- [`examples/monitoring.yaml`](examples/monitoring.yaml) enables the Prometheus provider, ServiceMonitor, and alert rules.
+
+Review every example against the target cluster's StorageClass, failure domains, security policy, and monitoring labels
+before production use.
 
 ## Client Endpoint
 
@@ -237,6 +246,22 @@ listed families.
 | `networkPolicy.enabled` | Create NetworkPolicy | `false` |
 | `networkPolicy.egress.allowSameNamespace` | Allow same-namespace egress on client/admin/metrics ports | `false` |
 | `externalSecrets.enabled` | Create ExternalSecret | `false` |
+
+## Troubleshooting
+
+If pods do not form quorum, confirm that the replica count is odd, every pod can resolve the headless Service, and TCP
+ports 2888 and 3888 are allowed between ensemble members. Check `kubectl logs` on every ordinal because the elected
+leader may not be pod zero.
+
+If clients cannot connect, verify the client Service endpoints and match the client authentication and TLS settings to
+the application. SASL clients need the configured username and JAAS password; TLS clients need a truststore that trusts
+the certificate mounted by `tls.client.existingSecret`.
+
+If a pod cannot remount existing data after scheduling changes, inspect PVC binding, StorageClass topology, file
+ownership, and the configured `podSecurityContext.fsGroup`. Do not delete PVCs while diagnosing quorum or recovery.
+
+See [`docs/operations.md`](docs/operations.md), [`docs/security.md`](docs/security.md), and
+[`docs/observability.md`](docs/observability.md) for operational commands and production checks.
 
 ## CI Scenarios
 
