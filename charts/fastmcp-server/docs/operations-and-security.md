@@ -46,8 +46,13 @@ need different endpoints:
 - package indexes when `extraPipPackages` is used;
 - DNS and cluster services.
 
-If your cluster enforces default-deny egress, add a separate platform
-NetworkPolicy that allows the endpoints required by the selected sources.
+With the default empty `networkPolicy.extraEgress`, this chart does not select
+the Egress policy type. When `extraEgress` contains rules, the chart enables
+egress enforcement and allows only those rules. Include DNS plus every Git,
+S3, JWKS, package-index, and downstream-tool destination required by the
+deployment. A separate platform NetworkPolicy may also enforce organization
+policy, but Kubernetes NetworkPolicies are additive and cannot restore traffic
+omitted from the selected allow rules.
 
 ## Pod Security
 

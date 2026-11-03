@@ -21,13 +21,15 @@ MCP tools, resources, prompts, and knowledge bases from inline ConfigMaps, S3-co
 - Dual-stack Service options for IPv4/IPv6 clusters
 - Restricted pod defaults with service account token automount disabled
 
-### 🟢 Security Scan: `fastmcp-server`
+### Security Scan: `fastmcp-server`
 
 | Framework | Score |
 |---|---|
 | MITRE + NSA + SOC2 | **90.90909%** |
 
-> ✅ Security posture acceptable.
+Security posture: acceptable for the scanned controls. Operators remain
+responsible for authenticating public endpoints and reviewing executable source
+content.
 
 ## Quick Start
 
@@ -398,3 +400,32 @@ Then use `http://localhost:8000/mcp` as the URL (no auth if `auth.type=none`).
 - [Basic inline tools](examples/basic/)
 - [S3 source with MinIO](examples/s3-minio/)
 - [Production setup](examples/production/)
+
+## Troubleshooting
+
+Check rollout status and application logs first:
+
+```bash
+kubectl rollout status deployment/fastmcp-server
+kubectl logs deployment/fastmcp-server
+```
+
+When `initSync.enabled=true`, inspect the source synchronization container:
+
+```bash
+kubectl logs deployment/fastmcp-server -c source-sync
+```
+
+If the pod is healthy but clients cannot connect, port-forward the Service and
+test the configured MCP path directly:
+
+```bash
+kubectl port-forward service/fastmcp-server 8000:8000
+curl http://127.0.0.1:8000/healthz
+curl http://127.0.0.1:8000/mcp
+```
+
+Authentication failures usually indicate that the client header, referenced
+Secret name, or configured Secret key does not match the selected auth mode.
+Source-loading failures are reported in the application or `source-sync` logs;
+also verify network egress and the Git, S3, or JWKS endpoint independently.
