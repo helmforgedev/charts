@@ -41,7 +41,7 @@ helm install memcached helmforge/memcached -f values.yaml
 helm install memcached oci://ghcr.io/helmforgedev/helm/memcached -f values.yaml
 ```
 
-## What this chart covers
+## Features
 
 - official Memcached image with pinned default tag
 - `standalone` and `distributed` topologies
@@ -107,6 +107,19 @@ Start from [examples/production.yaml](examples/production.yaml) and adapt:
 
 For a production checklist, cache sizing guidance, and operational probes, read
 [docs/production.md](docs/production.md).
+
+## Examples
+
+- [Production values](examples/production.yaml)
+- [Default CI scenario](ci/default-values.yaml)
+- [Authentication](ci/auth-values.yaml)
+- [SASL](ci/sasl-values.yaml)
+- [TLS production profile](ci/production-values.yaml)
+- [Extstore](ci/extstore-values.yaml)
+- [Metrics](ci/metrics-values.yaml)
+- [NetworkPolicy](ci/network-policy-values.yaml)
+- [External Secrets](ci/external-secrets-values.yaml)
+- [Dual-stack Service](ci/dual-stack-values.yaml)
 
 ## Authentication
 
@@ -380,6 +393,29 @@ Check logs:
 ```bash
 kubectl logs statefulset/memcached -c memcached
 ```
+
+## Troubleshooting
+
+Use the release name and namespace chosen during installation:
+
+```bash
+RELEASE=memcached
+NAMESPACE=default
+kubectl rollout status statefulset \
+  --selector "app.kubernetes.io/instance=${RELEASE}" --namespace "${NAMESPACE}"
+kubectl get service,endpoints,pod \
+  --selector "app.kubernetes.io/instance=${RELEASE}" --namespace "${NAMESPACE}"
+kubectl logs --selector "app.kubernetes.io/instance=${RELEASE}" \
+  --namespace "${NAMESPACE}" --container memcached --tail=200
+helm test "${RELEASE}" --namespace "${NAMESPACE}"
+```
+
+If distributed clients lose keys after scaling, confirm that the client uses
+consistent hashing; the servers do not replicate entries. For authentication
+failures, verify `auth.mode`, the mounted Secret keys, and client protocol
+support. For TLS, inspect the certificate SAN and remember that TCP probes are
+intentionally absent. For exporter failures, do not combine metrics with
+Memcached authentication, and verify the TLS server name when TLS is enabled.
 
 ## Design
 
