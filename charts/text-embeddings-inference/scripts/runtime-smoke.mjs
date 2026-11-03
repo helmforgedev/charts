@@ -133,7 +133,19 @@ if(values.auth.enabled&&!values.auth.existingSecret){
  assert.ok(readKey()===apiKey,'Generated credential changed during Helm upgrade');
  console.log('PASS generated API credential retained by real Helm upgrade');
 }
-kubectl(['rollout','restart','deployment/'+deploy.metadata.name]);kubectl(['rollout','status','deployment/'+deploy.metadata.name,'--timeout=120s'],{timeout:130000});
+const oldReplicaSets=JSON.parse(kubectl(['get','replicasets','-l',selector,'-o','json'])).items
+ .filter(rs=>(rs.spec.replicas??0)>0&&rs.metadata.ownerReferences?.some(owner=>owner.uid===deploy.metadata.uid))
+ .map(rs=>({name:rs.metadata.name,hash:rs.metadata.labels['pod-template-hash']}));
+assert.ok(oldReplicaSets.length>0,'No active ReplicaSet found before Pod replacement');
+kubectl(['rollout','restart','deployment/'+deploy.metadata.name]);
+// This verifies replacement behavior, not the full graceful-drain window. Force
+// every old Pod out only after its ReplicaSet has scaled down, preventing the
+// controller from recreating an old-revision Pod during the test.
+for(const rs of oldReplicaSets){
+ kubectl(['wait','--for=jsonpath={.spec.replicas}=0','replicaset/'+rs.name,'--timeout=90s'],{timeout:100000});
+ kubectl(['delete','pods','-l',selector+',pod-template-hash='+rs.hash,'--grace-period=0','--force','--wait=false','--ignore-not-found=true']);
+}
+kubectl(['rollout','status','deployment/'+deploy.metadata.name,'--timeout=120s'],{timeout:130000});
 assert.ok(readKey()===apiKey,'API credential changed after Pod replacement');
 for(const p of pods())await forward('pod/'+p.metadata.name,values.proxy.port,base=>check(base));
 if(values.cache.persistence.enabled)assert.equal(kubectl(['exec',pods()[0].metadata.name,'-c','tei','--','cat','/data/helmforge-cache-marker']),'retained');
