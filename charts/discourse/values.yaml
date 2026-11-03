@@ -1,0 +1,411 @@
+# SPDX-License-Identifier: Apache-2.0
+# =============================================================================
+# Discourse Helm Chart
+# =============================================================================
+# Experimental deployment of the official Discourse ESR image. Upstream still
+# classifies this image and Kubernetes deployments as unsupported for production.
+# =============================================================================
+
+# -- Override the chart name used in resource names
+nameOverride: ""
+
+# -- Override the full release name used in resource names
+fullnameOverride: ""
+
+# -- Labels added to every resource created by this chart
+commonLabels: {}
+
+# -- Number of Discourse replicas. The experimental upstream image is supported by this chart only as a singleton.
+replicaCount: 1
+
+image:
+  # -- Official Discourse image repository
+  repository: docker.io/discourse/discourse
+  # -- Official ESR image tag
+  tag: "2026.7.4"
+  # -- Immutable multi-architecture OCI index digest. Required because upstream rebuilds numeric tags.
+  digest: sha256:8ae4f1e692a5da1548a36a6d9fc2bae18cf28d1efbebb12ba16928b31b14783d
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+discourse:
+  # -- Public hostname for the forum. Bare IP addresses are not supported upstream.
+  hostname: discourse.localhost
+  # -- Comma-separated developer/admin email addresses
+  developerEmails: admin@example.com
+  # -- Secret key base. Generated and preserved in a Kubernetes Secret when empty.
+  secretKeyBase: ""
+  # -- Existing Secret containing the Discourse secret key base
+  existingSecret: ""
+  # -- Key in discourse.existingSecret containing the secret key base
+  existingSecretKey: secret-key-base
+  # -- Skip upstream SMTP validation. Disable only after configuring SMTP through extraEnv or a Secret.
+  skipEmailSetup: true
+  # -- Number of Unicorn web workers supervised by the official image
+  unicornWorkers: 2
+  # -- Number of Sidekiq workers supervised by the official image
+  unicornSidekiqs: 1
+  # -- Additional environment variables for the official Discourse container
+  extraEnv: []
+  # -- Additional envFrom sources for the official Discourse container
+  extraEnvFrom: []
+
+database:
+  # -- Database mode: postgresql or external
+  mode: postgresql
+  external:
+    # -- External PostgreSQL hostname
+    host: ""
+    # -- External PostgreSQL port
+    port: 5432
+    # -- External PostgreSQL database name
+    name: discourse
+    # -- External PostgreSQL username
+    username: discourse
+    # -- External PostgreSQL password. Prefer existingSecret.
+    password: ""
+    # -- Existing Secret containing the external PostgreSQL password
+    existingSecret: ""
+    # -- Key in database.external.existingSecret containing the password
+    existingSecretPasswordKey: database-password
+
+# -- Deploy PostgreSQL as a subchart
+postgresql:
+  enabled: true
+  architecture: standalone
+  image:
+    # -- Official pgvector image required by the bundled Discourse AI plugin
+    repository: docker.io/pgvector/pgvector
+    # -- Immutable pgvector 0.8.7 image for PostgreSQL 18 on Debian Trixie
+    tag: 0.8.7-pg18-trixie@sha256:5895949dfcdf308eb0cd31c950c93c14895c77f33fbedfecf1fa511ab1d4bcd2
+    pullPolicy: IfNotPresent
+  auth:
+    # -- PostgreSQL database created for Discourse
+    database: discourse
+    # -- PostgreSQL application username
+    username: discourse
+    # -- PostgreSQL application password. Auto-generated and preserved when empty.
+    password: ""
+    # -- PostgreSQL superuser password. Auto-generated and preserved when empty.
+    postgresPassword: ""
+  initdb:
+    scripts:
+      02-discourse.sh: |
+        #!/bin/sh
+        set -eu
+        psql --username "${POSTGRES_USER}" --dbname postgres \
+          --set=app_database="${APP_DATABASE}" \
+          --set=app_username="${APP_USERNAME}" <<'SQL'
+        SELECT format('ALTER DATABASE %I OWNER TO %I', :'app_database', :'app_username') \gexec
+        SQL
+        psql --username "${POSTGRES_USER}" --dbname "${APP_DATABASE}" <<'SQL'
+        CREATE EXTENSION IF NOT EXISTS pg_trgm;
+        CREATE EXTENSION IF NOT EXISTS unaccent;
+        CREATE EXTENSION IF NOT EXISTS vector;
+        SQL
+  standalone:
+    persistence:
+      # -- Enable PostgreSQL data persistence
+      enabled: true
+      # -- PostgreSQL PVC size
+      size: 8Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+
+# -- Deploy Redis as a subchart
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    # -- Enable Redis password authentication. Disabled by default for compatibility with the experimental image.
+    enabled: false
+    # -- Redis password when authentication is enabled
+    password: ""
+  standalone:
+    persistence:
+      # -- Enable Redis data persistence
+      enabled: true
+      # -- Redis PVC size
+      size: 1Gi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  external:
+    # -- External Redis hostname
+    host: ""
+    # -- External Redis port
+    port: 6379
+    # -- External Redis password. Prefer existingSecret.
+    password: ""
+    # -- Existing Secret containing the external Redis password
+    existingSecret: ""
+    # -- Key in redis.external.existingSecret containing the password
+    existingSecretPasswordKey: redis-password
+
+persistence:
+  # -- Persist the upstream /shared directory
+  enabled: true
+  # -- Existing PVC mounted at /shared instead of creating one
+  existingClaim: ""
+  # -- Storage class for the /shared PVC. Empty uses the cluster default.
+  storageClass: ""
+  # -- Access modes for the /shared PVC
+  accessModes:
+    - ReadWriteOnce
+  # -- Requested size for the /shared PVC
+  size: 10Gi
+  # -- Annotations added to the /shared PVC
+  annotations: {}
+
+service:
+  # -- Kubernetes Service type
+  type: ClusterIP
+  # -- Public Service port. The fixed upstream listener remains port 80.
+  port: 80
+  # -- Service annotations
+  annotations: {}
+  # -- IP family policy. One of SingleStack, PreferDualStack, RequireDualStack. Empty uses the cluster default.
+  ipFamilyPolicy: ""
+  # -- Ordered IP families for the Service. Empty uses the cluster default.
+  ipFamilies: []
+
+ingress:
+  # -- Create a Kubernetes Ingress for Discourse
+  enabled: false
+  # -- Ingress class name
+  ingressClassName: ""
+  # -- Ingress annotations
+  annotations: {}
+  # -- Ingress host and path rules
+  hosts:
+    - host: discourse.localhost
+      paths:
+        - path: /
+          pathType: Prefix
+  # -- Ingress TLS entries
+  tls: []
+
+gatewayAPI:
+  # -- Create a Gateway API HTTPRoute
+  enabled: false
+  # -- HTTPRoute API version
+  apiVersion: gateway.networking.k8s.io/v1
+  # -- HTTPRoute annotations
+  annotations: {}
+  # -- Gateway parent references
+  parentRefs: []
+  # -- HTTPRoute hostnames
+  hostnames: []
+  # -- HTTPRoute matches
+  matches:
+    - path:
+        type: PathPrefix
+        value: /
+
+networkPolicy:
+  # -- Create a NetworkPolicy for the Discourse pod
+  enabled: false
+  ingress:
+    # -- Allow ingress from pods in the release namespace
+    allowSameNamespace: true
+    # -- Additional NetworkPolicy ingress peers
+    extraFrom: []
+  egress:
+    # -- Enforce egress policy
+    enabled: true
+    # -- Allow DNS queries to kube-system
+    allowDNS: true
+    # -- Allow PostgreSQL and Redis connections inside the release namespace
+    allowSameNamespaceServices: true
+    # -- Allow outbound HTTPS for Discourse integrations and upstream downloads
+    allowHTTPS: true
+    # -- Allow outbound SMTP
+    allowSMTP: false
+    # -- SMTP destination port
+    smtpPort: 587
+    # -- Additional NetworkPolicy egress rules
+    extraEgress: []
+
+podDisruptionBudget:
+  # -- Create a PDB. Disabled by default because this chart intentionally supports one replica only.
+  enabled: false
+  # -- Maximum unavailable pods. Must remain 1 for the singleton runtime.
+  maxUnavailable: 1
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount
+  create: true
+  # -- ServiceAccount name. Generated when empty.
+  name: ""
+  # -- ServiceAccount annotations
+  annotations: {}
+  # -- Mount a Kubernetes API token into the pod
+  automountServiceAccountToken: false
+
+# -- Pod-level security context. The official boot process requires root but shared files use GID 1000.
+podSecurityContext:
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+
+# -- Container security context required by the official upstream boot process
+securityContext:
+  runAsUser: 0
+  runAsNonRoot: false
+  readOnlyRootFilesystem: false
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+    add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - NET_BIND_SERVICE
+      - SETGID
+      - SETUID
+
+waitForServices:
+  image:
+    # -- Official BusyBox repository used only to wait for PostgreSQL and Redis sockets
+    repository: docker.io/library/busybox
+    # -- Pinned BusyBox tag
+    tag: 1.37.0-uclibc
+    # -- BusyBox pull policy
+    pullPolicy: IfNotPresent
+  # -- Security context for the dependency wait init container
+  securityContext:
+    runAsUser: 65534
+    runAsGroup: 65534
+    runAsNonRoot: true
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+  # -- Resource requests and limits for the dependency wait init container
+  resources:
+    requests:
+      cpu: 5m
+      memory: 8Mi
+    limits:
+      cpu: 50m
+      memory: 32Mi
+
+startupProbe:
+  # -- Enable the startup probe
+  enabled: true
+  # -- Startup probe path served by upstream Nginx
+  path: /srv/status
+  # -- Seconds between startup checks
+  periodSeconds: 10
+  # -- Startup probe timeout
+  timeoutSeconds: 5
+  # -- Consecutive startup failures allowed
+  failureThreshold: 60
+
+livenessProbe:
+  # -- Enable the liveness probe
+  enabled: true
+  # -- Liveness probe path served by upstream Nginx
+  path: /srv/status
+  # -- Seconds between liveness checks
+  periodSeconds: 20
+  # -- Liveness probe timeout
+  timeoutSeconds: 5
+  # -- Consecutive liveness failures allowed
+  failureThreshold: 6
+
+readinessProbe:
+  # -- Enable the readiness probe
+  enabled: true
+  # -- Readiness probe path served by upstream Nginx
+  path: /srv/status
+  # -- Seconds between readiness checks
+  periodSeconds: 10
+  # -- Readiness probe timeout
+  timeoutSeconds: 5
+  # -- Consecutive readiness failures allowed
+  failureThreshold: 6
+
+# -- Discourse container resources. The official image is memory-intensive during first boot.
+resources:
+  requests:
+    cpu: 250m
+    memory: 1Gi
+  limits:
+    cpu: 2000m
+    memory: 3Gi
+
+# -- Seconds allowed for graceful shutdown
+terminationGracePeriodSeconds: 120
+
+# -- Seconds allowed for the Deployment to make progress. The first pull and boot of the large official image can take several minutes.
+progressDeadlineSeconds: 1800
+
+# -- Labels added to the Discourse pod
+podLabels: {}
+
+# -- Annotations added to the Discourse pod
+podAnnotations: {}
+
+# -- Pod priority class name
+priorityClassName: ""
+
+# -- Node selector for scheduling
+nodeSelector: {}
+
+# -- Tolerations for scheduling
+tolerations: []
+
+# -- Affinity rules for scheduling
+affinity: {}
+
+# -- Topology spread constraints for scheduling
+topologySpreadConstraints: []
+
+# -- Additional volumes appended to the pod
+extraVolumes: []
+
+# -- Additional volume mounts appended to the Discourse container
+extraVolumeMounts: []
+
+# -- Extra Kubernetes manifests deployed with the chart
+extraManifests: []
+
+externalSecrets:
+  # -- Render ExternalSecret resources for External Secrets Operator
+  enabled: false
+  # -- ExternalSecret API version. The chart renders external-secrets.io/v1.
+  apiVersion: external-secrets.io/v1
+  # -- Default refresh interval injected into items without spec.refreshInterval
+  refreshInterval: 1h
+  # -- ExternalSecret definitions. Each item carries a complete spec and may target application, database, or Redis credentials.
+  items: []
+    # - fullnameOverride: discourse-credentials
+    #   spec:
+    #     secretStoreRef:
+    #       name: platform-secrets
+    #       kind: ClusterSecretStore
+    #     target:
+    #       name: discourse-credentials
+    #       creationPolicy: Owner
+    #     data:
+    #       - secretKey: secret-key-base
+    #         remoteRef:
+    #           key: production/discourse
+    #           property: secret-key-base
+
+# -- Global values accepted for parent-chart composition
+global: {}

@@ -1,0 +1,183 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "discourse.fullname" . }}
+  labels:
+    {{- include "discourse.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  progressDeadlineSeconds: {{ .Values.progressDeadlineSeconds }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "discourse.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "discourse.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "discourse.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      initContainers:
+        - name: wait-for-services
+          image: "{{ .Values.waitForServices.image.repository }}:{{ .Values.waitForServices.image.tag }}"
+          imagePullPolicy: {{ .Values.waitForServices.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.waitForServices.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.waitForServices.resources | nindent 12 }}
+          command:
+            - sh
+            - -ec
+            - |
+              until nc -z -w 2 {{ include "discourse.databaseHost" . }} {{ include "discourse.databasePort" . }}; do sleep 2; done
+              until nc -z -w 2 {{ include "discourse.redisHost" . }} {{ include "discourse.redisPort" . }}; do sleep 2; done
+      containers:
+        - name: discourse
+          image: {{ include "discourse.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 80 # helmforge: fixed-protocol-port -- the official Nginx runtime always listens on port 80.
+              protocol: TCP
+          env:
+            - name: DISCOURSE_HOSTNAME
+              value: {{ .Values.discourse.hostname | quote }}
+            - name: DISCOURSE_DEVELOPER_EMAILS
+              value: {{ .Values.discourse.developerEmails | quote }}
+            - name: DISCOURSE_SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "discourse.secretName" . }}
+                  key: {{ include "discourse.secretKey" . }}
+            - name: DISCOURSE_DB_HOST
+              value: {{ include "discourse.databaseHost" . | quote }}
+            - name: DISCOURSE_DB_PORT
+              value: {{ include "discourse.databasePort" . | quote }}
+            - name: DISCOURSE_DB_NAME
+              value: {{ include "discourse.databaseName" . | quote }}
+            - name: DISCOURSE_DB_USERNAME
+              value: {{ include "discourse.databaseUsername" . | quote }}
+            - name: DISCOURSE_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "discourse.databaseSecretName" . }}
+                  key: {{ include "discourse.databaseSecretKey" . }}
+            - name: DISCOURSE_REDIS_HOST
+              value: {{ include "discourse.redisHost" . | quote }}
+            - name: DISCOURSE_REDIS_PORT
+              value: {{ include "discourse.redisPort" . | quote }}
+            {{- if and (not .Values.redis.enabled) (or .Values.redis.external.password .Values.redis.external.existingSecret) }}
+            - name: DISCOURSE_REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "discourse.redisSecretName" . }}
+                  key: {{ include "discourse.redisSecretKey" . }}
+            {{- end }}
+            - name: DISCOURSE_SKIP_EMAIL_SETUP
+              value: {{ ternary "1" "0" .Values.discourse.skipEmailSetup | quote }}
+            - name: UNICORN_WORKERS
+              value: {{ .Values.discourse.unicornWorkers | quote }}
+            - name: UNICORN_SIDEKIQS
+              value: {{ .Values.discourse.unicornSidekiqs | quote }}
+            - name: MIGRATE_ON_BOOT
+              value: "1"
+            - name: PRECOMPILE_ON_BOOT
+              value: "1"
+            - name: CREATE_DB_ON_BOOT
+              value: "0"
+            {{- with .Values.discourse.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.discourse.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.startupProbe.path }}
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: {{ .Values.discourse.hostname }}
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.livenessProbe.path }}
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: {{ .Values.discourse.hostname }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.readinessProbe.path }}
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: {{ .Values.discourse.hostname }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: shared
+              mountPath: /shared
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: shared
+          persistentVolumeClaim:
+            claimName: {{ include "discourse.sharedClaimName" . }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

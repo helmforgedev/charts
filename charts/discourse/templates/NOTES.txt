@@ -1,0 +1,83 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+Discourse has been installed as an experimental chart.
+
+1. Installation summary
+=======================
+- Release: {{ .Release.Name }}
+- Namespace: {{ .Release.Namespace }}
+- Chart: {{ .Chart.Name }} {{ .Chart.Version }}
+- Application: Discourse {{ .Chart.AppVersion }}
+- Image: {{ include "discourse.image" . }}
+- Support boundary: upstream classifies this container and Kubernetes path as unsupported for production.
+
+2. Access
+=========
+- Service: {{ include "discourse.fullname" . }}
+- Port: {{ .Values.service.port }}
+- Hostname: {{ .Values.discourse.hostname }}
+
+Run:
+  kubectl port-forward --namespace {{ .Release.Namespace }} service/{{ include "discourse.fullname" . }} 8080:{{ .Values.service.port }}
+
+Then open:
+  http://{{ .Values.discourse.hostname }}:8080
+
+3. Getting started
+==================
+Wait for the singleton pod:
+  kubectl wait --namespace {{ .Release.Namespace }} \
+    --for=condition=Ready pod \
+    --selector app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name={{ include "discourse.name" . }} \
+    --timeout=15m
+
+The first boot runs database migrations and asset precompilation and can take several minutes.
+
+4. Credentials
+==============
+- The Discourse secret key base is stored in Secret {{ include "discourse.secretName" . }}.
+- PostgreSQL credentials are sourced from the selected database Secret.
+- SMTP is skipped by default. Configure real SMTP before inviting users.
+
+5. Configuration summary
+========================
+- Replicas: 1 (enforced)
+- Shared persistence: enabled
+- Shared claim: {{ include "discourse.sharedClaimName" . }}
+- PostgreSQL mode: {{ .Values.database.mode }}
+- Redis subchart: {{ .Values.redis.enabled }}
+- Service account token mounted: {{ .Values.serviceAccount.automountServiceAccountToken }}
+- Root runtime exception: enabled as required by the official image
+
+6. Validation commands
+======================
+  helm status {{ .Release.Name }} --namespace {{ .Release.Namespace }}
+  kubectl get pods,service,pvc --namespace {{ .Release.Namespace }}
+  kubectl get endpoints {{ include "discourse.fullname" . }} --namespace {{ .Release.Namespace }}
+  kubectl exec --namespace {{ .Release.Namespace }} deployment/{{ include "discourse.fullname" . }} -- \
+    curl --fail --header 'Host: {{ .Values.discourse.hostname }}' http://127.0.0.1/srv/status
+
+7. Troubleshooting
+==================
+Inspect startup and migration logs:
+  kubectl logs --namespace {{ .Release.Namespace }} deployment/{{ include "discourse.fullname" . }} --all-containers=true --tail=300
+
+Inspect the previous container after a restart:
+  kubectl logs --namespace {{ .Release.Namespace }} deployment/{{ include "discourse.fullname" . }} --previous --tail=300
+
+Inspect events:
+  kubectl get events --namespace {{ .Release.Namespace }} --sort-by=.lastTimestamp
+
+Confirm dependencies:
+  kubectl get pods,service --namespace {{ .Release.Namespace }}
+
+Do not increase replicaCount. The experimental image performs boot-time migrations and asset preparation.
+Do not disable /shared persistence. Uploads, backups, logs, and runtime state use this path.
+
+8. Resources
+============
+- HelmForge docs: https://helmforge.dev/docs/charts/discourse
+- Upstream source: https://github.com/discourse/discourse
+- Upstream container tooling: https://github.com/discourse/discourse_docker
+- Issues: https://github.com/helmforgedev/charts/issues
+
+Happy Helmforging :)

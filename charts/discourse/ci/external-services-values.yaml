@@ -1,0 +1,103 @@
+# SPDX-License-Identifier: Apache-2.0
+postgresql:
+  enabled: false
+
+database:
+  mode: external
+  external:
+    host: discourse-external-postgresql
+    port: 5432
+    name: discourse
+    username: discourse
+    password: helmforge-test-password
+
+redis:
+  enabled: false
+  external:
+    host: discourse-external-redis
+    port: 6379
+
+extraManifests:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: discourse-external-postgresql
+    spec:
+      selector:
+        app.kubernetes.io/name: discourse-external-postgresql
+      ports:
+        - name: postgresql
+          port: 5432
+          targetPort: postgresql
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: discourse-external-postgresql
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: discourse-external-postgresql
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: discourse-external-postgresql
+        spec:
+          containers:
+            - name: postgresql
+              image: docker.io/pgvector/pgvector:0.8.7-pg18-trixie@sha256:5895949dfcdf308eb0cd31c950c93c14895c77f33fbedfecf1fa511ab1d4bcd2
+              env:
+                - name: POSTGRES_DB
+                  value: discourse
+                - name: POSTGRES_USER
+                  value: discourse
+                - name: POSTGRES_PASSWORD
+                  value: helmforge-test-password
+              ports:
+                - name: postgresql
+                  containerPort: 5432
+              readinessProbe:
+                exec:
+                  command: ["pg_isready", "-U", "discourse", "-d", "discourse"]
+                periodSeconds: 5
+              volumeMounts:
+                - name: data
+                  mountPath: /var/lib/postgresql
+          volumes:
+            - name: data
+              emptyDir: {}
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: discourse-external-redis
+    spec:
+      selector:
+        app.kubernetes.io/name: discourse-external-redis
+      ports:
+        - name: redis
+          port: 6379
+          targetPort: redis
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: discourse-external-redis
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: discourse-external-redis
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: discourse-external-redis
+        spec:
+          containers:
+            - name: redis
+              image: docker.io/library/redis:8.10.2
+              ports:
+                - name: redis
+                  containerPort: 6379
+              readinessProbe:
+                exec:
+                  command: ["redis-cli", "ping"]
+                periodSeconds: 5

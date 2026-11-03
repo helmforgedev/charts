@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Discourse deployment
+templates:
+  - templates/deployment.yaml
+tests:
+  - it: renders the official image by immutable digest
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - equal:
+          path: spec.progressDeadlineSeconds
+          value: 1800
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/discourse/discourse:2026.7.4@sha256:8ae4f1e692a5da1548a36a6d9fc2bae18cf28d1efbebb12ba16928b31b14783d
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 80
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 0
+  - it: uses an existing application secret and key
+    set:
+      discourse.existingSecret: discourse-credentials
+      discourse.existingSecretKey: app-secret
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[2].valueFrom.secretKeyRef.name
+          value: discourse-credentials
+      - equal:
+          path: spec.template.spec.containers[0].env[2].valueFrom.secretKeyRef.key
+          value: app-secret
