@@ -28,8 +28,10 @@ during rollouts, while a persistent claim holds notes and copied plugin data.
   and related state on one filesystem without distributed coordination.
 - Preserve upstream's file-based configuration model by rendering one complete
   `config.yaml` in either a ConfigMap or Secret.
-- Copy bundled plugins into the writable data volume without replacing plugins
-  already managed by the user.
+- Copy bundled plugins into `notediscovery.pluginsDir` without replacing plugins
+  already managed by the user. The default path is under `persistence.mountPath`.
+  A custom path must also be under `persistence.mountPath`; otherwise the copied
+  plugins are neither persisted nor mounted into the application container.
 - Keep Ingress, Gateway API and External Secrets as optional integrations rather
   than installing their controllers.
 
