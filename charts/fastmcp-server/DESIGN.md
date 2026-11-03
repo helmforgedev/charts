@@ -109,9 +109,11 @@ Python package endpoints.
 
 NetworkPolicy is opt-in. When enabled, it constrains ingress to the configured
 server port. Egress remains unrestricted when `networkPolicy.extraEgress` is
-empty. Supplying rules enables the Egress policy type and restricts traffic to
-those rules, so operators must include DNS and every required Git, S3, JWKS,
-package-index, and downstream-tool destination.
+empty. Supplying rules enables the Egress policy type for the chart's policy
+and allows those rules. The effective Kubernetes egress allow set is the union
+of all NetworkPolicies that select the pods. To avoid relying on another
+matching policy, include DNS and every required Git, S3, JWKS, package-index,
+and downstream-tool destination.
 
 Production operators should use existing Secrets, authenticate every externally
 reachable endpoint, pin controlled source revisions, set resource limits, and

@@ -48,11 +48,12 @@ need different endpoints:
 
 With the default empty `networkPolicy.extraEgress`, this chart does not select
 the Egress policy type. When `extraEgress` contains rules, the chart enables
-egress enforcement and allows only those rules. Include DNS plus every Git,
-S3, JWKS, package-index, and downstream-tool destination required by the
-deployment. A separate platform NetworkPolicy may also enforce organization
-policy, but Kubernetes NetworkPolicies are additive and cannot restore traffic
-omitted from the selected allow rules.
+egress enforcement for its NetworkPolicy and allows those rules. The effective
+Kubernetes egress allow set is the union of rules from all NetworkPolicies that
+select the pods. Include DNS plus every Git, S3, JWKS, package-index, and
+downstream-tool destination unless another matching Kubernetes NetworkPolicy
+provides the required allow rule. External policy mechanisms may still deny
+traffic.
 
 ## Pod Security
 

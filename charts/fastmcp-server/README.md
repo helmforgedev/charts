@@ -406,23 +406,36 @@ Then use `http://localhost:8000/mcp` as the URL (no auth if `auth.type=none`).
 Check rollout status and application logs first:
 
 ```bash
-kubectl rollout status deployment/fastmcp-server
-kubectl logs deployment/fastmcp-server
+RELEASE=fastmcp-server
+NAMESPACE=default
+DEPLOYMENT=$(kubectl get deployment -n "$NAMESPACE" \
+  -l "app.kubernetes.io/instance=$RELEASE,app.kubernetes.io/name=fastmcp-server" \
+  -o jsonpath='{.items[0].metadata.name}')
+kubectl rollout status deployment/"$DEPLOYMENT" -n "$NAMESPACE"
+kubectl logs deployment/"$DEPLOYMENT" -n "$NAMESPACE"
 ```
 
 When `initSync.enabled=true`, inspect the source synchronization container:
 
 ```bash
-kubectl logs deployment/fastmcp-server -c source-sync
+kubectl logs deployment/"$DEPLOYMENT" -c source-sync -n "$NAMESPACE"
 ```
 
 If the pod is healthy but clients cannot connect, port-forward the Service and
 test the configured MCP path directly:
 
 ```bash
-kubectl port-forward service/fastmcp-server 8000:8000
-curl http://127.0.0.1:8000/healthz
-curl http://127.0.0.1:8000/mcp
+SERVICE=$(kubectl get service -n "$NAMESPACE" \
+  -l "app.kubernetes.io/instance=$RELEASE,app.kubernetes.io/name=fastmcp-server" \
+  -o jsonpath='{.items[0].metadata.name}')
+SERVICE_PORT="${SERVICE_PORT:-8000}" # Match service.port.
+MCP_PATH="${MCP_PATH:-/mcp}" # Match server.path.
+kubectl port-forward service/"$SERVICE" \
+  "$SERVICE_PORT:$SERVICE_PORT" -n "$NAMESPACE"
+curl "http://127.0.0.1:$SERVICE_PORT/healthz"
+# A bare GET is expected to return HTTP 406 without an Accept:
+# text/event-stream header; that response confirms the route is reachable.
+curl -i "http://127.0.0.1:$SERVICE_PORT$MCP_PATH"
 ```
 
 Authentication failures usually indicate that the client header, referenced
