@@ -271,7 +271,38 @@
             },
             "securityContext": {
               "type": "object",
-              "description": "Security context for the TLS permission init container"
+              "description": "Security context for the TLS permission init container",
+              "additionalProperties": true,
+              "properties": {
+                "runAsUser": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "runAsNonRoot": {
+                  "type": "boolean"
+                },
+                "allowPrivilegeEscalation": {
+                  "type": "boolean"
+                },
+                "capabilities": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {
+                    "add": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "drop": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
         }
@@ -1051,7 +1082,34 @@
         },
         "resources": {
           "type": "object",
-          "description": "Resources applied to the backup dump and upload containers"
+          "description": "Resources applied to the backup dump and upload containers",
+          "additionalProperties": true,
+          "properties": {
+            "requests": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "cpu": {
+                  "type": ["string", "number"]
+                },
+                "memory": {
+                  "type": ["string", "number"]
+                }
+              }
+            },
+            "limits": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "cpu": {
+                  "type": ["string", "number"]
+                },
+                "memory": {
+                  "type": ["string", "number"]
+                }
+              }
+            }
+          }
         },
         "images": {
           "type": "object",
@@ -1397,11 +1455,109 @@
     },
     "podSecurityContext": {
       "type": "object",
-      "description": "Pod-level security context"
+      "description": "Pod-level security context",
+      "additionalProperties": true,
+      "properties": {
+        "fsGroup": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fsGroupChangePolicy": {
+          "type": "string",
+          "enum": ["Always", "OnRootMismatch"]
+        },
+        "seccompProfile": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["RuntimeDefault", "Localhost", "Unconfined"]
+            },
+            "localhostProfile": {
+              "type": ["string", "null"],
+              "minLength": 1
+            }
+          },
+          "required": ["type"],
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "type": {
+                    "const": "Localhost"
+                  }
+                },
+                "required": ["type"]
+              },
+              "then": {
+                "required": ["localhostProfile"],
+                "properties": {
+                  "localhostProfile": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "type": {
+                    "not": {
+                      "const": "Localhost"
+                    }
+                  }
+                },
+                "required": ["type"]
+              },
+              "then": {
+                "properties": {
+                  "localhostProfile": {
+                    "type": "null"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
     },
     "securityContext": {
       "type": "object",
-      "description": "Container-level security context"
+      "description": "Container-level security context",
+      "additionalProperties": true,
+      "properties": {
+        "runAsUser": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "runAsGroup": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "runAsNonRoot": {
+          "type": "boolean"
+        },
+        "allowPrivilegeEscalation": {
+          "type": "boolean"
+        },
+        "readOnlyRootFilesystem": {
+          "type": "boolean"
+        },
+        "capabilities": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "drop": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
     },
     "podLabels": {
       "type": "object",

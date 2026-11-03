@@ -112,3 +112,34 @@ Use an operator when requirements include:
 - continuous physical backup and PITR reconciliation
 - declarative replica lifecycle management
 - synchronous replication policies with failover awareness
+
+## Security Boundary
+
+The chart configures the main StatefulSet containers to run as non-root and drop Linux capabilities, disables
+service-account token automount by default, and can render TLS, structured `pg_hba.conf` rules, ExternalSecret
+resources, and ingress and egress NetworkPolicies. The official PostgreSQL image needs writable runtime and data paths,
+so the main container does not claim a read-only root filesystem. TLS certificate issuance, SecretStore configuration,
+credential rotation, and encryption of backup objects remain operator responsibilities.
+
+NetworkPolicy enforcement depends on a compatible cluster network plugin. The default client and replication CIDRs
+preserve broad connectivity and must be restricted for production. Server TLS protects PostgreSQL connections when
+enabled, but the chart does not terminate TLS for the optional metrics endpoint or create a certificate authority.
+
+## Observability Boundary
+
+Optional `postgres_exporter` sidecars and Services expose PostgreSQL metrics, and an optional ServiceMonitor integrates
+with an existing Prometheus Operator installation. PostgreSQL logs, Kubernetes events, replication views, backup Job
+status, PVC capacity, and exporter scrape health remain the primary operational signals.
+
+The chart does not install Prometheus, a log collector, dashboards, tracing, or opinionated alert rules. Operators must
+define service-level objectives and alerts for connection saturation, replication lag, WAL retention, storage growth,
+backup freshness, restore testing, and certificate or credential expiry.
+
+## Known Gaps
+
+- replication uses a fixed primary and does not automate promotion, fencing, failback, or split-brain prevention
+- the built-in backup CronJob creates logical dumps but does not provide continuous archiving or point-in-time recovery
+- replication slots can retain WAL until storage is exhausted unless operators configure limits and alerts
+- major PostgreSQL upgrades and storage-class migrations require an external migration plan
+- TLS certificates and database credentials are not issued or rotated automatically by this chart
+- connection pooling and automatic read/write routing require separate platform components
