@@ -120,6 +120,20 @@ strings, so quote values that YAML would read as a boolean or number, for exampl
 `vault.hashicorp.com/agent-inject: "true"`. The chart schema rejects unquoted ones. Only annotations are supported: a
 setting that must be a pod label, such as Istio's `sidecar.istio.io/inject`, cannot be set through these keys.
 
+Kubernetes does not allow an existing Job's pod template to change. Helm hooks handle recreation automatically with
+the default `bootstrap.useHelmHooks: true` and `plugins.installer.useHelmHooks: true`. When either setting is `false`,
+delete the corresponding completed Job before changing its `podAnnotations`, then run the upgrade. Select the Job by
+labels so the command remains valid with name overrides:
+
+```bash
+kubectl delete job -n <namespace> \
+  -l app.kubernetes.io/instance=<release>,app.kubernetes.io/component=bootstrap
+kubectl delete job -n <namespace> \
+  -l app.kubernetes.io/instance=<release>,app.kubernetes.io/component=plugin-installer
+```
+
+The upgrade recreates each enabled non-hook Job with the updated pod template.
+
 ## Routing
 
 Use either Ingress or Gateway API. Do not enable both for the same hostname unless you intentionally want two routing paths.
