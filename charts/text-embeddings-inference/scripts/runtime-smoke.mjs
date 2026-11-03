@@ -133,7 +133,13 @@ if(values.auth.enabled&&!values.auth.existingSecret){
  assert.ok(readKey()===apiKey,'Generated credential changed during Helm upgrade');
  console.log('PASS generated API credential retained by real Helm upgrade');
 }
-kubectl(['rollout','restart','deployment/'+deploy.metadata.name]);kubectl(['rollout','status','deployment/'+deploy.metadata.name,'--timeout=120s'],{timeout:130000});
+const replacedPod=pods()[0].metadata.name;
+kubectl(['rollout','restart','deployment/'+deploy.metadata.name]);
+// This verifies replacement behavior, not the full graceful-drain window. Force
+// the old Pod out after requesting the rollout so the smoke budget stays below
+// the chart's intentionally longer proxy read and termination timeouts.
+kubectl(['delete','pod',replacedPod,'--grace-period=0','--force','--wait=false','--ignore-not-found=true']);
+kubectl(['rollout','status','deployment/'+deploy.metadata.name,'--timeout=120s'],{timeout:130000});
 assert.ok(readKey()===apiKey,'API credential changed after Pod replacement');
 for(const p of pods())await forward('pod/'+p.metadata.name,values.proxy.port,base=>check(base));
 if(values.cache.persistence.enabled)assert.equal(kubectl(['exec',pods()[0].metadata.name,'-c','tei','--','cat','/data/helmforge-cache-marker']),'retained');
