@@ -26,14 +26,15 @@ Standalone is intentionally small. It is appropriate for development, CI, or pro
 ```mermaid
 flowchart LR
   application[Application with client-side hashing]
-  application --> clientService[Client Service]
-  application -. stable pod DNS .-> headless[Headless Service]
-  clientService --> pod0[Memcached pod 0]
-  clientService --> pod1[Memcached pod 1]
-  clientService --> pod2[Memcached pod 2]
-  headless -. discovery .-> pod0
-  headless -. discovery .-> pod1
-  headless -. discovery .-> pod2
+  application -. endpoint discovery .-> headless[Headless Service]
+  headless -. publishes pod DNS .-> pod0[Memcached pod 0]
+  headless -. publishes pod DNS .-> pod1[Memcached pod 1]
+  headless -. publishes pod DNS .-> pod2[Memcached pod 2]
+  application -->|consistent hash selects endpoint| pod0
+  application -->|consistent hash selects endpoint| pod1
+  application -->|consistent hash selects endpoint| pod2
+  application -. optional non-hashed path .-> clientService[Client Service]
+  clientService -. load balances .-> anyPod[Any Memcached pod]
 ```
 
 Memcached does not replicate entries. This is the standard Memcached pool model:
@@ -58,9 +59,11 @@ CA material is optional, and the chart does not generate certificates.
 
 The chart hardens the pod, disables API-token mounting by default, and can
 restrict cache, metrics, and egress traffic with NetworkPolicy. It does not
-authorize individual cache keys, validate client trust, issue certificates, or
-make Memcached safe for direct internet exposure. Operators own network
-segmentation, certificate lifecycle, Secret access, and client authentication.
+authorize individual cache keys, issue certificates, manage client identities,
+or make Memcached safe for direct internet exposure. Memcached can verify
+client certificates when `tls.caKey` and `tls.verifyMode` are configured;
+operators still own network segmentation, PKI, Secret access, and identity
+lifecycle.
 
 ## Observability Boundary
 
@@ -77,11 +80,13 @@ support Memcached authentication. The chart blocks auth plus metrics to avoid a 
 exporter. When TLS scraping is enabled, the exporter verifies the Memcached certificate with a
 Service DNS server name by default while still connecting to the local pod address.
 
-The chart can expose exporter metrics, create a ServiceMonitor and
-PrometheusRule, and provide a Helm connectivity test. The platform owns
-Prometheus Operator, metrics retention, dashboards, alert routing, log
-collection, and end-to-end client monitoring. A ready pod does not prove that
-clients distribute keys correctly or that cache capacity is sufficient.
+The chart can expose exporter metrics and create a ServiceMonitor and
+PrometheusRule. Its Helm test checks connectivity for plaintext and ASCII-auth
+modes; TLS and SASL modes print guidance and require a separate capable client
+test. The platform owns Prometheus Operator, metrics retention, dashboards,
+alert routing, log collection, and end-to-end client monitoring. A ready pod
+does not prove that clients distribute keys correctly or that cache capacity is
+sufficient.
 
 ## Production Boundary
 

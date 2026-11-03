@@ -405,7 +405,7 @@ kubectl rollout status statefulset \
   --selector "app.kubernetes.io/instance=${RELEASE}" --namespace "${NAMESPACE}"
 kubectl get service,endpoints,pod \
   --selector "app.kubernetes.io/instance=${RELEASE}" --namespace "${NAMESPACE}"
-kubectl logs --selector "app.kubernetes.io/instance=${RELEASE}" \
+kubectl logs --selector "app.kubernetes.io/instance=${RELEASE},app.kubernetes.io/component=memcached" \
   --namespace "${NAMESPACE}" --container memcached --tail=200
 helm test "${RELEASE}" --namespace "${NAMESPACE}"
 ```
