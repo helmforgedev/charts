@@ -52,16 +52,19 @@ spec:
           valkey-cli $VALKEY_TLS_ARGS -c -h "$VALKEY_HOST" -p "$VALKEY_PORT" $VALKEY_AUTH_ARGS cluster info
           exit 1
           {{- else }}
+          last_error="no response"
           for i in $(seq 1 30); do
-            if valkey-cli $VALKEY_TLS_ARGS -h "$VALKEY_HOST" -p "$VALKEY_PORT" $VALKEY_AUTH_ARGS ping 2>/dev/null | grep -q PONG; then
+            attempt_output="$(timeout 5s valkey-cli $VALKEY_TLS_ARGS -h "$VALKEY_HOST" -p "$VALKEY_PORT" $VALKEY_AUTH_ARGS ping 2>&1)" || true
+            if printf '%s\n' "$attempt_output" | grep -q '^PONG$'; then
               valkey-cli $VALKEY_TLS_ARGS -h "$VALKEY_HOST" -p "$VALKEY_PORT" $VALKEY_AUTH_ARGS set helmforge:health ok | grep -q OK
               test "$(valkey-cli $VALKEY_TLS_ARGS -h "$VALKEY_HOST" -p "$VALKEY_PORT" $VALKEY_AUTH_ARGS get helmforge:health)" = "ok"
               exit 0
             fi
+            last_error="$attempt_output"
             echo "waiting for Valkey service connectivity ($i/30)"
             sleep 2
           done
-          echo "failed to connect to Valkey service"
+          printf 'failed to connect to Valkey service: %s\n' "$last_error"
           exit 1
           {{- end }}
       env:
