@@ -109,11 +109,15 @@ The policy uses `failurePolicy: Fail` and the upstream Gateway API CEL rules.
 Both policy resources are retained on uninstall. Their ownership must be
 audited before adoption from an existing application release.
 
-The policy constrains Gateway API CRD channel and minimum bundle-version
-transitions; it is not a general admission security policy and does not validate
-Envoy extension CRDs or custom-resource content. Disabling or externally
-managing it transfers that responsibility to the declared cluster owner. The
-chart never enables server-side apply conflict forcing automatically.
+The policy constrains the Gateway API CRD channel and accepts incoming bundle
+versions `v1.5+`; it does not compare the incoming bundle version with
+`oldObject`. It therefore does not prevent a same-channel downgrade, which must
+remain blocked by the operator's forward-only release process unless the policy
+is extended with version comparison. It is not a general admission security
+policy and does not validate Envoy extension CRDs or custom-resource content.
+Disabling or externally managing it transfers that responsibility to the
+declared cluster owner. The chart never enables server-side apply conflict
+forcing automatically.
 
 ## Observability Boundary
 
