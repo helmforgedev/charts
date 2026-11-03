@@ -66,8 +66,11 @@ only completed archive staging.
 
 ## Security Boundary
 
-The chart protects the API with a retained bearer credential, injects provider
-and messaging credentials only from Secrets, and defaults to memory-only tools.
+The chart protects the API with a retained bearer credential, requires Secrets
+for first-class provider and messaging credential fields, and defaults to
+memory-only tools. `extraEnv` is an operator-controlled escape hatch that can
+also inject literal values, so operators must keep credentials out of values
+files and use `valueFrom.secretKeyRef` when extending the environment.
 The gateway and dashboard share one trusted process and state boundary; enabling
 terminal, browser, MCP, messaging or dashboard access grants materially broader
 authority to their authenticated users.
@@ -116,6 +119,8 @@ acceptance before they are enabled for users.
 Hermes exports native gateway-health metrics through OTLP. An optional official collector accepts OTLP only on loopback and exposes Prometheus metrics through a
 restricted Service. ServiceMonitor and PrometheusRule integrate with an existing Prometheus Operator. These are native gateway/scheduler metrics, not inferred
 token costs or request accounting.
+
+## Recovery Boundary
 
 Backups use the pinned native exclusion policy, backup lock and SQLite online backup helper inside a stricter archive pipeline. Missing files, unreadable data
 and failed database snapshots prevent success. Checksums cover every member and the complete ZIP. The uploader reads the remote archive back and compares its
