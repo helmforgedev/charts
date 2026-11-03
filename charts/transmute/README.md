@@ -5,6 +5,16 @@ file conversion platform. The chart deploys the official pinned image with durab
 SQLite storage, a stable JWT signing key, optional OIDC, Ingress, Gateway API,
 External Secrets Operator integration and hardened Kubernetes defaults.
 
+## Features
+
+- official pinned Transmute image with a non-root, read-only-root filesystem
+- mandatory persistent SQLite and file storage with safe `Recreate` upgrades
+- stable chart-managed or externally supplied JWT signing Secret
+- optional OIDC with separate public and internal issuer URLs
+- Ingress, Gateway API, dual-stack Service, and NetworkPolicy integrations
+- External Secrets Operator support using complete ExternalSecret specs
+- configurable probes, resources, scheduling, environment, and extra volumes
+
 ## Installation
 
 From the Helm repository:
@@ -216,7 +226,37 @@ Measured with Kubescape v4.0.9 against the default rendered manifests on
 2026-10-22. This assesses Kubernetes configuration; it is not an application
 vulnerability scan.
 
+## Examples
+
+- [Minimal deployment](examples/minimal.yaml)
+- [Production values](examples/production.yaml)
+- [OIDC](examples/oidc.yaml)
+- [Gateway API](examples/gateway-api.yaml)
+- [External Secrets Operator](examples/external-secrets.yaml)
+
 ## Operations
 
 See [docs/operations.md](docs/operations.md) for first access, OIDC verification,
 backup, restore, upgrades and troubleshooting.
+
+## Troubleshooting
+
+Start with the generated release name and namespace used during installation:
+
+```bash
+RELEASE=transmute
+NAMESPACE=transmute
+kubectl rollout status deployment \
+  --selector "app.kubernetes.io/instance=${RELEASE}" --namespace "${NAMESPACE}"
+kubectl describe pod --selector "app.kubernetes.io/instance=${RELEASE}" \
+  --namespace "${NAMESPACE}"
+kubectl logs --selector "app.kubernetes.io/instance=${RELEASE}" \
+  --namespace "${NAMESPACE}" --all-containers --tail=200
+helm test "${RELEASE}" --namespace "${NAMESPACE}"
+```
+
+For OIDC failures, verify that `config.appUrl` produces the registered callback,
+the discovery issuer exactly matches `oidc.issuerUrl`, and the pod can reach the
+configured public or internal provider URL. For conversion failures, inspect
+memory limits, `/tmp` capacity, PVC free space, and application logs. A rollout
+can be healthy even when a specific format or external identity flow fails.
