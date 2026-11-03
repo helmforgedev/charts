@@ -1,12 +1,34 @@
 # Transmute Chart Design
 
-## Purpose
+## Scope
 
 This chart deploys the official Transmute container as a production-oriented,
 single-node file conversion service. It maps only configuration supported by
 Transmute v2.1.1 and keeps Kubernetes integration explicit and testable.
 
-## State and rollout model
+The chart owns one Transmute workload and its Kubernetes integration. It does
+not own identity providers, routing controllers, storage infrastructure, Secret
+stores, backup systems, or the lifecycle of an existing PVC.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  user[User] --> route[Ingress or HTTPRoute optional]
+  route --> service[Transmute Service]
+  service --> pod[Single Transmute pod]
+  pod --> pvc[Data PVC]
+  pod --> tmp[Ephemeral cache emptyDir]
+  secret[JWT and OIDC Secret] -. environment .-> pod
+  idp[OIDC provider optional] -. discovery and login .-> pod
+  eso[External Secrets Operator optional] -. reconciles .-> secret
+```
+
+All durable application state flows through one PVC. The Service is the stable
+in-cluster endpoint, while Ingress and Gateway API routes remain optional
+platform integrations.
+
+## Main Design Choices
 
 Transmute keeps its SQLite database, user records, job state, uploaded inputs and
 generated outputs below `DATA_DIR`. Those components are not designed for shared,
@@ -20,6 +42,11 @@ The chart consequently treats these as invariants:
 4. One stable `AUTH_SECRET_KEY` signs JWTs across restarts and upgrades.
 
 Both JSON Schema and template validation reject unsafe value combinations.
+
+The chart also separates the application listener (`containerPorts.http`) from
+the Service port, preserves a generated JWT key through `lookup`, and exposes
+canonical Kubernetes extension points without manufacturing unsupported
+Transmute settings.
 
 ## Storage
 
@@ -49,7 +76,7 @@ callback is always `<APP_URL>/api/oidc/callback`; scopes are fixed upstream.
 The OIDC client secret shares the application Secret interface so it can be
 supplied inline, from an existing Secret or through External Secrets Operator.
 
-## Runtime security
+## Security Boundary
 
 The pod and container run as UID/GID 1000 with runtime-default seccomp,
 privilege escalation disabled and all Linux capabilities dropped. The root
@@ -60,6 +87,37 @@ Durable writes remain on the PVC.
 The ServiceAccount token is not mounted. NetworkPolicy is opt-in because OIDC and
 conversion integrations can require provider-specific DNS and external egress.
 
+The chart hardens the container boundary but does not inspect uploaded files,
+conversion payloads, OIDC claims, or custom environment variables. Operators
+remain responsible for authenticating external access, limiting upload size,
+reviewing converter exposure, and controlling network paths to identity and
+integration endpoints.
+
+## Production Boundary
+
+The chart owns the Deployment, Service, chart-created PVC and authentication
+Secret, and any enabled routing, NetworkPolicy, ExternalSecret, or ServiceAccount
+resources. The platform owns DNS, TLS and certificates, ingress or Gateway
+controllers, storage classes and snapshots, External Secrets Operator and its
+SecretStore, the OIDC provider, and externally supplied Secrets or PVCs.
+
+Production deployments must keep one replica, preserve the authentication
+Secret with the data volume, size the PVC and memory for conversion workloads,
+and accept a short outage during `Recreate` upgrades. Backups must quiesce
+application writes before copying SQLite and file state.
+
+## Observability Boundary
+
+Kubernetes startup, readiness, and liveness probes cover the upstream health
+endpoints. Application and conversion logs are emitted through the container,
+and `helm test` verifies Service connectivity. The chart does not install a log
+collector, metrics exporter, dashboard, alert rules, or external availability
+monitor.
+
+A ready pod proves that the health endpoint responds and the Service has a
+backend. It does not prove that every conversion format succeeds, that the OIDC
+provider is reachable, or that the PVC has enough capacity for a new job.
+
 ## Supported integrations
 
 - Ingress using `ingress.ingressClassName`;
@@ -68,7 +126,19 @@ conversion integrations can require provider-specific DNS and external egress.
 - External Secrets Operator using complete `items[].spec` objects;
 - custom environment variables and volumes for upstream-compatible extensions.
 
-## Non-goals
+## Known Gaps And Operational Risks
+
+- SQLite and a ReadWriteOnce data volume prevent horizontal high availability.
+- `Recreate` upgrades deliberately introduce a service interruption.
+- Generated Secrets depend on Helm release history; deleting both the release
+  and Secret without a backup invalidates existing sessions.
+- Conversion workloads can exhaust memory, temporary space, or persistent
+  capacity even while health probes remain green.
+- NetworkPolicy egress isolation requires complete DNS, OIDC, and integration
+  allow rules supplied by the operator.
+- File-level backups are consistent only after application writes stop.
+
+## Explicit Non-Goals
 
 - horizontal scaling or high availability for the local SQLite application;
 - installing an identity provider, Gateway controller, CSI driver or ESO;
