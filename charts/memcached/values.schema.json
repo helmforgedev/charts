@@ -26,8 +26,32 @@
       }
     },
     "resources": { "type": "object", "additionalProperties": true },
-    "podSecurityContext": { "type": "object", "additionalProperties": true },
-    "securityContext": { "type": "object", "additionalProperties": true },
+    "podSecurityContext": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "runAsNonRoot": { "type": "boolean" },
+        "runAsUser": { "type": "integer", "minimum": 0 },
+        "runAsGroup": { "type": "integer", "minimum": 0 },
+        "fsGroup": { "type": "integer", "minimum": 0 },
+        "fsGroupChangePolicy": { "type": "string" }
+      }
+    },
+    "securityContext": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "allowPrivilegeEscalation": { "type": "boolean" },
+        "readOnlyRootFilesystem": { "type": "boolean" },
+        "capabilities": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "drop": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
     "podLabels": { "type": "object", "additionalProperties": true },
     "podAnnotations": { "type": "object", "additionalProperties": true },
     "priorityClassName": { "type": "string" },
@@ -104,6 +128,7 @@
         "disableCas": { "type": "boolean" },
         "disableWatch": { "type": "boolean" },
         "disableDumping": { "type": "boolean" },
+        "verbosity": { "type": "string" },
         "extendedOptions": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 }
@@ -177,7 +202,17 @@
           "type": "object",
           "additionalProperties": true,
           "properties": {
-            "enabled": { "type": "boolean" }
+            "enabled": { "type": "boolean" },
+            "image": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "repository": { "type": "string" },
+                "tag": { "type": "string" },
+                "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+              }
+            },
+            "resources": { "type": "object", "additionalProperties": true }
           }
         }
       }
@@ -215,6 +250,7 @@
       "properties": {
         "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"] },
         "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "annotations": { "type": "object", "additionalProperties": true },
         "ipFamilyPolicy": {
           "type": "string",
           "description": "Service IP family policy. One of SingleStack, PreferDualStack, RequireDualStack, or empty for cluster default.",
@@ -234,7 +270,24 @@
       "additionalProperties": true,
       "properties": {
         "enabled": { "type": "boolean" },
+        "image": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "repository": { "type": "string" },
+            "tag": { "type": "string" },
+            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+          }
+        },
         "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "resources": { "type": "object", "additionalProperties": true },
+        "service": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "annotations": { "type": "object", "additionalProperties": true }
+          }
+        },
         "memcachedTLS": {
           "type": "object",
           "additionalProperties": true,
@@ -248,7 +301,11 @@
           "type": "object",
           "additionalProperties": true,
           "properties": {
-            "enabled": { "type": "boolean" }
+            "enabled": { "type": "boolean" },
+            "namespace": { "type": "string" },
+            "interval": { "type": "string" },
+            "scrapeTimeout": { "type": "string" },
+            "labels": { "type": "object", "additionalProperties": true }
           }
         },
         "prometheusRule": {
@@ -256,6 +313,8 @@
           "additionalProperties": true,
           "properties": {
             "enabled": { "type": "boolean" },
+            "namespace": { "type": "string" },
+            "labels": { "type": "object", "additionalProperties": true },
             "rules": {
               "type": "array",
               "items": { "type": "object" }
@@ -269,6 +328,23 @@
       "additionalProperties": true,
       "properties": {
         "enabled": { "type": "boolean" },
+        "ingress": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "allowSameNamespace": { "type": "boolean" },
+            "extraFrom": { "type": "array", "items": { "type": "object" } }
+          }
+        },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "allowSameNamespace": { "type": "boolean" },
+            "extraFrom": { "type": "array", "items": { "type": "object" } }
+          }
+        },
         "egress": {
           "type": "object",
           "additionalProperties": true,
@@ -280,7 +356,8 @@
             "extraEgress": {
               "type": "array",
               "items": { "type": "object" }
-            }
+            },
+            "extraTo": { "type": "array", "items": { "type": "object" } }
           }
         }
       }
@@ -292,14 +369,17 @@
         "enabled": { "type": "boolean" },
         "minReplicas": { "type": "integer", "minimum": 1 },
         "maxReplicas": { "type": "integer", "minimum": 1 },
-        "targetCPUUtilizationPercentage": { "type": "integer", "minimum": 1, "maximum": 100 }
+        "targetCPUUtilizationPercentage": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "targetMemoryUtilizationPercentage": { "type": ["integer", "string"] }
       }
     },
     "pdb": {
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "enabled": { "type": "boolean" }
+        "enabled": { "type": "boolean" },
+        "minAvailable": { "type": ["integer", "string"] },
+        "maxUnavailable": { "type": ["integer", "string"] }
       }
     },
     "serviceAccount": {
@@ -307,6 +387,8 @@
       "additionalProperties": true,
       "properties": {
         "create": { "type": "boolean" },
+        "name": { "type": "string" },
+        "annotations": { "type": "object", "additionalProperties": true },
         "automountServiceAccountToken": { "type": "boolean" }
       }
     }
