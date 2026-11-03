@@ -100,3 +100,44 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "bootstrap.enabled requires persistence.enabled=true so WordPress files and wp-config.php are shared with the bootstrap Job"
+
+  - it: should not render pod annotations by default
+    set:
+      bootstrap.enabled: true
+      wordpress.siteUrl: https://blog.example.com
+    asserts:
+      - notExists:
+          path: spec.template.metadata.annotations
+
+  - it: should set pod annotations without touching the Job hook annotations
+    set:
+      bootstrap.enabled: true
+      wordpress.siteUrl: https://blog.example.com
+      bootstrap.podAnnotations:
+        linkerd.io/inject: disabled
+        custom: value
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["linkerd.io/inject"]
+          value: disabled
+      - equal:
+          path: spec.template.metadata.annotations.custom
+          value: value
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/component"]
+          value: bootstrap
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: post-install,post-upgrade
+      - notExists:
+          path: metadata.annotations["linkerd.io/inject"]
+
+  - it: should reject non-string pod annotation values
+    set:
+      bootstrap.enabled: true
+      wordpress.siteUrl: https://blog.example.com
+      bootstrap.podAnnotations:
+        vault.hashicorp.com/agent-inject: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "at '/bootstrap/podAnnotations/.*': got boolean, want string"
