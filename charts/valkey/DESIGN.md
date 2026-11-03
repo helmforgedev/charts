@@ -6,7 +6,7 @@ Status: implemented and maintained
 
 Date: 2026-05-05
 
-## Goal
+## Scope
 
 The Valkey chart provides explicit, production-oriented Valkey topologies without hiding operational tradeoffs behind generic StatefulSet defaults. The chart supports four runtime contracts:
 
@@ -17,7 +17,7 @@ The Valkey chart provides explicit, production-oriented Valkey topologies withou
 
 Each mode renders a different Kubernetes resource model because each mode has different client behavior, failover expectations, persistence patterns, and operational risk.
 
-## Design Principles
+## Design Decisions
 
 - Make topology the first decision through `architecture`.
 - Keep Valkey data-plane resources separate from optional observability and extension resources.
@@ -190,7 +190,7 @@ Best practices:
 - Use `RequireDualStack` only when both families are guaranteed.
 - Keep headless and client services aligned so DNS behavior is predictable.
 
-## Security Model
+## Security Boundary
 
 - Authentication is enabled by default for production-oriented usage.
 - `existingSecret` avoids chart-owned credential rotation when an external secret manager is authoritative.
@@ -224,7 +224,17 @@ Recommended production controls:
 - explicit resource requests and limits
 - node selectors or tolerations only when they reflect real platform policy
 
-## Observability
+## Production Boundary
+
+The chart owns topology-specific Kubernetes resources, bootstrapping, health
+probes, stable identities and optional monitoring integration. Operators own
+client topology compatibility, failure-domain placement, StorageClass durability,
+capacity planning, backup and recovery procedures, credential rotation, TLS
+issuance, alert routing and planned maintenance. Sentinel provides failover
+coordination but does not remove the need for durable data nodes or quorum-aware
+operations; Cluster mode requires cluster-aware clients and explicit resharding.
+
+## Observability Boundary
 
 Metrics are optional and should be enabled only when the Prometheus Operator or a compatible scraper is present.
 
@@ -244,6 +254,15 @@ The chart exposes extension points for advanced operators without making them re
 - topology-specific resource overrides
 
 Extension points are escape hatches. Common operational paths should remain first-class values with schema validation.
+
+## Known Gaps
+
+- standalone and plain replication modes do not provide automatic primary failover
+- Sentinel coordination cannot recover data that was not persisted or replicated
+- Cluster resharding and complex failed-node replacement remain manual operations
+- the chart does not create backups, restore jobs, certificates or alert receivers
+- ServiceMonitor support depends on an existing Prometheus Operator installation
+- NetworkPolicy cannot verify application-level client or credential correctness
 
 ## Validation Strategy
 
