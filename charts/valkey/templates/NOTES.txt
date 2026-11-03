@@ -191,7 +191,34 @@ Common checks:
 - If dual-stack fields are rejected, verify the Kubernetes version and cluster network configuration.
 - If metrics are missing, verify `metrics.enabled`, Service ports, and ServiceMonitor labels.
 
-7. Resources
+7. Upgrade and recovery
+=======================
+
+Back up every persistent data volume before upgrades. Keep `architecture`,
+release name, storage settings, Secret names, and `clusterDomain` stable unless
+the migration is planned and tested.
+
+Sentinel upgrades from chart 1.x to 2.0.0 replace StatefulSet and PVC names and
+cannot be performed in place. Follow the backup, uninstall, reinstall, restore,
+and client migration procedure before upgrading:
+
+  https://github.com/helmforgedev/charts/blob/valkey-v{{ .Chart.Version }}/charts/valkey/UPGRADING.md
+
+For the HTTPS repository, refresh the repository and preserve explicit
+overrides with the reviewed chart version:
+
+  helm repo update helmforge
+  helm upgrade {{ .Release.Name }} helmforge/valkey -n {{ .Release.Namespace }} --version {{ .Chart.Version }} --reset-then-reuse-values
+
+For OCI installations, use the pinned OCI chart directly:
+
+  helm upgrade {{ .Release.Name }} oci://ghcr.io/helmforgedev/helm/valkey -n {{ .Release.Namespace }} --version {{ .Chart.Version }} --reset-then-reuse-values
+
+After an upgrade, verify role discovery, replication or cluster health, client
+connectivity, persistence, metrics, and restore procedures for the selected
+topology.
+
+8. Resources
 ============
 
 - HelmForge chart docs: https://helmforge.dev/docs/charts/valkey
