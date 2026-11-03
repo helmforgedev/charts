@@ -21,13 +21,15 @@ MCP tools, resources, prompts, and knowledge bases from inline ConfigMaps, S3-co
 - Dual-stack Service options for IPv4/IPv6 clusters
 - Restricted pod defaults with service account token automount disabled
 
-### 🟢 Security Scan: `fastmcp-server`
+### Security Scan: `fastmcp-server`
 
 | Framework | Score |
 |---|---|
 | MITRE + NSA + SOC2 | **90.90909%** |
 
-> ✅ Security posture acceptable.
+Security posture: acceptable for the scanned controls. Operators remain
+responsible for authenticating public endpoints and reviewing executable source
+content.
 
 ## Quick Start
 
@@ -398,3 +400,45 @@ Then use `http://localhost:8000/mcp` as the URL (no auth if `auth.type=none`).
 - [Basic inline tools](examples/basic/)
 - [S3 source with MinIO](examples/s3-minio/)
 - [Production setup](examples/production/)
+
+## Troubleshooting
+
+Check rollout status and application logs first:
+
+```bash
+RELEASE=fastmcp-server
+NAMESPACE=default
+DEPLOYMENT=$(kubectl get deployment -n "$NAMESPACE" \
+  -l "app.kubernetes.io/instance=$RELEASE,app.kubernetes.io/name=fastmcp-server" \
+  -o jsonpath='{.items[0].metadata.name}')
+kubectl rollout status deployment/"$DEPLOYMENT" -n "$NAMESPACE"
+kubectl logs deployment/"$DEPLOYMENT" -n "$NAMESPACE"
+```
+
+When `initSync.enabled=true`, inspect the source synchronization container:
+
+```bash
+kubectl logs deployment/"$DEPLOYMENT" -c source-sync -n "$NAMESPACE"
+```
+
+If the pod is healthy but clients cannot connect, port-forward the Service and
+test the configured MCP path directly:
+
+```bash
+SERVICE=$(kubectl get service -n "$NAMESPACE" \
+  -l "app.kubernetes.io/instance=$RELEASE,app.kubernetes.io/name=fastmcp-server" \
+  -o jsonpath='{.items[0].metadata.name}')
+SERVICE_PORT="${SERVICE_PORT:-8000}" # Match service.port.
+MCP_PATH="${MCP_PATH:-/mcp}" # Match server.path.
+kubectl port-forward service/"$SERVICE" \
+  "$SERVICE_PORT:$SERVICE_PORT" -n "$NAMESPACE"
+curl "http://127.0.0.1:$SERVICE_PORT/healthz"
+# A bare GET is expected to return HTTP 406 without an Accept:
+# text/event-stream header; that response confirms the route is reachable.
+curl -i "http://127.0.0.1:$SERVICE_PORT$MCP_PATH"
+```
+
+Authentication failures usually indicate that the client header, referenced
+Secret name, or configured Secret key does not match the selected auth mode.
+Source-loading failures are reported in the application or `source-sync` logs;
+also verify network egress and the Git, S3, or JWKS endpoint independently.
