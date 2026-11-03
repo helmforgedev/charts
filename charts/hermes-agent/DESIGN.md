@@ -1,5 +1,30 @@
 # Hermes Agent design
 
+## Architecture
+
+```mermaid
+flowchart LR
+  apiClients[Trusted API clients] --> edge[Ingress or Gateway API]
+  edge --> apiService[Authenticated API Service]
+  dashboardUsers[Administrators] --> dashboardService[Private dashboard Service]
+  apiService --> pod[Singleton Hermes StatefulSet]
+  dashboardService --> pod
+  credentials[Credential and API Secrets] --> pod
+  configuration[Managed configuration] --> pod
+  eso[External Secrets Operator optional] -. materializes .-> credentials
+  pod --> state[(Retained state PVC)]
+  pod -. OTLP loopback .-> collector[Optional telemetry collector]
+  collector --> prometheus[Existing Prometheus stack]
+  backup[Scheduled backup Job] --> state
+  backup --> objectStore[(S3-compatible object storage)]
+```
+
+One StatefulSet Pod owns the gateway, optional dashboard, persistent state and
+configuration lifecycle. Separate Services keep the authenticated API,
+administrative dashboard and metrics endpoints independently selectable by
+NetworkPolicy. Backup Jobs mount the retained state, while the telemetry
+collector deliberately has no state or credential mount.
+
 ## One trusted agent per release
 
 Hermes combines an agent loop, persistent memory, learned skills, SQLite session history, scheduled work, messaging adapters and an OpenAI-compatible API. These
@@ -9,6 +34,21 @@ competing gateway writers. Kubernetes reschedules the singleton, with downtime. 
 Use separate releases, Secrets, storage and network policies for mutually untrusted agents. API credentials permit the selected tools. The optional dashboard
 has full administrative access to the same state and process namespace. The default API toolset contains only memory; enabling terminal, browser, MCP or other
 tools expands that trust boundary.
+
+## Design Decisions
+
+- Use a singleton StatefulSet because Hermes state and schedules have one writer
+  and upstream does not provide distributed coordination.
+- Retain the PVC and generated API identity so uninstall/reinstall and ordinary
+  upgrades do not silently replace agent state or credentials.
+- Start the official image through explicit non-root foreground commands instead
+  of its root-oriented s6 initialization path.
+- Separate API, dashboard and metrics Services and peer allowlists because they
+  expose different privilege levels.
+- Make configuration ownership explicit through `managed` and `seed` policies
+  rather than overwriting dashboard-edited configuration unpredictably.
+- Validate backups before publishing a completion manifest and restore only into
+  empty state so a failed recovery cannot overwrite a working agent.
 
 ## Official image and immutable execution
 
@@ -23,6 +63,24 @@ disabled.
 The Pod shares its process namespace so the Kubernetes sandbox process reaps orphaned children and the dashboard can observe the gateway PID. No host PID
 namespace, host Docker socket, default API token, ClusterRole or privileged container is used. The collector has no agent-state mount; the backup uploader has
 only completed archive staging.
+
+## Security Boundary
+
+The chart protects the API with a retained bearer credential, requires Secrets
+for first-class provider and messaging credential fields, and defaults to
+memory-only tools. `extraEnv` is an operator-controlled escape hatch that can
+also inject literal values, so operators must keep credentials out of values
+files and use `valueFrom.secretKeyRef` when extending the environment.
+The gateway and dashboard share one trusted process and state boundary; enabling
+terminal, browser, MCP, messaging or dashboard access grants materially broader
+authority to their authenticated users.
+
+The Pod runs without a Kubernetes API token, host namespaces, a host socket,
+privileged mode or added Linux capabilities. NetworkPolicy limits inbound peers
+and permits public HTTPS egress by default, but it cannot identify DNS names or
+prove that an external endpoint is trustworthy. TLS termination, certificate
+issuance, Secret rotation, external identity providers and provider-side access
+controls remain operator responsibilities.
 
 ## Configuration and identity lifecycle
 
@@ -43,11 +101,26 @@ egress is available by default; private provider/MCP/S3 endpoints require explic
 Liveness uses inexpensive public process health. Readiness parses authenticated `/health/detailed`: upstream can return HTTP 200 while reporting degraded
 readiness. A healthy gateway is not proof that a paid model credential has quota or that an external messaging platform is reachable.
 
-## Observability and recovery
+## Production Boundary
+
+The chart owns Kubernetes resources, startup reconciliation, health probes,
+retained storage, optional telemetry wiring and a guarded backup/recovery path.
+Operators own provider availability and billing, tool authorization, StorageClass
+durability, capacity planning, network egress policy, alert routing, backup
+retention, restore drills and maintenance downtime for the singleton writer.
+
+Runtime validation uses a deterministic local provider and does not prove live
+cloud credentials, messaging delivery, remote SSH/MCP endpoints, OIDC providers
+or production object-storage policy. Those integrations need environment-specific
+acceptance before they are enabled for users.
+
+## Observability Boundary
 
 Hermes exports native gateway-health metrics through OTLP. An optional official collector accepts OTLP only on loopback and exposes Prometheus metrics through a
 restricted Service. ServiceMonitor and PrometheusRule integrate with an existing Prometheus Operator. These are native gateway/scheduler metrics, not inferred
 token costs or request accounting.
+
+## Recovery Boundary
 
 Backups use the pinned native exclusion policy, backup lock and SQLite online backup helper inside a stricter archive pipeline. Missing files, unreadable data
 and failed database snapshots prevent success. Checksums cover every member and the complete ZIP. The uploader reads the remote archive back and compares its
@@ -57,6 +130,28 @@ global transaction.
 Recovery validates an archive in staging before copying to an empty volume. A persistent incomplete marker prevents gateway startup after interrupted
 publication. A completion marker makes later Pod restarts idempotent. Importing upstream backup code has initialization side effects, so recovery uses a
 temporary HERMES_HOME and a separate target path. It never invokes native service-revival or overwrite import commands.
+
+## Known Gaps
+
+- arm64 is present in the upstream manifest but is not exercised by the local
+  runtime suite
+- one writer means upgrades, rescheduling and node drains cause downtime
+- backup consistency is per SQLite database, not one transaction across all
+  databases and ordinary files
+- NetworkPolicy cannot express DNS-aware egress restrictions
+- Secret changes require an explicit StatefulSet rollout for environment
+  consumers
+- provider quota, billing and live messaging reachability are not Kubernetes
+  readiness signals
+
+## Non-Goals
+
+- horizontal scaling or transparent high availability
+- multi-tenant isolation inside one release
+- automatic credential or certificate rotation
+- installing External Secrets Operator, Gateway API or Prometheus Operator
+- sandboxing arbitrary terminal, browser, MCP or remote execution tools
+- overwriting populated state during restore
 
 ## Comparison and implementation provenance
 

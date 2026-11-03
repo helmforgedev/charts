@@ -12,10 +12,25 @@ assert.equal(namespace, 'hf-validate-hermes-agent');
 const chart = path.resolve(import.meta.dirname, '..');
 const base = ['--context', context, '-n', namespace];
 const k = (args, input, timeout=65000) => execFileSync('kubectl', [...base, ...args], {encoding:'utf8',input,timeout,maxBuffer:8*1024*1024,stdio:['pipe','pipe','pipe']});
-const json = args => JSON.parse(k(args));
+const json = (args,timeout) => JSON.parse(k(args,undefined,timeout));
 const apply = object => k(['apply','-f','-'],JSON.stringify(object));
 const helm = args => execFileSync('helm',[...args,'--kube-context',context,'-n',namespace],{encoding:'utf8',stdio:'pipe',timeout:80000,maxBuffer:8*1024*1024});
 const delay = ms => new Promise(resolve=>setTimeout(resolve,ms));
+const waitForReplacement = async (pod,oldUid) => {
+  const deadline=Date.now()+120000;
+  let replacementUid;
+  while(Date.now()<deadline) {
+    const remaining=deadline-Date.now();
+    try {replacementUid=json(['get','pod',pod,'-o','json'],Math.max(1,Math.min(5000,remaining))).metadata.uid;} catch {replacementUid=undefined;}
+    if(replacementUid && replacementUid!==oldUid) break;
+    await delay(Math.min(1000,Math.max(0,deadline-Date.now())));
+  }
+  assert(replacementUid && replacementUid!==oldUid,'StatefulSet must recreate the deleted Pod with a new identity');
+  const remaining=deadline-Date.now();
+  assert(remaining>0,'Replacement Pod must become available before the deadline');
+  const readySeconds=Math.max(1,Math.ceil(Math.min(60000,remaining)/1000));
+  k(['wait','--for=condition=Ready',`pod/${pod}`,`--timeout=${readySeconds}s`],undefined,remaining);
+};
 let values = JSON.parse(helm(['get','values',release,'--all','-o','json']));
 // The default installation deliberately requires real provider credentials. The
 // acceptance harness replaces inference only with a controlled local provider.
@@ -150,7 +165,7 @@ if(values.persistence.enabled) {
   python("from pathlib import Path\np=Path('/opt/data/config.yaml')\np.write_text(p.read_text()+'\\n# helmforge-ci-user-edit\\n')");
   const oldUid=json(['get','pod',pod,'-o','json']).metadata.uid;
   k(['delete','pod',pod,'--wait=true','--timeout=60s']);
-  k(['wait','--for=condition=Ready',`pod/${pod}`,'--timeout=60s']);
+  await waitForReplacement(pod,oldUid);
   assert.notEqual(json(['get','pod',pod,'-o','json']).metadata.uid,oldUid);
   assert.deepEqual(json(['get','secret',credentials,'-o','json']).data,beforeSecret);
   console.log(accept('HF_HISTORY_CHECK').trim());
@@ -175,5 +190,5 @@ if(release.endsWith('-ci-agent-values')) {
     console.log('PASS Helm uninstall/reinstall retains the same PVC, API identity and real conversation');
   } finally {fs.rmSync(file,{force:true});fs.rmdirSync(temporary);}
 }
-await validateRecovery({k,json,helm,values,name,pod,python,chart,namespace,release});
+await validateRecovery({k,json,helm,values,name,pod,python,chart,namespace,release,waitForReplacement});
 console.log('PASS Hermes authentication, inference, tool dispatch and persistent state');

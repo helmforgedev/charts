@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-export async function validateRecovery({k,json,helm,values,name,pod,python,chart,namespace,release}) {
+export async function validateRecovery({k,json,helm,values,name,pod,python,chart,namespace,release,waitForReplacement}) {
   if(!values.backup.enabled) return;
   const moduleSource=fs.readFileSync(path.join(chart,'files','archive.py'),'utf8');
   const acceptance=fs.readFileSync(path.join(chart,'scripts','archive-accept.py'),'utf8');
@@ -51,9 +51,11 @@ export async function validateRecovery({k,json,helm,values,name,pod,python,chart
     for(const prompt of ['HF_HISTORY_CHECK','HF_MEMORY_CHECK']) console.log(python(accept,'hermes',`${restoreName}-0`,[`TEST_PROMPT=${prompt}`]).trim());
     // Restart recovery init containers: the completed marker prevents a second
     // restore or dependency on downloading S3 objects on ordinary restarts.
-    k(['delete','pod',`${restoreName}-0`,'--wait=true','--timeout=60s']);
-    k(['wait','--for=condition=Ready',`pod/${restoreName}-0`,'--timeout=60s']);
-    assert.match(k(['logs',`${restoreName}-0`,'-c','restore']),/already completed/);
+    const recoveryPod=`${restoreName}-0`;
+    const oldUid=json(['get','pod',recoveryPod,'-o','json']).metadata.uid;
+    k(['delete','pod',recoveryPod,'--wait=true','--timeout=60s']);
+    await waitForReplacement(recoveryPod,oldUid);
+    assert.match(k(['logs',recoveryPod,'-c','restore']),/already completed/);
     console.log('PASS independent empty-volume restore, real state reuse and idempotent restart');
   } finally {
     try {helm(['uninstall',recoveryRelease,'--wait','--timeout','60s']);}
