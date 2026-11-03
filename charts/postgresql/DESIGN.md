@@ -115,11 +115,11 @@ Use an operator when requirements include:
 
 ## Security Boundary
 
-The chart configures non-root PostgreSQL containers, drops Linux capabilities, disables service-account token
-automount by default, and can render TLS, structured `pg_hba.conf` rules, ExternalSecret resources, and ingress and
-egress NetworkPolicies. The official PostgreSQL image needs writable runtime and data paths, so the main container does
-not claim a read-only root filesystem. TLS certificate issuance, SecretStore configuration, credential rotation, and
-encryption of backup objects remain operator responsibilities.
+The chart configures the main StatefulSet containers to run as non-root and drop Linux capabilities, disables
+service-account token automount by default, and can render TLS, structured `pg_hba.conf` rules, ExternalSecret
+resources, and ingress and egress NetworkPolicies. The official PostgreSQL image needs writable runtime and data paths,
+so the main container does not claim a read-only root filesystem. TLS certificate issuance, SecretStore configuration,
+credential rotation, and encryption of backup objects remain operator responsibilities.
 
 NetworkPolicy enforcement depends on a compatible cluster network plugin. The default client and replication CIDRs
 preserve broad connectivity and must be restricted for production. Server TLS protects PostgreSQL connections when
