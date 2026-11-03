@@ -130,8 +130,9 @@ provider is reachable, or that the PVC has enough capacity for a new job.
 
 - SQLite and a ReadWriteOnce data volume prevent horizontal high availability.
 - `Recreate` upgrades deliberately introduce a service interruption.
-- Generated Secrets depend on Helm release history; deleting both the release
-  and Secret without a backup invalidates existing sessions.
+- Generated keys are preserved by looking up the live Kubernetes Secret. A
+  normal Helm uninstall deletes that Secret, so reinstalling without a backup
+  or an externally managed Secret generates a new key and invalidates sessions.
 - Conversion workloads can exhaust memory, temporary space, or persistent
   capacity even while health probes remain green.
 - NetworkPolicy egress isolation requires complete DNS, OIDC, and integration

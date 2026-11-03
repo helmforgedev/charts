@@ -244,11 +244,15 @@ backup, restore, upgrades and troubleshooting.
 Start with the generated release name and namespace used during installation:
 
 ```bash
-kubectl rollout status deployment/transmute-transmute --namespace transmute
-kubectl describe pod --selector app.kubernetes.io/instance=transmute \
-  --namespace transmute
-kubectl logs deployment/transmute-transmute --namespace transmute --tail=200
-helm test transmute --namespace transmute
+RELEASE=transmute
+NAMESPACE=transmute
+kubectl rollout status deployment \
+  --selector "app.kubernetes.io/instance=${RELEASE}" --namespace "${NAMESPACE}"
+kubectl describe pod --selector "app.kubernetes.io/instance=${RELEASE}" \
+  --namespace "${NAMESPACE}"
+kubectl logs --selector "app.kubernetes.io/instance=${RELEASE}" \
+  --namespace "${NAMESPACE}" --all-containers --tail=200
+helm test "${RELEASE}" --namespace "${NAMESPACE}"
 ```
 
 For OIDC failures, verify that `config.appUrl` produces the registered callback,
