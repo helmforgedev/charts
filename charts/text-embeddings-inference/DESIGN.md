@@ -13,23 +13,23 @@ metrics, scaling and network controls.
 ## Architecture
 
 Clients reach a ClusterIP Service and an unprivileged NGINX proxy. NGINX enforces the public API surface and proxies
-inference to native TEI on loopback. An optional separate metrics Service reaches a metrics-only NGINX listener. Both
-containers run as UID/GID 1000 with read-only root filesystems and writable temporary directories. The Pod has no
-Kubernetes API credential.
+inference to native TEI on loopback. An optional separate metrics Service reaches a metrics-only NGINX listener. By
+default, both containers run as UID/GID 1000 with read-only root filesystems and writable temporary directories, and
+the Pod has no Kubernetes API credential. Operators can override applicable properties through the pod and container
+security contexts and `serviceAccount.automountServiceAccountToken`.
 
 ```mermaid
 flowchart LR
   client[Embedding clients] --> service[Client Service]
-  service --> proxy[NGINX API proxy]
-  proxy --> tei[TEI on loopback]
   prometheus[Prometheus] --> metricsService[Metrics Service]
-  metricsService --> metricsProxy[NGINX metrics listener]
-  metricsProxy --> tei
-  secret[API key Secret] --> pod[Inference Pod]
-  cache[Model cache or local-model PVC] --> pod
-  pod --> proxy
-  pod --> metricsProxy
-  pod --> tei
+  service --> proxy
+  metricsService --> metricsProxy
+  secret[API key Secret] --> tei
+  cache[Model cache or local-model PVC] --> tei
+  subgraph pod[Inference Pod]
+    proxy[NGINX API proxy] --> tei[TEI on loopback]
+    metricsProxy[NGINX metrics listener] --> tei
+  end
 ```
 
 The proxy and native process share one Pod because the native metrics and API listeners cannot provide the chart's
@@ -74,7 +74,8 @@ the example defaults.
 
 TEI 1.9.4 serves unauthenticated metrics on its HTTP API listener. A declared Prometheus port does not create a private
 HTTP exporter in this image. The proxy is therefore a required boundary, not an optional exporter. Public paths deny
-metrics and API documentation, and NetworkPolicy separately authorizes metrics clients.
+metrics and API documentation. When `networkPolicy.enabled` is true, NetworkPolicy separately authorizes metrics
+clients; without it, the metrics Service does not enforce peer-level network authorization.
 
 Native INFO startup logging serializes the API key. `LOG_LEVEL` is fixed at `warn` and reserved against override.
 Credentials are environment references to Kubernetes Secrets; generated keys use `lookup` during live upgrades.
