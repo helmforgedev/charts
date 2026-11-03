@@ -246,7 +246,7 @@ changing probes or credentials:
 
 ```bash
 kubectl get statefulset,pod,pvc,service -l app.kubernetes.io/instance=<release>
-kubectl logs statefulset/<release> --all-containers --tail=200
+kubectl logs -l app.kubernetes.io/instance=<release> --all-containers --tail=200 --prefix
 kubectl get events --sort-by=.lastTimestamp
 ```
 
@@ -258,8 +258,10 @@ kubectl get events --sort-by=.lastTimestamp
   running before enabling `requireRunningReplication`.
 - If the metrics sidecar cannot connect, verify the password Secret and keep
   `tls.client.enabled` aligned with the server TLS configuration.
-- If a `NetworkPolicy` is enabled, allow application traffic on `service.port`
-  and scraper traffic on `service.metricsPort` when metrics are enabled.
+- If a `NetworkPolicy` is enabled, allow application traffic on `service.port`.
+  Metrics scraping requires both `metrics.enabled: true` and
+  `networkPolicy.metrics.enabled: true`; configure
+  `networkPolicy.metrics.extraFrom` with the permitted scraper sources.
 
 ## More Information
 
