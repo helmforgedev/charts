@@ -21,6 +21,29 @@ The default release includes the PostgreSQL subchart. Operators can disable it
 and supply an external PostgreSQL endpoint and Secret. A hardened init container
 waits for the database listener before the application starts.
 
+```mermaid
+flowchart LR
+  client[Browser or API client]
+  ingress[Ingress]
+  service[alf.io Service]
+
+  subgraph application[alf.io application]
+    init[Database wait init container]
+    alfio[alf.io Deployment]
+  end
+
+  subgraph database[Database boundary]
+    bundled[Bundled PostgreSQL StatefulSet]
+    external[External PostgreSQL]
+  end
+
+  client -. ingress enabled .-> ingress --> service --> alfio
+  init --> bundled
+  init -. external mode .-> external
+  alfio --> bundled
+  alfio -. external mode .-> external
+```
+
 ## Design Choices and Decisions
 
 - The application remains single-replica with a `Recreate` strategy because
