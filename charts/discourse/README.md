@@ -136,7 +136,7 @@ Redis, DNS, HTTPS, SMTP, and integration destinations.
 
 ```bash
 DEPLOYMENT=$(kubectl get deployment -n NAMESPACE \
-  -l app.kubernetes.io/instance=RELEASE,app.kubernetes.io/name=discourse \
+  -l app.kubernetes.io/instance=RELEASE \
   -o jsonpath='{.items[0].metadata.name}')
 HOSTNAME=discourse.localhost # Replace with the configured discourse.hostname.
 kubectl rollout status deployment/"$DEPLOYMENT" -n NAMESPACE --timeout=20m
