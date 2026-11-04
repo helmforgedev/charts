@@ -17,6 +17,8 @@ enabled, review DNS, PostgreSQL, Redis, HTTPS, and SMTP rules and add explicit
 peers for external services. The default same-namespace rule is convenient for
 bundled dependencies but is not a tenant-isolation boundary.
 
-Scan custom images, pin every image by digest, and rebuild plugins into the image
-rather than modifying a running container. Monitor security advisories from
-Discourse, PostgreSQL, Redis, pgvector, and the Kubernetes platform.
+Scan custom images and use digest pinning wherever the corresponding values
+contract exposes a digest. The chart's service-wait image uses an immutable tag.
+Rebuild plugins into the application image rather than modifying a running
+container. Monitor security advisories from Discourse, PostgreSQL, Redis,
+pgvector, and the Kubernetes platform.

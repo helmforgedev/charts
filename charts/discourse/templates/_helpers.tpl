@@ -73,7 +73,35 @@ secret-key-base
 {{- if eq .Values.database.mode "external" -}}
 {{- .Values.database.external.host -}}
 {{- else -}}
-{{- printf "%s-postgresql" .Release.Name -}}
+{{- include "discourse.postgresqlFullname" . -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "discourse.nameWithSuffix" -}}
+{{- $suffix := .suffix -}}
+{{- $baseMax := int (sub 63 (len $suffix)) -}}
+{{- printf "%s%s" (.base | trunc $baseMax | trimSuffix "-") $suffix | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "discourse.postgresqlFullname" -}}
+{{- if .Values.postgresql.fullnameOverride -}}
+{{- .Values.postgresql.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $name := default "postgresql" .Values.postgresql.nameOverride -}}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "discourse.redisFullname" -}}
+{{- if .Values.redis.fullnameOverride -}}
+{{- .Values.redis.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $name := default "redis" .Values.redis.nameOverride -}}
+{{- if contains $name .Release.Name -}}
+{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 
@@ -107,7 +135,13 @@ secret-key-base
 {{- printf "%s-database" (include "discourse.fullname" .) -}}
 {{- end -}}
 {{- else -}}
-{{- printf "%s-postgresql-auth" .Release.Name -}}
+{{- if .Values.postgresql.auth.existingSecret -}}
+{{- .Values.postgresql.auth.existingSecret -}}
+{{- else if and .Values.postgresql.externalSecrets.auth.enabled .Values.postgresql.externalSecrets.auth.targetName -}}
+{{- .Values.postgresql.externalSecrets.auth.targetName -}}
+{{- else -}}
+{{- include "discourse.nameWithSuffix" (dict "base" (include "discourse.postgresqlFullname" .) "suffix" "-auth") -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 
@@ -115,12 +149,12 @@ secret-key-base
 {{- if and (eq .Values.database.mode "external") .Values.database.external.existingSecret -}}
 {{- .Values.database.external.existingSecretPasswordKey -}}
 {{- else if eq .Values.database.mode "external" -}}database-password
-{{- else -}}user-password{{- end -}}
+{{- else -}}{{ .Values.postgresql.auth.existingSecretUserPasswordKey }}{{- end -}}
 {{- end -}}
 
 {{- define "discourse.redisHost" -}}
 {{- if .Values.redis.enabled -}}
-{{- printf "%s-redis-client" .Release.Name -}}
+{{- include "discourse.nameWithSuffix" (dict "base" (include "discourse.redisFullname" .) "suffix" "-client") -}}
 {{- else -}}
 {{- .Values.redis.external.host -}}
 {{- end -}}

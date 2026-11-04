@@ -135,11 +135,15 @@ Redis, DNS, HTTPS, SMTP, and integration destinations.
 ## Operations
 
 ```bash
-kubectl rollout status deployment/RELEASE-discourse -n NAMESPACE --timeout=20m
+DEPLOYMENT=$(kubectl get deployment -n NAMESPACE \
+  -l app.kubernetes.io/instance=RELEASE,app.kubernetes.io/name=discourse \
+  -o jsonpath='{.items[0].metadata.name}')
+HOSTNAME=discourse.localhost # Replace with the configured discourse.hostname.
+kubectl rollout status deployment/"$DEPLOYMENT" -n NAMESPACE --timeout=20m
 kubectl get pods,svc,pvc -n NAMESPACE -l app.kubernetes.io/instance=RELEASE
-kubectl logs deployment/RELEASE-discourse -n NAMESPACE -c discourse --tail=300
-kubectl exec deployment/RELEASE-discourse -n NAMESPACE -- \
-  curl -fsS -H 'Host: forum.example.com' http://127.0.0.1/srv/status
+kubectl logs deployment/"$DEPLOYMENT" -n NAMESPACE -c discourse --tail=300
+kubectl exec deployment/"$DEPLOYMENT" -n NAMESPACE -- \
+  curl -fsS -H "Host: ${HOSTNAME}" http://127.0.0.1/srv/status
 ```
 
 Back up both PostgreSQL and `/shared`; neither is a substitute for the other.

@@ -13,8 +13,19 @@ artifacts, retain them outside the cluster, and test restoration regularly.
 
 For bundled PostgreSQL, use `pg_dump`/`pg_restore` through the PostgreSQL pod or
 your platform backup controller. Snapshot or copy the `/shared` PVC separately.
-Restore into an empty namespace, recreate Secrets with the same key names, restore
-PostgreSQL and `/shared`, and only then start Discourse.
+Restore into an empty namespace and recreate Secrets with the same key names.
+Immediately scale the Discourse Deployment to zero before restoring either data
+domain:
+
+```bash
+kubectl scale deployment -n NAMESPACE \
+  -l app.kubernetes.io/instance=RELEASE,app.kubernetes.io/name=discourse \
+  --replicas=0
+```
+
+Restore PostgreSQL and `/shared` completely, verify both restorations, and only
+then scale the Deployment back to one. Do not run `helm upgrade` during the
+restore because Helm would reapply the chart's single replica.
 
 Never treat a Helm release, Redis snapshot, PVC manifest, or database dump alone
 as a complete backup. The chart intentionally does not automate retention,
