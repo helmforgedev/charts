@@ -37,27 +37,35 @@ flowchart LR
   service[Open WebUI Service]
 
   subgraph application[Open WebUI application]
-    wait[Database wait init container]
+    wait[Database wait init container: auto mode only]
     web[Open WebUI Deployment]
     data[Application data PVC]
     backup[Optional PostgreSQL backup CronJob]
   end
 
   subgraph services[Data and integration boundary]
-    postgresql[Bundled or external PostgreSQL]
-    redis[Bundled or external Redis]
+    sqlite[SQLite on the application data PVC]
+    bundledPostgresql[Bundled PostgreSQL]
+    externalPostgresql[External PostgreSQL]
+    bundledRedis[Bundled Redis]
+    externalRedis[External Redis]
+    redisDisabled[Disabled mode: no Redis connection]
     models[Ollama or OpenAI-compatible APIs]
     objectStore[S3-compatible object storage]
   end
 
-  client --> gateway --> service --> web
-  wait --> postgresql
+  client -. ingress or Gateway enabled .-> gateway --> service --> web
+  wait -. auto mode only .-> bundledPostgresql
   web --> data
-  web --> postgresql
-  web --> redis
+  web -. sqlite mode or auto without subchart .-> sqlite
+  web -. auto mode with subchart .-> bundledPostgresql
+  web -. external mode .-> externalPostgresql
+  web -. Redis auto mode .-> bundledRedis
+  web -. Redis external mode .-> externalRedis
   web --> models
-  backup --> postgresql
-  backup --> objectStore
+  backup -. bundled PostgreSQL backup .-> bundledPostgresql
+  backup -. external PostgreSQL backup .-> externalPostgresql
+  backup -. backup enabled .-> objectStore
 ```
 
 ## Design choices and trade-offs

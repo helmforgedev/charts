@@ -37,7 +37,7 @@ flowchart LR
     external[External PostgreSQL]
   end
 
-  client --> ingress --> service --> alfio
+  client -. ingress enabled .-> ingress --> service --> alfio
   init --> bundled
   init -. external mode .-> external
   alfio --> bundled
