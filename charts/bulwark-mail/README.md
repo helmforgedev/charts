@@ -60,7 +60,7 @@ With `sharedStore.enabled: true`, Bulwark keeps all state in an external Redis-p
 
 ## Image and security
 
-The chart uses `ghcr.io/bulwarkmail/webmail:1.15.0-always`. The `-always` tag is the deterministic upstream index for 1.15.0. The image supports linux/amd64 and linux/arm64.
+The chart uses `ghcr.io/bulwarkmail/webmail:1.20.0-always`. The `-always` tag is the deterministic upstream index for 1.20.0. The image supports linux/amd64 and linux/arm64.
 
 Defaults match the upstream image user:
 
@@ -85,13 +85,11 @@ Upstream admin files have higher precedence than environment values. When reusin
 
 ## Several replicas
 
-Bulwark images released after 1.19.1 can share their state through one Redis-protocol store (Valkey, Redis 5 or newer, KeyDB, Dragonfly, or a managed service). Every replica then sees the same admin configuration, plugins, branding, user settings, sign-in limits, and sessions, so any number of replicas runs behind the plain Service without sticky sessions and without a data volume. Upstream documentation: [Running several instances](https://bulwarkmail.org/docs/deployment/multi-instance).
+Bulwark 1.20.0 and newer can share their state through one Redis-protocol store (Valkey, Redis 5 or newer, KeyDB, Dragonfly, or a managed service). Every replica then sees the same admin configuration, plugins, branding, user settings, sign-in limits, and sessions, so any number of replicas runs behind the plain Service without sticky sessions and without a data volume. Upstream documentation: [Running several instances](https://bulwarkmail.org/docs/deployment/multi-instance).
 
 The chart does not install the store. Run one next to Bulwark, for example with the [HelmForge Valkey chart](https://helmforge.dev/docs/charts/valkey), and configure it with `maxmemory-policy noeviction` and persistence (`appendonly yes`) so that it never drops Bulwark state. Redis Cluster is not supported upstream; a single endpoint is.
 
 ```yaml
-image:
-  tag: "<a release after 1.19.1>"
 replicaCount: 3
 sharedStore:
   enabled: true
@@ -188,7 +186,7 @@ Set `service.ipFamilyPolicy` to `SingleStack`, `PreferDualStack`, or `RequireDua
 
 ## Probes and runtime acceptance
 
-Startup, liveness, and readiness probes call `/api/health`. With the shared store, readiness calls `/api/ready` instead; `probes.readiness.path` overrides either default. `/api/ready` exists only in Bulwark images released after 1.19.1. The chart-owned runtime smoke additionally verifies:
+Startup, liveness, and readiness probes call `/api/health`. With the shared store, readiness calls `/api/ready` instead; `probes.readiness.path` overrides either default. `/api/ready` requires Bulwark 1.20.0 or newer. The chart-owned runtime smoke additionally verifies:
 
 - the exact deterministic image;
 - the configured application listener and independent Service port;

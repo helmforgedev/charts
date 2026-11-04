@@ -2,11 +2,19 @@
 
 ## Health
 
-Kubernetes probes call `/api/health`. A healthy response is HTTP 200 with `status: healthy`. With the shared store, readiness calls `/api/ready`, which answers 200 with `"store":"redis"` when the pod can serve and 503 while it starts or cannot reach the store; liveness stays on `/api/health`. `/api/config` provides a safe public view of active JMAP, OAuth, remember-me, settings-sync, and branding settings.
+Kubernetes probes call `/api/health`. A healthy response is HTTP 200 with
+`status: healthy`. With the shared store, readiness calls `/api/ready`, which
+answers 200 with `"store":"redis"` when the pod can serve and 503 while it
+starts or cannot reach the store; liveness stays on `/api/health`.
+`/api/config` provides a safe public view of active JMAP, OAuth, remember-me,
+settings-sync, and branding settings.
 
 ## Upgrade
 
-Back up the PVC and Secret, review upstream changes, and run `helm upgrade`. Recreate strategy intentionally stops the old pod before the new one mounts storage. Expect a short outage. With the shared store and no volume, replicas roll one at a time without an outage; back up the store instead of the PVC.
+Back up the PVC and Secret, review upstream changes, and run `helm upgrade`.
+Recreate strategy intentionally stops the old pod before the new one mounts
+storage. Expect a short outage. With the shared store and no volume, replicas
+roll one at a time without an outage; back up the store instead of the PVC.
 
 ## Mode changes
 
