@@ -535,6 +535,54 @@ topologySpreadConstraints:
 {{- end }}
 {{- end -}}
 
+{{- define "mysql.configMapData" -}}
+my.cnf: |
+  [mysqld]
+  port = {{ .Values.service.port }}
+  bind-address = 0.0.0.0
+  mysqlx = 0
+  skip-name-resolve = ON
+  {{- if .Values.tls.enabled }}
+  ssl_ca = /tls/{{ .Values.tls.caFilename }}
+  ssl_cert = /tls/{{ .Values.tls.certFilename }}
+  ssl_key = /tls/{{ .Values.tls.keyFilename }}
+  {{- if .Values.tls.requireSecureTransport }}
+  require_secure_transport = ON
+  {{- end }}
+  {{- end }}
+  {{- if ne .Values.config.preset "none" }}
+  {{ include "mysql.configPreset" . | nindent 2 }}
+  {{- end }}
+  {{- if .Values.config.myCnf }}
+  {{ .Values.config.myCnf | nindent 2 }}
+  {{- end }}
+{{- end -}}
+
+{{- define "mysql.initdbConfigMapData" -}}
+00-bootstrap-users.sh: |
+  #!/bin/sh
+  set -eu
+
+  mysql --protocol=socket -uroot -p"${MYSQL_ROOT_PASSWORD}" <<EOSQL
+  CREATE DATABASE IF NOT EXISTS \`${MYSQL_DATABASE}\`;
+  CREATE USER IF NOT EXISTS '${MYSQL_USER}'@'%' IDENTIFIED BY '${MYSQL_PASSWORD}';
+  GRANT ALL PRIVILEGES ON \`${MYSQL_DATABASE}\`.* TO '${MYSQL_USER}'@'%';
+  {{- if eq .Values.architecture "replication" }}
+  CREATE USER IF NOT EXISTS '${REPLICATION_USERNAME}'@'%' IDENTIFIED BY '${REPLICATION_PASSWORD}';
+  GRANT REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO '${REPLICATION_USERNAME}'@'%';
+  {{- end }}
+  FLUSH PRIVILEGES;
+  EOSQL
+{{- range $name, $content := .Values.initdb.scripts }}
+{{ $name }}: |
+{{ $content | indent 2 }}
+{{- end }}
+{{- end -}}
+
+{{- define "mysql.configChecksum" -}}
+{{- printf "%s\n%s" (include "mysql.configMapData" .) (include "mysql.initdbConfigMapData" .) | sha256sum -}}
+{{- end -}}
+
 {{- define "mysql.renderAnnotations" -}}
 {{- with .root.Values.commonAnnotations }}
 annotations:
