@@ -253,8 +253,12 @@ MYSQL_PWD="${MYSQL_ROOT_PASSWORD}" mysql -h 127.0.0.1 -P {{ .Values.service.port
   {{- if not .Values.backup.s3.bucket -}}
     {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
   {{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (not (include "mysql.backupSecretManagedByExternalSecret" .)) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
-    {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
+  {{- if not .Values.backup.s3.credentialsFromPodIdentity -}}
+    {{- if and (not .Values.backup.s3.existingSecret) (not (include "mysql.backupSecretManagedByExternalSecret" .)) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+      {{- fail "backup requires either backup.s3.existingSecret, both backup.s3.accessKey and backup.s3.secretKey, or backup.s3.credentialsFromPodIdentity=true" -}}
+    {{- end -}}
+  {{- else if not .Values.backup.s3.region -}}
+    {{- fail "backup.s3.region is required when backup.s3.credentialsFromPodIdentity is true" -}}
   {{- end -}}
 true
 {{- end -}}

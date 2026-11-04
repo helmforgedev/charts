@@ -49,6 +49,77 @@ tests:
             name: DB_HOST
             value: test-mysql
 
+  - it: should send mc through the IAM credential chain for pod identity
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.us-east-2.amazonaws.com
+      backup.s3.bucket: backups
+      backup.s3.region: us-east-2
+      backup.s3.credentialsFromPodIdentity: true
+      serviceAccount.create: true
+    template: templates/backup-configmap.yaml
+    asserts:
+      - matchRegex:
+          path: data["upload-backup.sh"]
+          pattern: "export MC_HOST_backup=\"\\$\\{S3_ENDPOINT\\}\""
+      - matchRegex:
+          path: data["upload-backup.sh"]
+          pattern: "cn-\\*\\) sts_domain=\"amazonaws.com.cn\""
+      - matchRegex:
+          path: data["upload-backup.sh"]
+          pattern: "export MC_STS_ENDPOINT_backup=\"https://sts\\.\\$\\{AWS_REGION\\}\\.\\$\\{sts_domain\\}\""
+      - notMatchRegex:
+          path: data["upload-backup.sh"]
+          pattern: "mc alias set"
+
+  - it: should inject AWS_REGION from backup.s3.region for pod identity
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.us-east-2.amazonaws.com
+      backup.s3.bucket: backups
+      backup.s3.region: us-east-2
+      backup.s3.credentialsFromPodIdentity: true
+      serviceAccount.create: true
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: AWS_REGION
+            value: us-east-2
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: AWS_DEFAULT_REGION
+            value: us-east-2
+
+  - it: should fail pod identity backup when region is empty
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.us-east-2.amazonaws.com
+      backup.s3.bucket: backups
+      backup.s3.credentialsFromPodIdentity: true
+    template: templates/secret.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.s3.region is required when backup.s3.credentialsFromPodIdentity is true"
+
+  - it: should keep static mc credentials when pod identity is off
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    template: templates/backup-configmap.yaml
+    asserts:
+      - matchRegex:
+          path: data["upload-backup.sh"]
+          pattern: "mc alias set backup"
+      - notMatchRegex:
+          path: data["upload-backup.sh"]
+          pattern: "MC_STS_ENDPOINT_backup"
+
   - it: should render backup secret when using inline s3 credentials
     set:
       backup.enabled: true
