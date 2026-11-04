@@ -24,6 +24,7 @@ restoring either data domain. The explicit count check prevents restoration from
 continuing if the selector finds no Deployment or an ambiguous set:
 
 ```bash
+set -euo pipefail
 DEPLOYMENT=$(kubectl get deployment -n NAMESPACE \
   -l app.kubernetes.io/instance=RELEASE -o name)
 test "$(printf '%s\n' "$DEPLOYMENT" | sed '/^$/d' | wc -l)" -eq 1
