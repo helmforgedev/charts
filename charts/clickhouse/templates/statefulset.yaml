@@ -6,6 +6,7 @@ metadata:
   namespace: {{ include "clickhouse.namespace" . | quote }}
   labels:
     {{- include "clickhouse.labels" . | nindent 4 }}
+  {{- include "clickhouse.renderAnnotations" . | nindent 2 }}
 spec:
   serviceName: {{ include "clickhouse.headlessServiceName" . }}
   replicas: {{ .Values.replicaCount }}
@@ -23,8 +24,8 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
-        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/config: {{ (include (print $.Template.BasePath "/configmap.yaml") . | fromYaml).data | toYaml | sha256sum }}
+        checksum/secret: {{ (include (print $.Template.BasePath "/secret.yaml") . | fromYaml).stringData | toYaml | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

@@ -90,6 +90,13 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 {{- end -}}
 
+{{- define "clickhouse.renderAnnotations" -}}
+{{- with .Values.commonAnnotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "clickhouse.validate" -}}
 {{- if lt (.Values.replicaCount | int) 1 -}}{{- fail "replicaCount must be at least 1" -}}{{- end -}}
 {{- if gt (.Values.replicaCount | int) 1 -}}{{- fail "replicaCount > 1 is intentionally blocked in this chart; use ClickHouse Operator for replicated clusters" -}}{{- end -}}
