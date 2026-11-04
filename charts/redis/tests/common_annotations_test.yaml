@@ -1,0 +1,152 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: commonAnnotations
+release:
+  name: test
+  namespace: default
+
+tests:
+  - it: should apply commonAnnotations to the standalone StatefulSet metadata
+    template: standalone-statefulset.yaml
+    set:
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+
+  - it: should NOT apply commonAnnotations to the pod template metadata
+    template: standalone-statefulset.yaml
+    set:
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - isNull:
+          path: spec.template.metadata.annotations["example.com/team"]
+
+  - it: should apply commonAnnotations to the ConfigMap metadata
+    template: configmap.yaml
+    set:
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+
+  - it: should apply commonAnnotations to the headless Service metadata
+    template: service.yaml
+    documentIndex: 0
+    set:
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+
+  - it: should apply commonAnnotations to the client Service metadata
+    template: service.yaml
+    documentIndex: 1
+    set:
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+
+  - it: should merge commonAnnotations with service.clientAnnotations
+    template: service.yaml
+    documentIndex: 1
+    set:
+      commonAnnotations:
+        example.com/team: platform
+      service.clientAnnotations:
+        example.com/service-type: client
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+      - equal:
+          path: metadata.annotations["example.com/service-type"]
+          value: client
+
+  - it: should apply commonAnnotations to the Secret metadata
+    template: secret.yaml
+    set:
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+
+  - it: should apply commonAnnotations to the ServiceMonitor metadata
+    template: servicemonitor.yaml
+    set:
+      metrics.enabled: true
+      metrics.serviceMonitor.enabled: true
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+
+  - it: should apply commonAnnotations to the PDB metadata in replication mode
+    template: pdb.yaml
+    set:
+      architecture: replication
+      pdb.enabled: true
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+
+  - it: should apply commonAnnotations to the NetworkPolicy metadata
+    template: networkpolicy.yaml
+    documentIndex: 0
+    set:
+      networkPolicy.enabled: true
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+
+  - it: should apply commonAnnotations to the ServiceAccount metadata
+    template: serviceaccount.yaml
+    set:
+      serviceAccount.create: true
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+
+  - it: should merge commonAnnotations with serviceAccount.annotations
+    template: serviceaccount.yaml
+    set:
+      serviceAccount.create: true
+      commonAnnotations:
+        example.com/team: platform
+      serviceAccount.annotations:
+        iam.amazonaws.com/role: my-role
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+      - equal:
+          path: metadata.annotations["iam.amazonaws.com/role"]
+          value: my-role
+
+  - it: should not add annotations block when commonAnnotations is empty
+    template: standalone-statefulset.yaml
+    asserts:
+      - isNull:
+          path: metadata.annotations

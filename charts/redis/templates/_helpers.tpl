@@ -360,8 +360,15 @@ app.kubernetes.io/role: {{ .role }}
 app.kubernetes.io/component: sentinel
 {{- end -}}
 
+{{- define "redis.commonAnnotations" -}}
+{{- with .Values.commonAnnotations }}
+{{- toYaml . }}
+{{- end }}
+{{- end -}}
+
 {{- define "redis.renderAnnotations" -}}
-{{- with .root.Values.annotations }}
+{{- $merged := mergeOverwrite (dict) (.root.Values.commonAnnotations | default dict) (.root.Values.annotations | default dict) -}}
+{{- with $merged }}
 annotations:
 {{ toYaml . | nindent 2 }}
 {{- end }}
