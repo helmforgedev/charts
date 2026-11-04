@@ -53,6 +53,7 @@ networkPolicy:
 
 | Parameter | Description | Default |
 | --- | --- | --- |
+| `commonAnnotations` | Annotations added to mutable resource metadata except pod and PVC templates | `{}` |
 | `replicaCount` | ClickHouse pod count. Must remain `1` | `1` |
 | `image.repository` | Official image repository | `docker.io/clickhouse/clickhouse-server` |
 | `image.tag` | Official full-version tag | `26.9.21` |
@@ -107,6 +108,14 @@ Use the ClickHouse Operator or Altinity operator stack for sharded or replicated
 clusters.
 
 ## Upgrade Notes
+
+The first upgrade to this release may roll the ClickHouse pod because the
+configuration and Secret checksum representation changed. With the default
+single replica, plan for brief unavailability. If `persistence.enabled` is
+`false`, replacing the pod also discards its `emptyDir` data. This is a
+one-time checksum migration; later changes to `commonAnnotations` or other
+resource metadata annotations do not trigger a rollout. Changes to
+`podAnnotations` still update the pod template and trigger a rollout.
 
 The 26.9.21 update stays on the September 26.9 stable channel and preserves the
 chart's credentials and standalone storage contract. Take a verified backup,
