@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Discourse Helm Chart Values",
+  "description": "Configuration for the experimental Discourse deployment using the official upstream image.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "global": { "type": "object", "additionalProperties": true },
+    "nameOverride": { "type": "string" },
+    "fullnameOverride": { "type": "string" },
+    "commonLabels": { "type": "object", "additionalProperties": { "type": "string" } },
+    "replicaCount": { "type": "integer", "minimum": 1 },
+    "image": {
+      "type": "object",
+      "required": ["repository", "tag", "digest", "pullPolicy"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string", "minLength": 1 },
+        "digest": { "type": "string" },
+        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+      }
+    },
+    "imagePullSecrets": { "type": "array", "items": { "type": "object" } },
+    "discourse": {
+      "type": "object",
+      "required": ["hostname", "developerEmails"],
+      "properties": {
+        "hostname": { "type": "string", "minLength": 1 },
+        "developerEmails": { "type": "string", "minLength": 1 },
+        "secretKeyBase": { "type": "string" },
+        "existingSecret": { "type": "string" },
+        "existingSecretKey": { "type": "string", "minLength": 1 },
+        "skipEmailSetup": { "type": "boolean" },
+        "unicornWorkers": { "type": "integer", "minimum": 1 },
+        "unicornSidekiqs": { "type": "integer", "minimum": 1 },
+        "extraEnv": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "database": {
+      "type": "object",
+      "properties": {
+        "mode": { "type": "string", "enum": ["postgresql", "external"] },
+        "external": {
+          "type": "object",
+          "properties": {
+            "host": { "type": "string" },
+            "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+            "name": { "type": "string", "minLength": 1 },
+            "username": { "type": "string", "minLength": 1 },
+            "password": { "type": "string" },
+            "existingSecret": { "type": "string" },
+            "existingSecretPasswordKey": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "postgresql": { "type": "object", "additionalProperties": true },
+    "redis": { "type": "object", "additionalProperties": true },
+    "persistence": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "existingClaim": { "type": "string" },
+        "storageClass": { "type": "string" },
+        "accessModes": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "size": { "type": "string", "pattern": "^[0-9]+(Ei|Pi|Ti|Gi|Mi|Ki)$" },
+        "annotations": { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    },
+    "service": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"] },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
+        "ipFamilyPolicy": { "type": "string", "enum": ["", "SingleStack", "PreferDualStack", "RequireDualStack"] },
+        "ipFamilies": { "type": "array", "items": { "type": "string", "enum": ["IPv4", "IPv6"] } }
+      }
+    },
+    "ingress": { "type": "object", "additionalProperties": true },
+    "gatewayAPI": { "type": "object", "additionalProperties": true },
+    "networkPolicy": { "type": "object", "additionalProperties": true },
+    "podDisruptionBudget": { "type": "object", "additionalProperties": true },
+    "externalSecrets": { "type": "object", "additionalProperties": true },
+    "serviceAccount": { "type": "object", "additionalProperties": true },
+    "podSecurityContext": { "type": "object", "additionalProperties": true },
+    "securityContext": { "type": "object", "additionalProperties": true },
+    "waitForServices": { "type": "object", "additionalProperties": true },
+    "startupProbe": { "$ref": "#/definitions/probe" },
+    "livenessProbe": { "$ref": "#/definitions/probe" },
+    "readinessProbe": { "$ref": "#/definitions/probe" },
+    "resources": { "type": "object", "additionalProperties": true },
+    "terminationGracePeriodSeconds": { "type": "integer", "minimum": 1 },
+    "progressDeadlineSeconds": { "type": "integer", "minimum": 600 },
+    "podLabels": { "type": "object", "additionalProperties": { "type": "string" } },
+    "podAnnotations": { "type": "object", "additionalProperties": { "type": "string" } },
+    "priorityClassName": { "type": "string" },
+    "nodeSelector": { "type": "object", "additionalProperties": true },
+    "tolerations": { "type": "array", "items": { "type": "object" } },
+    "affinity": { "type": "object", "additionalProperties": true },
+    "topologySpreadConstraints": { "type": "array", "items": { "type": "object" } },
+    "extraVolumes": { "type": "array", "items": { "type": "object" } },
+    "extraVolumeMounts": { "type": "array", "items": { "type": "object" } },
+    "extraManifests": { "type": "array", "items": { "type": "object" } }
+  },
+  "definitions": {
+    "probe": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "path": { "type": "string", "pattern": "^/" },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}
