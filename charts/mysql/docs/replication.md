@@ -30,6 +30,7 @@ Typical use cases:
 ## Best practices
 
 - keep `readReplicas.replicaCount >= 2` if read scale matters
+- set `replication.source.persistence.retentionPolicy` and `replication.readReplicas.persistence.retentionPolicy` to `Retain` when uninstall or scale-down must keep the PVCs. Empty uses the cluster default.
 - use `pdb.enabled=true` before routine maintenance in multi-node environments
 - route write traffic only to the source Service
 - route read traffic only to the replicas Service

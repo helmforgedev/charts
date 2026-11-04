@@ -102,6 +102,7 @@ Production-ready deployments are possible through values, but the default values
 - TLS with `tls.enabled`, `tls.requireSecureTransport`, and `tls.client.enabled`.
 - `tls.volumePermissions.enabled` when projected TLS private-key modes are incompatible with the non-root MySQL process.
 - persistent volumes sized for the workload and storage class.
+- `persistence.retentionPolicy` set to `Retain` when deleting or scaling the StatefulSet must keep the PVCs. Empty leaves the cluster default.
 - resource requests/limits or chart resource presets.
 - `networkPolicy.enabled` and, where supported by the CNI, `networkPolicy.egress.enabled`.
 - `serviceAccount.automountServiceAccountToken=false` unless an extension needs Kubernetes API access.

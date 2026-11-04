@@ -27,6 +27,7 @@ Typical use cases:
 ## Best practices
 
 - keep persistence enabled in production
+- set `standalone.persistence.retentionPolicy` to `Retain` when uninstall or scale-down must keep the PVC. Empty uses the cluster default.
 - use `auth.existingSecret` instead of inline passwords
 - use `tls.enabled=true` with `tls.existingSecret` when client connections must be encrypted
 - use `initdb.scripts` only for deterministic first-boot initialization

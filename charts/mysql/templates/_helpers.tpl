@@ -484,6 +484,31 @@ limits:
         storage: {{ .persistence.size }}
 {{- end -}}
 
+{{/*
+  StatefulSet PVC retention. Empty whenDeleted/whenScaled omits that field so the cluster default applies.
+  Usage: include "mysql.persistenceRetentionPolicy" (dict "persistence" .Values.standalone.persistence)
+*/}}
+{{- define "mysql.persistenceRetentionPolicy" -}}
+{{- $policy := .persistence.retentionPolicy | default dict -}}
+{{- $whenDeleted := $policy.whenDeleted | default "" -}}
+{{- $whenScaled := $policy.whenScaled | default "" -}}
+{{- if and $whenDeleted (not (or (eq $whenDeleted "Retain") (eq $whenDeleted "Delete"))) -}}
+{{- fail "persistence.retentionPolicy.whenDeleted must be Retain or Delete" -}}
+{{- end -}}
+{{- if and $whenScaled (not (or (eq $whenScaled "Retain") (eq $whenScaled "Delete"))) -}}
+{{- fail "persistence.retentionPolicy.whenScaled must be Retain or Delete" -}}
+{{- end -}}
+{{- if or $whenDeleted $whenScaled }}
+persistentVolumeClaimRetentionPolicy:
+  {{- if $whenDeleted }}
+  whenDeleted: {{ $whenDeleted }}
+  {{- end }}
+  {{- if $whenScaled }}
+  whenScaled: {{ $whenScaled }}
+  {{- end }}
+{{- end }}
+{{- end -}}
+
 {{- define "mysql.podSpecCommon" -}}
 {{- with .Values.imagePullSecrets }}
 imagePullSecrets:

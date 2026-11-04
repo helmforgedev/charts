@@ -198,7 +198,9 @@ spec:
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-  {{- if ternary .Values.replication.source.persistence.enabled .Values.standalone.persistence.enabled (eq .Values.architecture "replication") }}
+  {{- $sourcePersistence := ternary .Values.replication.source.persistence .Values.standalone.persistence (eq .Values.architecture "replication") }}
+  {{- if $sourcePersistence.enabled }}
+  {{- include "mysql.persistenceRetentionPolicy" (dict "persistence" $sourcePersistence) | nindent 2 }}
   volumeClaimTemplates:
-    {{- include "mysql.volumeClaimTemplate" (dict "root" . "persistence" (ternary .Values.replication.source.persistence .Values.standalone.persistence (eq .Values.architecture "replication"))) | nindent 4 }}
+    {{- include "mysql.volumeClaimTemplate" (dict "root" . "persistence" $sourcePersistence) | nindent 4 }}
   {{- end }}
