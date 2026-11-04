@@ -33,6 +33,38 @@ to wait for PostgreSQL and apply the shipped migrations. It writes
 waits for this file when embedded PostgreSQL is disabled, so the signal is part
 of the application startup contract rather than an optional optimization.
 
+```mermaid
+flowchart LR
+  client[Browser]
+  service[Middleware Service]
+
+  subgraph pod[Middleware Deployment]
+    migration[dbmate migration init container]
+    frontend[Next.js frontend]
+    analytics[Analytics API]
+    sync[Sync server]
+    redis[Embedded Redis]
+    signal[Shared db_init signal]
+    keys[Encryption-key PVC]
+  end
+
+  subgraph database[Database boundary]
+    bundled[Bundled PostgreSQL StatefulSet]
+    external[External PostgreSQL]
+  end
+
+  client --> service --> frontend
+  migration --> bundled
+  migration -. external mode .-> external
+  migration --> signal --> analytics
+  frontend --> analytics
+  frontend --> sync
+  analytics --> redis
+  analytics --> keys
+  analytics --> bundled
+  analytics -. external mode .-> external
+```
+
 ## Design decisions
 
 ### Separate PostgreSQL, embedded Redis

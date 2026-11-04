@@ -137,7 +137,7 @@ adapters when the container starts.
 | `image.tag` | `6.71.0` | Ghost image tag |
 | `containerPorts.http` | `2368` | Ghost process listener and container port |
 | `mysql.enabled` | `true` | Deploy MySQL subchart |
-| `mysql` dependency | `2.1.1` | HelmForge MySQL chart version |
+| `mysql` dependency | `2.2.0` | HelmForge MySQL chart version |
 | `mysql.image.tag` | `8.4.11` | MySQL image tag pinned to the Ghost-supported MySQL 8 major |
 | `persistence.enabled` | `true` | Enable content persistence |
 | `persistence.size` | `10Gi` | Content PVC size |
@@ -154,6 +154,14 @@ adapters when the container starts.
 | `externalSecrets.items` | `[]` | Complete ExternalSecret definitions |
 
 ## Upgrade Notes
+
+Upgrading a release that uses the bundled MySQL dependency from chart `2.1.x`
+to `2.2.0` changes the MySQL StatefulSet `checksum/config` value. Kubernetes
+therefore performs a one-time rollout of the MySQL pod. The default standalone
+topology has one database replica, so Ghost can be temporarily unavailable
+until MySQL becomes ready. Schedule the upgrade during a maintenance window,
+take a database backup first, and wait for the MySQL StatefulSet rollout to
+complete before validating Ghost readiness.
 
 Ghost `6.71.0` adds automation analytics, self-service site exports, member
 location maps and refreshed post/member screens. It also fixes scheduled-post

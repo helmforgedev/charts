@@ -30,6 +30,36 @@ and the application constructs `DATABASE_URL` from Secret-backed credentials.
 When `redis.enabled=true`, both `REDIS_URL` and `WEBSOCKET_REDIS_URL` target the
 Redis client Service and obtain the password from the subchart Secret.
 
+```mermaid
+flowchart LR
+  client[Browser or API client]
+  gateway[Ingress or Gateway API]
+  service[Open WebUI Service]
+
+  subgraph application[Open WebUI application]
+    wait[Database wait init container]
+    web[Open WebUI Deployment]
+    data[Application data PVC]
+    backup[Optional PostgreSQL backup CronJob]
+  end
+
+  subgraph services[Data and integration boundary]
+    postgresql[Bundled or external PostgreSQL]
+    redis[Bundled or external Redis]
+    models[Ollama or OpenAI-compatible APIs]
+    objectStore[S3-compatible object storage]
+  end
+
+  client --> gateway --> service --> web
+  wait --> postgresql
+  web --> data
+  web --> postgresql
+  web --> redis
+  web --> models
+  backup --> postgresql
+  backup --> objectStore
+```
+
 ## Design choices and trade-offs
 
 ### Single application replica
