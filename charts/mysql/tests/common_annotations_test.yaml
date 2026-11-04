@@ -1,0 +1,190 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: commonAnnotations
+release:
+  name: test
+  namespace: default
+
+tests:
+  - it: should apply commonAnnotations to the source StatefulSet metadata
+    template: statefulset-source.yaml
+    set:
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+
+  - it: should NOT apply commonAnnotations to the pod template metadata
+    template: statefulset-source.yaml
+    set:
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - isNull:
+          path: spec.template.metadata.annotations["example.com/team"]
+
+  - it: should apply commonAnnotations to the replicas StatefulSet metadata
+    template: statefulset-replicas.yaml
+    set:
+      architecture: replication
+      replication.readReplicas.replicaCount: 1
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+
+  - it: should apply commonAnnotations to the ConfigMap metadata
+    template: configmap.yaml
+    documentIndex: 0
+    set:
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+
+  - it: should apply commonAnnotations to the client Service metadata
+    template: service.yaml
+    documentIndex: 0
+    set:
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+
+  - it: should merge commonAnnotations with service.annotations
+    template: service.yaml
+    documentIndex: 0
+    set:
+      commonAnnotations:
+        example.com/team: platform
+      service.annotations:
+        example.com/svc: client
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+      - equal:
+          path: metadata.annotations["example.com/svc"]
+          value: client
+
+  - it: should give service.annotations precedence over commonAnnotations
+    template: service.yaml
+    documentIndex: 0
+    set:
+      commonAnnotations:
+        example.com/env: global
+      service.annotations:
+        example.com/env: override
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/env"]
+          value: override
+
+  - it: should apply commonAnnotations to the headless Service metadata
+    template: service-headless.yaml
+    documentIndex: 0
+    set:
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+
+  - it: should apply commonAnnotations to the Secret metadata
+    template: secret.yaml
+    documentIndex: 0
+    set:
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+
+  - it: should apply commonAnnotations to the ServiceAccount metadata
+    template: serviceaccount.yaml
+    set:
+      serviceAccount.create: true
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+
+  - it: should merge commonAnnotations with serviceAccount.annotations
+    template: serviceaccount.yaml
+    set:
+      serviceAccount.create: true
+      commonAnnotations:
+        example.com/team: platform
+      serviceAccount.annotations:
+        iam.amazonaws.com/role: my-custom-role
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+      - equal:
+          path: metadata.annotations["iam.amazonaws.com/role"]
+          value: my-custom-role
+
+  - it: should give serviceAccount.annotations precedence over commonAnnotations
+    template: serviceaccount.yaml
+    set:
+      serviceAccount.create: true
+      commonAnnotations:
+        example.com/env: global
+      serviceAccount.annotations:
+        example.com/env: override
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/env"]
+          value: override
+
+  - it: should apply commonAnnotations to the PDB metadata
+    template: pdb.yaml
+    set:
+      pdb.enabled: true
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+
+  - it: should apply commonAnnotations to the NetworkPolicy metadata
+    template: networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+
+  - it: should apply commonAnnotations to the ServiceMonitor metadata
+    template: servicemonitor.yaml
+    set:
+      metrics.enabled: true
+      metrics.serviceMonitor.enabled: true
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+
+  - it: should not add annotations block when commonAnnotations is empty
+    template: statefulset-source.yaml
+    asserts:
+      - isNull:
+          path: metadata.annotations

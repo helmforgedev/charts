@@ -535,6 +535,13 @@ topologySpreadConstraints:
 {{- end }}
 {{- end -}}
 
+{{- define "mysql.renderAnnotations" -}}
+{{- with .root.Values.commonAnnotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "mysql.pdbEnabled" -}}
 {{- if eq .Values.architecture "replication" -}}
 {{- if .Values.replication.pdb.enabled -}}true{{- end -}}
