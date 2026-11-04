@@ -2,7 +2,7 @@
 
 ## Priority 1: functional deployment
 
-- Pin the official deterministic 1.15.0 image.
+- Pin the official deterministic 1.20.0 image.
 - Deploy one hardened pod with Recreate strategy.
 - Persist `/app/data` and expose port 3000.
 - Implement health probes and wizard mode.
@@ -21,6 +21,7 @@
 - Document backup, restore, upgrade, CORS, and secret rotation.
 - Cover every major feature with template tests.
 - Verify the health, config, and setup contracts against the real image.
+- Verify several replicas against a real Redis-protocol store.
 - Run schema, lint, unittest, kubeconform, Artifact Hub, security, and k3d gates.
 
 ## Acceptance criteria

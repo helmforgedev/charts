@@ -20,19 +20,28 @@ const helm = args => execFileSync(
 const deployedValues = JSON.parse(helm(['get', 'values', release, '--all', '-o', 'json']));
 const expectedHttpPort = deployedValues.containerPorts?.http;
 const expectedServicePort = deployedValues.service?.port;
+const sharedStoreEnabled = deployedValues.sharedStore?.enabled === true;
 assert.ok(Number.isInteger(expectedHttpPort), 'Bulwark HTTP listener value is required');
 assert.ok(Number.isInteger(expectedServicePort), 'Bulwark Service port value is required');
 
 const pods = JSON.parse(kubectl([
   'get', 'pods', '-l', `app.kubernetes.io/instance=${release}`, '-o', 'json',
 ])).items;
-const pod = pods.find(item => !item.metadata.deletionTimestamp
+const readyPods = pods.filter(item => !item.metadata.deletionTimestamp
   && item.status.conditions?.some(condition => condition.type === 'Ready' && condition.status === 'True')
   && item.spec.containers.some(container => container.name === 'bulwark-mail'));
+const pod = readyPods[0];
 assert.ok(pod, 'Ready Bulwark Mail pod required');
+if (sharedStoreEnabled && !deployedValues.autoscaling?.enabled) {
+  assert.equal(
+    readyPods.length,
+    deployedValues.replicaCount,
+    'Every configured shared-store replica must be Ready',
+  );
+}
 
 const container = pod.spec.containers.find(item => item.name === 'bulwark-mail');
-assert.equal(container.image, 'ghcr.io/bulwarkmail/webmail:1.15.0-always');
+assert.equal(container.image, 'ghcr.io/bulwarkmail/webmail:1.20.0-always');
 assert.equal(container.securityContext.runAsNonRoot, true);
 assert.equal(container.securityContext.readOnlyRootFilesystem, true);
 assert.equal(
@@ -50,10 +59,17 @@ const assert = require('node:assert/strict');
 const base = 'http://127.0.0.1:${expectedHttpPort}';
 const declarative = ${JSON.stringify(declarative)};
 const expectedJmap = ${JSON.stringify(expectedJmap)};
+const sharedStoreEnabled = ${JSON.stringify(sharedStoreEnabled)};
 const healthResponse = await fetch(base + '/api/health');
 assert.equal(healthResponse.status, 200);
 const health = await healthResponse.json();
 assert.equal(health.status, 'healthy');
+if (sharedStoreEnabled) {
+  const readyResponse = await fetch(base + '/api/ready');
+  assert.equal(readyResponse.status, 200);
+  const ready = await readyResponse.json();
+  assert.equal(ready.store, 'redis');
+}
 const rootResponse = await fetch(base + '/', {redirect: 'manual'});
 if (declarative) {
   const setupResponse = await fetch(base + '/api/setup/status', {redirect: 'manual'});
@@ -75,7 +91,7 @@ if (declarative) {
   assert.equal(setup.readOnly, false);
   assert.match(rootResponse.headers.get('location') || '', /^\\/setup(?:\\/|$)/);
 }
-console.log('Bulwark 1.15.0 health, config, session, settings, and setup-mode contract verified');
+console.log('Bulwark 1.20.0 health, config, session, settings, and setup-mode contract verified');
 `;
 
 const result = kubectl([
