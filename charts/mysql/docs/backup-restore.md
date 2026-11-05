@@ -50,6 +50,12 @@ networkPolicy:
       ports:
         - protocol: TCP
           port: 80
+    - to:
+        - ipBlock:
+            cidr: fd00:ec2::23/128
+      ports:
+        - protocol: TCP
+          port: 80
 ```
 
 ```yaml
