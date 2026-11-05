@@ -51,6 +51,52 @@ tests:
           value: false
       - notExists:
           path: spec.jobTemplate.spec.template.metadata.annotations
+      - notExists:
+          path: spec.jobTemplate.spec.template.spec.nodeSelector
+      - notExists:
+          path: spec.jobTemplate.spec.template.spec.affinity
+      - notExists:
+          path: spec.jobTemplate.spec.template.spec.tolerations
+
+  - it: should configure scheduling only for wp-cron pods
+    template: templates/wp-cronjob.yaml
+    set:
+      wpCron.cronJob.enabled: true
+      wpCron.cronJob.nodeSelector:
+        kubernetes.io/os: linux
+      wpCron.cronJob.affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/os
+                    operator: In
+                    values:
+                      - linux
+      wpCron.cronJob.tolerations:
+        - key: workload
+          operator: Equal
+          value: batch
+          effect: NoSchedule
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.nodeSelector
+          value:
+            kubernetes.io/os: linux
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0]
+          value:
+            key: kubernetes.io/os
+            operator: In
+            values:
+              - linux
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.tolerations[0]
+          value:
+            key: workload
+            operator: Equal
+            value: batch
+            effect: NoSchedule
 
   - it: should set wp-cron CronJob pod annotations
     template: templates/wp-cronjob.yaml

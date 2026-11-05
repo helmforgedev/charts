@@ -464,6 +464,9 @@ The chart creates an `HTTPRoute` that sends traffic to the WordPress Service.
 | `pdb.enabled` | `false` | Create PodDisruptionBudget |
 | `wpCron.cronJob.enabled` | `false` | Create deterministic WordPress cron CronJob |
 | `wpCron.cronJob.podAnnotations` | `{}` | Annotations for the wp-cron CronJob pods |
+| `wpCron.cronJob.nodeSelector` | `{}` | Node selector applied only to wp-cron pods |
+| `wpCron.cronJob.affinity` | `{}` | Affinity rules applied only to wp-cron pods |
+| `wpCron.cronJob.tolerations` | `[]` | Tolerations applied only to wp-cron pods |
 | `networkPolicy.enabled` | `false` | Create NetworkPolicy |
 | `networkPolicy.egress.enabled` | `false` | Manage egress allow list |
 | `networkPolicy.egress.extraEgress` | `[]` | Append complete custom egress rules with optional ports |

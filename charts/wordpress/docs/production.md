@@ -134,6 +134,26 @@ kubectl delete job -n <namespace> \
 
 The upgrade recreates each enabled non-hook Job with the updated pod template.
 
+## wp-cron Pod Placement
+
+The WordPress Deployment and wp-cron CronJob have independent scheduling controls. Configure
+`wpCron.cronJob.nodeSelector`, `wpCron.cronJob.affinity`, and `wpCron.cronJob.tolerations` when short-lived cron pods
+must run on a dedicated or lower-cost node pool. Empty defaults leave scheduling to the cluster and do not inherit the
+top-level Deployment settings.
+
+```yaml
+wpCron:
+  cronJob:
+    enabled: true
+    nodeSelector:
+      workload-tier: batch
+    tolerations:
+      - key: workload
+        operator: Equal
+        value: batch
+        effect: NoSchedule
+```
+
 ## Routing
 
 Use either Ingress or Gateway API. Do not enable both for the same hostname unless you intentionally want two routing paths.
