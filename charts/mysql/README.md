@@ -194,6 +194,9 @@ metrics:
 - use `externalSecrets.tls.enabled=true` when the TLS Secret should be reconciled by External Secrets Operator
 - use `externalSecrets.backup.enabled=true` for S3 credentials when the backup Secret should be reconciled by External Secrets Operator
 - keep persistence enabled for every stateful topology
+- set both `whenDeleted` and `whenScaled` to `Retain` under `standalone.persistence.retentionPolicy`,
+  `replication.source.persistence.retentionPolicy`, or `replication.readReplicas.persistence.retentionPolicy` when
+  uninstall or scale-down must keep the PVCs. Empty fields use the cluster default.
 - define node placement rules for `replication`, especially when the cluster spans multiple nodes or zones
 - use the `client` or `source` Service only for writes
 - use the `replicas` Service only for read traffic
@@ -203,6 +206,10 @@ metrics:
 - treat restore validation, retention policy, and failover as operational workflows that still require explicit runbooks
 - review the architecture guides before promoting `replication` to production
 - start from [examples/production.yaml](examples/production.yaml) for a complete production-oriented values file
+
+Kubernetes 1.26 disables the `StatefulSetAutoDeletePVC` feature gate by default. On Kubernetes 1.26, enable the gate
+on both the API server and controller manager before relying on a `Delete` policy; otherwise the API server can omit
+the StatefulSet retention field. Kubernetes 1.27 and later enable the feature by default.
 
 Operational documents:
 
@@ -266,6 +273,12 @@ Operational documents:
 | `replication.scheduling.enableDefaultTopologySpread` | Enable default topology spread in replication mode | `true` |
 | `replication.replicaTuning.parallelWorkers` | Parallel applier workers on replicas | `4` |
 | `standalone.persistence.enabled` | Enable PVC for standalone | `true` |
+| `standalone.persistence.retentionPolicy.whenDeleted` | PVC retention when the standalone StatefulSet is deleted (`Retain`, `Delete`, or empty) | `""` |
+| `standalone.persistence.retentionPolicy.whenScaled` | PVC retention when the standalone StatefulSet scales down | `""` |
+| `replication.source.persistence.retentionPolicy.whenDeleted` | PVC retention when the source StatefulSet is deleted | `""` |
+| `replication.source.persistence.retentionPolicy.whenScaled` | PVC retention when the source StatefulSet scales down | `""` |
+| `replication.readReplicas.persistence.retentionPolicy.whenDeleted` | PVC retention when the replica StatefulSet is deleted | `""` |
+| `replication.readReplicas.persistence.retentionPolicy.whenScaled` | PVC retention when the replica StatefulSet scales down | `""` |
 | `replication.readReplicas.replicaCount` | Number of async read replicas | `2` |
 | `metrics.enabled` | Enable `mysqld-exporter` sidecar | `false` |
 | `metrics.serviceMonitor.enabled` | Enable ServiceMonitor | `false` |

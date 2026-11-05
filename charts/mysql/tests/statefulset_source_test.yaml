@@ -36,6 +36,39 @@ tests:
           path: spec.template.spec.containers[0].image
           value: "docker.io/library/mysql:26.7.0"
 
+  - it: should omit PVC retention policy by default
+    template: statefulset-source.yaml
+    asserts:
+      - notExists:
+          path: spec.persistentVolumeClaimRetentionPolicy
+
+  - it: should set standalone PVC retention policy
+    template: statefulset-source.yaml
+    set:
+      standalone.persistence.retentionPolicy.whenDeleted: Retain
+      standalone.persistence.retentionPolicy.whenScaled: Retain
+    asserts:
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenDeleted
+          value: Retain
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenScaled
+          value: Retain
+
+  - it: should set source PVC retention policy in replication mode
+    template: statefulset-source.yaml
+    set:
+      architecture: replication
+      replication.source.persistence.retentionPolicy.whenDeleted: Delete
+      replication.source.persistence.retentionPolicy.whenScaled: Retain
+    asserts:
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenDeleted
+          value: Delete
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenScaled
+          value: Retain
+
   - it: should always have 1 replica
     template: statefulset-source.yaml
     asserts:

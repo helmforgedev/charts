@@ -102,11 +102,18 @@ Production-ready deployments are possible through values, but the default values
 - TLS with `tls.enabled`, `tls.requireSecureTransport`, and `tls.client.enabled`.
 - `tls.volumePermissions.enabled` when projected TLS private-key modes are incompatible with the non-root MySQL process.
 - persistent volumes sized for the workload and storage class.
+- both `whenDeleted` and `whenScaled` set to `Retain` under the applicable standalone, source, or read-replica
+  `persistence.retentionPolicy` when deleting or scaling the StatefulSet must keep the PVCs. Empty fields leave the
+  cluster default.
 - resource requests/limits or chart resource presets.
 - `networkPolicy.enabled` and, where supported by the CNI, `networkPolicy.egress.enabled`.
 - `serviceAccount.automountServiceAccountToken=false` unless an extension needs Kubernetes API access.
 - metrics and alerts for availability, replica lag, connection count, disk growth, and backup failures.
 - backup and restore runbooks with regular restore tests.
+
+Kubernetes 1.26 disables the `StatefulSetAutoDeletePVC` feature gate by default. The API server and controller manager
+must both enable it before a `Delete` retention policy can be relied on. Kubernetes 1.27 and later enable the feature
+by default.
 
 ## Design Decisions
 
