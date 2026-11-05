@@ -141,13 +141,6 @@ pdb:
 wpCron:
   cronJob:
     enabled: true
-    nodeSelector:
-      workload-tier: batch
-    tolerations:
-      - key: workload
-        operator: Equal
-        value: batch
-        effect: NoSchedule
 
 bootstrap:
   enabled: true
