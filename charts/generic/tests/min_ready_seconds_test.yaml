@@ -1,0 +1,119 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Minimum Ready duration
+templates:
+  - deployment.yaml
+  - statefulset.yaml
+  - daemonset.yaml
+  - job.yaml
+  - cronjob.yaml
+  - validate.yaml
+tests:
+  - it: preserves the default Deployment manifest
+    asserts:
+      - notExists:
+          path: spec.minReadySeconds
+        template: deployment.yaml
+  - it: configures Deployment availability at workload level
+    set:
+      minReadySeconds: 45
+    asserts:
+      - equal:
+          path: spec.minReadySeconds
+          value: 45
+        template: deployment.yaml
+      - notExists:
+          path: spec.template.spec.minReadySeconds
+        template: deployment.yaml
+  - it: preserves an explicit zero without adding a rollout delay
+    set:
+      minReadySeconds: 0
+    asserts:
+      - notExists:
+          path: spec.minReadySeconds
+        template: deployment.yaml
+  - it: preserves the default StatefulSet manifest
+    set:
+      workload.type: StatefulSet
+    asserts:
+      - notExists:
+          path: spec.minReadySeconds
+        template: statefulset.yaml
+  - it: configures StatefulSet availability at workload level
+    set:
+      workload.type: StatefulSet
+      minReadySeconds: 45
+    asserts:
+      - equal:
+          path: spec.minReadySeconds
+          value: 45
+        template: statefulset.yaml
+      - notExists:
+          path: spec.template.spec.minReadySeconds
+        template: statefulset.yaml
+  - it: preserves the default DaemonSet manifest
+    set:
+      workload.type: DaemonSet
+    asserts:
+      - notExists:
+          path: spec.minReadySeconds
+        template: daemonset.yaml
+  - it: configures DaemonSet availability at workload level
+    set:
+      workload.type: DaemonSet
+      minReadySeconds: 45
+    asserts:
+      - equal:
+          path: spec.minReadySeconds
+          value: 45
+        template: daemonset.yaml
+      - notExists:
+          path: spec.template.spec.minReadySeconds
+        template: daemonset.yaml
+  - it: rejects a negative minimum Ready duration
+    set:
+      minReadySeconds: -1
+    asserts:
+      - failedTemplate:
+          errorPattern: minReadySeconds
+        template: validate.yaml
+  - it: rejects a nonnumeric minimum Ready duration
+    set:
+      minReadySeconds: invalid
+    asserts:
+      - failedTemplate:
+          errorPattern: minReadySeconds
+        template: validate.yaml
+  - it: rejects a fractional minimum Ready duration
+    set:
+      minReadySeconds: 0.5
+    asserts:
+      - failedTemplate:
+          errorPattern: minReadySeconds
+        template: validate.yaml
+  - it: leaves Job and CronJob specs unchanged for batch-only releases
+    set:
+      workload.enabled: false
+      minReadySeconds: 45
+      jobs:
+        - name: once
+          command: [echo, ok]
+      cronjobs:
+        - name: scheduled
+          schedule: "0 * * * *"
+          command: [echo, ok]
+    asserts:
+      - notExists:
+          path: spec.minReadySeconds
+        template: job.yaml
+      - notExists:
+          path: spec.template.spec.minReadySeconds
+        template: job.yaml
+      - notExists:
+          path: spec.minReadySeconds
+        template: cronjob.yaml
+      - notExists:
+          path: spec.jobTemplate.spec.minReadySeconds
+        template: cronjob.yaml
+      - notExists:
+          path: spec.jobTemplate.spec.template.spec.minReadySeconds
+        template: cronjob.yaml
