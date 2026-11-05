@@ -31,17 +31,16 @@ Backup object-storage credentials can come from `backup.s3.existingSecret`, inli
 When running on EKS with Pod Identity or IRSA, static S3 credentials are unnecessary. Set
 `backup.s3.credentialsFromPodIdentity=true`.
 
-- **IRSA:** annotate the chart ServiceAccount with the IAM role ARN.
-- **EKS Pod Identity:** create a Pod Identity association for that ServiceAccount instead. The annotation is ignored.
+- **IRSA:** annotate the dedicated backup ServiceAccount with the IAM role ARN.
+- **EKS Pod Identity:** create a Pod Identity association for the dedicated backup ServiceAccount instead. The annotation is ignored.
 
 ```yaml
-serviceAccount:
-  create: true
-  annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::<account-id>:role/<role-name>
-
 backup:
   enabled: true
+  serviceAccount:
+    create: true
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::<account-id>:role/<role-name>
   s3:
     endpoint: https://s3.amazonaws.com
     bucket: my-mysql-backups
@@ -51,6 +50,7 @@ backup:
 
 When this flag is set:
 
+- The backup CronJob uses its own ServiceAccount and does not grant S3 access to the MySQL pods.
 - No backup S3 Secret is created.
 - No `S3_ACCESS_KEY` / `S3_SECRET_KEY` env vars are injected into the backup pod.
 - `upload-backup.sh` sets `MC_HOST_backup` to the endpoint with no embedded keys, and sets
