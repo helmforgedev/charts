@@ -58,6 +58,8 @@ flowchart LR
 
 For more than one WordPress replica, the content strategy must be explicit.
 Use ReadWriteMany storage for shared files, or operate plugins/themes/media through a deployment and object-storage strategy.
+The wp-cron CronJob has independent node selector, affinity, and toleration controls so batch execution can use a
+different node pool without changing WordPress Deployment placement. Empty values leave scheduling to the cluster.
 
 ## Secrets Architecture
 
