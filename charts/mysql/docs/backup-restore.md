@@ -36,6 +36,8 @@ When running on EKS with Pod Identity or IRSA, static S3 credentials are unneces
 
 When `networkPolicy.egress.enabled=true`, also enable HTTPS egress for S3 and allow the EKS Pod Identity agent endpoint:
 
+`allowHTTPS` permits the selected pods to reach any IPv4 destination on TCP/443; it is not restricted to S3 endpoints.
+
 ```yaml
 networkPolicy:
   egress:
