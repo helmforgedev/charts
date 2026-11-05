@@ -38,6 +38,15 @@ KEDA, VPA, PodMonitor, and PrometheusRule resources require their operators and 
 features. The generic chart keeps them disabled by default and validates only their manifests unless the target cluster
 has the matching CRDs installed.
 
+### VPA update modes
+
+`vpa.updateMode` supports `Off`, `Initial`, `Recreate`, `InPlaceOrRecreate`, and `Auto`; the default remains `Off`.
+`InPlaceOrRecreate` attempts to resize running Pods in place and falls back to eviction and recreation when necessary.
+It requires VPA 1.4.0 or newer with matching CRDs and Kubernetes 1.33 or newer with in-place Pod resource resizing enabled.
+Enable the required Kubernetes and VPA feature gates for your installed versions; see the
+[upstream VPA requirements](https://github.com/kubernetes/autoscaler/blob/vertical-pod-autoscaler-1.6.0/vertical-pod-autoscaler/docs/features.md#requirements).
+Allowing this value in the chart does not enable those cluster features or guarantee disruption-free updates.
+
 <!-- @AI-METADATA
 type: chart-docs
 title: Generic Chart - Observability

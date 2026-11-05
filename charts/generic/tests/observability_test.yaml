@@ -68,3 +68,39 @@ tests:
           path: spec.updatePolicy.updateMode
           value: Auto
         template: vpa.yaml
+
+  - it: should allow in-place updates with recreation fallback
+    set:
+      vpa.enabled: true
+      vpa.updateMode: InPlaceOrRecreate
+    asserts:
+      - equal:
+          path: spec.updatePolicy.updateMode
+          value: InPlaceOrRecreate
+        template: vpa.yaml
+
+  - it: should retain Off as the VPA default mode
+    set:
+      vpa.enabled: true
+    asserts:
+      - equal:
+          path: spec.updatePolicy.updateMode
+          value: Off
+        template: vpa.yaml
+
+  - it: should not enable VPA when only its update mode is configured
+    set:
+      vpa.updateMode: InPlaceOrRecreate
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: vpa.yaml
+
+  - it: should continue to reject unsupported update modes
+    set:
+      vpa.enabled: true
+      vpa.updateMode: unsupported-mode
+    asserts:
+      - failedTemplate:
+          errorPattern: vpa/updateMode
+        template: vpa.yaml
