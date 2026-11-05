@@ -257,9 +257,9 @@ Operational documents:
 | `externalSecrets.backup.enabled` | Manage the backup Secret through External Secrets Operator | `false` |
 | `backup.enabled` | Enable built-in S3 backup CronJob | `false` |
 | `backup.schedule` | Backup schedule | `"0 3 * * *"` |
-| `backup.serviceAccount.create` | Create a dedicated ServiceAccount for the backup CronJob | `true` |
-| `backup.serviceAccount.name` | Existing backup ServiceAccount name when creation is disabled | `""` |
-| `backup.serviceAccount.annotations` | Annotations for the backup ServiceAccount, including IRSA roles | `{}` |
+| `backup.serviceAccount.create` | Create a dedicated ServiceAccount for Pod Identity / IRSA backups | `true` |
+| `backup.serviceAccount.name` | Existing dedicated ServiceAccount for Pod Identity / IRSA backups | `""` |
+| `backup.serviceAccount.annotations` | Annotations for the Pod Identity / IRSA ServiceAccount | `{}` |
 | `backup.serviceAccount.automountServiceAccountToken` | Mount the Kubernetes API token into backup pods | `false` |
 | `backup.s3.endpoint` | S3-compatible endpoint URL | `""` |
 | `backup.s3.bucket` | Target bucket name | `""` |

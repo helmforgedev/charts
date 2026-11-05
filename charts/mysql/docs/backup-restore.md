@@ -34,6 +34,22 @@ When running on EKS with Pod Identity or IRSA, static S3 credentials are unneces
 - **IRSA:** annotate the dedicated backup ServiceAccount with the IAM role ARN.
 - **EKS Pod Identity:** create a Pod Identity association for the dedicated backup ServiceAccount instead. The annotation is ignored.
 
+When `networkPolicy.egress.enabled=true`, also enable HTTPS egress for S3 and allow the EKS Pod Identity agent endpoint:
+
+```yaml
+networkPolicy:
+  egress:
+    enabled: true
+    allowHTTPS: true
+  extraEgress:
+    - to:
+        - ipBlock:
+            cidr: 169.254.170.23/32
+      ports:
+        - protocol: TCP
+          port: 80
+```
+
 ```yaml
 backup:
   enabled: true

@@ -132,6 +132,33 @@ tests:
       - failedTemplate:
           errorMessage: "backup.serviceAccount.name is required when Pod Identity is enabled and backup.serviceAccount.create is false"
 
+  - it: should preserve the workload ServiceAccount for static credential backups
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+      serviceAccount.create: false
+      serviceAccount.name: workload-registry
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.serviceAccountName
+          value: workload-registry
+
+  - it: should not create the dedicated ServiceAccount for static credential backups
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    template: templates/backup-serviceaccount.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
   - it: should fail pod identity backup when region is empty
     set:
       backup.enabled: true
