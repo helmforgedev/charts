@@ -9,13 +9,18 @@ Use these controls together:
 
 - `architecture: replication` when read scaling is required.
 - persistent storage enabled for the source and replicas.
-- `persistence.retentionPolicy.whenDeleted` and `whenScaled` set to `Retain` when the PVCs must survive StatefulSet deletion or scale-down. Empty uses the cluster default.
+- both `whenDeleted` and `whenScaled` set to `Retain` under the applicable standalone, source, or read-replica
+  `persistence.retentionPolicy` when the PVCs must survive StatefulSet deletion or scale-down. Empty fields use the
+  cluster default.
 - `auth.existingSecret` or `externalSecrets.auth.enabled=true` for credentials.
 - `tls.enabled=true`, `tls.requireSecureTransport=true`, and `tls.client.enabled=true` for encrypted client and internal chart traffic.
 - `tls.volumePermissions.enabled=true` when the TLS private key must be copied to a writable `emptyDir` and set to mode `0600` for the non-root MySQL process.
 - `serviceAccount.automountServiceAccountToken=false` unless a sidecar explicitly needs Kubernetes API access.
 - `networkPolicy.enabled=true`; add `networkPolicy.egress.enabled=true` when your CNI enforces egress.
 - metrics, alerts, backup scheduling, and restore tests.
+
+Kubernetes 1.26 disables the `StatefulSetAutoDeletePVC` feature gate by default. Enable it on both the API server and
+controller manager before relying on a `Delete` policy. Kubernetes 1.27 and later enable the feature by default.
 
 ## External Secrets Operator
 

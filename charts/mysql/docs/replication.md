@@ -30,7 +30,9 @@ Typical use cases:
 ## Best practices
 
 - keep `readReplicas.replicaCount >= 2` if read scale matters
-- set `replication.source.persistence.retentionPolicy` and `replication.readReplicas.persistence.retentionPolicy` to `Retain` when uninstall or scale-down must keep the PVCs. Empty uses the cluster default.
+- set both `whenDeleted` and `whenScaled` to `Retain` under
+  `replication.source.persistence.retentionPolicy` and `replication.readReplicas.persistence.retentionPolicy` when
+  uninstall or scale-down must keep the PVCs. Empty fields use the cluster default.
 - use `pdb.enabled=true` before routine maintenance in multi-node environments
 - route write traffic only to the source Service
 - route read traffic only to the replicas Service
@@ -39,6 +41,9 @@ Typical use cases:
 - do not expect the replicas Service to make lag-aware or query-aware routing decisions
 - treat this mode as read scaling plus recovery help, not full HA
 - if automated failover is a hard requirement, use an operator instead of extending this chart
+
+Kubernetes 1.26 disables the `StatefulSetAutoDeletePVC` feature gate by default. Enable it on both the API server and
+controller manager before relying on a `Delete` policy. Kubernetes 1.27 and later enable the feature by default.
 
 ## Read scaling notes
 

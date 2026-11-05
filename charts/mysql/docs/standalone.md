@@ -27,8 +27,13 @@ Typical use cases:
 ## Best practices
 
 - keep persistence enabled in production
-- set `standalone.persistence.retentionPolicy` to `Retain` when uninstall or scale-down must keep the PVC. Empty uses the cluster default.
+- set both `standalone.persistence.retentionPolicy.whenDeleted` and
+  `standalone.persistence.retentionPolicy.whenScaled` to `Retain` when uninstall or scale-down must keep the PVC.
+  Empty fields use the cluster default.
 - use `auth.existingSecret` instead of inline passwords
 - use `tls.enabled=true` with `tls.existingSecret` when client connections must be encrypted
 - use `initdb.scripts` only for deterministic first-boot initialization
 - keep backup and restore procedures outside the chart
+
+Kubernetes 1.26 disables the `StatefulSetAutoDeletePVC` feature gate by default. Enable it on both the API server and
+controller manager before relying on a `Delete` policy. Kubernetes 1.27 and later enable the feature by default.

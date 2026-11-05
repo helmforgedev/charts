@@ -194,7 +194,9 @@ metrics:
 - use `externalSecrets.tls.enabled=true` when the TLS Secret should be reconciled by External Secrets Operator
 - use `externalSecrets.backup.enabled=true` for S3 credentials when the backup Secret should be reconciled by External Secrets Operator
 - keep persistence enabled for every stateful topology
-- set `persistence.retentionPolicy` to `Retain` on standalone, source, and replica storage when uninstall or scale-down must keep the PVCs. Empty uses the cluster default.
+- set both `whenDeleted` and `whenScaled` to `Retain` under `standalone.persistence.retentionPolicy`,
+  `replication.source.persistence.retentionPolicy`, or `replication.readReplicas.persistence.retentionPolicy` when
+  uninstall or scale-down must keep the PVCs. Empty fields use the cluster default.
 - define node placement rules for `replication`, especially when the cluster spans multiple nodes or zones
 - use the `client` or `source` Service only for writes
 - use the `replicas` Service only for read traffic
@@ -204,6 +206,10 @@ metrics:
 - treat restore validation, retention policy, and failover as operational workflows that still require explicit runbooks
 - review the architecture guides before promoting `replication` to production
 - start from [examples/production.yaml](examples/production.yaml) for a complete production-oriented values file
+
+Kubernetes 1.26 disables the `StatefulSetAutoDeletePVC` feature gate by default. On Kubernetes 1.26, enable the gate
+on both the API server and controller manager before relying on a `Delete` policy; otherwise the API server can omit
+the StatefulSet retention field. Kubernetes 1.27 and later enable the feature by default.
 
 Operational documents:
 
