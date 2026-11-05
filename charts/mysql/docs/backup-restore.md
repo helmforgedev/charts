@@ -22,8 +22,97 @@ Use the built-in S3 backup for regular logical dumps, and add external tooling w
 - physical backup workflows
 - centralized retention enforcement across many database instances
 
-Backup object-storage credentials can come from `backup.s3.existingSecret`, inline values for non-production testing, or
-`externalSecrets.backup.enabled=true` when External Secrets Operator manages the Kubernetes Secret.
+Backup object-storage credentials can come from `backup.s3.existingSecret`, inline values for non-production testing,
+`externalSecrets.backup.enabled=true` when External Secrets Operator manages the Kubernetes Secret, or
+`backup.s3.credentialsFromPodIdentity=true` on EKS with Pod Identity / IRSA.
+
+## Pod Identity / IRSA (EKS)
+
+When running on EKS with Pod Identity or IRSA, static S3 credentials are unnecessary. Set
+`backup.s3.credentialsFromPodIdentity=true`.
+
+- **IRSA:** annotate the dedicated backup ServiceAccount with the IAM role ARN.
+- **EKS Pod Identity:** create a Pod Identity association for the dedicated backup ServiceAccount instead. The annotation is ignored.
+
+When `networkPolicy.egress.enabled=true`, also enable HTTPS egress for S3 and allow the EKS Pod Identity agent endpoint:
+
+`allowHTTPS` permits the selected pods to reach any IPv4 destination on TCP/443. The `::/0` rule below provides the
+same access for IPv6 endpoints; neither rule is restricted to S3.
+
+```yaml
+networkPolicy:
+  egress:
+    enabled: true
+    allowHTTPS: true
+  extraEgress:
+    - to:
+        - ipBlock:
+            cidr: ::/0
+      ports:
+        - protocol: TCP
+          port: 443
+    - to:
+        - ipBlock:
+            cidr: 169.254.170.23/32
+      ports:
+        - protocol: TCP
+          port: 80
+    - to:
+        - ipBlock:
+            cidr: fd00:ec2::23/128
+      ports:
+        - protocol: TCP
+          port: 80
+```
+
+```yaml
+backup:
+  enabled: true
+  serviceAccount:
+    create: true
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::<account-id>:role/<role-name>
+  s3:
+    endpoint: https://s3.amazonaws.com
+    bucket: my-mysql-backups
+    region: us-east-1
+    credentialsFromPodIdentity: true
+```
+
+When this flag is set:
+
+- The backup CronJob uses its own ServiceAccount and does not grant S3 access to the MySQL pods.
+- No backup S3 Secret is created.
+- No `S3_ACCESS_KEY` / `S3_SECRET_KEY` env vars are injected into the backup pod.
+- `upload-backup.sh` sets `MC_HOST_backup` to the endpoint with no embedded keys, and sets
+  `MC_STS_ENDPOINT_backup` to `https://sts.${AWS_REGION}.${sts_domain}`. `sts_domain` is
+  `amazonaws.com` for commercial and GovCloud regions, and `amazonaws.com.cn` when `AWS_REGION`
+  starts with `cn-`. `helmforge/mc:1.0.0` only uses the AWS credential chain when
+  `MC_STS_ENDPOINT_<alias>` is set. A bare `MC_HOST` is signed with an empty access key and S3
+  returns AccessDenied. For Pod Identity, minio-go then reads
+  `AWS_CONTAINER_CREDENTIALS_FULL_URI` and `AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE` and does not
+  call the STS URL. Set `backup.s3.region`. The chart injects it as `AWS_REGION` on the upload
+  container. EKS Pod Identity does not document `AWS_REGION` as an injected variable.
+
+The IAM role attached to the ServiceAccount must have at minimum:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:GetObject", "s3:ListBucket", "s3:CreateBucket"],
+      "Resource": [
+        "arn:aws:s3:::my-mysql-backups",
+        "arn:aws:s3:::my-mysql-backups/*"
+      ]
+    }
+  ]
+}
+```
+
+Omit `s3:CreateBucket` and set `backup.s3.createBucketIfNotExists=false` if the bucket is pre-created.
 
 ## Minimum production practices
 

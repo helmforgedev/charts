@@ -257,8 +257,14 @@ Operational documents:
 | `externalSecrets.backup.enabled` | Manage the backup Secret through External Secrets Operator | `false` |
 | `backup.enabled` | Enable built-in S3 backup CronJob | `false` |
 | `backup.schedule` | Backup schedule | `"0 3 * * *"` |
+| `backup.serviceAccount.create` | Create a dedicated ServiceAccount for Pod Identity / IRSA backups | `true` |
+| `backup.serviceAccount.name` | Existing dedicated ServiceAccount for Pod Identity / IRSA backups | `""` |
+| `backup.serviceAccount.annotations` | Annotations for the Pod Identity / IRSA ServiceAccount | `{}` |
+| `backup.serviceAccount.automountServiceAccountToken` | Mount the Kubernetes API token into backup pods | `false` |
 | `backup.s3.endpoint` | S3-compatible endpoint URL | `""` |
 | `backup.s3.bucket` | Target bucket name | `""` |
+| `backup.s3.region` | AWS region used by Pod Identity or IRSA backups | `""` |
+| `backup.s3.credentialsFromPodIdentity` | Use the backup pod IAM identity instead of static S3 credentials | `false` |
 | `backup.database.mysqldumpArgs` | Extra `mysqldump` flags used before `--all-databases` | `"--single-transaction --quick --skip-lock-tables --no-tablespaces --routines --events --triggers"` |
 | `livenessProbe.enabled` | Enable livenessProbe | `true` |
 | `readinessProbe.enabled` | Enable readinessProbe | `true` |

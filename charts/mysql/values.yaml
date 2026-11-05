@@ -297,6 +297,15 @@ backup:
       repository: docker.io/library/mysql
       tag: "26.7.0"
       pullPolicy: IfNotPresent
+  serviceAccount:
+    # -- Create a dedicated ServiceAccount for Pod Identity / IRSA backups
+    create: true
+    # -- Name of an existing dedicated ServiceAccount for Pod Identity / IRSA backups when create is false
+    name: ""
+    # -- Annotations for the Pod Identity / IRSA backup ServiceAccount, for example an IRSA role ARN
+    annotations: {}
+    # -- Mount the Kubernetes API token into backup pods
+    automountServiceAccountToken: false
   s3:
     # -- S3-compatible endpoint URL, for example: https://s3.amazonaws.com or https://minio.example.com
     endpoint: ""
@@ -316,6 +325,17 @@ backup:
     accessKey: ""
     # -- Inline secret key used when backup.s3.existingSecret is not set
     secretKey: ""
+    # -- AWS region injected as AWS_REGION and AWS_DEFAULT_REGION on the upload container.
+    # Required when credentialsFromPodIdentity is true. The chart does not read it from the node
+    # or from EKS. Pod Identity does not document AWS_REGION as an injected variable.
+    region: ""
+    # -- Use the pod's IAM identity (EKS Pod Identity / IRSA) instead of static S3 credentials.
+    # When true, no S3 Secret is created and no access/secret key env vars are injected.
+    # The upload script sets MC_HOST_backup and MC_STS_ENDPOINT_backup so minio/mc uses the
+    # AWS credential chain. Pod Identity needs an EKS Pod Identity association for this
+    # ServiceAccount. IRSA needs eks.amazonaws.com/role-arn on the ServiceAccount.
+    # Set backup.s3.region. The chart injects it as AWS_REGION on the upload container.
+    credentialsFromPodIdentity: false
   database:
     # -- Extra arguments passed to mysqldump before the built-in --all-databases flag
     mysqldumpArgs: "--single-transaction --quick --skip-lock-tables --no-tablespaces --routines --events --triggers"

@@ -245,6 +245,14 @@ MYSQL_PWD="${MYSQL_ROOT_PASSWORD}" mysql -h 127.0.0.1 -P {{ .Values.service.port
 {{- end -}}
 {{- end -}}
 
+{{- define "mysql.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create -}}
+{{- default (printf "%s-backup" (include "mysql.fullname" .)) .Values.backup.serviceAccount.name -}}
+{{- else -}}
+{{- default "default" .Values.backup.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "mysql.backupEnabled" -}}
 {{- if .Values.backup.enabled -}}
   {{- if not .Values.backup.s3.endpoint -}}
@@ -253,8 +261,17 @@ MYSQL_PWD="${MYSQL_ROOT_PASSWORD}" mysql -h 127.0.0.1 -P {{ .Values.service.port
   {{- if not .Values.backup.s3.bucket -}}
     {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
   {{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (not (include "mysql.backupSecretManagedByExternalSecret" .)) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
-    {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
+  {{- if not .Values.backup.s3.credentialsFromPodIdentity -}}
+    {{- if and (not .Values.backup.s3.existingSecret) (not (include "mysql.backupSecretManagedByExternalSecret" .)) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+      {{- fail "backup requires either backup.s3.existingSecret, both backup.s3.accessKey and backup.s3.secretKey, or backup.s3.credentialsFromPodIdentity=true" -}}
+    {{- end -}}
+  {{- else -}}
+    {{- if not .Values.backup.s3.region -}}
+      {{- fail "backup.s3.region is required when backup.s3.credentialsFromPodIdentity is true" -}}
+    {{- end -}}
+    {{- if and (not .Values.backup.serviceAccount.create) (not .Values.backup.serviceAccount.name) -}}
+      {{- fail "backup.serviceAccount.name is required when Pod Identity is enabled and backup.serviceAccount.create is false" -}}
+    {{- end -}}
   {{- end -}}
 true
 {{- end -}}
@@ -285,7 +302,7 @@ true
 {{- end -}}
 
 {{- define "mysql.backupSecretManagedByExternalSecret" -}}
-{{- if and .Values.externalSecrets.enabled .Values.externalSecrets.backup.enabled -}}true{{- end -}}
+{{- if and .Values.externalSecrets.enabled .Values.externalSecrets.backup.enabled (not .Values.backup.s3.credentialsFromPodIdentity) -}}true{{- end -}}
 {{- end -}}
 
 {{- define "mysql.validateExternalSecrets" -}}
@@ -305,7 +322,7 @@ true
   {{- if and .Values.externalSecrets.tls.enabled .Values.tls.existingSecret -}}
     {{- fail "externalSecrets.tls.enabled cannot be combined with tls.existingSecret; set externalSecrets.tls.targetName instead" -}}
   {{- end -}}
-  {{- if and .Values.externalSecrets.backup.enabled .Values.backup.s3.existingSecret -}}
+  {{- if and .Values.externalSecrets.backup.enabled (not .Values.backup.s3.credentialsFromPodIdentity) .Values.backup.s3.existingSecret -}}
     {{- fail "externalSecrets.backup.enabled cannot be combined with backup.s3.existingSecret; set externalSecrets.backup.targetName instead" -}}
   {{- end -}}
 {{- end -}}
