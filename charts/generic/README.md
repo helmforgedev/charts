@@ -301,6 +301,9 @@ templated (e.g. `{{ .Release.Namespace }}`) to derive per-environment paths from
 - The default image is pinned (currently `docker.io/library/nginx:1.31.7`) with `IfNotPresent` instead of relying on `latest`.
 - Pod templates are deterministic; use `rollout.restartAt` or checksum-enabled ConfigMaps/Secrets for intentional rollouts.
 - HPA now fails validation when used with `DaemonSet` or when `hpa.maxReplicas` is missing.
+- HPA-enabled Deployments and StatefulSets omit `spec.replicas`. The first upgrade from a chart that set it explicitly,
+  or a switch to HPA, can briefly reset replicas to one before HPA reconciles.
+  Review [replica ownership during upgrades](docs/observability.md#replica-ownership-during-upgrades) before this transition.
 - `pdb.enabled` requires exactly one of `pdb.minAvailable` or `pdb.maxUnavailable`.
 - Optional CRD-backed resources are disabled by default and must only be enabled in clusters where the corresponding operator/API is installed.
 
@@ -362,7 +365,7 @@ See the [examples/](examples/) directory for complete, ready-to-use values files
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `replicaCount` | Pod replicas (ignored with HPA/DaemonSet) | `1` |
+| `replicaCount` | Pod replicas; omitted from Deployment/StatefulSet with HPA enabled, unused by DaemonSet/Job/CronJob | `1` |
 | `nameOverride` | Override release name | `""` |
 | `fullnameOverride` | Override fully qualified name | `""` |
 | `commonLabels` | Labels added to all resources | `{}` |
