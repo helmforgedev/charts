@@ -86,11 +86,20 @@ data:
 
     {{- if .Values.backup.s3.credentialsFromPodIdentity }}
     export MC_HOST_backup="${S3_ENDPOINT}"
-    sts_domain="amazonaws.com"
-    case "${AWS_REGION}" in
-      cn-*) sts_domain="amazonaws.com.cn" ;;
-    esac
-    export MC_STS_ENDPOINT_backup="https://sts.${AWS_REGION}.${sts_domain}"
+    if [ -n "${AWS_CONTAINER_CREDENTIALS_FULL_URI:-}" ] && \
+       [ -z "${AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE:-}" ] && \
+       [ -z "${AWS_WEB_IDENTITY_TOKEN_FILE:-}" ]; then
+      # ECS-compatible ambient credentials without a token file must use the
+      # container endpoint directly. minio-go otherwise treats the configured
+      # STS endpoint as the credential endpoint and never consults FULL_URI.
+      export MC_STS_ENDPOINT_backup="${AWS_CONTAINER_CREDENTIALS_FULL_URI}"
+    else
+      sts_domain="amazonaws.com"
+      case "${AWS_REGION}" in
+        cn-*) sts_domain="amazonaws.com.cn" ;;
+      esac
+      export MC_STS_ENDPOINT_backup="https://sts.${AWS_REGION}.${sts_domain}"
+    fi
     {{- else }}
     mc alias set backup "${S3_ENDPOINT}" "${S3_ACCESS_KEY}" "${S3_SECRET_KEY}"
     {{- end }}
