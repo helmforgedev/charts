@@ -33,6 +33,7 @@ Common cases:
 - keep resource requests realistic because a DaemonSet multiplies by node count
 - use `rollout.restartAt` only for deliberate daemon pod replacement
 - do not enable HPA for DaemonSets; the chart validates and blocks that invalid combination
+- set `minReadySeconds` when replacement Pods must remain continuously Ready before they count as available; this does not delay Service traffic
 
 ## Most relevant values
 
@@ -40,6 +41,7 @@ Common cases:
 |-----------|-------------|
 | `workload.type` | Must be `DaemonSet` |
 | `workload.updateStrategy` | Rolling update behavior |
+| `minReadySeconds` | Continuous Ready duration before Pods count as available; defaults to `0` |
 | `containers` | Agent container definition |
 | `tolerations` | Node tolerance rules |
 | `nodeSelector` | Node filtering |

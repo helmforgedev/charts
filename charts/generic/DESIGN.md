@@ -41,6 +41,9 @@ flowchart TB
   `fullnameOverride`. When `spec.target.name` is omitted, default it to the rendered ExternalSecret name.
 - Validate unsafe combinations at render time, including HPA with DaemonSet, incomplete PDB configuration, and routes that would point to a disabled primary Service.
 - Avoid time-based pod annotations. Intentional rollouts use `rollout.restartAt` or checksum-driven ConfigMap and Secret changes.
+- Allow `minReadySeconds` for Deployment, StatefulSet, and DaemonSet availability checks. Its default of zero is omitted to
+  preserve existing manifests; Jobs and CronJobs do not use it. Deployments automatically receive a compatible
+  `progressDeadlineSeconds` when the requested Ready duration reaches the Kubernetes default deadline.
 
 ## Production Boundary
 

@@ -33,6 +33,7 @@ Common cases:
 - enable `service.headless.enabled` when stable per-pod DNS is required
 - choose `OrderedReady` or `Parallel` intentionally
 - test rolling upgrades with real persistence attached
+- set `minReadySeconds` when replacement Pods must remain continuously Ready before they count as available; this does not delay Service traffic
 - use `rollout.restartAt` only for deliberate pod restarts
 - avoid using the generic chart for complex datastores that deserve product-specific topology handling
 
@@ -45,6 +46,7 @@ Common cases:
 | `workload.volumeClaimTemplates` | PVC templates per replica |
 | `workload.persistentVolumeClaimRetentionPolicy` | PVC retention on deletion or scale-down |
 | `replicaCount` | Number of replicas |
+| `minReadySeconds` | Continuous Ready duration before Pods count as available; defaults to `0` |
 | `service.*` | Service behavior for the stateful workload |
 | `service.headless.enabled` | Headless Service mode |
 | `persistence.mounts` | Shared mounts across containers |

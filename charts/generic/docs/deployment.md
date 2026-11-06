@@ -35,6 +35,8 @@ Common cases:
 - add `pdb.enabled=true` for production services with multiple replicas
 - use `topologySpreadConstraints` or anti-affinity for critical services
 - set `rollout.restartAt` only when you intentionally want to roll pods without another spec change
+- set `minReadySeconds` when replacements must remain continuously Ready before they count as available; this controls rollout progress,
+  not Service traffic or probe timing. Values of 600 or more automatically set `progressDeadlineSeconds` 600 seconds later
 
 ## Most relevant values
 
@@ -42,6 +44,7 @@ Common cases:
 |-----------|-------------|
 | `workload.type` | Must be `Deployment` |
 | `replicaCount` | Number of replicas |
+| `minReadySeconds` | Continuous Ready duration before Pods count as available; values of 600 or more automatically receive a greater progress deadline; defaults to `0` |
 | `containers` | Main and sidecar containers |
 | `service.*` | Service exposure |
 | `ingress.*` | HTTP ingress exposure |
