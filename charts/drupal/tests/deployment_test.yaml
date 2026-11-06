@@ -208,6 +208,12 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
           value: false
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.add
+          content: SETGID
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.add
+          content: SETUID
 
   - it: should mount php.ini when configured
     template: templates/deployment.yaml
@@ -258,7 +264,7 @@ tests:
       - isKind:
           of: Deployment
 
-  - it: should set minReplicas on the deployment when autoscaling is enabled
+  - it: should leave replica ownership to the HPA when autoscaling is enabled
     template: templates/deployment.yaml
     set:
       autoscaling.enabled: true
@@ -266,6 +272,5 @@ tests:
       autoscaling.maxReplicas: 5
       persistence.accessMode: ReadWriteMany
     asserts:
-      - equal:
+      - notExists:
           path: spec.replicas
-          value: 2

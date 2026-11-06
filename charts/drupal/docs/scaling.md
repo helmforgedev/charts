@@ -29,3 +29,9 @@ pdb:
 ```
 
 This keeps the default single-replica behavior safe while still allowing production horizontal scaling when shared storage is available.
+
+When autoscaling is enabled, the Deployment omits `spec.replicas` so the HPA
+remains the only replica-count owner during Helm upgrades. Enabling this on an
+existing release that previously rendered `spec.replicas` can cause a one-time
+transition before the HPA reconciles its configured minimum; schedule the first
+upgrade accordingly.

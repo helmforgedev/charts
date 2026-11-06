@@ -65,6 +65,17 @@ ServiceAccount name.
 {{- end }}
 
 {{/*
+Backup ServiceAccount name.
+*/}}
+{{- define "drupal.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create }}
+{{- default (printf "%s-backup" (include "drupal.fullname" .)) .Values.backup.serviceAccount.name }}
+{{- else }}
+{{- default "default" .Values.backup.serviceAccount.name }}
+{{- end }}
+{{- end }}
+
+{{/*
 Image string.
 */}}
 {{- define "drupal.image" -}}
@@ -93,6 +104,16 @@ true
 false
 {{- end -}}
 {{- end }}
+
+{{/* Merge chart-wide annotations with resource annotations; resource values win. */}}
+{{- define "drupal.annotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $merged := mergeOverwrite $common $specific -}}
+{{- if $merged -}}
+{{- toYaml $merged -}}
+{{- end -}}
+{{- end -}}
 
 {{/*
 Desired replica count before validations.
@@ -280,8 +301,17 @@ Whether backup is enabled, with validation.
   {{- if not .Values.backup.s3.bucket -}}
     {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
   {{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
-    {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
+  {{- if not .Values.backup.s3.credentialsFromPodIdentity -}}
+    {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+      {{- fail "backup requires either backup.s3.existingSecret, both backup.s3.accessKey and backup.s3.secretKey, or backup.s3.credentialsFromPodIdentity=true" -}}
+    {{- end -}}
+  {{- else -}}
+    {{- if not .Values.backup.s3.region -}}
+      {{- fail "backup.s3.region is required when backup.s3.credentialsFromPodIdentity is true" -}}
+    {{- end -}}
+    {{- if and (not .Values.backup.serviceAccount.create) (not .Values.backup.serviceAccount.name) -}}
+      {{- fail "backup.serviceAccount.name is required when Pod Identity is enabled and backup.serviceAccount.create is false" -}}
+    {{- end -}}
   {{- end -}}
   {{- $dbMode := include "drupal.databaseMode" . -}}
   {{- if and (eq $dbMode "sqlite") (not (hasPrefix "sites/" .Values.drupal.sqlitePath)) -}}

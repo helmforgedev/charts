@@ -63,7 +63,7 @@ Users reach Drupal through an optional Ingress and a Service whose named
 `targetPort` selects the configurable Apache listener. The Deployment mounts
 only `/var/www/html/sites` from persistent storage, preserving mutable site
 state without shadowing Drupal core from the pinned image. The default MySQL
-2.1.1 subchart can be replaced with an external MySQL-compatible service or,
+2.4.0 subchart can be replaced with an external MySQL-compatible service or,
 for a single replica, SQLite within the sites volume. An optional CronJob
 archives the sites volume and database to S3-compatible storage.
 
@@ -173,7 +173,7 @@ mysql:
 | `service.port` | `80` | Service-facing port; its named target resolves to `containerPorts.http`. |
 | `database.mode` | `auto` | Database mode: `auto`, `external`, `mysql`, or `sqlite`. |
 | `mysql.enabled` | `true` | Deploy bundled MySQL. |
-| `mysql` dependency | `2.1.1` | Pinned HelmForge MySQL subchart version. |
+| `mysql` dependency | `2.4.0` | Pinned HelmForge MySQL subchart version. |
 | `mysql.auth.database` | `drupal` | Database name created by the MySQL subchart. |
 | `mysql.auth.username` | `drupal` | Database username created by the MySQL subchart. |
 | `mysql.standalone.persistence.enabled` | `true` | Enable persistence for the bundled standalone MySQL subchart. |
@@ -184,6 +184,9 @@ mysql:
 | `autoscaling.enabled` | `false` | Enable HPA when using RWX storage and a MySQL-compatible database. |
 | `pdb.enabled` | `false` | Enable a PodDisruptionBudget for higher-availability deployments. |
 | `backup.enabled` | `false` | Enable scheduled `sites/` + database backups to S3-compatible storage. |
+| `backup.s3.credentialsFromPodIdentity` | `false` | Use workload identity instead of static S3 keys. |
+| `backup.s3.region` | `""` | AWS region required for identity-based S3 credentials. |
+| `backup.serviceAccount.create` | `true` | Create the dedicated identity-bound backup ServiceAccount. |
 | `php.ini` | `""` via `php.ini` | Extra PHP configuration content. |
 | `ingress.enabled` | `false` | Enable ingress. |
 | `networkPolicy.enabled` | `false` | Restrict Drupal ingress with a Kubernetes NetworkPolicy. |
