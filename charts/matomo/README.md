@@ -145,6 +145,7 @@ port. See `ci/fpm-sidecar-values.yaml` for the maintained nginx example.
 | `image.tag` | Official Matomo image tag | `5.14.2-apache` |
 | `webServer.mode` | HTTP runtime owner: `apache` or `external` | `apache` |
 | `database.mode` | `auto`, `external`, or `mysql` | `auto` |
+| `database.waitForConnection.securityContext` | Container security context for the `wait-for-db` init container | `{}` |
 | `mysql.enabled` | Deploy HelmForge MySQL subchart | `true` |
 | `persistence.enabled` | Persist `/var/www/html` | `true` |
 | `persistence.codeSync.enabled` | Synchronize image code into `/var/www/html` on pod start | `true` |

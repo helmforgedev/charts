@@ -122,3 +122,38 @@ tests:
     asserts:
       - notExists:
           path: spec.template.spec.containers[0].command
+  - it: sets no wait-for-db securityContext by default
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-db
+      - notExists:
+          path: spec.template.spec.initContainers[0].securityContext
+  - it: renders the wait-for-db securityContext when set
+    template: deployment.yaml
+    set:
+      database:
+        waitForConnection:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-db
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+      - notExists:
+          path: spec.template.spec.initContainers[1].securityContext
+      - notExists:
+          path: spec.template.spec.containers[0].securityContext
