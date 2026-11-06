@@ -157,9 +157,20 @@ Back up the database and uploads PVC before upgrading production workloads.
 Review custom upload configuration as `sharp.limitInputPixels` must be a number
 or boolean rather than a raw environment-variable string.
 
-MySQL persistence settings use `mysql.standalone.persistence`. The former
+For standalone MySQL, use `mysql.standalone.persistence`. For replication, use
+`mysql.replication.source.persistence` and
+`mysql.replication.readReplicas.persistence`. The former
 `mysql.primary.persistence` parent value was not consumed by the HelmForge
-MySQL subchart and must be replaced in custom values files.
+MySQL subchart.
+
+Existing standalone releases therefore used the MySQL chart's effective claim
+template, normally `8Gi`, even if a different size was set under
+`mysql.primary.persistence`. During the chart upgrade, keep
+`mysql.standalone.persistence.size` equal to that existing claim-template size;
+copying the intended size directly can make Kubernetes reject the immutable
+StatefulSet update. Resize or migrate the bound PVC separately according to the
+storage class, and only change the claim template through a planned StatefulSet
+recreation after taking a backup.
 
 ## More Information
 
