@@ -30,6 +30,30 @@ S3-compatible services. The default SQL client is PostgreSQL 18; use a matching
 official client image for an external server. Allocate enough `workspaceSize`
 and node ephemeral storage for the full archive and SQL dump.
 
+On EKS, IRSA or EKS Pod Identity can replace static S3 credentials. Enable the
+AWS CLI credential provider chain and annotate the chart-created ServiceAccount
+when using IRSA:
+
+```yaml
+backup:
+  enabled: true
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/nextcloud-backup
+  s3:
+    bucket: company-nextcloud-backups
+    region: us-east-1
+    credentialsFromPodIdentity: true
+```
+
+For EKS Pod Identity, associate the IAM role with the stable
+`<fullname>-backup` ServiceAccount through EKS and omit the IRSA annotation. Set
+`backup.serviceAccount.name` when the association requires a preselected name,
+or set `create: false` with the name of an existing ServiceAccount. In identity
+mode the chart does not inject `AWS_ACCESS_KEY_ID` or `AWS_SECRET_ACCESS_KEY`;
+the AWS CLI obtains short-lived credentials from the Pod environment. Grant the
+role only the bucket and prefix permissions required by backup and restore.
+
 ## Availability and concurrency
 
 Every backup suspends the background CronJob, waits for active cron Jobs to reach

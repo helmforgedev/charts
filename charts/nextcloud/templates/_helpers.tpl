@@ -18,9 +18,23 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{ toYaml . }}
 {{- end }}
 {{- end -}}
+{{/* Merge chart-wide annotations with resource-specific annotations; resource values win. */}}
+{{- define "nextcloud.annotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $merged := mergeOverwrite $common $specific -}}
+{{- if $merged -}}{{ toYaml $merged }}{{- end -}}
+{{- end -}}
 {{- define "nextcloud.image" -}}{{ printf "%s:%s" .Values.image.repository .Values.image.tag }}{{- end -}}
 {{- define "nextcloud.secretName" -}}{{ default (printf "%s-auth" (include "nextcloud.fullname" .)) .Values.nextcloud.existingSecret }}{{- end -}}
 {{- define "nextcloud.backupName" -}}{{ printf "%s-backup" (include "nextcloud.fullname" . | trunc 45 | trimSuffix "-") }}{{- end -}}
+{{- define "nextcloud.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create -}}
+{{- default (include "nextcloud.backupName" .) .Values.backup.serviceAccount.name -}}
+{{- else -}}
+{{- default "default" .Values.backup.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
 {{- define "nextcloud.cronName" -}}{{ printf "%s-cron" (include "nextcloud.fullname" . | trunc 47 | trimSuffix "-") }}{{- end -}}
 {{- define "nextcloud.restoreName" -}}{{ printf "%s-restore" (include "nextcloud.fullname" . | trunc 55 | trimSuffix "-") }}{{- end -}}
 {{- define "nextcloud.dbHost" -}}
@@ -46,7 +60,9 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- if and .Values.backup.enabled .Values.restore.enabled -}}{{ fail "backup.enabled and restore.enabled cannot both be true" }}{{- end -}}
 {{- if or .Values.backup.enabled .Values.restore.enabled -}}
 {{- if not .Values.persistence.enabled -}}{{ fail "backup and restore require persistence.enabled=true" }}{{- end -}}
-{{- if or (not .Values.backup.s3.bucket) (not .Values.backup.s3.existingSecret) -}}{{ fail "backup.s3.bucket and backup.s3.existingSecret are required" }}{{- end -}}
+{{- if not .Values.backup.s3.bucket -}}{{ fail "backup.s3.bucket is required" }}{{- end -}}
+{{- if and (not .Values.backup.s3.credentialsFromPodIdentity) (not .Values.backup.s3.existingSecret) -}}{{ fail "backup.s3.existingSecret is required when backup.s3.credentialsFromPodIdentity=false" }}{{- end -}}
+{{- if and (not .Values.backup.serviceAccount.create) (not .Values.backup.serviceAccount.name) -}}{{ fail "backup.serviceAccount.name is required when backup.serviceAccount.create=false" }}{{- end -}}
 {{- end -}}
 {{- if and .Values.restore.enabled (not .Values.restore.backupPath) -}}{{ fail "restore.backupPath is required" }}{{- end -}}
 {{- if and .Values.restore.enabled (not .Values.nextcloud.existingSecret) (not .Values.nextcloud.adminPassword) -}}{{ fail "restore requires the original administrator credentials through nextcloud.existingSecret or nextcloud.adminPassword" }}{{- end -}}

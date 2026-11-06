@@ -1,19 +1,33 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-{{- if .Values.backup.enabled }}
+{{- if or .Values.backup.enabled .Values.restore.enabled }}
+{{- if .Values.backup.serviceAccount.create }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: {{ include "nextcloud.backupName" . }}
+  name: {{ include "nextcloud.backupServiceAccountName" . }}
   labels:
     {{- include "nextcloud.labels" . | nindent 4 }}
-automountServiceAccountToken: false
+  {{- $annotations := include "nextcloud.annotations" (dict "root" . "specific" .Values.backup.serviceAccount.annotations) }}
+  {{- with $annotations }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+automountServiceAccountToken: {{ .Values.backup.serviceAccount.automountServiceAccountToken }}
+{{- end }}
+{{- if .Values.backup.enabled }}
+{{- if .Values.backup.serviceAccount.create }}
 ---
+{{- end }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: {{ include "nextcloud.backupName" . }}
   labels:
     {{- include "nextcloud.labels" . | nindent 4 }}
+  {{- with .Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 rules:
   - apiGroups: [apps]
     resources: [deployments/scale]
@@ -36,12 +50,17 @@ metadata:
   name: {{ include "nextcloud.backupName" . }}
   labels:
     {{- include "nextcloud.labels" . | nindent 4 }}
+  {{- with .Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: {{ include "nextcloud.backupName" . }}
 subjects:
   - kind: ServiceAccount
-    name: {{ include "nextcloud.backupName" . }}
+    name: {{ include "nextcloud.backupServiceAccountName" . }}
     namespace: {{ .Release.Namespace }}
+{{- end }}
 {{- end }}

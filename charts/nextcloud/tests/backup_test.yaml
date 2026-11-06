@@ -77,6 +77,27 @@ tests:
           path: spec.jobTemplate.spec.template.spec.automountServiceAccountToken
           value: false
   - template: templates/backup-cronjob.yaml
+    it: uses workload identity without exposing static AWS credentials
+    set:
+      backup.enabled: true
+      backup.s3.bucket: test
+      backup.s3.credentialsFromPodIdentity: true
+      backup.s3.region: us-west-2
+      backup.serviceAccount.name: nextcloud-s3
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.serviceAccountName
+          value: nextcloud-s3
+      - lengthEqual:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env
+          count: 7
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env[4]
+          value: {name: AWS_REGION, value: us-west-2}
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env[5]
+          value: {name: AWS_DEFAULT_REGION, value: us-west-2}
+  - template: templates/backup-cronjob.yaml
     it: projects an expiring token only for coordinator mounts
     set:
       backup.enabled: true

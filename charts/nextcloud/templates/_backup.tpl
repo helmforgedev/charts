@@ -8,9 +8,9 @@ metadata:
     app.kubernetes.io/component: {{ ternary "restore" "backup" $restore }}
 spec:
   restartPolicy: Never
-  automountServiceAccountToken: false
+  serviceAccountName: {{ include "nextcloud.backupServiceAccountName" $root }}
+  automountServiceAccountToken: {{ $root.Values.backup.serviceAccount.automountServiceAccountToken }}
   {{- if not $restore }}
-  serviceAccountName: {{ include "nextcloud.backupName" $root }}
   affinity:
     podAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -94,8 +94,13 @@ spec:
       value: {{ $root.Values.backup.s3.prefix | quote }}
     - name: S3_REGION
       value: {{ $root.Values.backup.s3.region | quote }}
+    - name: AWS_REGION
+      value: {{ $root.Values.backup.s3.region | quote }}
+    - name: AWS_DEFAULT_REGION
+      value: {{ $root.Values.backup.s3.region | quote }}
     - name: RESTORE_PATH
       value: {{ $root.Values.restore.backupPath | quote }}
+    {{- if not $root.Values.backup.s3.credentialsFromPodIdentity }}
     - name: AWS_ACCESS_KEY_ID
       valueFrom:
         secretKeyRef:
@@ -106,6 +111,7 @@ spec:
         secretKeyRef:
           name: {{ $root.Values.backup.s3.existingSecret }}
           key: {{ $root.Values.backup.s3.existingSecretSecretKeyKey }}
+    {{- end }}
     {{- else if eq .type "db" }}
     - name: PGHOST
       value: {{ include "nextcloud.dbHost" $root | quote }}

@@ -9,7 +9,8 @@ PostgreSQL, Redis, managed background jobs and coordinated S3 backups.
 - Kubernetes 1.29 or newer and Helm 3 or newer.
 - Persistent storage supporting UID/GID 33 and fsGroup ownership.
 - Public DNS and a TLS-enabled ingress or Gateway controller for external access.
-- An existing private S3-compatible bucket and credential Secret for backups.
+- An existing private S3-compatible bucket and either a credential Secret or
+  workload identity for backups.
 - External Secrets Operator only when that integration is enabled.
 
 The application defaults to `nextcloud:35.0.2-apache`, with verified amd64 and
@@ -196,6 +197,7 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md).
 | `nameOverride` | Override the chart name. | `""` |
 | `fullnameOverride` | Override the release resource name. | `""` |
 | `commonLabels` | Extra labels on resources. | `{}` |
+| `commonAnnotations` | Annotations added to every chart-owned Kubernetes resource. | `{}` |
 | `image.repository` | Official image repository. | `"docker.io/library/nextcloud"` |
 | `image.tag` | Pinned application release. | `"35.0.2-apache"` |
 | `image.pullPolicy` | Image pull policy. | `"IfNotPresent"` |
@@ -328,11 +330,16 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md).
 | `backup.resources.requests.memory` | requests memory | `"256Mi"` |
 | `backup.resources.limits.cpu` | limits cpu | `"2"` |
 | `backup.resources.limits.memory` | limits memory | `"1Gi"` |
+| `backup.serviceAccount.create` | Create the ServiceAccount used by backup and restore Jobs. | `true` |
+| `backup.serviceAccount.name` | ServiceAccount name; empty uses the stable backup resource name. | `""` |
+| `backup.serviceAccount.annotations` | ServiceAccount annotations, including IRSA role annotations. | `{}` |
+| `backup.serviceAccount.automountServiceAccountToken` | Automatically mount the Kubernetes API token. | `false` |
 | `backup.s3.endpoint` | Optional endpoint URL for S3-compatible storage. | `""` |
 | `backup.s3.allowInsecureHTTP` | Explicitly permit HTTP only on a trusted isolated network; use HTTPS in production. | `false` |
 | `backup.s3.bucket` | Existing private bucket. | `""` |
 | `backup.s3.prefix` | Backup object prefix, without leading or trailing slash. | `"nextcloud"` |
 | `backup.s3.region` | AWS signing region. | `"us-east-1"` |
+| `backup.s3.credentialsFromPodIdentity` | Use the AWS CLI workload identity credential chain instead of static keys. | `false` |
 | `backup.s3.existingSecret` | Secret containing S3 credentials. | `""` |
 | `backup.s3.existingSecretAccessKeyKey` | Access key ID key. | `"access-key"` |
 | `backup.s3.existingSecretSecretKeyKey` | Secret access key key. | `"secret-key"` |
