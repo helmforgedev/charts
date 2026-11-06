@@ -170,7 +170,10 @@ template, normally `8Gi`, even if a different size was set under
 copying the intended size directly can make Kubernetes reject the immutable
 StatefulSet update. Resize or migrate the bound PVC separately according to the
 storage class, and only change the claim template through a planned StatefulSet
-recreation after taking a backup.
+recreation. Before recreating it, back up the database, set the existing
+StatefulSet's `mysql.standalone.persistence.retentionPolicy.whenDeleted` to
+`Retain`, and confirm that the StatefulSet owner reference has been removed
+from the PVC. Restore the desired retention policy after recreation if needed.
 
 ## More Information
 
