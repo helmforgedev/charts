@@ -13,6 +13,11 @@ scaling requires shared writable storage for `/app/data`, `/books`, and
 `/bookdrop`, plus validation that concurrent workers do not process the same
 BookDrop item. The chart does not claim that topology as supported.
 
+If HPA is enabled for an explicitly evaluated shared-storage deployment, the
+Deployment omits `spec.replicas` and leaves replica ownership to the HPA. The
+first upgrade from an older release that rendered a fixed replica count can
+briefly transition through the Kubernetes default before the HPA reconciles.
+
 ## Credentials
 
 Use `mariadb.auth.existingSecret` for the bundled database or

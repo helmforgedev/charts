@@ -3,6 +3,16 @@
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{/* Merge chart-wide annotations with resource annotations; resource values win. */}}
+{{- define "booklore.annotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $merged := mergeOverwrite $common $specific -}}
+{{- if $merged -}}
+{{- toYaml $merged -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "booklore.fullname" -}}
 {{- if .Values.fullnameOverride -}}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
