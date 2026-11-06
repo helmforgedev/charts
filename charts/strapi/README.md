@@ -18,9 +18,9 @@ This chart is designed for a prebuilt Strapi project image. It does not build ap
 
 ## HelmForge Base Image
 
-This chart uses the official **HelmForge Strapi base image** (`docker.io/helmforge/strapi-base:5.52.2`) which provides:
+This chart uses the official **HelmForge Strapi base image** (`docker.io/helmforge/strapi-base:5.61.0`) which provides:
 
-- **Strapi 5.52.2** with all official plugins pre-installed
+- **Strapi 5.61.0** with all official plugins pre-installed
 - **Multi-database support** — SQLite, PostgreSQL, MySQL ready to use
 - **Health check endpoint** — HTTP health checks on `/_health` for proper Kubernetes integration
 - **Security hardened** — Non-root user (UID 1000), minimal attack surface
@@ -107,7 +107,7 @@ database:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `helmforge/strapi-base` | Container image for the Strapi project |
-| `image.tag` | `5.52.2` | HelmForge Strapi base image version |
+| `image.tag` | `5.61.0` | HelmForge Strapi base image version |
 | `strapi.url` | `""` | Public URL (auto-detected from ingress if empty) |
 | `strapi.port` | `1337` | Container port |
 | `strapi.telemetryDisabled` | `true` | Disable telemetry |
@@ -141,18 +141,39 @@ database:
 
 ## Notes
 
-- The default image is `helmforge/strapi-base:5.52.2`, HelmForge's production-ready Strapi image. Override it if your deployment uses a custom Strapi build.
+- The default image is `helmforge/strapi-base:5.61.0`, HelmForge's production-ready Strapi image. Override it if your deployment uses a custom Strapi build.
 - SQLite is supported for simple deployments, but server-based databases are recommended for production workloads.
 - Horizontal scaling is intentionally out of scope for this v1 chart because default local uploads persistence is single-writer oriented.
 - For ingress, set `ingress.ingressClassName` to the class used in your cluster, such as `traefik`, `nginx`, or another supported controller.
 
 ## Upgrade Notes
 
-Strapi `5.52.2` includes maintenance and security fixes plus an opt-in beta
-media library. Existing deployments keep their current SVG upload behavior;
-new upstream projects block SVG uploads by default. The HelmForge
-base image preserves the existing runtime and database contract. Back up the
-database and uploads PVC before upgrading production workloads.
+Strapi `5.61.0` requires Node.js 22.19 or later; the HelmForge base image uses
+Node.js 22.23.4. The upgrade also includes Knex 3.3.0. Custom application code
+that calls `delete()` with `limit` or `having`, or `truncate()` with `where`,
+`having`, or `limit`, must follow the updated database-driver behavior.
+
+Back up the database and uploads PVC before upgrading production workloads.
+Review custom upload configuration as `sharp.limitInputPixels` must be a number
+or boolean rather than a raw environment-variable string.
+
+For standalone MySQL, use `mysql.standalone.persistence`. For replication, use
+`mysql.replication.source.persistence` and
+`mysql.replication.readReplicas.persistence`. The former
+`mysql.primary.persistence` parent value was not consumed by the HelmForge
+MySQL subchart.
+
+Existing standalone releases therefore used the MySQL chart's effective claim
+template, normally `8Gi`, even if a different size was set under
+`mysql.primary.persistence`. During the chart upgrade, keep
+`mysql.standalone.persistence.size` equal to that existing claim-template size;
+copying the intended size directly can make Kubernetes reject the immutable
+StatefulSet update. Resize or migrate the bound PVC separately according to the
+storage class, and only change the claim template through a planned StatefulSet
+recreation. Before recreating it, back up the database, set the existing
+StatefulSet's `mysql.standalone.persistence.retentionPolicy.whenDeleted` to
+`Retain`, and confirm that the StatefulSet owner reference has been removed
+from the PVC. Restore the desired retention policy after recreation if needed.
 
 ## More Information
 
