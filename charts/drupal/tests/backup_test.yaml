@@ -4,6 +4,8 @@ templates:
   - templates/backup-configmap.yaml
   - templates/backup-cronjob.yaml
   - templates/backup-secret.yaml
+  - templates/backup-serviceaccount.yaml
+  - templates/validate.yaml
 release:
   name: test
   namespace: default
@@ -82,7 +84,7 @@ tests:
           value: test-drupal-backup
 
   - it: should fail backup without endpoint
-    template: templates/backup-secret.yaml
+    template: templates/validate.yaml
     set:
       backup.enabled: true
       backup.s3.bucket: drupal-backups
@@ -93,7 +95,7 @@ tests:
           errorMessage: "backup.s3.endpoint is required when backup.enabled is true"
 
   - it: should fail external database backup without database credentials
-    template: templates/backup-secret.yaml
+    template: templates/validate.yaml
     set:
       backup.enabled: true
       backup.s3.endpoint: https://minio.example.com
@@ -106,3 +108,77 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "backup.enabled with database.mode=external requires backup.database.existingSecret or backup.database.password so mysqldump can authenticate."
+
+  - it: should use a dedicated annotated ServiceAccount for pod identity
+    template: templates/backup-serviceaccount.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.us-east-1.amazonaws.com
+      backup.s3.bucket: drupal-backups
+      backup.s3.region: us-east-1
+      backup.s3.credentialsFromPodIdentity: true
+      backup.serviceAccount.annotations:
+        eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/drupal-backup
+    asserts:
+      - isKind:
+          of: ServiceAccount
+      - equal:
+          path: metadata.name
+          value: test-drupal-backup
+      - equal:
+          path: metadata.annotations["eks.amazonaws.com/role-arn"]
+          value: arn:aws:iam::123456789012:role/drupal-backup
+
+  - it: should not render static S3 credentials for pod identity
+    template: templates/backup-secret.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.us-east-1.amazonaws.com
+      backup.s3.bucket: drupal-backups
+      backup.s3.region: us-east-1
+      backup.s3.credentialsFromPodIdentity: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should configure region and omit static credentials for pod identity
+    template: templates/backup-cronjob.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.us-east-1.amazonaws.com
+      backup.s3.bucket: drupal-backups
+      backup.s3.region: us-east-1
+      backup.s3.credentialsFromPodIdentity: true
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.serviceAccountName
+          value: test-drupal-backup
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env[4].name
+          value: AWS_REGION
+      - notExists:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env[6]
+
+  - it: should require a region for pod identity
+    template: templates/validate.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: drupal-backups
+      backup.s3.credentialsFromPodIdentity: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.s3.region is required when backup.s3.credentialsFromPodIdentity is true"
+
+  - it: should require an existing ServiceAccount name when creation is disabled
+    template: templates/validate.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.us-east-1.amazonaws.com
+      backup.s3.bucket: drupal-backups
+      backup.s3.region: us-east-1
+      backup.s3.credentialsFromPodIdentity: true
+      backup.serviceAccount.create: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.serviceAccount.name is required when Pod Identity is enabled and backup.serviceAccount.create is false"

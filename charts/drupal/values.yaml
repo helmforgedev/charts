@@ -19,6 +19,8 @@
 nameOverride: ""
 fullnameOverride: ""
 commonLabels: {}
+# -- Annotations applied to every chart-owned top-level Kubernetes object.
+commonAnnotations: {}
 
 # -- Number of Drupal replicas. Single replica is recommended unless you use shared storage for /sites.
 replicaCount: 1
@@ -268,11 +270,32 @@ backup:
   # -- Resources for backup containers
   resources: {}
 
+  securityContext:
+    # -- Prevent backup containers from gaining additional privileges
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+
+  serviceAccount:
+    # -- Create a dedicated ServiceAccount for identity-based S3 backups
+    create: true
+    # -- Name override for the backup ServiceAccount
+    name: ""
+    # -- Annotations for workload identity integrations such as IRSA
+    annotations: {}
+    # -- Mount the Kubernetes API token into backup pods
+    automountServiceAccountToken: false
+
   s3:
     # -- S3-compatible endpoint URL
     endpoint: ""
     # -- Target bucket name
     bucket: ""
+    # -- AWS region used by Pod Identity or IRSA credential discovery
+    region: ""
+    # -- Use the pod's workload identity instead of static S3 credentials
+    credentialsFromPodIdentity: false
     # -- Key prefix within the bucket
     prefix: drupal
     # -- Auto-create the bucket if it does not exist
@@ -318,6 +341,12 @@ podSecurityContext:
 securityContext:
   # -- Prevent the Drupal container from gaining additional privileges
   allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+    # The official Drupal image binds Apache to port 80 by default.
+    add:
+      - NET_BIND_SERVICE
 
 serviceAccount:
   # -- Create a dedicated ServiceAccount
