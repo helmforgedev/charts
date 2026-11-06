@@ -449,7 +449,7 @@ See the [examples/](examples/) directory for complete, ready-to-use values files
 | `keda.scaledObject` | KEDA ScaledObject configuration for the chart workload; requires `workload.enabled=true` | disabled |
 | `keda.scaledJobs` | KEDA ScaledJob definitions | `[]` |
 | `vpa.enabled` | Enable VPA | `false` |
-| `vpa.updateMode` | VPA update mode | `Off` |
+| `vpa.updateMode` | `Off`, `Initial`, `Recreate`, `InPlaceOrRecreate`, or `Auto`; see [VPA requirements](docs/observability.md#vpa-update-modes) | `Off` |
 | `pdb.enabled` | Enable PodDisruptionBudget | `false` |
 | `pdb.minAvailable` | Minimum available pods | — |
 | `pdb.maxUnavailable` | Maximum unavailable pods | — |
