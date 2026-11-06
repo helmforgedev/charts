@@ -44,7 +44,9 @@ hpa:
           averageValue: 500m
 ```
 
-The existing Resource shorthand remains supported: `resource: cpu`, `type: Utilization`, and `target: 75` selects 75% CPU utilization. Use `targetType: AverageValue` and `target: 500m` for the shorthand equivalent of the example above. Native metrics and Resource shorthand can appear in the same list.
+The existing Resource shorthand remains supported: `resource: cpu`, `type: Utilization`, and `target: 75` selects 75%
+CPU utilization. Use `targetType: AverageValue` and `target: 500m` for the shorthand equivalent of the example above.
+Native metrics and Resource shorthand can appear in the same list.
 
 ## Autoscaling and HA safety
 
