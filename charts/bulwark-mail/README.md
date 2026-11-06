@@ -186,7 +186,7 @@ Set `service.ipFamilyPolicy` to `SingleStack`, `PreferDualStack`, or `RequireDua
 
 ## Probes and runtime acceptance
 
-Startup, liveness, and readiness probes call `/api/health`. With the shared store, readiness calls `/api/ready` instead; `probes.readiness.path` overrides either default. `/api/ready` requires Bulwark 1.20.0 or newer. The chart-owned runtime smoke additionally verifies:
+Startup, liveness, and readiness probes call `/api/health`. With the shared store, readiness calls `/api/ready` instead. `probes.startup.path`, `probes.liveness.path`, and `probes.readiness.path` support compatible custom images; the official image remains root-path only. `/api/ready` requires Bulwark 1.20.0 or newer. The chart-owned runtime smoke additionally verifies:
 
 - the exact deterministic image;
 - the configured application listener and independent Service port;
@@ -223,6 +223,8 @@ Startup, liveness, and readiness probes call `/api/health`. With the shared stor
 | `replicaCount` | `1` | Single writer; above 1 requires the shared store |
 | `sharedStore.enabled` | `false` | Share state through an external Redis-protocol store |
 | `sharedStore.existingSecret` | empty | Secret holding the store URL; empty uses the runtime Secret |
+| `probes.startup.path` | `/api/health` | Startup path; override only for a compatible custom image |
+| `probes.liveness.path` | `/api/health` | Liveness path; override only for a compatible custom image |
 | `probes.readiness.path` | empty | `/api/ready` with the shared store, `/api/health` otherwise |
 | `persistence.size` | `5Gi` | Single `/app/data` PVC |
 | `persistence.retain` | `true` | Keep generated PVC on uninstall |

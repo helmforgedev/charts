@@ -2,7 +2,8 @@
 
 ## Health
 
-Kubernetes probes call `/api/health`. A healthy response is HTTP 200 with
+Kubernetes probes call `/api/health` by default. Startup and liveness paths can be overridden independently for a
+compatible custom image; the official image remains root-path only. A healthy response is HTTP 200 with
 `status: healthy`. With the shared store, readiness calls `/api/ready`, which
 answers 200 with `"store":"redis"` when the pod can serve and 503 while it
 starts or cannot reach the store; liveness stays on `/api/health`.
