@@ -51,3 +51,92 @@ tests:
       - equal:
           path: spec.metrics[0].pods.metric.name
           value: requests_per_second
+
+  - it: should preserve Resource Utilization shorthand
+    set:
+      hpa.enabled: true
+      hpa.minReplicas: 1
+      hpa.maxReplicas: 5
+      hpa.metrics:
+        - resource: cpu
+          type: Utilization
+          target: 75
+    asserts:
+      - equal:
+          path: spec.metrics
+          value:
+            - type: Resource
+              resource:
+                name: cpu
+                target:
+                  type: Utilization
+                  averageUtilization: 75
+
+  - it: should preserve a native Resource AverageValue metric
+    set:
+      hpa.enabled: true
+      hpa.minReplicas: 2
+      hpa.maxReplicas: 5
+      hpa.metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: AverageValue
+              averageValue: 500m
+    asserts:
+      - equal:
+          path: spec.metrics
+          value:
+            - type: Resource
+              resource:
+                name: cpu
+                target:
+                  type: AverageValue
+                  averageValue: 500m
+
+  - it: should preserve native metrics alongside Resource shorthand
+    set:
+      hpa.enabled: true
+      hpa.minReplicas: 2
+      hpa.maxReplicas: 5
+      hpa.metrics:
+        - type: Resource
+          resource:
+            name: memory
+            target:
+              type: Utilization
+              averageUtilization: 80
+        - resource: cpu
+          targetType: AverageValue
+          target: 500m
+        - type: Pods
+          pods:
+            metric:
+              name: requests_per_second
+            target:
+              type: AverageValue
+              averageValue: "10"
+    asserts:
+      - equal:
+          path: spec.metrics
+          value:
+            - type: Resource
+              resource:
+                name: memory
+                target:
+                  type: Utilization
+                  averageUtilization: 80
+            - type: Resource
+              resource:
+                name: cpu
+                target:
+                  type: AverageValue
+                  averageValue: 500m
+            - type: Pods
+              pods:
+                metric:
+                  name: requests_per_second
+                target:
+                  type: AverageValue
+                  averageValue: "10"

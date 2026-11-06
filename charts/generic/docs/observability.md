@@ -49,6 +49,26 @@ VPA and KEDA are CRD-backed and disabled by default. Use VPA for recommendations
 
 KEDA ScaledObjects target the chart-managed Deployment or StatefulSet and require `workload.enabled=true`. Use ScaledJobs for event-driven batch releases that do not render a long-running workload.
 
+Resource metrics accept native `autoscaling/v2` objects as well as Resource shorthand. For example, scale on average CPU consumption per pod, independently of its CPU request:
+
+```yaml
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: AverageValue
+          averageValue: 500m
+```
+
+The existing Resource shorthand remains supported: `resource: cpu`, `type: Utilization`, and `target: 75` selects 75%
+CPU utilization. Use `targetType: AverageValue` and `target: 500m` for the shorthand equivalent of the example above.
+Native metrics and Resource shorthand can appear in the same list.
+
 ## Autoscaling and HA safety
 
 Deployment and StatefulSet HPA resources are supported by the Kubernetes `autoscaling/v2` API. Validate StatefulSet scaling

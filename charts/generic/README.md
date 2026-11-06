@@ -443,7 +443,7 @@ See the [examples/](examples/) directory for complete, ready-to-use values files
 | `hpa.enabled` | Enable HPA (not for DaemonSet) | `false` |
 | `hpa.minReplicas` | Minimum replicas | `1` |
 | `hpa.maxReplicas` | Maximum replicas | — |
-| `hpa.metrics` | Scaling metrics | `[]` |
+| `hpa.metrics` | Native autoscaling/v2 metric objects or Resource shorthand | `[]` |
 | `keda.enabled` | Enable KEDA custom resources | `false` |
 | `keda.scaledObject` | KEDA ScaledObject configuration for the chart workload; requires `workload.enabled=true` | disabled |
 | `keda.scaledJobs` | KEDA ScaledJob definitions | `[]` |
