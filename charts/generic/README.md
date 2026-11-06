@@ -372,7 +372,7 @@ See the [examples/](examples/) directory for complete, ready-to-use values files
 | `workload.podManagementPolicy` | StatefulSet pod management | — |
 | `workload.volumeClaimTemplates` | StatefulSet PVC templates | `[]` |
 | `workload.updateStrategy` | StatefulSet/DaemonSet update strategy | — |
-| `minReadySeconds` | Continuous Ready duration before a Deployment/StatefulSet/DaemonSet Pod is considered available; unused by Jobs/CronJobs | `0` |
+| `minReadySeconds` | Ready duration for long-running Pods; Deployments get a greater progress deadline at 600 or more; unused by Jobs/CronJobs | `0` |
 | **Image** | | |
 | `global.imageRegistry` | Optional registry prefix for unqualified repositories | `""` |
 | `image.repository` | Container image repository | `docker.io/library/nginx` |
