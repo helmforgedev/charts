@@ -20,6 +20,27 @@ tests:
           path: spec.persistentVolumeClaimRetentionPolicy.whenDeleted
           value: Retain
 
+  - it: leaves replica ownership to the HPA
+    set:
+      workload.type: StatefulSet
+      replicaCount: 7
+      hpa.enabled: true
+      hpa.minReplicas: 2
+      hpa.maxReplicas: 10
+    asserts:
+      - notExists:
+          path: spec.replicas
+
+  - it: uses the configured replica count when autoscaling is disabled
+    set:
+      workload.type: StatefulSet
+      replicaCount: 4
+      hpa.enabled: false
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 4
+
   - it: should use overridden service name as governing service
     set:
       workload:

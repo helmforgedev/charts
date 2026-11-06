@@ -24,6 +24,27 @@ prometheusRule:
 
 HPA supports Resource metrics plus native autoscaling/v2 metric shapes such as Pods, Object, External, and ContainerResource. HPA is blocked for DaemonSets and requires `hpa.maxReplicas`.
 
+With `hpa.enabled=true`, Deployment and StatefulSet manifests omit `spec.replicas`
+so routine Helm upgrades leave the replica count to the autoscaler.
+`hpa.minReplicas` and `hpa.maxReplicas` remain configured on the HPA itself.
+When HPA is disabled, the workload renders `replicaCount` again.
+
+### Replica ownership during upgrades
+
+Earlier chart versions explicitly rendered `hpa.minReplicas` on the workload.
+The first upgrade that removes that field, or a switch from fixed replicas to
+HPA, can briefly reset the workload to Kubernetes' default of one replica until
+the autoscaler reconciles. New installs can also start at that default before
+HPA applies its minimum. Check autoscaler health and plan this ownership
+transition for the workload's availability and, for StatefulSets, storage
+requirements; a PodDisruptionBudget does not prevent controller scale-down.
+
+Subsequent upgrades with HPA still enabled keep `spec.replicas` absent.
+Disabling HPA deliberately returns control to `replicaCount`, which can change
+the number of replicas immediately.
+
+See the upstream [HPA migration guidance](https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/#migrating-deployments-and-statefulsets-to-horizontal-autoscaling).
+
 VPA and KEDA are CRD-backed and disabled by default. Use VPA for recommendations or vertical resizing, and KEDA for event-driven ScaledObjects or ScaledJobs.
 
 KEDA ScaledObjects target the chart-managed Deployment or StatefulSet and require `workload.enabled=true`. Use ScaledJobs for event-driven batch releases that do not render a long-running workload.
