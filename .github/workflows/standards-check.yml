@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 name: Standards Check
 
-# GR-079: every chart a PR touches must FULLY pass standards-check (zero
+# GR-079 and GR-088..090: every chart a PR touches must FULLY pass the
+# structural standards and rendered contract gates (zero
 # BLOCKER/HIGH findings — SPDX, required structure incl. DESIGN.md/docs/examples,
 # README Security-Scan section, deps, className, Chart.lock). Runs the ops
 # standards guard over the charts changed vs the PR base and comments the
@@ -22,8 +23,9 @@ jobs:
     # OPS_AUTOMATION_TOKEN. GitHub withholds repository secrets from fork and
     # Dependabot pull_request runs, so the private checkout could not authenticate
     # there. Skip those runs instead of failing valid external contributions —
-    # the guard still enforces GR-079 on every same-repo PR (where the secret is
-    # available), and maintainers re-run the gate on the merge/sync branch.
+    # the guards still enforce GR-079 and GR-088..090 on every same-repo PR
+    # (where the secret is available), and maintainers re-run them on the
+    # merge/sync branch.
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.actor != 'dependabot[bot]'
@@ -61,26 +63,43 @@ jobs:
           echo "exit=$?" >> "$GITHUB_OUTPUT"
           cat "$RUNNER_TEMP/guard.json"
 
+      - name: Run chart contract guard
+        id: contracts
+        working-directory: ops
+        env:
+          HELMFORGE_CHARTS_DIR: ${{ github.workspace }}/charts
+        run: |
+          set +e
+          node scripts/charts/contract-check.js --json > "$RUNNER_TEMP/contracts.json"
+          echo "exit=$?" >> "$GITHUB_OUTPUT"
+          cat "$RUNNER_TEMP/contracts.json"
+
       - name: Comment findings on the PR
         if: always()
         uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
-            let r;
-            try { r = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/guard.json', 'utf8')); }
+            let standards, contracts;
+            try {
+              standards = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/guard.json', 'utf8'));
+              contracts = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/contracts.json', 'utf8'));
+            }
             catch { return; }
             const marker = '<!-- standards-check -->';
             let body;
-            if (r.ok) {
-              body = `${marker}\n### Standards Check (GR-079) — PASS\nEvery changed chart fully passes standards-check.`;
+            if (standards.ok && contracts.ok) {
+              body = `${marker}\n### Chart Standards And Contracts — PASS\n` +
+                `Every changed chart passes GR-079 and GR-088..090.`;
             } else {
-              const lines = (r.offenders || []).map(o =>
+              const standardsLines = (standards.offenders || []).map(o =>
                 `<details><summary><b>${o.chart}</b> — ${o.findings.length} finding(s)</summary>\n\n` +
                 o.findings.map(f => `- ${f}`).join('\n') + `\n</details>`).join('\n');
-              body = `${marker}\n### Standards Check (GR-079) — FAIL\n` +
-                `Every chart this PR touches must fully pass standards-check (zero BLOCKER/HIGH). ` +
-                `Fix the findings below (SPDX, DESIGN.md/docs/examples, README Security-Scan section, ...):\n\n${lines}`;
+              const contractLines = (contracts.findings || []).map(f =>
+                `- **${f.chart}** ${f.guardrail}/${f.rule} \`${f.file}\`: ${f.message}`).join('\n');
+              body = `${marker}\n### Chart Standards And Contracts — FAIL\n` +
+                `Every chart this PR touches must fully pass GR-079 and GR-088..090.\n\n` +
+                `${standardsLines}\n${contractLines}`;
             }
             const { owner, repo } = context.repo;
             const issue_number = context.issue.number;
@@ -89,8 +108,8 @@ jobs:
             if (existing) await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
             else await github.rest.issues.createComment({ owner, repo, issue_number, body });
 
-      - name: Fail if standards guard found violations
-        if: steps.guard.outputs.exit != '0'
+      - name: Fail if a chart guard found violations
+        if: steps.guard.outputs.exit != '0' || steps.contracts.outputs.exit != '0'
         run: |
-          echo "standards-guard reported violations on changed charts (GR-079)." >&2
+          echo "A standards or contract guard reported violations on changed charts." >&2
           exit 1
