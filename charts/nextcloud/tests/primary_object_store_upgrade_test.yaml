@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Primary object storage upgrade protection
+templates:
+  - templates/secret.yaml
+release:
+  name: test
+  namespace: default
+kubernetesProvider:
+  scheme:
+    "v1/Secret":
+      gvr:
+        version: v1
+        resource: secrets
+      namespaced: true
+  objects:
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: test-nextcloud-primary-object-store-guard
+        namespace: default
+      data:
+        state: ZW5hYmxlZA==
+        configuration: Zml4dHVyZS1jb25maWd1cmF0aW9u
+tests:
+  - it: blocks accidental removal of an existing primary object store
+    asserts:
+      - failedTemplate:
+          errorMessage: primary object storage is already enabled; refusing to change or disable it without primaryObjectStore.protection.acknowledgePreviousConfigurationHash=db7a45820ce9a6b56c77c01ed18b5bd7e91723453d51f56cbe0feae977d9e058
+
+  - it: blocks accidental changes to an existing primary object store
+    set:
+      primaryObjectStore.enabled: true
+      primaryObjectStore.endpoint: https://s3.wasabisys.com
+      primaryObjectStore.bucket: changed-bucket
+      primaryObjectStore.existingSecret: nextcloud-primary-object-store
+    asserts:
+      - failedTemplate:
+          errorMessage: primary object storage is already enabled; refusing to change or disable it without primaryObjectStore.protection.acknowledgePreviousConfigurationHash=db7a45820ce9a6b56c77c01ed18b5bd7e91723453d51f56cbe0feae977d9e058
+
+  - it: allows an explicitly acknowledged migration
+    set:
+      primaryObjectStore.protection.acknowledgePreviousConfigurationHash: db7a45820ce9a6b56c77c01ed18b5bd7e91723453d51f56cbe0feae977d9e058
+    asserts:
+      - notFailedTemplate: {}

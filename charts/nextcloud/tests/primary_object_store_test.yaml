@@ -1,0 +1,113 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Primary object storage
+templates:
+  - templates/deployment.yaml
+  - templates/configmap.yaml
+  - templates/cronjob.yaml
+  - templates/primary-object-store-guard.yaml
+  - templates/primary-object-store-serviceaccount.yaml
+  - templates/networkpolicy.yaml
+tests:
+  - it: passes the complete S3 contract to the application through Secret files
+    template: templates/deployment.yaml
+    set:
+      primaryObjectStore:
+        enabled: true
+        endpoint: https://s3.wasabisys.com
+        port: 443
+        region: us-east-1
+        bucket: nextcloud-data
+        usePathStyle: false
+        objectPrefix: "urn:oid:"
+        storageClass: STANDARD
+        legacyAuth: false
+        autocreate: false
+        existingSecret: nextcloud-primary-object-store
+        existingSecretAccessKeyKey: access-key-id
+        existingSecretSecretKeyKey: secret-access-key
+    asserts:
+      - contains: {path: 'spec.template.spec.containers[0].env', content: {name: OBJECTSTORE_S3_HOST, value: s3.wasabisys.com}}
+      - contains: {path: 'spec.template.spec.containers[0].env', content: {name: OBJECTSTORE_S3_BUCKET, value: nextcloud-data}}
+      - contains: {path: 'spec.template.spec.containers[0].env', content: {name: OBJECTSTORE_S3_OBJECT_PREFIX, value: "urn:oid:"}}
+      - contains: {path: 'spec.template.spec.containers[0].env', content: {name: OBJECTSTORE_S3_KEY_FILE, value: /var/run/nextcloud-primary-object-store/access-key}}
+      - contains: {path: 'spec.template.spec.containers[0].env', content: {name: OBJECTSTORE_S3_SECRET_FILE, value: /var/run/nextcloud-primary-object-store/secret-key}}
+      - contains: {path: 'spec.template.spec.containers[0].env', content: {name: OBJECTSTORE_S3_SSL, value: "true"}}
+      - contains: {path: 'spec.template.spec.containers[0].env', content: {name: OBJECTSTORE_S3_USEPATH_STYLE, value: "false"}}
+      - contains: {path: 'spec.template.spec.containers[0].volumeMounts', content: {name: primary-object-store-credentials, mountPath: /var/run/nextcloud-primary-object-store, readOnly: true}}
+      - equal: {path: 'spec.template.spec.volumes[?(@.name == "primary-object-store-credentials")].secret.secretName', value: nextcloud-primary-object-store}
+      - equal: {path: 'spec.template.spec.volumes[?(@.name == "primary-object-store-credentials")].secret.items[?(@.path == "access-key")].key', value: access-key-id}
+      - equal: {path: 'spec.template.spec.volumes[?(@.name == "primary-object-store-credentials")].secret.items[?(@.path == "secret-key")].key', value: secret-access-key}
+
+  - it: gives the application a dedicated workload identity without static credentials
+    template: templates/deployment.yaml
+    set:
+      primaryObjectStore.enabled: true
+      primaryObjectStore.endpoint: s3.us-east-1.amazonaws.com
+      primaryObjectStore.bucket: nextcloud-data
+      primaryObjectStore.credentialsFromPodIdentity: true
+      primaryObjectStore.serviceAccount.name: nextcloud-primary
+      primaryObjectStore.serviceAccount.automountServiceAccountToken: true
+    asserts:
+      - equal: {path: spec.template.spec.serviceAccountName, value: nextcloud-primary}
+      - equal: {path: spec.template.spec.automountServiceAccountToken, value: true}
+      - notContains: {path: 'spec.template.spec.containers[0].env', content: {name: OBJECTSTORE_S3_KEY_FILE}}
+      - notContains: {path: 'spec.template.spec.containers[0].env', content: {name: OBJECTSTORE_S3_KEY}}
+      - notContains: {path: 'spec.template.spec.containers[0].env', content: {name: OBJECTSTORE_S3_SECRET}}
+      - notContains: {path: 'spec.template.spec.volumes', content: {name: primary-object-store-credentials}}
+
+  - it: gives the CronJob the same object-store configuration and Secret
+    template: templates/cronjob.yaml
+    set:
+      primaryObjectStore.enabled: true
+      primaryObjectStore.endpoint: https://s3.wasabisys.com
+      primaryObjectStore.bucket: nextcloud-data
+      primaryObjectStore.existingSecret: nextcloud-primary-object-store
+    asserts:
+      - contains: {path: 'spec.jobTemplate.spec.template.spec.containers[0].env', content: {name: OBJECTSTORE_S3_BUCKET, value: nextcloud-data}}
+      - contains: {path: 'spec.jobTemplate.spec.template.spec.containers[0].env', content: {name: OBJECTSTORE_S3_SECRET_FILE, value: /var/run/nextcloud-primary-object-store/secret-key}}
+      - notContains: {path: 'spec.jobTemplate.spec.template.spec.containers[0].env', content: {name: OBJECTSTORE_S3_KEY}}
+      - notContains: {path: 'spec.jobTemplate.spec.template.spec.containers[0].env', content: {name: OBJECTSTORE_S3_SECRET}}
+      - contains: {path: 'spec.jobTemplate.spec.template.spec.containers[0].volumeMounts', content: {name: primary-object-store-credentials, mountPath: /var/run/nextcloud-primary-object-store, readOnly: true}}
+
+  - it: records the active storage configuration in the upgrade guard
+    template: templates/primary-object-store-guard.yaml
+    set:
+      primaryObjectStore.enabled: true
+      primaryObjectStore.endpoint: https://s3.wasabisys.com
+      primaryObjectStore.bucket: nextcloud-data
+      primaryObjectStore.existingSecret: nextcloud-primary-object-store
+    asserts:
+      - equal: {path: stringData.state, value: enabled}
+      - matchRegex: {path: stringData.configuration, pattern: '"bucket":"nextcloud-data"'}
+      - matchRegex: {path: stringData.configuration, pattern: '"endpoint":"s3.wasabisys.com"'}
+
+  - it: creates an annotated ServiceAccount only for workload identity
+    template: templates/primary-object-store-serviceaccount.yaml
+    set:
+      primaryObjectStore.enabled: true
+      primaryObjectStore.endpoint: s3.us-east-1.amazonaws.com
+      primaryObjectStore.bucket: nextcloud-data
+      primaryObjectStore.credentialsFromPodIdentity: true
+      primaryObjectStore.serviceAccount.annotations:
+        eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/nextcloud
+    asserts:
+      - isKind: {of: ServiceAccount}
+      - equal: {path: 'metadata.annotations["eks.amazonaws.com/role-arn"]', value: 'arn:aws:iam::123456789012:role/nextcloud'}
+      - equal: {path: automountServiceAccountToken, value: true}
+
+  - it: appends explicit primary-storage egress rules
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      primaryObjectStore.enabled: true
+      primaryObjectStore.endpoint: https://s3.wasabisys.com
+      primaryObjectStore.bucket: nextcloud-data
+      primaryObjectStore.existingSecret: nextcloud-primary-object-store
+      primaryObjectStore.networkPolicyEgress:
+        - to:
+            - ipBlock: {cidr: 192.0.2.0/24}
+          ports:
+            - {port: 443, protocol: TCP}
+    asserts:
+      - equal: {path: 'spec.egress[2].to[0].ipBlock.cidr', value: 192.0.2.0/24}
+      - equal: {path: 'spec.egress[2].ports[0].port', value: 443}

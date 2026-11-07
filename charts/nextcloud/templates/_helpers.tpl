@@ -35,6 +35,39 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- default "default" .Values.backup.serviceAccount.name -}}
 {{- end -}}
 {{- end -}}
+{{- define "nextcloud.primaryObjectStoreServiceAccountName" -}}
+{{- if .Values.primaryObjectStore.serviceAccount.create -}}
+{{- default (printf "%s-primary-object-store" (include "nextcloud.fullname" . | trunc 42 | trimSuffix "-")) .Values.primaryObjectStore.serviceAccount.name -}}
+{{- else -}}
+{{- .Values.primaryObjectStore.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+{{- define "nextcloud.primaryObjectStoreGuardName" -}}{{ printf "%s-primary-object-store-guard" (include "nextcloud.fullname" . | trunc 36 | trimSuffix "-") }}{{- end -}}
+{{- define "nextcloud.primaryObjectStoreHost" -}}
+{{- $endpoint := trimSuffix "/" .Values.primaryObjectStore.endpoint -}}
+{{- $endpoint = regexReplaceAll "^https?://" $endpoint "" -}}
+{{- $endpoint -}}
+{{- end -}}
+{{- define "nextcloud.primaryObjectStoreConfiguration" -}}
+{{- $store := .Values.primaryObjectStore -}}
+{{- dict
+  "autocreate" $store.autocreate
+  "bucket" $store.bucket
+  "credentialsFromPodIdentity" $store.credentialsFromPodIdentity
+  "endpoint" (include "nextcloud.primaryObjectStoreHost" .)
+  "existingSecret" $store.existingSecret
+  "existingSecretAccessKeyKey" $store.existingSecretAccessKeyKey
+  "existingSecretSecretKeyKey" $store.existingSecretSecretKeyKey
+  "legacyAuth" $store.legacyAuth
+  "objectPrefix" $store.objectPrefix
+  "port" $store.port
+  "provider" $store.provider
+  "region" $store.region
+  "storageClass" $store.storageClass
+  "usePathStyle" $store.usePathStyle
+  "useSsl" $store.useSsl
+  | toJson -}}
+{{- end -}}
 {{- define "nextcloud.cronName" -}}{{ printf "%s-cron" (include "nextcloud.fullname" . | trunc 47 | trimSuffix "-") }}{{- end -}}
 {{- define "nextcloud.restoreName" -}}{{ printf "%s-restore" (include "nextcloud.fullname" . | trunc 55 | trimSuffix "-") }}{{- end -}}
 {{- define "nextcloud.dbHost" -}}
@@ -68,6 +101,31 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- if and .Values.restore.enabled (not .Values.nextcloud.existingSecret) (not .Values.nextcloud.adminPassword) -}}{{ fail "restore requires the original administrator credentials through nextcloud.existingSecret or nextcloud.adminPassword" }}{{- end -}}
 {{- if and .Values.smtp.enabled (not .Values.smtp.host) -}}{{ fail "smtp.host is required" }}{{- end -}}
 {{- if and .Values.smtp.enabled .Values.smtp.username (not .Values.smtp.existingSecret) -}}{{ fail "smtp.existingSecret is required for authenticated SMTP" }}{{- end -}}
+{{- if .Values.primaryObjectStore.enabled -}}
+{{- $store := .Values.primaryObjectStore -}}
+{{- if ne $store.provider "s3" -}}{{ fail "primaryObjectStore.provider must be s3" }}{{- end -}}
+{{- if not $store.endpoint -}}{{ fail "primaryObjectStore.endpoint is required when primaryObjectStore.enabled=true" }}{{- end -}}
+{{- if not $store.bucket -}}{{ fail "primaryObjectStore.bucket is required when primaryObjectStore.enabled=true" }}{{- end -}}
+{{- $host := include "nextcloud.primaryObjectStoreHost" . -}}
+{{- if contains "/" $host -}}{{ fail "primaryObjectStore.endpoint must not contain a path" }}{{- end -}}
+{{- if and (hasPrefix "http://" $store.endpoint) $store.useSsl -}}{{ fail "primaryObjectStore.endpoint uses http:// but primaryObjectStore.useSsl=true" }}{{- end -}}
+{{- if and (hasPrefix "https://" $store.endpoint) (not $store.useSsl) -}}{{ fail "primaryObjectStore.endpoint uses https:// but primaryObjectStore.useSsl=false" }}{{- end -}}
+{{- if and (not $store.credentialsFromPodIdentity) (not $store.existingSecret) -}}{{ fail "primaryObjectStore.existingSecret is required when primaryObjectStore.credentialsFromPodIdentity=false" }}{{- end -}}
+{{- if and $store.credentialsFromPodIdentity (not $store.serviceAccount.create) (not $store.serviceAccount.name) -}}{{ fail "primaryObjectStore.serviceAccount.name is required when workload identity is enabled and ServiceAccount creation is disabled" }}{{- end -}}
+{{- if and .Values.networkPolicy.enabled (empty $store.networkPolicyEgress) -}}{{ fail "primaryObjectStore.networkPolicyEgress is required when primary object storage and NetworkPolicy are enabled" }}{{- end -}}
+{{- if and .Values.backup.enabled (eq $store.bucket .Values.backup.s3.bucket) -}}{{ fail "primaryObjectStore.bucket and backup.s3.bucket must be different" }}{{- end -}}
+{{- end -}}
+{{- $guard := lookup "v1" "Secret" .Release.Namespace (include "nextcloud.primaryObjectStoreGuardName" .) -}}
+{{- if and $guard $guard.data (eq ((index $guard.data "state") | default "" | b64dec) "enabled") -}}
+{{- $previous := (index $guard.data "configuration") | default "" | b64dec -}}
+{{- $current := ternary (include "nextcloud.primaryObjectStoreConfiguration" .) "disabled" .Values.primaryObjectStore.enabled -}}
+{{- if ne $previous $current -}}
+{{- $requiredHash := sha256sum $previous -}}
+{{- if ne .Values.primaryObjectStore.protection.acknowledgePreviousConfigurationHash $requiredHash -}}
+{{- fail (printf "primary object storage is already enabled; refusing to change or disable it without primaryObjectStore.protection.acknowledgePreviousConfigurationHash=%s" $requiredHash) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
 {{- if not .Values.postgresql.enabled -}}
 {{- if or (not .Values.externalDatabase.host) (not .Values.externalDatabase.existingSecret) -}}{{ fail "externalDatabase.host and externalDatabase.existingSecret are required when postgresql.enabled=false" }}{{- end -}}
 {{- end -}}
@@ -93,6 +151,37 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
 {{- end -}}
 {{- if $managed -}}true{{- end -}}
+{{- end -}}
+
+{{- define "nextcloud.primaryObjectStoreEnv" -}}
+{{- if .Values.primaryObjectStore.enabled }}
+- name: OBJECTSTORE_S3_BUCKET
+  value: {{ .Values.primaryObjectStore.bucket | quote }}
+- name: OBJECTSTORE_S3_REGION
+  value: {{ .Values.primaryObjectStore.region | quote }}
+- name: OBJECTSTORE_S3_HOST
+  value: {{ include "nextcloud.primaryObjectStoreHost" . | quote }}
+- name: OBJECTSTORE_S3_PORT
+  value: {{ .Values.primaryObjectStore.port | quote }}
+- name: OBJECTSTORE_S3_STORAGE_CLASS
+  value: {{ .Values.primaryObjectStore.storageClass | quote }}
+- name: OBJECTSTORE_S3_OBJECT_PREFIX
+  value: {{ .Values.primaryObjectStore.objectPrefix | quote }}
+- name: OBJECTSTORE_S3_SSL
+  value: {{ .Values.primaryObjectStore.useSsl | quote }}
+- name: OBJECTSTORE_S3_USEPATH_STYLE
+  value: {{ .Values.primaryObjectStore.usePathStyle | quote }}
+- name: OBJECTSTORE_S3_LEGACYAUTH
+  value: {{ .Values.primaryObjectStore.legacyAuth | quote }}
+- name: OBJECTSTORE_S3_AUTOCREATE
+  value: {{ .Values.primaryObjectStore.autocreate | quote }}
+{{- if not .Values.primaryObjectStore.credentialsFromPodIdentity }}
+- name: OBJECTSTORE_S3_KEY_FILE
+  value: /var/run/nextcloud-primary-object-store/access-key
+- name: OBJECTSTORE_S3_SECRET_FILE
+  value: /var/run/nextcloud-primary-object-store/secret-key
+{{- end }}
+{{- end }}
 {{- end -}}
 
 {{- define "nextcloud.backendEnv" -}}

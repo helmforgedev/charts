@@ -9,8 +9,8 @@ PostgreSQL, Redis, managed background jobs and coordinated S3 backups.
 - Kubernetes 1.29 or newer and Helm 3 or newer.
 - Persistent storage supporting UID/GID 33 and fsGroup ownership.
 - Public DNS and a TLS-enabled ingress or Gateway controller for external access.
-- An existing private S3-compatible bucket and either a credential Secret or
-  AWS workload identity credentials accepted by the storage provider.
+- Existing private S3-compatible buckets when primary object storage or
+  integrated backups are enabled, with Secret or supported workload identity credentials.
 - External Secrets Operator only when that integration is enabled.
 
 The application defaults to `nextcloud:35.0.2-apache`, with verified amd64 and
@@ -53,6 +53,8 @@ The bootstrap password does not reset existing account passwords.
 - Non-root Apache, read-only root filesystem, dropped capabilities and seccomp.
 - Kubernetes CronJob with native Job logs, status history and overlap prevention.
 - Existing Secret and External Secrets Operator contracts.
+- S3-compatible primary object storage with static Secret or workload identity credentials.
+- Upgrade guards that block accidental primary bucket, endpoint or prefix changes.
 - Explicit trusted hosts/proxies, SMTP, Ingress, Gateway API and dualstack Service.
 - Coordinated SQL/files backup, checksummed S3 publication and fresh-storage restore.
 - Real HTTP/WebDAV acceptance tests and a full backup/recovery scenario.
@@ -118,6 +120,12 @@ PVC, PostgreSQL, and S3-compatible backup storage. See [DESIGN.md](DESIGN.md)
 for the topology, security boundary, production responsibilities, and explicit
 non-goals.
 
+When `primaryObjectStore.enabled=true`, user file contents reside in an
+exclusive S3-compatible bucket while the PVC retains application code,
+configuration, custom applications and themes. PostgreSQL retains filenames and
+the mapping to opaque object keys. See [primary object storage](docs/primary-object-storage.md)
+before installation or migration.
+
 ## Backup and restore
 
 Integrated backups stop the application and cron, capture PostgreSQL and the
@@ -125,6 +133,11 @@ complete PVC, resume service, and publish checksummed objects with a final
 completion marker. A failed snapshot retains a volume lock for explicit recovery.
 Restore requires a completed backup, matching application version, original
 administrator credentials, fresh PVC and empty database.
+
+Primary object storage and integrated backup storage are separate contracts and
+must use different buckets. Integrated backups capture PostgreSQL and the PVC;
+they do not copy the live primary bucket. Protect and recover that bucket with
+provider-native versioning, snapshots or replication.
 
 See [backup and restore](docs/backup-restore.md) before enabling the schedule.
 Retain external Secrets separately. Practice restoration and verify non-admin
@@ -154,7 +167,9 @@ see [integrations](docs/integrations.md).
 - [Production routing and backups](examples/production.yaml)
 - [Gateway API](examples/gateway-api.yaml)
 - [External database and Redis](examples/external-services.yaml)
+- [Primary S3-compatible object storage](examples/primary-object-storage.yaml)
 - [Configuration and exposure](docs/configuration.md)
+- [Primary object storage and migration](docs/primary-object-storage.md)
 - [Backup, failure recovery and restore](docs/backup-restore.md)
 - [Upgrades and migration from another chart](docs/upgrades.md)
 - [Architecture and tradeoffs](DESIGN.md)
@@ -166,20 +181,21 @@ app compatibility, and upgrade only one major version at a time.
 
 ## Non-goals
 
-This chart does not provision office suites, Talk media relays, full-text search,
-horizontal Nextcloud scaling or primary S3 file storage. Its S3 integration is
-backup storage. Custom Nextcloud apps are operator-managed and must support the
-selected upstream release. Helm rollback cannot reverse database migrations.
+This chart does not provision office suites, Talk media relays, full-text search
+or horizontal Nextcloud scaling. It does not migrate local user files into S3,
+provision buckets or manage object-store lifecycle policies. Custom Nextcloud
+apps are operator-managed and must support the selected upstream release. Helm
+rollback cannot reverse database migrations.
 
 ## Security Scan: `nextcloud`
 
 | Framework | Score |
 | --- | --- |
-| MITRE + NSA + SOC2 | **90.90909%** |
+| MITRE + NSA + SOC2 | **92.42424%** |
 
 > Security posture acceptable.
 
-Measured locally on 2026-09-29 with Kubescape 4.0.9 against the default rendered
+Measured locally on 2026-11-07 with Kubescape 4.0.9 against the default rendered
 application and bundled dependencies. The application uses a read-only root
 filesystem; the PostgreSQL/Redis subcharts retain their upstream filesystem
 defaults. This configuration assessment does not replace image CVE scanning.
@@ -269,6 +285,28 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md).
 | `persistence.storageClass` | Storage class; empty uses the cluster default. | `""` |
 | `persistence.accessModes` | Access modes for the single application writer. | `["ReadWriteOnce"]` |
 | `persistence.size` | Requested volume size. | `"10Gi"` |
+| `primaryObjectStore.enabled` | Store user file contents in an S3-compatible bucket. | `false` |
+| `primaryObjectStore.provider` | Primary object-store provider; only S3 is supported. | `"s3"` |
+| `primaryObjectStore.endpoint` | S3 hostname or HTTP(S) URL without a path. | `""` |
+| `primaryObjectStore.port` | S3 endpoint port. | `443` |
+| `primaryObjectStore.useSsl` | Use TLS for the S3 endpoint. | `true` |
+| `primaryObjectStore.region` | AWS signing region. | `"us-east-1"` |
+| `primaryObjectStore.bucket` | Existing exclusive primary data bucket. | `""` |
+| `primaryObjectStore.usePathStyle` | Use path-style S3 requests. | `false` |
+| `primaryObjectStore.objectPrefix` | Prefix prepended to opaque object IDs. | `"urn:oid:"` |
+| `primaryObjectStore.storageClass` | Storage class assigned to new objects. | `"STANDARD"` |
+| `primaryObjectStore.legacyAuth` | Use legacy S3 authentication. | `false` |
+| `primaryObjectStore.autocreate` | Allow Nextcloud to create a missing bucket. | `false` |
+| `primaryObjectStore.credentialsFromPodIdentity` | Discover credentials through the Pod identity. | `false` |
+| `primaryObjectStore.existingSecret` | Secret containing primary object-store credentials. | `""` |
+| `primaryObjectStore.existingSecretAccessKeyKey` | Access key ID key. | `"access-key"` |
+| `primaryObjectStore.existingSecretSecretKeyKey` | Secret access key key. | `"secret-key"` |
+| `primaryObjectStore.serviceAccount.create` | Create a dedicated workload-identity ServiceAccount. | `true` |
+| `primaryObjectStore.serviceAccount.name` | Existing or created ServiceAccount name override. | `""` |
+| `primaryObjectStore.serviceAccount.annotations` | Workload identity annotations. | `{}` |
+| `primaryObjectStore.serviceAccount.automountServiceAccountToken` | Mount the token required by the identity provider. | `true` |
+| `primaryObjectStore.networkPolicyEgress` | Explicit egress rules for the primary S3 endpoint. | `[]` |
+| `primaryObjectStore.protection.acknowledgePreviousConfigurationHash` | Previous guard fingerprint for an intentional migration. | `""` |
 | `service.type` | Kubernetes Service type. | `"ClusterIP"` |
 | `service.port` | Service port mapped to Apache 8080. | `80` |
 | `service.ipFamilyPolicy` | Optional IP family policy. | `""` |

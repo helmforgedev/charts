@@ -21,11 +21,13 @@ flowchart TB
   route --> service[Nextcloud Service]
   service --> app[Nextcloud Apache Deployment]
   app --> files[(Application PVC)]
+  app --> primary[(S3 primary data bucket optional)]
   app --> postgres[(PostgreSQL)]
   app --> redis[(Standalone Redis)]
   cron[Background CronJob] --> files
   cron --> postgres
   cron --> redis
+  cron --> primary
   secrets[Existing or chart Secrets] --> app
   secrets --> cron
   imaginary[Imaginary optional] --> app
@@ -38,9 +40,11 @@ flowchart TB
   restore --> postgres
 ```
 
-The complete `/var/www/html` volume holds native configuration and instance
-secrets, installed code, custom apps, themes, and user data. PostgreSQL holds
-users, file identities, shares, and application state. Redis provides PHP
+By default, the complete `/var/www/html` volume holds native configuration and
+instance secrets, installed code, custom apps, themes, and user data. With
+primary object storage enabled, file contents move to the exclusive S3 bucket;
+the PVC still holds the application and its local state. PostgreSQL holds users,
+file identities, object mappings, shares, and application state. Redis provides PHP
 sessions, distributed caching, and transactional file locking. None of these
 data domains substitutes for another in disaster recovery.
 
@@ -124,6 +128,29 @@ into an empty database. Operators retain the original bootstrap administrator
 credentials and external-provider Secrets. Disable restore mode only after the
 Job succeeds.
 
+### Primary object storage
+
+The chart maps the official image's S3 configuration to both Apache and the
+background CronJob. Static access keys are mounted from an existing Secret as
+files; the pinned image's S3 configuration reads those files directly even when
+the CronJob bypasses the image entrypoint. Workload identity instead assigns
+both workloads to one dedicated ServiceAccount. Probes execute against the
+configured application and therefore
+exercise the same object-store-backed runtime path as normal HTTP requests.
+
+An always-present guard Secret records whether primary storage is enabled and
+the complete non-secret identity configuration. A live Helm upgrade compares
+the requested endpoint, bucket, prefix, credential source and protocol options
+with the recorded configuration. Disabling or changing an active store requires
+an acknowledgement derived from the previous fingerprint. This blocks resets
+and omitted values while permitting an explicitly planned migration.
+
+The primary bucket is not an external-storage mount. It is exclusively owned by
+the Nextcloud instance, contains opaque file-ID objects, and depends on the
+matching PostgreSQL metadata. The integrated backup bucket is separate.
+Database/PVC backups do not copy primary objects; provider-native protection is
+required and must be recovered within the same consistency plan.
+
 ### Optional preview and push services
 
 Imaginary and the Client Push daemon share the application Pod lifecycle and
@@ -161,9 +188,10 @@ policies belong to the bucket administrator.
 - The application receives no Kubernetes API token. Only backup coordinator
   stages receive a projected token, with RBAC limited to the named Deployment
   scale subresource, the cron CronJob, and namespace Pod and Job discovery.
-- SQL stages receive database credentials and S3 stages receive object-store
-  credentials. Use existing Secrets or External Secrets in production and
-  rotate credentials through the owning system.
+- SQL stages receive database credentials and S3 stages receive backup-store
+  credentials. Application and cron receive primary-store credentials through
+  Secret files or a dedicated workload identity. Use existing Secrets or
+  External Secrets in production and rotate credentials through the owning system.
 - NetworkPolicy can restrict ingress and dependency egress, but transport
   encryption and authentication for external PostgreSQL, Redis, and object
   storage remain operator-owned contracts.
@@ -191,8 +219,6 @@ drills through their platform tooling.
   application health.
 - Evaluate highly available database and Redis topologies as explicit external
   service contracts; the bundled defaults remain standalone.
-- Add primary S3 object-storage support only with a design that covers its
-  additional consistency and recovery boundary.
 - Expand optional integration coverage as reproducible upstream components
   become available with pinned official images.
 
@@ -202,7 +228,8 @@ drills through their platform tooling.
 - MySQL or MariaDB provisioning and database-engine conversion
 - Redis Sentinel or Redis Cluster discovery
 - office suites, Talk media relays, and full-text search services
-- primary S3 object storage; integrated S3 support is for backups only
+- conversion of an existing local-data installation into primary object storage
+- bucket provisioning, replication, versioning or lifecycle management
 - automatic installation or lifecycle management of Nextcloud applications
 - DNS, certificate issuer, object-store lifecycle, or monitoring-stack
   provisioning

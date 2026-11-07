@@ -145,3 +145,61 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: smtp.existingSecret is required for authenticated SMTP
+  - template: templates/secret.yaml
+    it: requires a primary object-store endpoint
+    set:
+      primaryObjectStore.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: primaryObjectStore.endpoint is required when primaryObjectStore.enabled=true
+  - template: templates/secret.yaml
+    it: requires a primary object-store bucket
+    set:
+      primaryObjectStore.enabled: true
+      primaryObjectStore.endpoint: https://s3.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: primaryObjectStore.bucket is required when primaryObjectStore.enabled=true
+  - template: templates/secret.yaml
+    it: requires static primary object-store credentials unless workload identity is enabled
+    set:
+      primaryObjectStore.enabled: true
+      primaryObjectStore.endpoint: https://s3.example.com
+      primaryObjectStore.bucket: nextcloud-data
+    asserts:
+      - failedTemplate:
+          errorMessage: primaryObjectStore.existingSecret is required when primaryObjectStore.credentialsFromPodIdentity=false
+  - template: templates/secret.yaml
+    it: rejects conflicting endpoint and TLS settings
+    set:
+      primaryObjectStore.enabled: true
+      primaryObjectStore.endpoint: http://s3.example.com
+      primaryObjectStore.bucket: nextcloud-data
+      primaryObjectStore.existingSecret: object-store
+    asserts:
+      - failedTemplate:
+          errorMessage: primaryObjectStore.endpoint uses http:// but primaryObjectStore.useSsl=true
+  - template: templates/secret.yaml
+    it: requires explicit object-store egress when NetworkPolicy is enabled
+    set:
+      networkPolicy.enabled: true
+      primaryObjectStore.enabled: true
+      primaryObjectStore.endpoint: https://s3.example.com
+      primaryObjectStore.bucket: nextcloud-data
+      primaryObjectStore.existingSecret: object-store
+    asserts:
+      - failedTemplate:
+          errorMessage: primaryObjectStore.networkPolicyEgress is required when primary object storage and NetworkPolicy are enabled
+  - template: templates/secret.yaml
+    it: keeps primary data and integrated backups in different buckets
+    set:
+      primaryObjectStore.enabled: true
+      primaryObjectStore.endpoint: https://s3.example.com
+      primaryObjectStore.bucket: nextcloud-data
+      primaryObjectStore.existingSecret: object-store
+      backup.enabled: true
+      backup.s3.bucket: nextcloud-data
+      backup.s3.existingSecret: backup-store
+    asserts:
+      - failedTemplate:
+          errorMessage: primaryObjectStore.bucket and backup.s3.bucket must be different
