@@ -81,8 +81,8 @@ before diagnosing missing application credentials.
 
 Primary S3-compatible storage is configured independently from integrated S3
 backups. The application and native CronJob receive the same official-image
-configuration; static credentials come from the same Secret through workload-
-appropriate projections, or from the shared workload identity. See
+configuration; credentials come from Secret files or the shared workload
+identity. See
 [primary object storage](primary-object-storage.md) for supported
 providers, ExternalSecret and ServiceAccount examples, migration constraints,
 NetworkPolicy and the upgrade guard.

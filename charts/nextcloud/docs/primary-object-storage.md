@@ -48,11 +48,11 @@ a path. The URL scheme must agree with `useSsl`. Plain HTTP is suitable only for
 a trusted isolated test network.
 
 The chart supplies the official image's `OBJECTSTORE_S3_*` contract to both the
-application and the background CronJob. The application mounts static
-credentials from the Secret as files. The CronJob bypasses the image entrypoint,
-so it reads the same Secret keys through Kubernetes `secretKeyRef` environment
-sources. Credential values are never placed in chart values or Pod environment
-literals.
+application and the background CronJob. Static credentials are mounted from the
+Secret as files and referenced through `OBJECTSTORE_S3_KEY_FILE` and
+`OBJECTSTORE_S3_SECRET_FILE`; credential values are never placed in chart values
+or Pod environment literals. The pinned image's S3 configuration reads those
+files directly, including when the CronJob bypasses the image entrypoint.
 
 ## External Secrets
 
