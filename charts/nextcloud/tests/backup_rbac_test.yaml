@@ -29,3 +29,37 @@ tests:
       - equal: {path: 'rules[3].apiGroups', value: [batch]}
       - equal: {path: 'rules[3].resources', value: [jobs]}
       - equal: {path: 'rules[3].verbs', value: [list]}
+  - it: merges common and service account annotations
+    set:
+      backup.enabled: true
+      backup.s3.bucket: test
+      backup.s3.credentialsFromPodIdentity: true
+      commonAnnotations:
+        owner: platform
+        identity: common
+      backup.serviceAccount.annotations:
+        identity: nextcloud-backup
+    documentIndex: 0
+    asserts:
+      - equal: {path: 'metadata.annotations.owner', value: platform}
+      - equal: {path: 'metadata.annotations.identity', value: nextcloud-backup}
+  - it: binds backup permissions to an existing service account
+    set:
+      backup.enabled: true
+      backup.s3.bucket: test
+      backup.s3.credentialsFromPodIdentity: true
+      backup.serviceAccount.create: false
+      backup.serviceAccount.name: nextcloud-s3
+    documentIndex: 1
+    asserts:
+      - equal: {path: 'subjects[0].name', value: nextcloud-s3}
+  - it: creates only the service account for restore
+    set:
+      restore.enabled: true
+      restore.backupPath: set/id
+      backup.s3.bucket: test
+      backup.s3.credentialsFromPodIdentity: true
+      nextcloud.existingSecret: admin
+    asserts:
+      - hasDocuments: {count: 1}
+      - isKind: {of: ServiceAccount}
