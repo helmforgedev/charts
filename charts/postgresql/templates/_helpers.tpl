@@ -586,13 +586,19 @@ limits:
 {{- $policy := .persistence.retentionPolicy | default dict -}}
 {{- $whenDeleted := $policy.whenDeleted | default "" -}}
 {{- $whenScaled := $policy.whenScaled | default "" -}}
+{{- if and $whenDeleted (not (has $whenDeleted (list "Retain" "Delete"))) -}}
+  {{- fail "persistence.retentionPolicy.whenDeleted must be Retain, Delete, or empty" -}}
+{{- end -}}
+{{- if and $whenScaled (not (has $whenScaled (list "Retain" "Delete"))) -}}
+  {{- fail "persistence.retentionPolicy.whenScaled must be Retain, Delete, or empty" -}}
+{{- end -}}
 {{- if or $whenDeleted $whenScaled }}
 persistentVolumeClaimRetentionPolicy:
   {{- if $whenDeleted }}
-  whenDeleted: {{ $whenDeleted }}
+  whenDeleted: {{ $whenDeleted | quote }}
   {{- end }}
   {{- if $whenScaled }}
-  whenScaled: {{ $whenScaled }}
+  whenScaled: {{ $whenScaled | quote }}
   {{- end }}
 {{- end }}
 {{- end -}}

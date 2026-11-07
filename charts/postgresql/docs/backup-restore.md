@@ -54,6 +54,11 @@ values preserve the Kubernetes defaults. Set either field explicitly to
 `Retain` or `Delete` only after confirming the intended recovery and
 scale-down behavior.
 
+On Kubernetes 1.26, `Delete` requires the `StatefulSetAutoDeletePVC` feature
+gate on both the API server and controller manager. Confirm that cluster
+setting before relying on automatic deletion. Do not enable `Delete` until the
+policy is verified in the target cluster.
+
 ## Restore workflow
 
 Prefer restoring into a fresh release, validating it, and only then switching application traffic.

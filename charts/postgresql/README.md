@@ -401,6 +401,10 @@ Operational documents:
 | `service.ipFamilyPolicy` | Service IP family policy: `SingleStack`, `PreferDualStack`, or `RequireDualStack` | omitted |
 | `service.ipFamilies` | Ordered Service IP families: `IPv4`, `IPv6` | omitted |
 
+On Kubernetes 1.26, `Delete` retention requires
+`StatefulSetAutoDeletePVC` on both the API server and controller manager.
+Verify the feature gate before relying on automatic PVC deletion.
+
 ## Upgrade Notes
 
 PostgreSQL `18.6` is the August 2026 security and bug-fix release; upstream did
