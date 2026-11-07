@@ -6,6 +6,7 @@ metadata:
   name: {{ include "archivebox.fullname" . }}-backup-scripts
   labels:
     {{- include "archivebox.labels" . | nindent 4 }}
+  {{- include "archivebox.renderAnnotations" (dict "root" .) | nindent 2 }}
 data:
   data-backup.sh: |
     #!/bin/sh
@@ -15,6 +16,8 @@ data:
     mkdir -p /backup/out
     tar -C /data -czf "${archive}" .
     printf "%s" "${archive}" > /backup/out/backup-file
+    chmod 0777 /backup/out /uploader-tmp
+    chmod 0666 "${archive}" /backup/out/backup-file
   upload-backup.sh: |
     #!/bin/sh
     set -eu
@@ -23,7 +26,16 @@ data:
     if [ -n "${S3_PREFIX:-}" ]; then
       target="${target}/${S3_PREFIX}"
     fi
+    {{- if .Values.backup.s3.credentialsFromPodIdentity }}
+    export MC_HOST_backup="${S3_ENDPOINT}"
+    sts_domain="amazonaws.com"
+    case "${AWS_REGION}" in
+      cn-*) sts_domain="amazonaws.com.cn" ;;
+    esac
+    export MC_STS_ENDPOINT_backup="https://sts.${AWS_REGION}.${sts_domain}"
+    {{- else }}
     mc alias set backup "${S3_ENDPOINT}" "${S3_ACCESS_KEY}" "${S3_SECRET_KEY}"
+    {{- end }}
     if [ "${S3_CREATE_BUCKET_IF_NOT_EXISTS}" = "true" ]; then
       mc mb --ignore-existing "backup/${S3_BUCKET}"
     fi

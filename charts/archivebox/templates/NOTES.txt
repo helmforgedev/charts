@@ -6,18 +6,24 @@ ArchiveBox deployment
 Release: {{ .Release.Name }}
 Namespace: {{ .Release.Namespace }}
 Image: {{ include "archivebox.image" . }}
-Exactly one SQLite/archive writer is deployed with Recreate strategy.
+The Deployment uses one replica and the Recreate strategy.
 
 2. Access
 =========
-{{- if .Values.ingress.enabled }}
+{{- if .Values.archivebox.baseUrl }}
+Web UI: {{ .Values.archivebox.baseUrl }}
+{{- else if .Values.ingress.enabled }}
 {{- range $host := .Values.ingress.hosts }}
 Web UI: //{{ $host.host }}/
-Admin: //{{ $host.host }}/admin/
 {{- end }}
 {{- else }}
-kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "archivebox.fullname" . }} 8000:{{ .Values.service.port }}
-Open http://localhost:8000/ after the Pod becomes ready.
+Web UI: http://localhost:{{ .Values.archivebox.port }}/
+{{- end }}
+{{- if not .Values.ingress.enabled }}
+kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "archivebox.fullname" . }} {{ .Values.archivebox.port }}:{{ .Values.service.port }}
+{{- end }}
+{{- if not .Values.archivebox.baseUrl }}
+Configure BASE_URL through the first-use admin UI.
 {{- end }}
 
 3. Authentication and visibility
@@ -36,8 +42,8 @@ Password:
 kubectl get secret -n {{ .Release.Namespace }} {{ include "archivebox.fullname" . }}-admin -o jsonpath='{.data.admin-password}' | base64 -d
 {{- end }}
 Public index: {{ .Values.archivebox.publicIndex }}
-Public snapshots: {{ .Values.archivebox.publicSnapshots }}
 Public add view: {{ .Values.archivebox.publicAddLinks }}
+Set snapshot permissions in the ArchiveBox UI.
 Restrict visibility and allowedHosts before exposing the archive publicly.
 
 4. Persistence and backup
@@ -45,21 +51,23 @@ Restrict visibility and allowedHosts before exposing the archive publicly.
 {{- if .Values.persistence.enabled }}
 Persistence: enabled
 Data claim: {{ include "archivebox.dataClaimName" . }}
-Back up the complete /data tree after quiescing the single writer.
+Stop ArchiveBox before creating an application-consistent /data backup.
 {{- else }}
-Persistence: disabled. SQLite and every captured artifact are ephemeral.
+Persistence: disabled. Data files and captured artifacts are ephemeral.
 {{- end }}
 {{- if .Values.backup.enabled }}
 S3 backup schedule: {{ .Values.backup.schedule }}
 S3 bucket: {{ .Values.backup.s3.bucket }}
 kubectl get cronjob -n {{ .Release.Namespace }} {{ include "archivebox.fullname" . }}-backup
+The scheduled job archives /data without stopping ArchiveBox. It does not dump external PostgreSQL.
+For a recoverable external-PostgreSQL backup, retain a matching PostgreSQL dump and quiesced /data archive.
 {{- else }}
 Scheduled S3 backup: disabled
 {{- end }}
 
 5. Availability and resources
 ==============================
-Recreate upgrades intentionally include downtime and prevent concurrent writers.
+Recreate upgrades stop the existing Pod before starting its replacement.
 Never scale the Deployment or attach /data to another running ArchiveBox Pod.
 Set CPU and memory for Chromium and size the PVC for capture volume and retention.
 
@@ -75,7 +83,8 @@ Quiesce and back up /data before upgrades that may change storage formats.
 helm upgrade {{ .Release.Name }} helmforge/archivebox -n {{ .Release.Namespace }} -f values.yaml
 kubectl rollout status -n {{ .Release.Namespace }} deployment/{{ include "archivebox.fullname" . }}
 Restore the complete dataset into an isolated claim before replacing production.
-Helm rollback does not reverse SQLite or archive migrations.
+Helm rollback does not reverse database or archive migrations.
+Migrate removed values before upgrading; see the README upgrade section.
 
 8. Documentation and support
 =============================

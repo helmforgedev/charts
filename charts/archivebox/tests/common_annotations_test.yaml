@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Common annotations
+templates:
+  - deployment.yaml
+  - service.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should apply common annotations to chart-owned resources but not the pod template
+    set:
+      commonAnnotations:
+        owner: platform
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations.owner
+          value: platform
+      - isNull:
+          path: spec.template.metadata.annotations
+
+  - it: should merge service annotations with resource-specific precedence
+    set:
+      commonAnnotations:
+        owner: platform
+        precedence: common
+      service.annotations:
+        precedence: service
+    template: service.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations.owner
+          value: platform
+      - equal:
+          path: metadata.annotations.precedence
+          value: service

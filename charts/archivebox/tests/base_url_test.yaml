@@ -1,0 +1,71 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: BASE_URL
+templates:
+  - templates/deployment.yaml
+tests:
+  - it: should leave BASE_URL unset by default
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BASE_URL
+          any: true
+
+  - it: should leave BASE_URL unset with ingress
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: archive.example.com
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BASE_URL
+          any: true
+
+  - it: should leave BASE_URL unset with ingress TLS
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: archive.example.com
+      ingress.tls:
+        - hosts: [archive.example.com]
+          secretName: archivebox-tls
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BASE_URL
+          any: true
+
+  - it: should pass an explicit BASE_URL unchanged
+    set:
+      archivebox.baseUrl: https://canonical.example.com:8443/
+      archivebox.serverSecurityMode: safe-subdomains-fullreplay
+      ingress.enabled: true
+      ingress.hosts:
+        - host: internal.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BASE_URL
+            value: https://canonical.example.com:8443/
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SERVER_SECURITY_MODE
+            value: safe-subdomains-fullreplay
+
+  - it: should accept BASE_URL through extraEnv
+    set:
+      archivebox.extraEnv:
+        - name: BASE_URL
+          value: https://archive.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BASE_URL
+            value: https://archive.example.com
+          count: 1

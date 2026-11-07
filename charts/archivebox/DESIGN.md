@@ -7,9 +7,9 @@ It owns the single application workload, durable `/data` claim, Service,
 optional Ingress, administrative Secret, optional S3 backup CronJob, scheduling,
 and health configuration.
 
-ArchiveBox stores its SQLite database, index, configuration, and every captured
-artifact together under `/data`. The chart therefore treats the complete data
-directory as one consistency and recovery boundary.
+With SQLite, ArchiveBox stores its database, index, configuration, and every
+captured artifact together under `/data`. The chart therefore treats the complete
+data directory as one consistency and recovery boundary.
 
 ## Architecture
 
@@ -21,27 +21,30 @@ flowchart LR
   admin[Admin Secret] --> app
   app --> data[(ArchiveBox data PVC)]
   app --> web[Websites and capture dependencies]
+  app -.-> postgres[(External PostgreSQL optional)]
   data --> cron[Backup CronJob optional]
   cron --> s3[S3-compatible object storage]
   s3secret[S3 Secret] --> cron
+  backupidentity[Backup workload identity optional] --> cron
 ```
 
-The application runs as exactly one Recreate Deployment because SQLite and the
-archive filesystem form a single-writer dataset. Chromium uses a memory-backed
-`/dev/shm` volume while persistent application state remains on `/data`.
+The application runs as a Deployment with one replica and the `Recreate`
+strategy. Chromium uses a memory-backed `/dev/shm` volume while persistent
+application state remains on `/data`.
 
 ## Main Design Choices
 
 - Pin the official multi-architecture image without rebuilding it.
 - Preserve the upstream entrypoint and initialization flow.
 - Fix the workload at one replica with Recreate strategy to prevent overlapping
-  SQLite and archive writers.
+  ArchiveBox Pods.
 - Persist the full `/data` tree, not only the database.
 - Generate and retain an administrative Secret when no existing Secret is
   supplied.
 - Use the native `/health/` endpoint for startup, readiness, and liveness.
-- Run the application as UID/GID 911 and scope the root ownership init container
-  to the data mount required by the upstream image.
+- Repair only a root-owned `/data` volume root, then let the upstream entrypoint
+  detect the collection owner or use PUID/PGID and drop privileges.
+- Use built-in Sonic search and optional external PostgreSQL.
 - Offer an optional volume-level S3 backup CronJob with pinned tar and uploader
   images and explicit credential ownership.
 
@@ -61,11 +64,13 @@ isolated namespace before it is trusted.
 
 ## Security Boundary
 
-The main container runs as non-root UID/GID 911, cannot gain privileges, drops
-all Linux capabilities, and uses RuntimeDefault seccomp. The chart creates no
-RBAC permissions; platform ServiceAccount token automount policy still applies.
+The entrypoint starts as root with CHOWN, DAC_OVERRIDE, FOWNER, SETUID, and
+SETGID, then runs ArchiveBox as non-root. Privilege escalation is disabled and
+seccomp is RuntimeDefault. The chart creates no RBAC permissions; platform
+ServiceAccount token automount policy still applies.
 Credentials are sourced from Secrets rather than ConfigMaps. The backup Job
-receives S3 credentials only when that feature is enabled.
+uses a dedicated ServiceAccount and receives static S3 credentials only when
+workload identity is disabled.
 
 The root filesystem remains writable because the pinned application and browser
 tooling do not expose a stable immutable-filesystem contract. NetworkPolicy,
@@ -88,9 +93,10 @@ this chart, so no ServiceMonitor or unrelated exporter is fabricated.
 ## Known Gaps and Improvement Candidates
 
 - Recreate upgrades intentionally include downtime.
-- SQLite prevents horizontal scaling and concurrent writers.
+- The Deployment is fixed at one replica.
 - The backup CronJob reads the live data volume; operators should schedule a
-  quiesced window or use a consistency-capable snapshot workflow.
+  quiesced window or use a consistency-capable snapshot workflow. It never
+  dumps external PostgreSQL, so that database needs a matching backup.
 - Browser capture of untrusted websites is a high-egress workload and requires
   platform-level network and threat controls.
 - A writable root filesystem remains necessary for the pinned upstream image.
@@ -98,7 +104,6 @@ this chart, so no ServiceMonitor or unrelated exporter is fabricated.
 
 ## Explicit Non-Goals
 
-- replacing SQLite with an unsupported external database
 - multiple application replicas against one archive
 - installing an Ingress controller, CNI, certificate manager, storage provider,
   object store, or monitoring stack
@@ -113,11 +118,13 @@ this chart, so no ServiceMonitor or unrelated exporter is fabricated.
 The mandatory chart gate validates dependencies, strict lint, every CI values
 profile, unit tests, real CRD schemas, Artifact Hub metadata, and sequential k3d
 runtime behavior. Runtime scenarios cover the default persistent workload,
-Ingress, and the S3 backup resource set, including stable rollout, Service
-endpoints, logs, events, and cleanup.
+Ingress, the S3 backup resource set, and external PostgreSQL on a non-default
+database port combined with a non-default ArchiveBox listener port. They
+include stable rollout, Service endpoints, logs, events, and cleanup.
 
 Upgrade validation starts from the latest public package and exercises both
-reset/default values and `--reuse-values`. It verifies the retained PVC and
+reset/default values and `--reuse-values` after migrating removed keys (see
+[Upgrading](README.md#upgrading)). It verifies the retained PVC and
 administrative Secret, preserves a pre-upgrade marker beside the real SQLite and
 archive data, and requires the Recreate workload to become ready again.
 

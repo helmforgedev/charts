@@ -7,6 +7,7 @@
 nameOverride: ""
 fullnameOverride: ""
 commonLabels: {}
+commonAnnotations: {}
 
 # =============================================================================
 # Image
@@ -16,7 +17,7 @@ image:
   # -- ArchiveBox container image
   repository: docker.io/archivebox/archivebox
   # -- Image tag
-  tag: "0.9.73"
+  tag: "0.9.77"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -38,16 +39,20 @@ archivebox:
   existingSecretUsernameKey: admin-username
   # -- Key in existing secret for admin password
   existingSecretPasswordKey: admin-password
+  # -- Set BASE_URL in the container environment; leave empty for first-use admin setup
+  baseUrl: ""
+  # -- ArchiveBox server security mode (SERVER_SECURITY_MODE)
+  serverSecurityMode: auto
+  # -- Application UID override for the image entrypoint; empty detects the existing collection owner
+  puid: ""
+  # -- Application GID override for the image entrypoint; empty detects the existing collection owner
+  pgid: ""
   # -- Allowed hostnames (comma-separated or *)
   allowedHosts: "*"
   # -- Allow public access to the index page
   publicIndex: "True"
-  # -- Allow public access to archived snapshots
-  publicSnapshots: "True"
-  # -- Allow public access to the add URL view
+  # -- Allow public access to the add URL view (PUBLIC_ADD_VIEW)
   publicAddLinks: "False"
-  # -- Search backend engine (ripgrep, sqlite, sonic)
-  searchBackendEngine: ripgrep
   # -- Maximum media file size to download (bytes notation)
   mediaMaxSize: "750m"
   # -- Timeout for archiving a single URL (seconds)
@@ -59,11 +64,31 @@ archivebox:
   extraEnv: []
 
 # =============================================================================
+# External PostgreSQL
+# =============================================================================
+
+externalDatabase:
+  # -- Use an existing PostgreSQL server instead of the SQLite database in /data
+  enabled: false
+  # -- PostgreSQL hostname or service name (required when enabled)
+  host: ""
+  # -- PostgreSQL port
+  port: 5432
+  # -- PostgreSQL database name (create this database before installing)
+  name: archivebox
+  # -- PostgreSQL username
+  user: archivebox
+  # -- Existing Secret containing the PostgreSQL password (required when enabled)
+  existingSecret: ""
+  # -- Password key in externalDatabase.existingSecret
+  existingSecretPasswordKey: database-password
+
+# =============================================================================
 # Persistence
 # =============================================================================
 
 persistence:
-  # -- Enable persistence for /data (SQLite DB + archived content)
+  # -- Enable persistence for /data (archives, config, search indexes, and SQLite when used)
   enabled: true
   # -- Storage size (plan for large archives, 50-100GB+)
   size: 50Gi
@@ -163,19 +188,25 @@ resources: {}
   #   memory: 4Gi
 
 podSecurityContext:
-  fsGroup: 911
-  fsGroupChangePolicy: OnRootMismatch
   seccompProfile:
     type: RuntimeDefault
 
 securityContext:
-  runAsUser: 911
-  runAsGroup: 911
-  runAsNonRoot: true
+  # The upstream entrypoint prepares writable paths, then drops to PUID/PGID.
+  # Do not fix fsGroup or force UID 911: existing collections can have another owner.
+  runAsUser: 0
+  runAsGroup: 0
+  runAsNonRoot: false
   allowPrivilegeEscalation: false
   capabilities:
     drop:
       - ALL
+    add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETUID
+      - SETGID
   seccompProfile:
     type: RuntimeDefault
 
@@ -207,6 +238,42 @@ backup:
     uploader: docker.io/helmforge/mc:1.0.0
   # -- Resources for backup containers
   resources: {}
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  archiverSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+      add:
+        - DAC_READ_SEARCH
+    readOnlyRootFilesystem: true
+    runAsNonRoot: false
+    runAsUser: 0
+    runAsGroup: 0
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 65532
+    runAsGroup: 65532
+    seccompProfile:
+      type: RuntimeDefault
+  serviceAccount:
+    # -- Create a dedicated ServiceAccount for identity-based S3 backups
+    create: true
+    # -- Name of an existing dedicated backup ServiceAccount when create is false
+    name: ""
+    # -- Annotations for workload identity integrations such as IRSA
+    annotations: {}
+    # -- Mount the Kubernetes API token into backup pods
+    automountServiceAccountToken: false
   s3:
     # -- S3-compatible endpoint URL
     endpoint: ""
@@ -226,6 +293,10 @@ backup:
     accessKey: ""
     # -- Inline S3 secret key (ignored when existingSecret is set)
     secretKey: ""
+    # -- AWS region used by Pod Identity or IRSA credential discovery
+    region: ""
+    # -- Use the pod's workload identity instead of static S3 credentials
+    credentialsFromPodIdentity: false
 
 # =============================================================================
 # Scheduling
@@ -250,3 +321,4 @@ extraVolumeMounts: []
 
 # -- Extra manifests to deploy alongside the chart
 extraManifests: []
+
