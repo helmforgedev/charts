@@ -7,10 +7,10 @@ It owns the single application workload, durable `/data` claim, Service,
 optional Ingress, administrative Secret, optional S3 backup CronJob, scheduling,
 and health configuration.
 
-ArchiveBox stores configuration, Personas, local indexes, and captured artifacts
-under `/data`. SQLite is the default main database; an existing PostgreSQL server
-can hold the main index instead. Recovery always needs the full data directory
-and, when configured, a matching external database backup.
+ArchiveBox stores its SQLite database, index, configuration, and every captured
+artifact together under `/data`. The chart therefore treats the complete data
+directory as one consistency and recovery boundary. With external PostgreSQL,
+back up the database separately alongside `/data`.
 
 ## Architecture
 
@@ -22,17 +22,15 @@ flowchart LR
   admin[Admin Secret] --> app
   app --> data[(ArchiveBox data PVC)]
   app --> web[Websites and capture dependencies]
-  app -. optional main index .-> postgres[(External PostgreSQL)]
-  dbsecret[Database Secret optional] -.-> app
+  app -.-> postgres[(External PostgreSQL optional)]
   data --> cron[Backup CronJob optional]
   cron --> s3[S3-compatible object storage]
   s3secret[S3 Secret] --> cron
 ```
 
-The application runs as exactly one Recreate Deployment to keep one owner of
-the archive filesystem and runtime. This remains true with PostgreSQL. The
-upstream server supervises the web process, capture runner, and built-in Sonic
-service in one container. Chromium uses a memory-backed `/dev/shm` volume.
+The application runs as exactly one Recreate Deployment to prevent concurrent
+archive writers, with either SQLite or PostgreSQL. Chromium uses a memory-backed
+`/dev/shm` volume while persistent application state remains on `/data`.
 
 ## Main Design Choices
 
@@ -44,11 +42,9 @@ service in one container. Chromium uses a memory-backed `/dev/shm` volume.
 - Generate and retain an administrative Secret when no existing Secret is
   supplied.
 - Use the native `/health/` endpoint for startup, readiness, and liveness.
-- Let the upstream root entrypoint select the collection UID/GID and prepare
-  writable paths, then drop privileges for ArchiveBox and Chromium.
-- Use `BASE_URL` for canonical URLs, proxy HTTPS, and CSRF configuration.
-- Default to built-in Sonic search and disable anonymous URL submissions.
-- Support an external PostgreSQL index using password credentials from a Secret.
+- Let the upstream entrypoint detect the collection owner or use PUID/PGID,
+  then drop privileges before starting ArchiveBox.
+- Use built-in Sonic search and optional external PostgreSQL.
 - Offer an optional volume-level S3 backup CronJob with pinned tar and uploader
   images and explicit credential ownership.
 
@@ -63,28 +59,22 @@ retention for their environment.
 A chart-managed PVC is retained on Helm uninstall, but namespace deletion and
 storage-provider lifecycle remain outside Helm. Consistent backup requires a
 quiesced writer or a storage snapshot mechanism that guarantees application
-consistency. The tar CronJob does not provide those guarantees by itself and
-does not back up PostgreSQL. Restore must include the entire `/data` tree and
-any external database and be tested in an isolated namespace before it is trusted.
+consistency. Restore must include the entire `/data` tree and be tested in an
+isolated namespace before it is trusted.
 
 ## Security Boundary
 
-The main container starts as root with only `CHOWN`, `DAC_OVERRIDE`, `FOWNER`,
-`SETUID`, and `SETGID` capabilities. The upstream entrypoint prepares ownership
-and drops to the selected non-root account before starting the application.
-Privilege escalation is disabled and seccomp is `RuntimeDefault`. Strict
-non-root admission policies need a separately prepared runtime; setting a
-non-root UID is not equivalent to `PUID`/`PGID` entrypoint selection. The chart
-creates no RBAC permissions; platform ServiceAccount token automount policy
-still applies. Credentials come from Secrets, not ConfigMaps.
+The entrypoint starts as root with CHOWN, DAC_OVERRIDE, FOWNER, SETUID, and
+SETGID, then runs ArchiveBox as non-root. Privilege escalation is disabled and
+seccomp is RuntimeDefault. This startup requires an exception to strict
+non-root admission policies. The chart creates no
+RBAC permissions; platform ServiceAccount token automount policy still applies.
+Credentials are sourced from Secrets rather than ConfigMaps. The backup Job
+receives S3 credentials only when that feature is enabled.
 
-The root filesystem remains writable for the upstream runtime and browser
-tooling, including `/opt/archivebox`, `/tmp/archivebox`, and `/home/archivebox`.
-`SERVER_SECURITY_MODE=auto` keeps ordinary public-host replay in the safer
-single-domain mode without JavaScript. Isolated full replay requires explicit
-subdomain mode plus wildcard DNS, ingress, and TLS. Anonymous URL submission
-is disabled by default; snapshot visibility is managed through the UI.
-NetworkPolicy, edge authentication, TLS policy, website capture egress, malicious-content
+The root filesystem remains writable because the pinned application and browser
+tooling do not expose a stable immutable-filesystem contract. NetworkPolicy,
+edge authentication, TLS policy, website capture egress, malicious-content
 isolation, Secret rotation, and object-store access policy belong to the
 operator and platform. `extraEnv`, extra volumes, extra manifests, Ingress
 annotations, and inline credentials are explicit trust-boundary extensions.
@@ -103,19 +93,17 @@ this chart, so no ServiceMonitor or unrelated exporter is fabricated.
 ## Known Gaps and Improvement Candidates
 
 - Recreate upgrades intentionally include downtime.
-- The chart does not support multiple archive/runtime owners, including with
-  PostgreSQL.
+- The chart does not support horizontal scaling or concurrent archive writers.
 - The backup CronJob reads the live data volume; operators should schedule a
   quiesced window or use a consistency-capable snapshot workflow.
 - Browser capture of untrusted websites is a high-egress workload and requires
   platform-level network and threat controls.
 - A writable root filesystem remains necessary for the pinned upstream image.
-- The chart does not install NetworkPolicy, a PostgreSQL server, or a separate
-  search service. Sonic is bundled in the ArchiveBox container.
+- The chart does not install NetworkPolicy or a distributed search backend.
 
 ## Explicit Non-Goals
 
-- provisioning, backing up, or automatically migrating data to PostgreSQL
+- provisioning or backing up the external PostgreSQL server
 - multiple application replicas against one archive
 - installing an Ingress controller, CNI, certificate manager, storage provider,
   object store, or monitoring stack
@@ -130,12 +118,12 @@ this chart, so no ServiceMonitor or unrelated exporter is fabricated.
 The mandatory chart gate validates dependencies, strict lint, every CI values
 profile, unit tests, real CRD schemas, Artifact Hub metadata, and sequential k3d
 runtime behavior. Runtime scenarios cover the default persistent workload,
-Ingress, external PostgreSQL, custom UID/GID, and the S3 backup resource set,
-including stable rollout, Service endpoints, logs, events, and cleanup.
+Ingress, and the S3 backup resource set, including stable rollout, Service
+endpoints, logs, events, and cleanup.
 
-Upgrade validation starts from the latest public package with reviewed
-replacement values. Removed keys must be migrated before reuse; see
-[the upgrade guide](docs/upgrading.md). It verifies the retained PVC and
+Upgrade validation starts from the latest public package and exercises both
+reset/default values and `--reuse-values` after migrating removed keys (see
+[Upgrading](README.md#upgrading)). It verifies the retained PVC and
 administrative Secret, preserves a pre-upgrade marker beside the real SQLite and
 archive data, and requires the Recreate workload to become ready again.
 
@@ -150,4 +138,3 @@ archive data, and requires the Recreate workload to become ready again.
  version: 1.1
  date: 2026-11-01
 -->
-
