@@ -112,7 +112,10 @@ When `networkPolicy.enabled=true`, supply provider CIDRs or in-cluster selectors
 through `primaryObjectStore.networkPolicyEgress`; rendering fails when the rule
 is missing.
 
-IRSA also requires HTTPS egress to the configured regional AWS STS endpoint.
+IRSA also requires HTTPS egress to the AWS STS endpoint selected by the SDK.
+Allow the configured regional endpoint or the global `sts.amazonaws.com`
+endpoint when it is still in use; alternatively, configure IRSA to use regional
+STS before restricting egress to that endpoint.
 EKS Pod Identity requires access to the Pod Identity Agent endpoint in addition
 to the S3 endpoint. Include those credential-provider destinations in the same
 explicit egress list when the selected identity mechanism needs them.
