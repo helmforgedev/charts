@@ -58,8 +58,8 @@ kubectl port-forward svc/<release>-archivebox 5797:80
 
 One Recreate Deployment owns the `/data` dataset: SQLite, indexes,
 configuration, and captured artifacts. The optional backup CronJob reads that
-same claim and uploads a volume archive to S3-compatible storage. Never run two
-writers against the claim, even when the StorageClass supports ReadWriteMany.
+same claim and uploads a volume archive to S3-compatible storage. The chart
+deploys one ArchiveBox replica.
 
 The chart owns Kubernetes workload, storage, routing, credentials, and optional
 backup resources. TLS policy, capture-egress controls, malicious-content
@@ -91,9 +91,9 @@ archivebox:
 | `archivebox.adminPassword` | `""` | Admin password (auto-generated if empty) |
 | `archivebox.allowedHosts` | `*` | Allowed hostnames |
 | `archivebox.publicIndex` | `True` | Public index page |
-| `archivebox.publicAddPage` | `False` | Public URL submission view |
+| `archivebox.publicAddLinks` | `False` | Public URL submission view |
 | `archivebox.baseUrl` | `""` | Canonical public URL; inferred from ingress when empty |
-| `archivebox.serverSecurityMode` | `auto` | Upstream replay isolation mode |
+| `archivebox.serverSecurityMode` | `auto` | Server security mode |
 | `archivebox.puid` / `archivebox.pgid` | `""` | Optional UID/GID overrides; otherwise autodetected |
 | `archivebox.mediaMaxSize` | `750m` | Max media download size |
 | `archivebox.timeout` | `60` | URL archiving timeout (seconds) |
@@ -113,9 +113,10 @@ When empty, it is inferred from the first ingress host and matching TLS entry,
 or defaults to `http://archivebox.localhost:<archivebox.port>` without ingress. `BASE_URL`
 configures links, CSRF origins, and HTTPS handling.
 
-The default security mode, `auto`, disables JavaScript replay on ordinary public
-hostnames. Isolated full replay requires `safe-subdomains-fullreplay` and wildcard
-DNS, ingress, and TLS. See the [upstream security modes](https://github.com/ArchiveBox/ArchiveBox/blob/v0.9.77/docs/Configuration.md#server_security_mode).
+With `archivebox.serverSecurityMode: auto`, raw archived HTML uses no-JS replay
+on public hostnames. For full JavaScript replay on separate subdomains, use
+`safe-subdomains-fullreplay` with wildcard DNS and ingress, plus a wildcard
+certificate for HTTPS. See the [upstream security modes](https://github.com/ArchiveBox/ArchiveBox/blob/v0.9.77/docs/Configuration.md#server_security_mode).
 
 ## External PostgreSQL
 
@@ -138,7 +139,6 @@ the backend.
 
 ## Upgrading
 
-- Rename `archivebox.publicAddLinks` to `archivebox.publicAddPage`.
 - Remove `archivebox.publicSnapshots`; manage snapshot permissions in the UI.
   If it was `"False"`, preserve private capture defaults through
   `archivebox.extraEnv` with `name: PERMISSIONS` and `value: private`.

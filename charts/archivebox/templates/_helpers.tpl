@@ -55,9 +55,6 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if hasKey .Values.archivebox "publicSnapshots" -}}
 {{- fail "archivebox.publicSnapshots has been removed; manage snapshot permissions in the ArchiveBox UI" -}}
 {{- end -}}
-{{- if hasKey .Values.archivebox "publicAddLinks" -}}
-{{- fail "archivebox.publicAddLinks has been renamed to archivebox.publicAddPage; remove the old key" -}}
-{{- end -}}
 {{- if .Values.externalDatabase.enabled -}}
 {{- range $key := list "host" "name" "user" "existingSecret" "existingSecretPasswordKey" -}}
 {{- if not (index $.Values.externalDatabase $key) -}}

@@ -68,9 +68,9 @@ ArchiveBox settings are mapped from Helm values into environment variables:
 | --- | --- | --- |
 | `archivebox.allowedHosts` | `ALLOWED_HOSTS` | Accepted hostnames |
 | `archivebox.publicIndex` | `PUBLIC_INDEX` | Public index visibility |
-| `archivebox.publicAddPage` | `PUBLIC_ADD_VIEW` | Public URL submission view |
+| `archivebox.publicAddLinks` | `PUBLIC_ADD_VIEW` | Public URL submission view |
 | `archivebox.baseUrl` | `BASE_URL` | Canonical public URL |
-| `archivebox.serverSecurityMode` | `SERVER_SECURITY_MODE` | Replay isolation mode |
+| `archivebox.serverSecurityMode` | `SERVER_SECURITY_MODE` | Server security mode |
 | `archivebox.puid` / `archivebox.pgid` | `PUID` / `PGID` | Optional UID/GID overrides |
 | `archivebox.mediaMaxSize` | `MEDIA_MAX_SIZE` | Maximum media download size |
 | `archivebox.timeout` | `TIMEOUT` | Per-URL archive timeout |
@@ -95,8 +95,7 @@ ArchiveBox PVC read-only to avoid modifying application data.
 
 ## Scaling Boundaries
 
-This chart does not support horizontal application scaling. The ArchiveBox
-data directory requires single-writer access. To increase capacity,
+The chart deploys one ArchiveBox replica. To increase capacity,
 scale vertically by increasing CPU, memory, storage performance, and storage
 size.
 

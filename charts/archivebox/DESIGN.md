@@ -7,9 +7,9 @@ It owns the single application workload, durable `/data` claim, Service,
 optional Ingress, administrative Secret, optional S3 backup CronJob, scheduling,
 and health configuration.
 
-ArchiveBox stores its SQLite database, index, configuration, and every captured
-artifact together under `/data`. The chart therefore treats the complete data
-directory as one consistency and recovery boundary.
+With SQLite, ArchiveBox stores its database, index, configuration, and every
+captured artifact together under `/data`. The chart therefore treats the complete
+data directory as one consistency and recovery boundary.
 
 ## Architecture
 
@@ -27,16 +27,16 @@ flowchart LR
   s3secret[S3 Secret] --> cron
 ```
 
-The application runs as exactly one Recreate Deployment to prevent concurrent
-archive writers, with either SQLite or PostgreSQL. Chromium uses a memory-backed
-`/dev/shm` volume while persistent application state remains on `/data`.
+The application runs as a Deployment with one replica and the `Recreate`
+strategy. Chromium uses a memory-backed `/dev/shm` volume while persistent
+application state remains on `/data`.
 
 ## Main Design Choices
 
 - Pin the official multi-architecture image without rebuilding it.
 - Preserve the upstream entrypoint and initialization flow.
 - Fix the workload at one replica with Recreate strategy to prevent overlapping
-  SQLite and archive writers.
+  ArchiveBox Pods.
 - Persist the full `/data` tree, not only the database.
 - Generate and retain an administrative Secret when no existing Secret is
   supplied.
@@ -91,7 +91,7 @@ this chart, so no ServiceMonitor or unrelated exporter is fabricated.
 ## Known Gaps and Improvement Candidates
 
 - Recreate upgrades intentionally include downtime.
-- The chart does not support horizontal scaling or concurrent archive writers.
+- The Deployment is fixed at one replica.
 - The backup CronJob reads the live data volume; operators should schedule a
   quiesced window or use a consistency-capable snapshot workflow.
 - Browser capture of untrusted websites is a high-egress workload and requires

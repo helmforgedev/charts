@@ -6,7 +6,7 @@ ArchiveBox deployment
 Release: {{ .Release.Name }}
 Namespace: {{ .Release.Namespace }}
 Image: {{ include "archivebox.image" . }}
-Exactly one archive writer is deployed with Recreate strategy.
+The Deployment uses one replica and the Recreate strategy.
 
 2. Access
 =========
@@ -40,7 +40,7 @@ Password:
 kubectl get secret -n {{ .Release.Namespace }} {{ include "archivebox.fullname" . }}-admin -o jsonpath='{.data.admin-password}' | base64 -d
 {{- end }}
 Public index: {{ .Values.archivebox.publicIndex }}
-Public add view: {{ .Values.archivebox.publicAddPage }}
+Public add view: {{ .Values.archivebox.publicAddLinks }}
 Set snapshot permissions in the ArchiveBox UI.
 Restrict visibility and allowedHosts before exposing the archive publicly.
 
@@ -49,7 +49,7 @@ Restrict visibility and allowedHosts before exposing the archive publicly.
 {{- if .Values.persistence.enabled }}
 Persistence: enabled
 Data claim: {{ include "archivebox.dataClaimName" . }}
-Back up the complete /data tree after quiescing the single writer.
+Stop ArchiveBox before backing up the complete /data tree.
 {{- else }}
 Persistence: disabled. Data files and captured artifacts are ephemeral.
 {{- end }}
@@ -63,7 +63,7 @@ Scheduled S3 backup: disabled
 
 5. Availability and resources
 ==============================
-Recreate upgrades intentionally include downtime and prevent concurrent writers.
+Recreate upgrades stop the existing Pod before starting its replacement.
 Never scale the Deployment or attach /data to another running ArchiveBox Pod.
 Set CPU and memory for Chromium and size the PVC for capture volume and retention.
 

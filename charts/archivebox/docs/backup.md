@@ -5,6 +5,7 @@
 The `archivebox` chart can create scheduled backups of the ArchiveBox `/data`
 directory and upload them to S3-compatible object storage. This protects the
 SQLite database and archived snapshot files together.
+For PostgreSQL, schedule database backups alongside these volume backups.
 
 The backup feature is optional and disabled by default.
 
