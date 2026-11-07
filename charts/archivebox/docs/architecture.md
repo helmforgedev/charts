@@ -56,9 +56,8 @@ Ingress is optional. When enabled, hosts and TLS are provided through
 `ingress.hosts` and `ingress.tls`.
 
 The default ingress class value is `traefik`, matching the HelmForge local test
-cluster and chart documentation. Set `archivebox.baseUrl` to the canonical
-public URL; otherwise it is inferred from the first ingress host and its TLS
-configuration.
+cluster and chart documentation. Configure `BASE_URL` through the first-use
+admin UI or set `archivebox.baseUrl` in Helm values.
 
 ## Configuration Flow
 

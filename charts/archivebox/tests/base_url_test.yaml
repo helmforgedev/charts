@@ -3,32 +3,27 @@ suite: BASE_URL
 templates:
   - templates/deployment.yaml
 tests:
-  - it: should set BASE_URL and SERVER_SECURITY_MODE without ingress
+  - it: should leave BASE_URL unset by default
     asserts:
-      - contains:
+      - notContains:
           path: spec.template.spec.containers[0].env
           content:
             name: BASE_URL
-            value: http://archivebox.localhost:5797
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: SERVER_SECURITY_MODE
-            value: auto
+          any: true
 
-  - it: should infer HTTP for ingress without TLS
+  - it: should leave BASE_URL unset with ingress
     set:
       ingress.enabled: true
       ingress.hosts:
         - host: archive.example.com
     asserts:
-      - contains:
+      - notContains:
           path: spec.template.spec.containers[0].env
           content:
             name: BASE_URL
-            value: http://archive.example.com
+          any: true
 
-  - it: should infer HTTPS only when TLS covers the first ingress host
+  - it: should leave BASE_URL unset with ingress TLS
     set:
       ingress.enabled: true
       ingress.hosts:
@@ -37,28 +32,13 @@ tests:
         - hosts: [archive.example.com]
           secretName: archivebox-tls
     asserts:
-      - contains:
+      - notContains:
           path: spec.template.spec.containers[0].env
           content:
             name: BASE_URL
-            value: https://archive.example.com
+          any: true
 
-  - it: should not use unrelated ingress TLS for the canonical hostname
-    set:
-      ingress.enabled: true
-      ingress.hosts:
-        - host: archive.example.com
-      ingress.tls:
-        - hosts: [other.example.com]
-          secretName: other-tls
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: BASE_URL
-            value: http://archive.example.com
-
-  - it: should honor an explicit URL with external TLS termination and trim its trailing slash
+  - it: should pass an explicit BASE_URL unchanged
     set:
       archivebox.baseUrl: https://canonical.example.com:8443/
       archivebox.serverSecurityMode: safe-subdomains-fullreplay
@@ -70,9 +50,22 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: BASE_URL
-            value: https://canonical.example.com:8443
+            value: https://canonical.example.com:8443/
       - contains:
           path: spec.template.spec.containers[0].env
           content:
             name: SERVER_SECURITY_MODE
             value: safe-subdomains-fullreplay
+
+  - it: should accept BASE_URL through extraEnv
+    set:
+      archivebox.extraEnv:
+        - name: BASE_URL
+          value: https://archive.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BASE_URL
+            value: https://archive.example.com
+          count: 1

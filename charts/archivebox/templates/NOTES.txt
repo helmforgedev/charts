@@ -10,18 +10,20 @@ The Deployment uses one replica and the Recreate strategy.
 
 2. Access
 =========
-{{- $baseUrl := include "archivebox.baseUrl" . }}
-{{- $url := urlParse $baseUrl }}
-Web UI: {{ $baseUrl }}/
-{{- if eq .Values.archivebox.serverSecurityMode "unsafe-onedomain-noadmin" }}
-Admin UI is disabled by the selected security mode.
-{{- else if or (eq .Values.archivebox.serverSecurityMode "safe-subdomains-fullreplay") (and (eq .Values.archivebox.serverSecurityMode "auto") (regexMatch "\\.localhost(:[0-9]+)?$" $url.host)) }}
-Admin: {{ $url.scheme }}://admin.{{ $url.host }}/admin/
+{{- if .Values.archivebox.baseUrl }}
+Web UI: {{ .Values.archivebox.baseUrl }}
+{{- else if .Values.ingress.enabled }}
+{{- range $host := .Values.ingress.hosts }}
+Web UI: //{{ $host.host }}/
+{{- end }}
 {{- else }}
-Admin: {{ $baseUrl }}/admin/
+Web UI: http://localhost:{{ .Values.archivebox.port }}/
 {{- end }}
 {{- if not .Values.ingress.enabled }}
 kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "archivebox.fullname" . }} {{ .Values.archivebox.port }}:{{ .Values.service.port }}
+{{- end }}
+{{- if not .Values.archivebox.baseUrl }}
+Configure BASE_URL through the first-use admin UI.
 {{- end }}
 
 3. Authentication and visibility

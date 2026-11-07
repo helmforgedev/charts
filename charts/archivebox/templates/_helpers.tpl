@@ -135,21 +135,3 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 true
 {{- end -}}
 {{- end -}}
-
-{{/* Prefer the explicit canonical URL; infer scheme only from TLS for the first ingress host. */}}
-{{- define "archivebox.baseUrl" -}}
-{{- if .Values.archivebox.baseUrl -}}
-{{- .Values.archivebox.baseUrl | trimSuffix "/" -}}
-{{- else if and .Values.ingress.enabled .Values.ingress.hosts -}}
-{{- $host := (first .Values.ingress.hosts).host -}}
-{{- $scheme := "http" -}}
-{{- range .Values.ingress.tls -}}
-{{- if has $host (.hosts | default list) -}}
-{{- $scheme = "https" -}}
-{{- end -}}
-{{- end -}}
-{{- printf "%s://%s" $scheme $host -}}
-{{- else -}}
-{{- printf "http://archivebox.localhost:%v" .Values.archivebox.port -}}
-{{- end -}}
-{{- end -}}

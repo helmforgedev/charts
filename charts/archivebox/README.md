@@ -47,7 +47,7 @@ After deploying:
 
 ```bash
 kubectl port-forward svc/<release>-archivebox 5797:80
-# Open http://admin.archivebox.localhost:5797/admin/
+# Open http://localhost:5797/
 ```
 
 ## Architecture Guides
@@ -92,7 +92,7 @@ archivebox:
 | `archivebox.allowedHosts` | `*` | Allowed hostnames |
 | `archivebox.publicIndex` | `True` | Public index page |
 | `archivebox.publicAddLinks` | `False` | Public URL submission view |
-| `archivebox.baseUrl` | `""` | Canonical public URL; inferred from ingress when empty |
+| `archivebox.baseUrl` | `""` | BASE_URL environment variable; empty uses configuration from the admin UI |
 | `archivebox.serverSecurityMode` | `auto` | Server security mode |
 | `archivebox.puid` / `archivebox.pgid` | `""` | Optional UID/GID overrides; otherwise autodetected |
 | `archivebox.mediaMaxSize` | `750m` | Max media download size |
@@ -108,10 +108,9 @@ archivebox:
 
 ## Public URL
 
-Set `archivebox.baseUrl` to the public URL, such as `https://archive.example.com`.
-When empty, it is inferred from the first ingress host and matching TLS entry,
-or defaults to `http://archivebox.localhost:<archivebox.port>` without ingress. `BASE_URL`
-configures links, CSRF origins, and HTTPS handling.
+Configure `BASE_URL` through the first-use admin UI. To set it through Helm,
+set `archivebox.baseUrl` to the public URL, such as `https://archive.example.com`.
+`BASE_URL` configures links, CSRF origins, and HTTPS handling.
 
 With `archivebox.serverSecurityMode: auto`, raw archived HTML uses no-JS replay
 on public hostnames. For full JavaScript replay on separate subdomains, use
