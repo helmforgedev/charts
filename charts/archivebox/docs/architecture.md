@@ -73,7 +73,6 @@ ArchiveBox settings are mapped from Helm values into environment variables:
 | `archivebox.baseUrl` | `BASE_URL` | Canonical public URL |
 | `archivebox.serverSecurityMode` | `SERVER_SECURITY_MODE` | Replay isolation mode |
 | `archivebox.puid` / `archivebox.pgid` | `PUID` / `PGID` | Optional UID/GID overrides |
-| `archivebox.searchBackendEngine` | `SEARCH_BACKEND_ENGINE` | Search backend |
 | `archivebox.mediaMaxSize` | `MEDIA_MAX_SIZE` | Maximum media download size |
 | `archivebox.timeout` | `TIMEOUT` | Per-URL archive timeout |
 | `archivebox.timezone` | `TZ` | Runtime timezone |
@@ -93,8 +92,7 @@ When backups are enabled, the CronJob executes in two phases:
    bucket and prefix.
 
 Both containers share an `emptyDir` work directory. The backup job mounts the
-ArchiveBox PVC read-only to avoid modifying application data. External
-PostgreSQL is not included in this backup.
+ArchiveBox PVC read-only to avoid modifying application data.
 
 ## Scaling Boundaries
 

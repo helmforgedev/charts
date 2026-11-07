@@ -9,8 +9,7 @@ and health configuration.
 
 ArchiveBox stores its SQLite database, index, configuration, and every captured
 artifact together under `/data`. The chart therefore treats the complete data
-directory as one consistency and recovery boundary. With external PostgreSQL,
-back up the database separately alongside `/data`.
+directory as one consistency and recovery boundary.
 
 ## Architecture
 
@@ -66,9 +65,8 @@ isolated namespace before it is trusted.
 
 The entrypoint starts as root with CHOWN, DAC_OVERRIDE, FOWNER, SETUID, and
 SETGID, then runs ArchiveBox as non-root. Privilege escalation is disabled and
-seccomp is RuntimeDefault. This startup requires an exception to strict
-non-root admission policies. The chart creates no
-RBAC permissions; platform ServiceAccount token automount policy still applies.
+seccomp is RuntimeDefault. The chart creates no RBAC permissions; platform
+ServiceAccount token automount policy still applies.
 Credentials are sourced from Secrets rather than ConfigMaps. The backup Job
 receives S3 credentials only when that feature is enabled.
 
@@ -103,7 +101,6 @@ this chart, so no ServiceMonitor or unrelated exporter is fabricated.
 
 ## Explicit Non-Goals
 
-- provisioning or backing up the external PostgreSQL server
 - multiple application replicas against one archive
 - installing an Ingress controller, CNI, certificate manager, storage provider,
   object store, or monitoring stack

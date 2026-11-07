@@ -60,7 +60,6 @@ One Recreate Deployment owns the `/data` dataset: SQLite, indexes,
 configuration, and captured artifacts. The optional backup CronJob reads that
 same claim and uploads a volume archive to S3-compatible storage. Never run two
 writers against the claim, even when the StorageClass supports ReadWriteMany.
-External PostgreSQL is optional and must be backed up separately.
 
 The chart owns Kubernetes workload, storage, routing, credentials, and optional
 backup resources. TLS policy, capture-egress controls, malicious-content
@@ -96,7 +95,6 @@ archivebox:
 | `archivebox.baseUrl` | `""` | Canonical public URL; inferred from ingress when empty |
 | `archivebox.serverSecurityMode` | `auto` | Upstream replay isolation mode |
 | `archivebox.puid` / `archivebox.pgid` | `""` | Optional UID/GID overrides; otherwise autodetected |
-| `archivebox.searchBackendEngine` | `sonic` | Search engine (built-in sonic by default) |
 | `archivebox.mediaMaxSize` | `750m` | Max media download size |
 | `archivebox.timeout` | `60` | URL archiving timeout (seconds) |
 | `externalDatabase.enabled` | `false` | Use external PostgreSQL |
@@ -134,7 +132,8 @@ externalDatabase:
 ```
 
 Create the database, role, and password Secret first. `/data` is still required.
-Changing the backend does not migrate existing SQLite records.
+For existing collections, migrate SQLite records to PostgreSQL before changing
+the backend.
 
 ## Upgrading
 
@@ -143,11 +142,8 @@ Changing the backend does not migrate existing SQLite records.
   If it was `"False"`, preserve private capture defaults through
   `archivebox.extraEnv` with `name: PERMISSIONS` and `value: private`.
 - Review saved security contexts and remove fixed UID/GID overrides to use
-  autodetection. Avoid `--reuse-values` until removed keys are migrated; preserve
-  existing Secret and PVC references in your replacement values.
-- Back up `/data` and any external database before upgrading. Helm rollback
-  cannot undo data migrations. See [upstream migration instructions](https://github.com/ArchiveBox/ArchiveBox/releases/tag/v0.9.64)
-  for older collections.
+  autodetection. Migrate removed keys before reusing saved values, preserving
+  existing Secret and PVC references.
 
 ## Security Scan
 
@@ -155,8 +151,7 @@ The upstream entrypoint starts as root, prepares writable paths, then runs
 ArchiveBox as non-root. It detects the existing collection owner unless
 `archivebox.puid` / `archivebox.pgid` are set, falling back to 911 for a new
 root-owned collection. It retains CHOWN, DAC_OVERRIDE, FOWNER, SETUID, and SETGID
-for startup; strict non-root admission policies need an exception. A non-root
-`runAsUser` override must already have writable data and runtime paths.
+for startup.
 
 Security Scan:
 

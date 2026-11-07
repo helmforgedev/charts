@@ -4,8 +4,7 @@
 
 The `archivebox` chart can create scheduled backups of the ArchiveBox `/data`
 directory and upload them to S3-compatible object storage. This protects the
-SQLite database and archived snapshot files together. External PostgreSQL
-is not included.
+SQLite database and archived snapshot files together.
 
 The backup feature is optional and disabled by default.
 
@@ -70,10 +69,9 @@ s3://<bucket>/<prefix>/<archive>
 
 ## Scheduling Guidance
 
-Stop writes during backup or use an application-consistent snapshot. The live
-tar CronJob does not pause ArchiveBox, and low activity does not guarantee a
-consistent SQLite backup. With PostgreSQL, coordinate a separate database
-backup with the `/data` backup.
+ArchiveBox uses SQLite and a file-backed data directory. Schedule backups during
+periods of low archive activity to reduce the chance of capturing a busy
+database.
 
 Recommended production settings:
 
