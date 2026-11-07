@@ -584,13 +584,21 @@ limits:
 {{/* StatefulSet PVC retention. Empty values omit the policy so the cluster default applies. */}}
 {{- define "postgresql.persistenceRetentionPolicy" -}}
 {{- $policy := .persistence.retentionPolicy | default dict -}}
-{{- $whenDeleted := $policy.whenDeleted | default "" -}}
-{{- $whenScaled := $policy.whenScaled | default "" -}}
-{{- if and $whenDeleted (not (has $whenDeleted (list "Retain" "Delete"))) -}}
-  {{- fail "persistence.retentionPolicy.whenDeleted must be Retain, Delete, or empty" -}}
+{{- $whenDeleted := "" -}}
+{{- if hasKey $policy "whenDeleted" -}}
+  {{- $candidate := get $policy "whenDeleted" -}}
+  {{- if not (has $candidate (list "" "Retain" "Delete")) -}}
+    {{- fail "persistence.retentionPolicy.whenDeleted must be Retain, Delete, or empty" -}}
+  {{- end -}}
+  {{- $whenDeleted = $candidate -}}
 {{- end -}}
-{{- if and $whenScaled (not (has $whenScaled (list "Retain" "Delete"))) -}}
-  {{- fail "persistence.retentionPolicy.whenScaled must be Retain, Delete, or empty" -}}
+{{- $whenScaled := "" -}}
+{{- if hasKey $policy "whenScaled" -}}
+  {{- $candidate := get $policy "whenScaled" -}}
+  {{- if not (has $candidate (list "" "Retain" "Delete")) -}}
+    {{- fail "persistence.retentionPolicy.whenScaled must be Retain, Delete, or empty" -}}
+  {{- end -}}
+  {{- $whenScaled = $candidate -}}
 {{- end -}}
 {{- if or $whenDeleted $whenScaled }}
 persistentVolumeClaimRetentionPolicy:
