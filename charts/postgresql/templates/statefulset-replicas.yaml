@@ -6,6 +6,7 @@ metadata:
   name: {{ include "postgresql.replicaStatefulSetName" . }}
   labels:
     {{- include "postgresql.labels" . | nindent 4 }}
+  {{- include "postgresql.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   serviceName: {{ include "postgresql.replicasHeadlessServiceName" . }}
   replicas: {{ .Values.replication.readReplicas.replicaCount }}
@@ -21,7 +22,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | fromYaml | dig "data" (dict) | toYaml | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -227,6 +228,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
   {{- if .Values.replication.readReplicas.persistence.enabled }}
+  {{- include "postgresql.persistenceRetentionPolicy" (dict "persistence" .Values.replication.readReplicas.persistence) | nindent 2 }}
   volumeClaimTemplates:
     {{- include "postgresql.volumeClaimTemplate" (dict "root" . "persistence" .Values.replication.readReplicas.persistence) | nindent 4 }}
   {{- end }}

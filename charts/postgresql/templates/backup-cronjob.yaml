@@ -6,6 +6,7 @@ metadata:
   name: {{ include "postgresql.fullname" . }}-backup
   labels:
     {{- include "postgresql.labels" . | nindent 4 }}
+  {{- include "postgresql.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   schedule: {{ .Values.backup.schedule | quote }}
   suspend: {{ .Values.backup.suspend }}
@@ -21,9 +22,16 @@ spec:
             {{- include "postgresql.selectorLabels" . | nindent 12 }}
         spec:
           restartPolicy: Never
+          {{- if .Values.backup.s3.credentialsFromPodIdentity }}
+          serviceAccountName: {{ include "postgresql.backupServiceAccountName" . }}
+          automountServiceAccountToken: {{ .Values.backup.serviceAccount.automountServiceAccountToken }}
+          {{- else }}
           serviceAccountName: {{ include "postgresql.serviceAccountName" . }}
           automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+          {{- end }}
           terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+          securityContext:
+            {{- toYaml .Values.backup.podSecurityContext | nindent 12 }}
           {{- with .Values.imagePullSecrets }}
           imagePullSecrets:
             {{- toYaml . | nindent 12 }}
@@ -45,6 +53,8 @@ spec:
               image: "{{ .Values.backup.images.postgresql.repository }}:{{ .Values.backup.images.postgresql.tag }}"
               imagePullPolicy: {{ .Values.backup.images.postgresql.pullPolicy }}
               command: ["/bin/sh", "/scripts/postgresql-backup.sh"]
+              securityContext:
+                {{- toYaml .Values.backup.databaseSecurityContext | nindent 16 }}
               env:
                 - name: BACKUP_ARCHIVE_PREFIX
                   value: {{ .Values.backup.archivePrefix | quote }}
@@ -70,6 +80,7 @@ spec:
               volumeMounts:
                 - name: scripts
                   mountPath: /scripts
+                  readOnly: true
                 - name: backup-workdir
                   mountPath: /backup/out
                 {{- if .Values.tls.enabled }}
@@ -82,6 +93,8 @@ spec:
               image: "{{ .Values.backup.images.uploader.repository }}:{{ .Values.backup.images.uploader.tag }}"
               imagePullPolicy: {{ .Values.backup.images.uploader.pullPolicy }}
               command: ["/bin/sh", "/scripts/upload-backup.sh"]
+              securityContext:
+                {{- toYaml .Values.backup.uploaderSecurityContext | nindent 16 }}
               env:
                 - name: S3_ENDPOINT
                   value: {{ .Values.backup.s3.endpoint | quote }}
@@ -91,29 +104,43 @@ spec:
                   value: {{ .Values.backup.s3.prefix | quote }}
                 - name: S3_CREATE_BUCKET_IF_NOT_EXISTS
                   value: {{ ternary "true" "false" .Values.backup.s3.createBucketIfNotExists | quote }}
+                - name: MC_CONFIG_DIR
+                  value: /tmp/mc
+                {{- if .Values.backup.s3.credentialsFromPodIdentity }}
+                - name: AWS_REGION
+                  value: {{ .Values.backup.s3.region | quote }}
+                - name: AWS_DEFAULT_REGION
+                  value: {{ .Values.backup.s3.region | quote }}
+                {{- else }}
                 - name: S3_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
                       name: {{ include "postgresql.backupSecretName" . }}
-                      key: {{ .Values.backup.s3.existingSecretAccessKeyKey }}
+                      key: {{ .Values.backup.s3.existingSecretAccessKeyKey | quote }}
                 - name: S3_SECRET_KEY
                   valueFrom:
                     secretKeyRef:
                       name: {{ include "postgresql.backupSecretName" . }}
-                      key: {{ .Values.backup.s3.existingSecretSecretKeyKey }}
+                      key: {{ .Values.backup.s3.existingSecretSecretKeyKey | quote }}
+                {{- end }}
               resources:
                 {{- toYaml .Values.backup.resources | nindent 16 }}
               volumeMounts:
                 - name: scripts
                   mountPath: /scripts
+                  readOnly: true
                 - name: backup-workdir
                   mountPath: /backup/out
+                - name: uploader-tmp
+                  mountPath: /tmp
           volumes:
             - name: scripts
               configMap:
                 name: {{ include "postgresql.fullname" . }}-backup-scripts
                 defaultMode: 0755
             - name: backup-workdir
+              emptyDir: {}
+            - name: uploader-tmp
               emptyDir: {}
             {{- if .Values.tls.enabled }}
             - name: tls

@@ -7,6 +7,25 @@ release:
   name: test
   namespace: default
 tests:
+  - it: should omit PVC retention policy by default
+    template: statefulset-primary.yaml
+    asserts:
+      - notExists:
+          path: spec.persistentVolumeClaimRetentionPolicy
+
+  - it: should render standalone PVC retention policy
+    template: statefulset-primary.yaml
+    set:
+      standalone.persistence.retentionPolicy.whenDeleted: Retain
+      standalone.persistence.retentionPolicy.whenScaled: Delete
+    asserts:
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenDeleted
+          value: Retain
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenScaled
+          value: Delete
+
   - it: should be a StatefulSet
     template: statefulset-primary.yaml
     asserts:

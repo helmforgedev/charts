@@ -25,7 +25,39 @@ Because `pg_dumpall` is used, the generated archive includes all logical databas
 - keep WAL, data retention, and storage sizing aligned with the backup design
 - if replication is enabled, do not assume replicas replace backups
 - when `networkPolicy.egress.enabled=true`, allow HTTPS egress or the S3-compatible endpoint your backup target requires
-- use `backup.s3.existingSecret` in production instead of inline S3 credentials
+- use `backup.s3.existingSecret` instead of inline S3 credentials, or use workload identity so no static S3 keys enter the pod
+
+## Workload identity
+
+Set `backup.s3.credentialsFromPodIdentity=true` and `backup.s3.region` to use
+the AWS credential chain through EKS Pod Identity or IRSA. The chart creates a
+dedicated backup ServiceAccount by default so S3 permissions are not attached
+to the PostgreSQL workload identity.
+
+For EKS Pod Identity, associate the IAM role with the generated ServiceAccount.
+For IRSA, set `backup.serviceAccount.annotations.eks.amazonaws.com/role-arn`
+on that ServiceAccount. Keep
+`backup.serviceAccount.automountServiceAccountToken=false` unless the backup
+pod must call the Kubernetes API; AWS identity injection uses a separate
+projected token. Workload identity suppresses the backup Secret, static key
+environment variables, and backup ExternalSecret.
+
+The upload container receives `AWS_REGION` and `AWS_DEFAULT_REGION` from
+`backup.s3.region`. China regions automatically use the
+`amazonaws.com.cn` STS domain.
+
+## StatefulSet PVC retention
+
+Each standalone, primary, and replica persistence block exposes
+`retentionPolicy.whenDeleted` and `retentionPolicy.whenScaled`. Empty
+values preserve the Kubernetes defaults. Set either field explicitly to
+`Retain` or `Delete` only after confirming the intended recovery and
+scale-down behavior.
+
+On Kubernetes 1.26, `Delete` requires the `StatefulSetAutoDeletePVC` feature
+gate on both the API server and controller manager. Confirm that cluster
+setting before relying on automatic deletion. Do not enable `Delete` until the
+policy is verified in the target cluster.
 
 ## Restore workflow
 

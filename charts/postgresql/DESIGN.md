@@ -83,11 +83,13 @@ Production hardening uses opt-in controls:
 
 - Use the official `postgres` image as the database runtime.
 - Use StatefulSets and PVCs for stable pod identity and storage.
+- Keep StatefulSet PVC retention explicit and independently configurable for standalone, primary, and replica data.
 - Render `postgresql.conf` and `pg_hba.conf` from structured values first, with raw escape hatches for advanced cases.
 - Bootstrap replicas with `pg_basebackup -R`.
 - Keep replication slots optional because they improve WAL safety for lagging replicas but can retain disk indefinitely without limits and monitoring.
 - Keep PgBouncer/Pgpool out of scope. Pooling belongs in a separate chart or application/platform layer.
 - Render External Secrets Operator resources only when requested. The chart does not install the operator or own provider-side secret stores.
+- Isolate S3 workload identity on a dedicated backup ServiceAccount; static credentials remain available through Secret or ExternalSecret.
 - Keep HA automation out of scope. Use a PostgreSQL operator for automated failover and lifecycle reconciliation.
 
 ## Explicit Non-Goals

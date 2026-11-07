@@ -335,6 +335,7 @@ Operational documents:
 | `architecture` | `standalone` or `replication` | `standalone` |
 | `image.repository` | PostgreSQL image repository | `docker.io/library/postgres` |
 | `image.tag` | PostgreSQL image tag | `18.6-trixie` |
+| `commonAnnotations` | Annotations added to every chart-owned resource | `{}` |
 | `auth.database` | App database created at bootstrap | `app` |
 | `auth.username` | App user created at bootstrap | `app` |
 | `auth.existingSecret` | Existing secret for passwords | `""` |
@@ -362,6 +363,11 @@ Operational documents:
 | `backup.resources` | Resources applied to backup dump and upload containers | requests `100m/128Mi`, limits `500m/512Mi` |
 | `backup.s3.endpoint` | S3-compatible endpoint URL | `""` |
 | `backup.s3.bucket` | Target bucket name | `""` |
+| `backup.s3.region` | AWS region used by Pod Identity or IRSA | `""` |
+| `backup.s3.credentialsFromPodIdentity` | Use the pod IAM credential chain instead of static S3 keys | `false` |
+| `backup.serviceAccount.create` | Create the dedicated backup ServiceAccount used by workload identity | `true` |
+| `backup.serviceAccount.annotations` | Workload identity annotations, such as an IRSA role ARN | `{}` |
+| `backup.serviceAccount.automountServiceAccountToken` | Mount Kubernetes API credentials into backup pods | `false` |
 | `backup.database.pgDumpAllArgs` | Extra `pg_dumpall` flags | `"--clean --if-exists"` |
 | `networkPolicy.enabled` | Enable ingress-only NetworkPolicy | `false` |
 | `networkPolicy.egress.enabled` | Add egress rules to the NetworkPolicy | `false` |
@@ -383,14 +389,21 @@ Operational documents:
 | `replication.scheduling.enableDefaultPodAntiAffinity` | Enable default anti-affinity in replication mode | `true` |
 | `replication.scheduling.enableDefaultTopologySpread` | Enable default topology spread in replication mode | `true` |
 | `standalone.persistence.enabled` | Enable PVC for standalone | `true` |
+| `standalone.persistence.retentionPolicy` | PVC lifecycle on StatefulSet deletion and scale-down | empty, cluster defaults |
+| `replication.primary.persistence.retentionPolicy` | Primary PVC lifecycle on StatefulSet deletion and scale-down | empty, cluster defaults |
+| `replication.readReplicas.persistence.retentionPolicy` | Replica PVC lifecycle on StatefulSet deletion and scale-down | empty, cluster defaults |
 | `replication.readReplicas.replicaCount` | Number of async read replicas | `2` |
 | `metrics.enabled` | Enable `postgres_exporter` sidecar | `false` |
 | `metrics.resourcesPreset` | Resource preset for `postgres_exporter` | `small` |
 | `metrics.serviceMonitor.enabled` | Enable ServiceMonitor | `false` |
 | `pdb.enabled` | Enable PodDisruptionBudget | `false` |
-| `serviceAccount.automountServiceAccountToken` | Mount Kubernetes API credentials into PostgreSQL and backup pods | `false` |
+| `serviceAccount.automountServiceAccountToken` | Mount Kubernetes API credentials into PostgreSQL pods | `false` |
 | `service.ipFamilyPolicy` | Service IP family policy: `SingleStack`, `PreferDualStack`, or `RequireDualStack` | omitted |
 | `service.ipFamilies` | Ordered Service IP families: `IPv4`, `IPv6` | omitted |
+
+On Kubernetes 1.26, `Delete` retention requires
+`StatefulSetAutoDeletePVC` on both the API server and controller manager.
+Verify the feature gate before relying on automatic PVC deletion.
 
 ## Upgrade Notes
 
