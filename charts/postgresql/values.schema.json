@@ -34,6 +34,14 @@
       "description": "Labels added to all resources",
       "default": {}
     },
+    "commonAnnotations": {
+      "type": "object",
+      "description": "Annotations added to all chart-owned resources. Resource-specific annotations take precedence.",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {}
+    },
     "clusterDomain": {
       "type": "string",
       "description": "Kubernetes cluster domain",
@@ -623,6 +631,23 @@
               "type": "string",
               "description": "PVC size for standalone mode",
               "default": "8Gi"
+            },
+            "retentionPolicy": {
+              "type": "object",
+              "description": "PVC retention when the standalone StatefulSet is deleted or scaled. Empty uses the cluster default.",
+              "additionalProperties": false,
+              "properties": {
+                "whenDeleted": {
+                  "type": "string",
+                  "enum": ["", "Retain", "Delete"],
+                  "default": ""
+                },
+                "whenScaled": {
+                  "type": "string",
+                  "enum": ["", "Retain", "Delete"],
+                  "default": ""
+                }
+              }
             }
           }
         },
@@ -682,6 +707,23 @@
                   "type": "string",
                   "description": "PVC size for the primary pod",
                   "default": "20Gi"
+                },
+                "retentionPolicy": {
+                  "type": "object",
+                  "description": "PVC retention when the primary StatefulSet is deleted or scaled. Empty uses the cluster default.",
+                  "additionalProperties": false,
+                  "properties": {
+                    "whenDeleted": {
+                      "type": "string",
+                      "enum": ["", "Retain", "Delete"],
+                      "default": ""
+                    },
+                    "whenScaled": {
+                      "type": "string",
+                      "enum": ["", "Retain", "Delete"],
+                      "default": ""
+                    }
+                  }
                 }
               }
             },
@@ -754,6 +796,23 @@
                   "type": "string",
                   "description": "PVC size per read replica",
                   "default": "20Gi"
+                },
+                "retentionPolicy": {
+                  "type": "object",
+                  "description": "PVC retention when the replica StatefulSet is deleted or scaled. Empty uses the cluster default.",
+                  "additionalProperties": false,
+                  "properties": {
+                    "whenDeleted": {
+                      "type": "string",
+                      "enum": ["", "Retain", "Delete"],
+                      "default": ""
+                    },
+                    "whenScaled": {
+                      "type": "string",
+                      "enum": ["", "Retain", "Delete"],
+                      "default": ""
+                    }
+                  }
                 }
               }
             },
@@ -1164,6 +1223,51 @@
             }
           }
         },
+        "serviceAccount": {
+          "type": "object",
+          "description": "Dedicated ServiceAccount configuration for Pod Identity / IRSA backups",
+          "additionalProperties": false,
+          "properties": {
+            "create": {
+              "type": "boolean",
+              "description": "Create a dedicated ServiceAccount for Pod Identity / IRSA backups",
+              "default": true
+            },
+            "name": {
+              "type": "string",
+              "description": "Name of an existing dedicated ServiceAccount for Pod Identity / IRSA backups when create is false",
+              "default": ""
+            },
+            "annotations": {
+              "type": "object",
+              "description": "Annotations for the Pod Identity / IRSA backup ServiceAccount",
+              "additionalProperties": {
+                "type": "string"
+              },
+              "default": {}
+            },
+            "automountServiceAccountToken": {
+              "type": "boolean",
+              "description": "Mount the Kubernetes API token into backup pods",
+              "default": false
+            }
+          }
+        },
+        "podSecurityContext": {
+          "type": "object",
+          "description": "Pod security context for backup jobs",
+          "additionalProperties": true
+        },
+        "databaseSecurityContext": {
+          "type": "object",
+          "description": "Container security context for the pg_dumpall init container",
+          "additionalProperties": true
+        },
+        "uploaderSecurityContext": {
+          "type": "object",
+          "description": "Container security context for the S3 uploader",
+          "additionalProperties": true
+        },
         "s3": {
           "type": "object",
           "description": "S3-compatible storage configuration for backups",
@@ -1213,6 +1317,16 @@
               "type": "string",
               "description": "Inline secret key used when backup.s3.existingSecret is not set",
               "default": ""
+            },
+            "region": {
+              "type": "string",
+              "description": "AWS region injected as AWS_REGION and AWS_DEFAULT_REGION on the upload container. Required when credentialsFromPodIdentity is true.",
+              "default": ""
+            },
+            "credentialsFromPodIdentity": {
+              "type": "boolean",
+              "description": "Use EKS Pod Identity or IRSA instead of static S3 credentials.",
+              "default": false
             }
           }
         },
@@ -1571,7 +1685,10 @@
     },
     "annotations": {
       "type": "object",
-      "description": "Additional annotations for resources",
+      "description": "Deprecated alias for commonAnnotations",
+      "additionalProperties": {
+        "type": "string"
+      },
       "default": {}
     },
     "nodeSelector": {

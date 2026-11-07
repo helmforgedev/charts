@@ -34,6 +34,17 @@ app.kubernetes.io/part-of: helmforge
 {{- end }}
 {{- end -}}
 
+{{- define "postgresql.renderAnnotations" -}}
+{{- $legacy := deepCopy (.root.Values.annotations | default dict) -}}
+{{- $common := mergeOverwrite $legacy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | indent 2 }}
+{{- end -}}
+{{- end -}}
+
 {{- define "postgresql.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "postgresql.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
@@ -53,6 +64,14 @@ app.kubernetes.io/role: {{ .role }}
 {{- default (include "postgresql.fullname" .) .Values.serviceAccount.name -}}
 {{- else -}}
 {{- default "default" .Values.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "postgresql.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create -}}
+{{- default (include "postgresql.nameWithSuffix" (dict "base" (include "postgresql.fullname" .) "suffix" "-backup")) .Values.backup.serviceAccount.name -}}
+{{- else -}}
+{{- default "default" .Values.backup.serviceAccount.name -}}
 {{- end -}}
 {{- end -}}
 
@@ -309,8 +328,15 @@ fi
   {{- if not .Values.backup.s3.bucket -}}
     {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
   {{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (not (include "postgresql.backupSecretManagedByExternalSecret" .)) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
-    {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
+  {{- if .Values.backup.s3.credentialsFromPodIdentity -}}
+    {{- if not .Values.backup.s3.region -}}
+      {{- fail "backup.s3.region is required when backup.s3.credentialsFromPodIdentity is true" -}}
+    {{- end -}}
+    {{- if and (not .Values.backup.serviceAccount.create) (not .Values.backup.serviceAccount.name) -}}
+      {{- fail "backup.serviceAccount.name is required when Pod Identity is enabled and backup.serviceAccount.create is false" -}}
+    {{- end -}}
+  {{- else if and (not .Values.backup.s3.existingSecret) (not (include "postgresql.backupSecretManagedByExternalSecret" .)) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+    {{- fail "backup requires either backup.s3.existingSecret, both backup.s3.accessKey and backup.s3.secretKey, or backup.s3.credentialsFromPodIdentity=true" -}}
   {{- end -}}
 true
 {{- end -}}
@@ -331,7 +357,7 @@ true
 {{- define "postgresql.backupSecretManagedByExternalSecret" -}}
 {{- $externalSecrets := .Values.externalSecrets | default dict -}}
 {{- $backup := get $externalSecrets "backup" | default dict -}}
-{{- if and (get $externalSecrets "enabled") (get $backup "enabled") -}}true{{- end -}}
+{{- if and (get $externalSecrets "enabled") (get $backup "enabled") (not .Values.backup.s3.credentialsFromPodIdentity) -}}true{{- end -}}
 {{- end -}}
 
 {{- define "postgresql.validateExternalSecrets" -}}
@@ -375,7 +401,7 @@ true
       {{- fail "externalSecrets.tls.caRemoteRef.key is required when externalSecrets.tls.enabled is true" -}}
     {{- end -}}
   {{- end -}}
-  {{- if get $backup "enabled" -}}
+  {{- if and (get $backup "enabled") (not .Values.backup.s3.credentialsFromPodIdentity) -}}
     {{- $accessKeyRemoteRef := get $backup "accessKeyRemoteRef" | default dict -}}
     {{- $secretKeyRemoteRef := get $backup "secretKeyRemoteRef" | default dict -}}
     {{- if not .Values.backup.enabled -}}
@@ -553,6 +579,22 @@ limits:
     resources:
       requests:
         storage: {{ .persistence.size }}
+{{- end -}}
+
+{{/* StatefulSet PVC retention. Empty values omit the policy so the cluster default applies. */}}
+{{- define "postgresql.persistenceRetentionPolicy" -}}
+{{- $policy := .persistence.retentionPolicy | default dict -}}
+{{- $whenDeleted := $policy.whenDeleted | default "" -}}
+{{- $whenScaled := $policy.whenScaled | default "" -}}
+{{- if or $whenDeleted $whenScaled }}
+persistentVolumeClaimRetentionPolicy:
+  {{- if $whenDeleted }}
+  whenDeleted: {{ $whenDeleted }}
+  {{- end }}
+  {{- if $whenScaled }}
+  whenScaled: {{ $whenScaled }}
+  {{- end }}
+{{- end }}
 {{- end -}}
 
 {{- define "postgresql.podSpecCommon" -}}
