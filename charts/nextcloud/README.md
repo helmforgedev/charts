@@ -10,7 +10,7 @@ PostgreSQL, Redis, managed background jobs and coordinated S3 backups.
 - Persistent storage supporting UID/GID 33 and fsGroup ownership.
 - Public DNS and a TLS-enabled ingress or Gateway controller for external access.
 - An existing private S3-compatible bucket and either a credential Secret or
-  workload identity for backups.
+  AWS workload identity credentials accepted by the storage provider.
 - External Secrets Operator only when that integration is enabled.
 
 The application defaults to `nextcloud:35.0.2-apache`, with verified amd64 and
