@@ -131,9 +131,11 @@ Job succeeds.
 ### Primary object storage
 
 The chart maps the official image's S3 configuration to both Apache and the
-background CronJob. Static access keys are mounted from an existing Secret as
-files; workload identity instead assigns both workloads to one dedicated
-ServiceAccount. Probes execute against the configured application and therefore
+background CronJob. Apache consumes static keys from mounted Secret files. The
+CronJob bypasses the image entrypoint and therefore consumes the same keys via
+Kubernetes `secretKeyRef` environment sources. Workload identity instead assigns
+both workloads to one dedicated ServiceAccount. Probes execute against the
+configured application and therefore
 exercise the same object-store-backed runtime path as normal HTTP requests.
 
 An always-present guard Secret records whether primary storage is enabled and
@@ -187,8 +189,9 @@ policies belong to the bucket administrator.
   stages receive a projected token, with RBAC limited to the named Deployment
   scale subresource, the cron CronJob, and namespace Pod and Job discovery.
 - SQL stages receive database credentials and S3 stages receive backup-store
-  credentials. Application and cron receive primary-store credentials through
-  Secret files or a dedicated workload identity. Use existing Secrets or
+  credentials. Application and cron receive primary-store credentials from the
+  same Secret through workload-appropriate projections or a dedicated workload
+  identity. Use existing Secrets or
   External Secrets in production and rotate credentials through the owning system.
 - NetworkPolicy can restrict ingress and dependency egress, but transport
   encryption and authentication for external PostgreSQL, Redis, and object

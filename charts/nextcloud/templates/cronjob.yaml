@@ -84,6 +84,18 @@ spec:
               env:
                 {{- include "nextcloud.backendEnv" . | nindent 16 }}
                 {{- include "nextcloud.primaryObjectStoreEnv" . | nindent 16 }}
+                {{- if and .Values.primaryObjectStore.enabled (not .Values.primaryObjectStore.credentialsFromPodIdentity) }}
+                - name: OBJECTSTORE_S3_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.primaryObjectStore.existingSecret }}
+                      key: {{ .Values.primaryObjectStore.existingSecretAccessKeyKey }}
+                - name: OBJECTSTORE_S3_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.primaryObjectStore.existingSecret }}
+                      key: {{ .Values.primaryObjectStore.existingSecretSecretKeyKey }}
+                {{- end }}
               volumeMounts:
                 - {name: data, mountPath: /var/www/html}
                 - {name: config, mountPath: /opt/helmforge, readOnly: true}

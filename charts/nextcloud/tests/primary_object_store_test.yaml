@@ -30,6 +30,9 @@ tests:
       - contains: {path: 'spec.template.spec.containers[0].env', content: {name: OBJECTSTORE_S3_BUCKET, value: nextcloud-data}}
       - contains: {path: 'spec.template.spec.containers[0].env', content: {name: OBJECTSTORE_S3_OBJECT_PREFIX, value: "urn:oid:"}}
       - contains: {path: 'spec.template.spec.containers[0].env', content: {name: OBJECTSTORE_S3_KEY_FILE, value: /var/run/nextcloud-primary-object-store/access-key}}
+      - contains: {path: 'spec.template.spec.containers[0].env', content: {name: OBJECTSTORE_S3_SECRET_FILE, value: /var/run/nextcloud-primary-object-store/secret-key}}
+      - contains: {path: 'spec.template.spec.containers[0].env', content: {name: OBJECTSTORE_S3_SSL, value: "true"}}
+      - contains: {path: 'spec.template.spec.containers[0].env', content: {name: OBJECTSTORE_S3_USEPATH_STYLE, value: "false"}}
       - contains: {path: 'spec.template.spec.containers[0].volumeMounts', content: {name: primary-object-store-credentials, mountPath: /var/run/nextcloud-primary-object-store, readOnly: true}}
       - equal: {path: 'spec.template.spec.volumes[?(@.name == "primary-object-store-credentials")].secret.secretName', value: nextcloud-primary-object-store}
       - equal: {path: 'spec.template.spec.volumes[?(@.name == "primary-object-store-credentials")].secret.items[?(@.path == "access-key")].key', value: access-key-id}
@@ -48,6 +51,8 @@ tests:
       - equal: {path: spec.template.spec.serviceAccountName, value: nextcloud-primary}
       - equal: {path: spec.template.spec.automountServiceAccountToken, value: true}
       - notContains: {path: 'spec.template.spec.containers[0].env', content: {name: OBJECTSTORE_S3_KEY_FILE}}
+      - notContains: {path: 'spec.template.spec.containers[0].env', content: {name: OBJECTSTORE_S3_KEY}}
+      - notContains: {path: 'spec.template.spec.containers[0].env', content: {name: OBJECTSTORE_S3_SECRET}}
       - notContains: {path: 'spec.template.spec.volumes', content: {name: primary-object-store-credentials}}
 
   - it: gives the CronJob the same object-store configuration and Secret
@@ -60,6 +65,9 @@ tests:
     asserts:
       - contains: {path: 'spec.jobTemplate.spec.template.spec.containers[0].env', content: {name: OBJECTSTORE_S3_BUCKET, value: nextcloud-data}}
       - contains: {path: 'spec.jobTemplate.spec.template.spec.containers[0].env', content: {name: OBJECTSTORE_S3_SECRET_FILE, value: /var/run/nextcloud-primary-object-store/secret-key}}
+      - equal: {path: 'spec.jobTemplate.spec.template.spec.containers[0].env[?(@.name == "OBJECTSTORE_S3_KEY")].valueFrom.secretKeyRef.name', value: nextcloud-primary-object-store}
+      - equal: {path: 'spec.jobTemplate.spec.template.spec.containers[0].env[?(@.name == "OBJECTSTORE_S3_KEY")].valueFrom.secretKeyRef.key', value: access-key}
+      - equal: {path: 'spec.jobTemplate.spec.template.spec.containers[0].env[?(@.name == "OBJECTSTORE_S3_SECRET")].valueFrom.secretKeyRef.key', value: secret-key}
       - contains: {path: 'spec.jobTemplate.spec.template.spec.containers[0].volumeMounts', content: {name: primary-object-store-credentials, mountPath: /var/run/nextcloud-primary-object-store, readOnly: true}}
 
   - it: records the active storage configuration in the upgrade guard

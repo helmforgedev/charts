@@ -48,10 +48,11 @@ a path. The URL scheme must agree with `useSsl`. Plain HTTP is suitable only for
 a trusted isolated test network.
 
 The chart supplies the official image's `OBJECTSTORE_S3_*` contract to both the
-application and the background CronJob. Static credentials are mounted from the
-Secret as files and referenced through `OBJECTSTORE_S3_KEY_FILE` and
-`OBJECTSTORE_S3_SECRET_FILE`; credential values are never placed in chart values
-or Pod environment literals.
+application and the background CronJob. The application mounts static
+credentials from the Secret as files. The CronJob bypasses the image entrypoint,
+so it reads the same Secret keys through Kubernetes `secretKeyRef` environment
+sources. Credential values are never placed in chart values or Pod environment
+literals.
 
 ## External Secrets
 
@@ -112,10 +113,12 @@ When `networkPolicy.enabled=true`, supply provider CIDRs or in-cluster selectors
 through `primaryObjectStore.networkPolicyEgress`; rendering fails when the rule
 is missing.
 
-IRSA also requires HTTPS egress to the AWS STS endpoint selected by the SDK.
-Allow the configured regional endpoint or the global `sts.amazonaws.com`
-endpoint when it is still in use; alternatively, configure IRSA to use regional
-STS before restricting egress to that endpoint.
+IRSA (IAM Roles for Service Accounts) also requires HTTPS egress to the AWS STS
+endpoint selected by the SDK. Add that endpoint's CIDR ranges to
+`primaryObjectStore.networkPolicyEgress`. If the SDK uses the global
+`sts.amazonaws.com` endpoint, add its CIDR ranges. To allow only the regional
+STS endpoint, configure IRSA to use regional STS before restricting the egress
+rules.
 EKS Pod Identity requires access to the Pod Identity Agent endpoint in addition
 to the S3 endpoint. Include those credential-provider destinations in the same
 explicit egress list when the selected identity mechanism needs them.
