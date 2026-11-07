@@ -119,7 +119,7 @@ DNS, ingress, and TLS. See the [upstream security modes](https://github.com/Arch
 
 ## External PostgreSQL
 
-SQLite remains the default. To use an existing PostgreSQL database:
+SQLite is the default database. To use an existing PostgreSQL database:
 
 ```yaml
 externalDatabase:
@@ -131,7 +131,8 @@ externalDatabase:
   existingSecretPasswordKey: database-password
 ```
 
-Create the database, role, and password Secret first. `/data` is still required.
+Create the database, role, and password Secret first. `/data` stores archived
+files and configuration.
 For existing collections, migrate SQLite records to PostgreSQL before changing
 the backend.
 
@@ -155,7 +156,7 @@ for startup.
 
 Security Scan:
 
-Kubescape scan for `MITRE,NSA,SOC2` with the updated default values:
+Kubescape scan for `MITRE,NSA,SOC2` with the default values:
 
 | Framework | Score |
 |-----------|-------|
