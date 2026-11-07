@@ -5,7 +5,6 @@
 The `archivebox` chart can create scheduled backups of the ArchiveBox `/data`
 directory and upload them to S3-compatible object storage. This protects the
 SQLite database and archived snapshot files together.
-For PostgreSQL, schedule database backups alongside these volume backups.
 
 The backup feature is optional and disabled by default.
 
@@ -70,9 +69,8 @@ s3://<bucket>/<prefix>/<archive>
 
 ## Scheduling Guidance
 
-ArchiveBox uses SQLite and a file-backed data directory. Schedule backups during
-periods of low archive activity to reduce the chance of capturing a busy
-database.
+Stop ArchiveBox before backing up `/data`. With PostgreSQL, keep ArchiveBox
+stopped until both the database and `/data` backups have completed.
 
 Recommended production settings:
 
@@ -92,11 +90,10 @@ The chart does not automate restore. A manual restore should:
 
 1. Scale the ArchiveBox deployment down or stop writes.
 2. Restore the backup tarball into the target `/data` volume.
-3. Verify file ownership matches the runtime UID/GID.
-4. Scale the deployment back up.
-5. Confirm the web UI and snapshot listing are healthy.
-
-With PostgreSQL, restore the matching database backup before restarting ArchiveBox.
+3. If using PostgreSQL, restore the matching database backup.
+4. Verify file ownership matches the runtime UID/GID.
+5. Scale the deployment back up.
+6. Confirm the web UI and snapshot listing are healthy.
 
 Always test this process in a non-production namespace before relying on the
 backup pipeline.
