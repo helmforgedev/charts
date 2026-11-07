@@ -105,6 +105,7 @@ archivebox:
 | `service.port` | `80` | Service port |
 | `backup.enabled` | `false` | Enable scheduled S3-compatible backup |
 | `backup.schedule` | `0 3 * * *` | Backup CronJob schedule |
+| `backup.s3.credentialsFromPodIdentity` | `false` | Use EKS Pod Identity or IRSA instead of static S3 keys |
 
 ## Public URL
 
@@ -153,6 +154,14 @@ ArchiveBox as non-root. It detects the existing collection owner unless
 root-owned collection. It retains CHOWN, DAC_OVERRIDE, FOWNER, SETUID, and SETGID
 for startup.
 
+The chart also includes a bounded init container that changes only the `/data`
+directory itself when its current owner is root. It never recursively rewrites
+an existing collection. The application container still starts as root because
+the upstream entrypoint discovers the collection owner and drops privileges at
+runtime. Consequently, the default workload is not compatible with a namespace
+that enforces the Kubernetes Pod Security `restricted` profile without an
+explicit policy exception for this Deployment.
+
 Security Scan:
 
 Kubescape scan for `MITRE,NSA,SOC2` with the default values:
@@ -192,6 +201,9 @@ Expected follow-up hardening is operator-dependent:
   the Ingress host and TLS name.
 - If backup Jobs fail, inspect both containers, verify the S3 endpoint and Secret
   keys, and test restore of the full archive before relying on retention.
+- The scheduled backup archives live `/data` and never dumps external
+  PostgreSQL. Use a quiesced maintenance window and retain a matching database
+  dump as described in the [backup guide](docs/backup.md).
 
 ## More Information
 

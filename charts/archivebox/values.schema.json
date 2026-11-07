@@ -12,7 +12,8 @@
     },
     "nameOverride": { "type": "string", "default": "" },
     "fullnameOverride": { "type": "string", "default": "" },
-    "commonLabels": { "type": "object" },
+    "commonLabels": { "type": "object", "additionalProperties": { "type": "string" } },
+    "commonAnnotations": { "type": "object", "additionalProperties": { "type": "string" } },
     "image": {
       "type": "object",
       "properties": {
@@ -48,6 +49,21 @@
     "externalDatabase": {
       "type": "object",
       "description": "Optional external PostgreSQL database; /data stores archives",
+      "allOf": [
+        {
+          "if": { "properties": { "enabled": { "const": true } }, "required": ["enabled"] },
+          "then": {
+            "required": ["host", "name", "user", "existingSecret", "existingSecretPasswordKey"],
+            "properties": {
+              "host": { "minLength": 1 },
+              "name": { "minLength": 1 },
+              "user": { "minLength": 1 },
+              "existingSecret": { "minLength": 1 },
+              "existingSecretPasswordKey": { "minLength": 1 }
+            }
+          }
+        }
+      ],
       "properties": {
         "enabled": { "type": "boolean", "default": false },
         "host": { "type": "string", "default": "" },
@@ -196,6 +212,17 @@
           }
         },
         "resources": { "type": "object", "description": "CPU and memory for backup containers" },
+        "podSecurityContext": { "type": "object" },
+        "securityContext": { "type": "object" },
+        "serviceAccount": {
+          "type": "object",
+          "properties": {
+            "create": { "type": "boolean", "default": true },
+            "name": { "type": "string", "default": "" },
+            "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
+            "automountServiceAccountToken": { "type": "boolean", "default": false }
+          }
+        },
         "s3": {
           "type": "object",
           "description": "S3-compatible storage configuration",
@@ -208,7 +235,9 @@
             "existingSecretAccessKeyKey": { "type": "string" },
             "existingSecretSecretKeyKey": { "type": "string" },
             "accessKey": { "type": "string" },
-            "secretKey": { "type": "string" }
+            "secretKey": { "type": "string" },
+            "region": { "type": "string" },
+            "credentialsFromPodIdentity": { "type": "boolean", "default": false }
           }
         }
       }

@@ -5,6 +5,7 @@ metadata:
   name: {{ include "archivebox.fullname" . }}
   labels:
     {{- include "archivebox.labels" . | nindent 4 }}
+  {{- include "archivebox.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   replicas: 1
   strategy:
@@ -39,6 +40,91 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      initContainers:
+        - name: prepare-data-ownership
+          image: {{ include "archivebox.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              current_uid="$(stat -c '%u' /data)"
+              if [ "${current_uid}" = "0" ]; then
+                target_uid="${PUID:-911}"
+                target_gid="${PGID:-911}"
+                if [ "${target_uid}" = "0" ]; then
+                  target_uid="911"
+                fi
+                chown "${target_uid}:${target_gid}" /data
+              fi
+          env:
+            {{- with .Values.archivebox.puid }}
+            - name: PUID
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.archivebox.pgid }}
+            - name: PGID
+              value: {{ . | quote }}
+            {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - CHOWN
+            readOnlyRootFilesystem: true
+            runAsNonRoot: false
+            runAsUser: 0
+            runAsGroup: 0
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: data
+              mountPath: /data
+        {{- if .Values.externalDatabase.enabled }}
+        - name: wait-for-database
+          image: {{ include "archivebox.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              attempt=0
+              until python -c 'import os, psycopg; connection = psycopg.connect(host=os.environ["DB_HOST"], port=os.environ["DB_PORT"], dbname=os.environ["DB_NAME"], user=os.environ["DB_USER"], password=os.environ["DB_PASSWORD"], connect_timeout=2); connection.execute("SELECT 1"); connection.close()' 2>/dev/null; do
+                attempt=$((attempt + 1))
+                if [ "${attempt}" -ge 150 ]; then
+                  echo "PostgreSQL did not become reachable within 300 seconds" >&2
+                  exit 1
+                fi
+                sleep 2
+              done
+          env:
+            - name: DB_HOST
+              value: {{ .Values.externalDatabase.host | quote }}
+            - name: DB_PORT
+              value: {{ .Values.externalDatabase.port | quote }}
+            - name: DB_NAME
+              value: {{ .Values.externalDatabase.name | quote }}
+            - name: DB_USER
+              value: {{ .Values.externalDatabase.user | quote }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.externalDatabase.existingSecret | quote }}
+                  key: {{ .Values.externalDatabase.existingSecretPasswordKey | quote }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 911
+            runAsGroup: 911
+            seccompProfile:
+              type: RuntimeDefault
+        {{- end }}
       containers:
         - name: archivebox
           image: {{ include "archivebox.image" . | quote }}
@@ -99,8 +185,8 @@ spec:
             - name: ARCHIVEBOX_DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.externalDatabase.existingSecret }}
-                  key: {{ .Values.externalDatabase.existingSecretPasswordKey }}
+                  name: {{ .Values.externalDatabase.existingSecret | quote }}
+                  key: {{ .Values.externalDatabase.existingSecretPasswordKey | quote }}
             {{- end }}
             {{- with .Values.archivebox.extraEnv }}
             {{- toYaml . | nindent 12 }}

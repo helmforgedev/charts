@@ -80,6 +80,9 @@ Secret or reference an existing Secret. External PostgreSQL uses
 `ARCHIVEBOX_DATABASE_ENGINE`, `HOST`, `PORT`, `NAME`, `USER`, and `PASSWORD`
 (all with the `ARCHIVEBOX_DATABASE_` prefix). The password comes from
 `externalDatabase.existingSecret`.
+An init container waits up to five minutes for an authenticated PostgreSQL
+`SELECT 1` before ArchiveBox starts, avoiding application crash loops while the
+database becomes ready.
 
 ## Backup Flow
 
@@ -90,7 +93,10 @@ When backups are enabled, the CronJob executes in two phases:
    bucket and prefix.
 
 Both containers share an `emptyDir` work directory. The backup job mounts the
-ArchiveBox PVC read-only to avoid modifying application data.
+ArchiveBox PVC read-only to avoid modifying application data and runs under a
+dedicated ServiceAccount. Static S3 keys or EKS Pod Identity/IRSA can
+authenticate the uploader. The CronJob does not stop ArchiveBox and does not
+dump an external PostgreSQL database.
 
 ## Scaling Boundaries
 

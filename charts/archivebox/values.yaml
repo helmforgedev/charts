@@ -7,6 +7,7 @@
 nameOverride: ""
 fullnameOverride: ""
 commonLabels: {}
+commonAnnotations: {}
 
 # =============================================================================
 # Image
@@ -237,6 +238,31 @@ backup:
     uploader: docker.io/helmforge/mc:1.0.0
   # -- Resources for backup containers
   resources: {}
+  podSecurityContext:
+    fsGroup: 911
+    fsGroupChangePolicy: OnRootMismatch
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 911
+    runAsGroup: 911
+    seccompProfile:
+      type: RuntimeDefault
+  serviceAccount:
+    # -- Create a dedicated ServiceAccount for identity-based S3 backups
+    create: true
+    # -- Name of an existing dedicated backup ServiceAccount when create is false
+    name: ""
+    # -- Annotations for workload identity integrations such as IRSA
+    annotations: {}
+    # -- Mount the Kubernetes API token into backup pods
+    automountServiceAccountToken: false
   s3:
     # -- S3-compatible endpoint URL
     endpoint: ""
@@ -256,6 +282,10 @@ backup:
     accessKey: ""
     # -- Inline S3 secret key (ignored when existingSecret is set)
     secretKey: ""
+    # -- AWS region used by Pod Identity or IRSA credential discovery
+    region: ""
+    # -- Use the pod's workload identity instead of static S3 credentials
+    credentialsFromPodIdentity: false
 
 # =============================================================================
 # Scheduling

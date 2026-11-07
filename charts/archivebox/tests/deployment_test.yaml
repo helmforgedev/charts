@@ -141,12 +141,24 @@ tests:
             containerPort: 5797
             protocol: TCP
 
-  - it: should delegate ownership preparation and privilege dropping to the upstream entrypoint
+  - it: should prepare only a root-owned data directory before the upstream entrypoint
     asserts:
       - isNull:
           path: spec.template.spec.securityContext.fsGroup
-      - isNull:
-          path: spec.template.spec.initContainers
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: prepare-data-ownership
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: '(?s)current_uid=.*stat.*if \[ "\$\{current_uid\}" = "0" \].*chown'
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.capabilities
+          value:
+            drop: [ALL]
+            add: [CHOWN]
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.readOnlyRootFilesystem
+          value: true
       - equal:
           path: spec.template.spec.containers[0].securityContext.runAsUser
           value: 0
@@ -184,6 +196,16 @@ tests:
             value: "1000"
       - contains:
           path: spec.template.spec.containers[0].env
+          content:
+            name: PGID
+            value: "0"
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: PUID
+            value: "1000"
+      - contains:
+          path: spec.template.spec.initContainers[0].env
           content:
             name: PGID
             value: "0"
@@ -274,3 +296,12 @@ tests:
       - equal:
           path: spec.template.spec.volumes[0].persistentVolumeClaim.claimName
           value: test-archivebox-data
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: wait-for-database
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: 'psycopg.connect'
+      - equal:
+          path: spec.template.spec.initContainers[1].securityContext.runAsNonRoot
+          value: true

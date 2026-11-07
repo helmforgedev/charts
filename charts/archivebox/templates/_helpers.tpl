@@ -26,6 +26,16 @@ app.kubernetes.io/part-of: helmforge
 {{- end }}
 {{- end -}}
 
+{{- define "archivebox.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | indent 2 }}
+{{- end -}}
+{{- end -}}
+
 {{- define "archivebox.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "archivebox.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
@@ -36,6 +46,14 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- default (include "archivebox.fullname" .) .Values.serviceAccount.name -}}
 {{- else -}}
 {{- default "default" .Values.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "archivebox.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create -}}
+{{- default (printf "%s-backup" (include "archivebox.fullname" .)) .Values.backup.serviceAccount.name -}}
+{{- else -}}
+{{- required "backup.serviceAccount.name is required when backup.serviceAccount.create is false" .Values.backup.serviceAccount.name -}}
 {{- end -}}
 {{- end -}}
 
@@ -54,13 +72,6 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- if hasKey .Values.archivebox "publicSnapshots" -}}
 {{- fail "archivebox.publicSnapshots has been removed; manage snapshot permissions in the ArchiveBox UI" -}}
-{{- end -}}
-{{- if .Values.externalDatabase.enabled -}}
-{{- range $key := list "host" "name" "user" "existingSecret" "existingSecretPasswordKey" -}}
-{{- if not (index $.Values.externalDatabase $key) -}}
-{{- fail (printf "externalDatabase.%s is required when externalDatabase.enabled is true" $key) -}}
-{{- end -}}
-{{- end -}}
 {{- end -}}
 {{- range $key, $_ := .Values.podLabels -}}
 {{- if or (eq $key "app.kubernetes.io/name") (eq $key "app.kubernetes.io/instance") -}}
@@ -129,8 +140,12 @@ app.kubernetes.io/instance: {{ .Release.Name }}
   {{- if not .Values.backup.s3.bucket -}}
     {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
   {{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
-    {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
+  {{- if .Values.backup.s3.credentialsFromPodIdentity -}}
+    {{- if not .Values.backup.s3.region -}}
+      {{- fail "backup.s3.region is required when backup.s3.credentialsFromPodIdentity is true" -}}
+    {{- end -}}
+  {{- else if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+    {{- fail "backup requires either backup.s3.existingSecret, both backup.s3.accessKey and backup.s3.secretKey, or backup.s3.credentialsFromPodIdentity=true" -}}
   {{- end -}}
 true
 {{- end -}}
