@@ -91,7 +91,7 @@ archivebox:
 | `archivebox.adminPassword` | `""` | Admin password (auto-generated if empty) |
 | `archivebox.allowedHosts` | `*` | Allowed hostnames |
 | `archivebox.publicIndex` | `True` | Public index page |
-| `archivebox.publicAddLinks` | `False` | Public URL submission view |
+| `archivebox.publicAddLinks` | `False` | Public add URL view (`PUBLIC_ADD_VIEW`) |
 | `archivebox.baseUrl` | `""` | BASE_URL environment variable; empty uses configuration from the admin UI |
 | `archivebox.serverSecurityMode` | `auto` | Server security mode |
 | `archivebox.puid` / `archivebox.pgid` | `""` | Optional UID/GID overrides; otherwise autodetected |
