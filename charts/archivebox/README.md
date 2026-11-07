@@ -12,8 +12,8 @@ headless.
 
 - **Multi-format archiving** - HTML, PDF, screenshot, WARC, media extraction
 - **Chromium headless** - full page rendering with `/dev/shm` tmpfs
-- **SQLite embedded** - no external database needed
-- **Persistent storage** - archived content and SQLite database on PVC
+- **SQLite OR PostgreSQL embedded** - embedded SQLite is the default, but PostgreSQL is also supported
+- **Persistent storage** - archived content and SQLite database on PVC, can also be configured to use remote Postgres
 - **Admin credentials** - managed via Kubernetes Secret
 - **Ingress support** - TLS with cert-manager
 - **S3-compatible backups** - optional CronJob for `/data` archives
@@ -46,8 +46,8 @@ archivebox:
 After deploying:
 
 ```bash
-kubectl port-forward svc/<release>-archivebox 8000:80
-# Open http://localhost:8000
+kubectl port-forward svc/<release>-archivebox 5797:80
+# Open http://localhost:5797
 ```
 
 ## Architecture Guides
@@ -92,7 +92,7 @@ archivebox:
 | `archivebox.allowedHosts` | `*` | Allowed hostnames |
 | `archivebox.publicIndex` | `True` | Public index page |
 | `archivebox.publicSnapshots` | `True` | Public snapshot access |
-| `archivebox.searchBackendEngine` | `ripgrep` | Search engine (ripgrep, sqlite, sonic) |
+| `archivebox.searchBackendEngine` | `sonic` | Search engine (ripgrep, sqlite, sonic) |
 | `archivebox.mediaMaxSize` | `750m` | Max media download size |
 | `archivebox.timeout` | `60` | URL archiving timeout (seconds) |
 | `persistence.enabled` | `true` | Enable persistence for /data |
