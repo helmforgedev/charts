@@ -102,6 +102,9 @@ from the same quiesced window. One possible sequence is:
 
 ```bash
 kubectl scale deployment/<release>-archivebox --replicas=0
+kubectl wait --for=delete pod \
+  -l app.kubernetes.io/instance=<release>,app.kubernetes.io/name=archivebox \
+  --timeout=5m
 PGPASSWORD='<password>' pg_dump --format=custom \
   --host=<postgres-host> --username=<postgres-user> \
   --file=archivebox-postgresql.dump <postgres-database>
