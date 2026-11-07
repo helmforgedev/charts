@@ -65,21 +65,33 @@ if (runtime.cron.enabled) {
   const updateCheckerWasEnabled = systemConfig.updatechecker ?? true;
   const debugWasConfigured = Object.hasOwn(systemConfig, 'debug');
   const debugWasEnabled = systemConfig.debug ?? false;
-  if (!wasSuspended) {
-    kubectl('patch', 'cronjob', cronjob.metadata.name, '--type=merge', '-p', '{"spec":{"suspend":true}}');
-  }
-  // A scheduled Job can be admitted between Helm readiness and this smoke.
-  // Remove that test-namespace-only race before starting the controlled cycle.
-  kubectl('delete', 'jobs', '-l', `app.kubernetes.io/instance=${release},app.kubernetes.io/component=cron`,
-    '--ignore-not-found=true', '--wait=true');
-  // A local cluster must not make the CronJob gate depend on the availability
-  // or latency of Nextcloud's external update service. Debug mode also skips
-  // the upstream CLI-only random jitter that precedes the update-check guard.
-  if (updateCheckerWasEnabled) process.stdout.write(occ('config:system:set', 'updatechecker', '--type=boolean', '--value=false'));
-  if (!debugWasEnabled) process.stdout.write(occ('config:system:set', 'debug', '--type=boolean', '--value=true'));
   const job = `${cronjob.metadata.name.slice(0, 39)}-smoke-${Date.now()}`;
+  let suspendedBySmoke = false;
+  let updateCheckerChanged = false;
+  let debugChanged = false;
+  let jobCreated = false;
   try {
+    if (!wasSuspended) {
+      kubectl('patch', 'cronjob', cronjob.metadata.name, '--type=merge', '-p', '{"spec":{"suspend":true}}');
+      suspendedBySmoke = true;
+    }
+    // A scheduled Job can be admitted between Helm readiness and this smoke.
+    // Remove that test-namespace-only race before starting the controlled cycle.
+    kubectl('delete', 'jobs', '-l', `app.kubernetes.io/instance=${release},app.kubernetes.io/component=cron`,
+      '--ignore-not-found=true', '--wait=true');
+    // A local cluster must not make the CronJob gate depend on the availability
+    // or latency of Nextcloud's external update service. Debug mode also skips
+    // the upstream CLI-only random jitter that precedes the update-check guard.
+    if (updateCheckerWasEnabled) {
+      process.stdout.write(occ('config:system:set', 'updatechecker', '--type=boolean', '--value=false'));
+      updateCheckerChanged = true;
+    }
+    if (!debugWasEnabled) {
+      process.stdout.write(occ('config:system:set', 'debug', '--type=boolean', '--value=true'));
+      debugChanged = true;
+    }
     kubectl('create', 'job', job, `--from=cronjob/${cronjob.metadata.name}`);
+    jobCreated = true;
     kubectl('wait', '--for=condition=complete', `job/${job}`, '--timeout=600s');
     const jobPods = JSON.parse(kubectl('get', 'pods', '-l', `job-name=${job}`, '-o', 'json')).items;
     const successfulPod = jobPods.find(item => item.status.phase === 'Succeeded');
@@ -90,18 +102,24 @@ if (runtime.cron.enabled) {
     }
   } finally {
     try {
-      kubectl('delete', 'job', job, '--ignore-not-found=true', '--wait=true');
+      if (jobCreated) kubectl('delete', 'job', job, '--ignore-not-found=true', '--wait=true');
     } finally {
-      if (!wasSuspended) {
-        kubectl('patch', 'cronjob', cronjob.metadata.name, '--type=merge', '-p', '{"spec":{"suspend":false}}');
-      }
-      if (updateCheckerWasEnabled) {
-        if (updateCheckerWasConfigured) process.stdout.write(occ('config:system:set', 'updatechecker', '--type=boolean', '--value=true'));
-        else process.stdout.write(occ('config:system:delete', 'updatechecker'));
-      }
-      if (!debugWasEnabled) {
-        if (debugWasConfigured) process.stdout.write(occ('config:system:set', 'debug', '--type=boolean', '--value=false'));
-        else process.stdout.write(occ('config:system:delete', 'debug'));
+      try {
+        if (updateCheckerChanged) {
+          if (updateCheckerWasConfigured) process.stdout.write(occ('config:system:set', 'updatechecker', '--type=boolean', '--value=true'));
+          else process.stdout.write(occ('config:system:delete', 'updatechecker'));
+        }
+      } finally {
+        try {
+          if (debugChanged) {
+            if (debugWasConfigured) process.stdout.write(occ('config:system:set', 'debug', '--type=boolean', '--value=false'));
+            else process.stdout.write(occ('config:system:delete', 'debug'));
+          }
+        } finally {
+          if (suspendedBySmoke) {
+            kubectl('patch', 'cronjob', cronjob.metadata.name, '--type=merge', '-p', '{"spec":{"suspend":false}}');
+          }
+        }
       }
     }
   }

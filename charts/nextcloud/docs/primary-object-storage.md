@@ -110,7 +110,14 @@ the Pod identity; otherwise use an existing Secret.
 Kubernetes NetworkPolicy cannot select an external destination by DNS name.
 When `networkPolicy.enabled=true`, supply provider CIDRs or in-cluster selectors
 through `primaryObjectStore.networkPolicyEgress`; rendering fails when the rule
-is missing:
+is missing.
+
+IRSA also requires HTTPS egress to the configured regional AWS STS endpoint.
+EKS Pod Identity requires access to the Pod Identity Agent endpoint in addition
+to the S3 endpoint. Include those credential-provider destinations in the same
+explicit egress list when the selected identity mechanism needs them.
+
+For example:
 
 ```yaml
 primaryObjectStore:
