@@ -39,7 +39,12 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
         spec:
+          {{- if and .Values.primaryObjectStore.enabled .Values.primaryObjectStore.credentialsFromPodIdentity }}
+          serviceAccountName: {{ include "nextcloud.primaryObjectStoreServiceAccountName" . }}
+          automountServiceAccountToken: {{ .Values.primaryObjectStore.serviceAccount.automountServiceAccountToken }}
+          {{- else }}
           automountServiceAccountToken: false
+          {{- end }}
           restartPolicy: Never
           securityContext:
             {{- toYaml .Values.podSecurityContext | nindent 12 }}
@@ -78,10 +83,14 @@ spec:
                 {{- toYaml .Values.cron.resources | nindent 16 }}
               env:
                 {{- include "nextcloud.backendEnv" . | nindent 16 }}
+                {{- include "nextcloud.primaryObjectStoreEnv" . | nindent 16 }}
               volumeMounts:
                 - {name: data, mountPath: /var/www/html}
                 - {name: config, mountPath: /opt/helmforge, readOnly: true}
                 - {name: tmp, mountPath: /tmp}
+                {{- if and .Values.primaryObjectStore.enabled (not .Values.primaryObjectStore.credentialsFromPodIdentity) }}
+                - {name: primary-object-store-credentials, mountPath: /var/run/nextcloud-primary-object-store, readOnly: true}
+                {{- end }}
           volumes:
             - name: data
               persistentVolumeClaim:
@@ -92,4 +101,12 @@ spec:
                 defaultMode: 0555
             - name: tmp
               emptyDir: {}
+            {{- if and .Values.primaryObjectStore.enabled (not .Values.primaryObjectStore.credentialsFromPodIdentity) }}
+            - name: primary-object-store-credentials
+              secret:
+                secretName: {{ .Values.primaryObjectStore.existingSecret }}
+                items:
+                  - {key: {{ .Values.primaryObjectStore.existingSecretAccessKeyKey }}, path: access-key}
+                  - {key: {{ .Values.primaryObjectStore.existingSecretSecretKeyKey }}, path: secret-key}
+            {{- end }}
 {{- end }}

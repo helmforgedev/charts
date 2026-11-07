@@ -46,6 +46,28 @@ Existing Secret content used as environment variables requires a rollout to take
 effect. Bootstrap administrator settings create the first account only. Change
 existing passwords through Nextcloud's supported account management commands.
 
+## Primary object storage changes
+
+Once primary object storage is active, an upgrade guard rejects disabling it or
+changing the endpoint, bucket, object prefix, credential source and protocol
+options. This includes an upgrade that accidentally omits retained values. Keep
+`primaryObjectStore` in the release overrides and use `--reuse-values` only when
+the new chart defaults are not required.
+
+For an intentional object-store migration, stop all application and cron
+writers, snapshot PostgreSQL, the PVC and both object stores, and complete the
+provider-supported copy before changing Helm values. The rejected upgrade
+reports the previous configuration hash. Supply that exact value through
+`primaryObjectStore.protection.acknowledgePreviousConfigurationHash` for the
+planned transition, validate existing and new WebDAV objects, then remove the
+acknowledgement from retained overrides.
+
+Never enable primary object storage on an instance that currently stores user
+files locally. Upstream Nextcloud states that the existing files become
+inaccessible. See [primary object storage](primary-object-storage.md) for the
+supported migration from an installation that already uses the same S3 primary
+store.
+
 ## Migrating from another chart
 
 Do not replace the Helm release in place or adopt an existing database PVC
@@ -54,6 +76,10 @@ Identify the source application version, database engine and version, entire
 application data layout, native instance secrets, custom apps and background jobs.
 This chart supports PostgreSQL; a MySQL/MariaDB installation needs a separately
 planned and verified upstream database conversion before migration.
+
+When the source chart already uses S3 primary storage, preserve the exact bucket,
+endpoint, region, object prefix, database and native instance configuration.
+Do not run the source and destination against those resources concurrently.
 
 Stop all source web, cron and queue writers before taking a consistent SQL/files
 copy. Restore into a separate release with fresh storage, matching application

@@ -1,5 +1,12 @@
 # Backup and restore
 
+The integrated S3 destination is not the primary object-store bucket. When
+`primaryObjectStore.enabled=true`, integrated backups capture PostgreSQL and the
+application PVC but do not copy live user objects. Use a different
+`backup.s3.bucket` and protect the primary bucket with provider-native
+versioning, snapshots or replication. A complete recovery requires the matching
+database, PVC and primary-object-store state.
+
 ## What a backup contains
 
 Each completed backup contains a PostgreSQL custom-format dump, the complete

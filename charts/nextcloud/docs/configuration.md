@@ -62,7 +62,8 @@ connection. Validate a real test email through your provider.
 Opt-in NetworkPolicy permits same-namespace HTTP clients and database/Redis
 connections, plus DNS to kube-system. Add explicit ingress peers for controllers
 in other namespaces and `extraEgress` rules for external databases, SMTP,
-federation, app downloads and object storage. Backup coordinator stages also need
+federation and app downloads. Primary storage uses the dedicated
+`primaryObjectStore.networkPolicyEgress` rules. Backup coordinator stages also need
 the Kubernetes API destination on the port used by your CNI/service routing.
 Rules apply to application and backup Pods. Enabling policy without these rules
 can intentionally block integrations; test the actual network path.
@@ -75,6 +76,15 @@ appropriate `existingSecret` field at that target. When an item targets the defa
 administrator Secret name, the chart suppresses its generated Secret so only ESO
 owns that target. Verify ExternalSecret readiness
 before diagnosing missing application credentials.
+
+## Primary object storage
+
+Primary S3-compatible storage is configured independently from integrated S3
+backups. The application and native CronJob receive the same official-image
+configuration; credentials come from Secret files or the shared workload
+identity. See [primary object storage](primary-object-storage.md) for supported
+providers, ExternalSecret and ServiceAccount examples, migration constraints,
+NetworkPolicy and the upgrade guard.
 
 ## Optional integrations
 
