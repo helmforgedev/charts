@@ -6,18 +6,30 @@ ArchiveBox deployment
 Release: {{ .Release.Name }}
 Namespace: {{ .Release.Namespace }}
 Image: {{ include "archivebox.image" . }}
-Exactly one SQLite/archive writer is deployed with Recreate strategy.
+Exactly one ArchiveBox runtime and archive owner is deployed with Recreate strategy.
+{{- if .Values.externalDatabase.enabled }}
+Main index: PostgreSQL at {{ .Values.externalDatabase.host }}:{{ .Values.externalDatabase.port }}/{{ .Values.externalDatabase.name }}
+{{- else }}
+Main index: SQLite in /data
+{{- end }}
 
 2. Access
 =========
-{{- if .Values.ingress.enabled }}
-{{- range $host := .Values.ingress.hosts }}
-Web UI: //{{ $host.host }}/
-Admin: //{{ $host.host }}/admin/
-{{- end }}
+{{- $baseUrl := include "archivebox.baseUrl" . }}
+{{- $url := urlParse $baseUrl }}
+Canonical URL: {{ $baseUrl }}
+{{- if eq .Values.archivebox.serverSecurityMode "unsafe-onedomain-noadmin" }}
+Admin UI is disabled by the selected security mode.
+{{- else if or (eq .Values.archivebox.serverSecurityMode "safe-subdomains-fullreplay") (and (eq .Values.archivebox.serverSecurityMode "auto") (regexMatch "\\.localhost(:[0-9]+)?$" $url.host)) }}
+Admin: {{ $url.scheme }}://admin.{{ $url.host }}/admin/
+Subdomain replay requires the base host and wildcard hosts to reach this Service.
 {{- else }}
-kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "archivebox.fullname" . }} 8000:{{ .Values.service.port }}
-Open http://localhost:8000/ after the Pod becomes ready.
+Admin: {{ $baseUrl }}/admin/
+{{- end }}
+{{- if not .Values.ingress.enabled }}
+kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "archivebox.fullname" . }} {{ .Values.archivebox.port }}:{{ .Values.service.port }}
+The default local URL uses archivebox.localhost and its subdomains.
+For remote access or a different external port, set archivebox.baseUrl explicitly.
 {{- end }}
 
 3. Authentication and visibility
@@ -36,9 +48,12 @@ Password:
 kubectl get secret -n {{ .Release.Namespace }} {{ include "archivebox.fullname" . }}-admin -o jsonpath='{.data.admin-password}' | base64 -d
 {{- end }}
 Public index: {{ .Values.archivebox.publicIndex }}
-Public snapshots: {{ .Values.archivebox.publicSnapshots }}
-Public add view: {{ .Values.archivebox.publicAddLinks }}
-Restrict visibility and allowedHosts before exposing the archive publicly.
+Anonymous URL submissions: {{ .Values.archivebox.publicAddPage }}
+Replay security mode: {{ .Values.archivebox.serverSecurityMode }}
+Set snapshot permissions in the ArchiveBox UI before exposing captures publicly.
+publicIndex does not override individual snapshot visibility.
+The upstream entrypoint starts as root, then runs ArchiveBox as a non-root user.
+PUID/PGID overrides: {{ .Values.archivebox.puid | default "autodetect" }}/{{ .Values.archivebox.pgid | default "autodetect" }}
 
 4. Persistence and backup
 =========================
@@ -47,9 +62,14 @@ Persistence: enabled
 Data claim: {{ include "archivebox.dataClaimName" . }}
 Back up the complete /data tree after quiescing the single writer.
 {{- else }}
-Persistence: disabled. SQLite and every captured artifact are ephemeral.
+Persistence: disabled. Local data, configuration, and captured artifacts are ephemeral.
+{{- end }}
+{{- if .Values.externalDatabase.enabled }}
+Back up PostgreSQL separately and coordinate it with the /data recovery point.
+The data-volume tar CronJob does not include the external PostgreSQL database.
 {{- end }}
 {{- if .Values.backup.enabled }}
+The live tar CronJob does not pause writers or guarantee SQLite consistency.
 S3 backup schedule: {{ .Values.backup.schedule }}
 S3 bucket: {{ .Values.backup.s3.bucket }}
 kubectl get cronjob -n {{ .Release.Namespace }} {{ include "archivebox.fullname" . }}-backup
@@ -75,7 +95,10 @@ Quiesce and back up /data before upgrades that may change storage formats.
 helm upgrade {{ .Release.Name }} helmforge/archivebox -n {{ .Release.Namespace }} -f values.yaml
 kubectl rollout status -n {{ .Release.Namespace }} deployment/{{ include "archivebox.fullname" . }}
 Restore the complete dataset into an isolated claim before replacing production.
-Helm rollback does not reverse SQLite or archive migrations.
+Helm rollback does not reverse database or archive migrations.
+Remove publicSnapshots and rename publicAddLinks to publicAddPage in old values.
+Preserve existing private snapshot defaults with PERMISSIONS before removing old keys.
+For 0.7.x collections, follow the backup and archivebox init/update migration guide.
 
 8. Documentation and support
 =============================
@@ -84,3 +107,4 @@ https://github.com/helmforgedev/charts/issues
 https://docs.archivebox.io
 
 Happy Helmforging :)
+

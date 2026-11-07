@@ -26,7 +26,7 @@
       "type": "object",
       "description": "ArchiveBox application configuration",
       "properties": {
-        "port": { "type": "integer", "description": "Application port", "default": 5797 },
+        "port": { "type": "integer", "description": "Application port", "default": 5797, "minimum": 1, "maximum": 65535 },
         "adminUsername": { "type": "string", "description": "Admin username", "default": "admin" },
         "adminPassword": { "type": "string", "description": "Admin password", "default": "" },
         "existingSecret": { "type": "string", "description": "Existing secret containing admin credentials", "default": "" },
@@ -34,18 +34,34 @@
         "existingSecretPasswordKey": { "type": "string", "default": "admin-password" },
         "allowedHosts": { "type": "string", "description": "Allowed hostnames", "default": "*" },
         "publicIndex": { "type": "string", "description": "Allow public index access", "default": "True" },
-        "publicSnapshots": { "type": "string", "description": "Allow public snapshot access", "default": "True" },
-        "publicAddLinks": { "type": "string", "description": "Allow public access to the add URL view", "default": "False" },
-        "searchBackendEngine": { "type": "string", "description": "Search backend engine", "enum": ["ripgrep", "sqlite", "sonic"], "default": "ripgrep" },
+        "searchBackendEngine": { "type": "string", "description": "Search backend engine", "enum": ["ripgrep", "sqlite", "sonic"], "default": "sonic" },
         "mediaMaxSize": { "type": "string", "description": "Maximum media file size", "default": "750m" },
         "timeout": { "type": "string", "description": "Archiving timeout in seconds", "default": "60" },
         "timezone": { "type": "string", "description": "Timezone", "default": "UTC" },
-        "extraEnv": { "type": "array", "items": { "type": "object" } }
+        "extraEnv": { "type": "array", "items": { "type": "object" } },
+        "baseUrl": { "type": "string", "description": "Canonical URL; inferred from ingress when empty", "default": "", "pattern": "^$|^https?://[^/?#\\s]+/?$" },
+        "serverSecurityMode": { "type": "string", "description": "Upstream replay isolation mode", "default": "auto", "enum": ["auto", "safe-subdomains-fullreplay", "safe-onedomain-nojsreplay", "unsafe-onedomain-noadmin", "danger-onedomain-fullreplay"] },
+        "puid": { "type": "string", "description": "Non-root application UID; empty detects existing collection owner", "default": "", "pattern": "^$|^[1-9][0-9]*$" },
+        "pgid": { "type": "string", "description": "Application GID; empty detects existing collection owner", "default": "", "pattern": "^$|^[0-9]+$" },
+        "publicAddPage": { "type": "string", "description": "Allow unauthenticated URL submissions", "default": "False", "enum": ["True", "False"] }
+      }
+    },
+    "externalDatabase": {
+      "type": "object",
+      "description": "Optional external PostgreSQL database; /data remains required for archives",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "host": { "type": "string", "default": "" },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535, "default": 5432 },
+        "name": { "type": "string", "default": "archivebox" },
+        "user": { "type": "string", "default": "archivebox" },
+        "existingSecret": { "type": "string", "description": "Existing Secret containing the PostgreSQL password", "default": "" },
+        "existingSecretPasswordKey": { "type": "string", "default": "database-password" }
       }
     },
     "persistence": {
       "type": "object",
-      "description": "Persistence for /data (SQLite + archived content)",
+      "description": "Persistence for /data (archives, config, search indexes, and SQLite when used)",
       "properties": {
         "enabled": { "type": "boolean", "default": true },
         "size": { "type": "string", "default": "50Gi" },
@@ -139,7 +155,10 @@
         "allowPrivilegeEscalation": { "type": "boolean" },
         "capabilities": {
           "type": "object",
-          "properties": { "drop": { "type": "array", "items": { "type": "string" } } }
+          "properties": {
+            "drop": { "type": "array", "items": { "type": "string" } },
+            "add": { "type": "array", "items": { "type": "string" } }
+          }
         },
         "seccompProfile": {
           "type": "object",
@@ -198,3 +217,4 @@
     "extraManifests": { "type": "array", "items": { "type": "object" } }
   }
 }
+

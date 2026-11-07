@@ -1,0 +1,78 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Canonical URL
+templates:
+  - templates/deployment.yaml
+tests:
+  - it: should use the upstream local hostname and safe auto mode without ingress
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BASE_URL
+            value: http://archivebox.localhost:5797
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SERVER_SECURITY_MODE
+            value: auto
+
+  - it: should infer HTTP for ingress without TLS
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: archive.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BASE_URL
+            value: http://archive.example.com
+
+  - it: should infer HTTPS only when TLS covers the first ingress host
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: archive.example.com
+      ingress.tls:
+        - hosts: [archive.example.com]
+          secretName: archivebox-tls
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BASE_URL
+            value: https://archive.example.com
+
+  - it: should not use unrelated ingress TLS for the canonical hostname
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: archive.example.com
+      ingress.tls:
+        - hosts: [other.example.com]
+          secretName: other-tls
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BASE_URL
+            value: http://archive.example.com
+
+  - it: should honor an explicit URL with external TLS termination and trim its trailing slash
+    set:
+      archivebox.baseUrl: https://canonical.example.com:8443/
+      archivebox.serverSecurityMode: safe-subdomains-fullreplay
+      ingress.enabled: true
+      ingress.hosts:
+        - host: internal.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BASE_URL
+            value: https://canonical.example.com:8443
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SERVER_SECURITY_MODE
+            value: safe-subdomains-fullreplay

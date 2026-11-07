@@ -3,8 +3,13 @@
 ## Scope
 
 The `archivebox` chart can create scheduled backups of the ArchiveBox `/data`
-directory and upload them to S3-compatible object storage. This protects the
-SQLite database and archived snapshot files together.
+directory and upload them to S3-compatible object storage. It includes the
+SQLite files when used, configuration, Personas, local indexes, and captured
+artifacts. It does not back up an external PostgreSQL database.
+
+A live tar archive is not a transaction-consistent database backup. The CronJob
+does not pause ArchiveBox or use the SQLite backup API. Quiet traffic or a
+read-only backup mount does not guarantee consistency.
 
 The backup feature is optional and disabled by default.
 
@@ -69,9 +74,16 @@ s3://<bucket>/<prefix>/<archive>
 
 ## Scheduling Guidance
 
-ArchiveBox uses SQLite and a file-backed data directory. Schedule backups during
-periods of low archive activity to reduce the chance of capturing a busy
-database.
+For a recoverable SQLite backup, stop the ArchiveBox workload for the whole
+archive operation or use a separately managed application-consistent snapshot
+workflow. Merely scheduling a low-traffic period is insufficient. Ensure the
+backup Pod can mount the data PVC under the storage class's access and node
+affinity constraints.
+
+With PostgreSQL, back up the database separately using PostgreSQL-aware tooling
+and coordinate it with the filesystem backup while writes are stopped. Retain
+both parts of the same recovery point. The chart does not create or schedule a
+PostgreSQL backup job.
 
 Recommended production settings:
 
@@ -89,11 +101,16 @@ backup:
 
 The chart does not automate restore. A manual restore should:
 
-1. Scale the ArchiveBox deployment down or stop writes.
+1. Stop the ArchiveBox deployment and any other capture or CLI writers.
 2. Restore the backup tarball into the target `/data` volume.
-3. Verify file ownership matches the runtime UID/GID.
-4. Scale the deployment back up.
-5. Confirm the web UI and snapshot listing are healthy.
+3. If using PostgreSQL, restore the matching database backup and verify its
+   connection Secret and database settings.
+4. Ensure the intended non-root collection identity can read and write the
+   restored files. Configure `archivebox.puid` / `archivebox.pgid` if the
+   storage system requires a fixed identity.
+5. Start one ArchiveBox deployment using a compatible application version.
+6. Confirm login, snapshot listing, representative saved outputs, and search
+   work before returning the service to users.
 
 Always test this process in a non-production namespace before relying on the
 backup pipeline.
@@ -126,3 +143,4 @@ Common causes of backup failure:
 - Credentials do not allow bucket creation or object upload.
 - PVC is not available to the backup job.
 - ArchiveBox data volume is too large for the backup time window.
+

@@ -24,14 +24,15 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "docker.io/archivebox/archivebox:0.9.73"
+          value: "docker.io/archivebox/archivebox:0.9.77"
 
-  - it: should set server command
+  - it: should preserve the image entrypoint and start the full server
     asserts:
       - isNull:
           path: spec.template.spec.containers[0].command
-      - isNull:
+      - equal:
           path: spec.template.spec.containers[0].args
+          value: ["archivebox", "server", "--init", "0.0.0.0:5797"]
 
   - it: should set admin credentials from secret
     asserts:
@@ -88,7 +89,7 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: SEARCH_BACKEND_ENGINE
-            value: "ripgrep"
+            value: "sonic"
 
   - it: should mount data volume
     asserts:
@@ -145,26 +146,146 @@ tests:
             containerPort: 5797
             protocol: TCP
 
-  - it: should prepare volume ownership then run as non-root UID 911
+  - it: should delegate ownership preparation and privilege dropping to the upstream entrypoint
     asserts:
-      - equal:
+      - isNull:
           path: spec.template.spec.securityContext.fsGroup
-          value: 911
+      - isNull:
+          path: spec.template.spec.initContainers
       - equal:
           path: spec.template.spec.containers[0].securityContext.runAsUser
-          value: 911
+          value: 0
       - equal:
           path: spec.template.spec.containers[0].securityContext.runAsNonRoot
-          value: true
-      - contains:
-          path: spec.template.spec.initContainers[0].securityContext.capabilities.add
-          content: CHOWN
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities
+          value:
+            drop: [ALL]
+            add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID]
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PUID
+          any: true
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PGID
+          any: true
 
-  - it: should prepare data ownership with the pinned application image
+  - it: should honor explicit UID and GID including group zero
+    set:
+      archivebox.puid: "1000"
+      archivebox.pgid: "0"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PUID
+            value: "1000"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PGID
+            value: "0"
+
+  - it: should bind the configured custom port
+    set:
+      archivebox.port: 8080
     asserts:
       - equal:
-          path: spec.template.spec.initContainers[0].image
-          value: docker.io/archivebox/archivebox:0.9.73
+          path: spec.template.spec.containers[0].args
+          value: ["archivebox", "server", "--init", "0.0.0.0:8080"]
       - equal:
-          path: spec.template.spec.initContainers[0].args
-          value: ["chown 911:911 /data"]
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8080
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BASE_URL
+            value: http://archivebox.localhost:8080
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.port
+          value: http
+
+  - it: should not emit obsolete snapshot permissions
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PUBLIC_SNAPSHOTS
+          any: true
+
+  - it: should opt into public submissions only explicitly
+    set:
+      archivebox.publicAddPage: "True"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PUBLIC_ADD_VIEW
+            value: "True"
+
+  - it: should retain SQLite by default without PostgreSQL credentials
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ARCHIVEBOX_DATABASE_ENGINE
+          any: true
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ARCHIVEBOX_DATABASE_PASSWORD
+          any: true
+
+  - it: should configure external PostgreSQL using a Secret password and retain data storage
+    set:
+      externalDatabase.enabled: true
+      externalDatabase.host: postgres.database.svc
+      externalDatabase.port: 5433
+      externalDatabase.name: webarchive
+      externalDatabase.user: archiver
+      externalDatabase.existingSecret: archivebox-postgres
+      externalDatabase.existingSecretPasswordKey: password
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ARCHIVEBOX_DATABASE_ENGINE
+            value: postgres
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ARCHIVEBOX_DATABASE_HOST
+            value: postgres.database.svc
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ARCHIVEBOX_DATABASE_PORT
+            value: "5433"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ARCHIVEBOX_DATABASE_NAME
+            value: webarchive
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ARCHIVEBOX_DATABASE_USER
+            value: archiver
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ARCHIVEBOX_DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: archivebox-postgres
+                key: password
+      - equal:
+          path: spec.template.spec.volumes[0].persistentVolumeClaim.claimName
+          value: test-archivebox-data

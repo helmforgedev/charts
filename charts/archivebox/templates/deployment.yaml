@@ -39,31 +39,11 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
-      initContainers:
-        - name: prepare-data-ownership
-          image: {{ include "archivebox.image" . | quote }}
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: ["/bin/sh", "-ec"]
-          args: ["chown 911:911 /data"]
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
-              add:
-                - CHOWN
-            readOnlyRootFilesystem: true
-            runAsNonRoot: false
-            runAsUser: 0
-            seccompProfile:
-              type: RuntimeDefault
-          volumeMounts:
-            - name: data
-              mountPath: /data
       containers:
         - name: archivebox
           image: {{ include "archivebox.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["archivebox", "server", "--init", {{ printf "0.0.0.0:%v" .Values.archivebox.port | quote }}]
           ports:
             - name: http
               containerPort: {{ .Values.archivebox.port }}
@@ -79,14 +59,24 @@ spec:
                 secretKeyRef:
                   name: {{ include "archivebox.secretName" . }}
                   key: {{ include "archivebox.passwordKey" . }}
+            - name: BASE_URL
+              value: {{ include "archivebox.baseUrl" . | quote }}
+            - name: SERVER_SECURITY_MODE
+              value: {{ .Values.archivebox.serverSecurityMode | quote }}
+            {{- with .Values.archivebox.puid }}
+            - name: PUID
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.archivebox.pgid }}
+            - name: PGID
+              value: {{ . | quote }}
+            {{- end }}
             - name: ALLOWED_HOSTS
               value: {{ .Values.archivebox.allowedHosts | quote }}
             - name: PUBLIC_INDEX
               value: {{ .Values.archivebox.publicIndex | quote }}
-            - name: PUBLIC_SNAPSHOTS
-              value: {{ .Values.archivebox.publicSnapshots | quote }}
             - name: PUBLIC_ADD_VIEW
-              value: {{ .Values.archivebox.publicAddLinks | quote }}
+              value: {{ .Values.archivebox.publicAddPage | quote }}
             - name: SEARCH_BACKEND_ENGINE
               value: {{ .Values.archivebox.searchBackendEngine | quote }}
             - name: MEDIA_MAX_SIZE
@@ -95,6 +85,23 @@ spec:
               value: {{ .Values.archivebox.timeout | quote }}
             - name: TZ
               value: {{ .Values.archivebox.timezone | quote }}
+            {{- if .Values.externalDatabase.enabled }}
+            - name: ARCHIVEBOX_DATABASE_ENGINE
+              value: postgres
+            - name: ARCHIVEBOX_DATABASE_HOST
+              value: {{ .Values.externalDatabase.host | quote }}
+            - name: ARCHIVEBOX_DATABASE_PORT
+              value: {{ .Values.externalDatabase.port | quote }}
+            - name: ARCHIVEBOX_DATABASE_NAME
+              value: {{ .Values.externalDatabase.name | quote }}
+            - name: ARCHIVEBOX_DATABASE_USER
+              value: {{ .Values.externalDatabase.user | quote }}
+            - name: ARCHIVEBOX_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.externalDatabase.existingSecret }}
+                  key: {{ .Values.externalDatabase.existingSecretPasswordKey }}
+            {{- end }}
             {{- with .Values.archivebox.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -175,3 +182,4 @@ spec:
       topologySpreadConstraints:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+

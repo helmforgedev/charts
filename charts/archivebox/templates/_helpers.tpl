@@ -52,6 +52,19 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 {{- end -}}
+{{- if hasKey .Values.archivebox "publicSnapshots" -}}
+{{- fail "archivebox.publicSnapshots has been removed; manage snapshot permissions in the ArchiveBox UI" -}}
+{{- end -}}
+{{- if hasKey .Values.archivebox "publicAddLinks" -}}
+{{- fail "archivebox.publicAddLinks has been renamed to archivebox.publicAddPage; remove the old key" -}}
+{{- end -}}
+{{- if .Values.externalDatabase.enabled -}}
+{{- range $key := list "host" "name" "user" "existingSecret" "existingSecretPasswordKey" -}}
+{{- if not (index $.Values.externalDatabase $key) -}}
+{{- fail (printf "externalDatabase.%s is required when externalDatabase.enabled is true" $key) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
 {{- range $key, $_ := .Values.podLabels -}}
 {{- if or (eq $key "app.kubernetes.io/name") (eq $key "app.kubernetes.io/instance") -}}
 {{- fail (printf "podLabels must not override selector label %q" $key) -}}
@@ -123,5 +136,23 @@ app.kubernetes.io/instance: {{ .Release.Name }}
     {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
   {{- end -}}
 true
+{{- end -}}
+{{- end -}}
+
+{{/* Prefer the explicit canonical URL; infer scheme only from TLS for the first ingress host. */}}
+{{- define "archivebox.baseUrl" -}}
+{{- if .Values.archivebox.baseUrl -}}
+{{- .Values.archivebox.baseUrl | trimSuffix "/" -}}
+{{- else if and .Values.ingress.enabled .Values.ingress.hosts -}}
+{{- $host := (first .Values.ingress.hosts).host -}}
+{{- $scheme := "http" -}}
+{{- range .Values.ingress.tls -}}
+{{- if has $host (.hosts | default list) -}}
+{{- $scheme = "https" -}}
+{{- end -}}
+{{- end -}}
+{{- printf "%s://%s" $scheme $host -}}
+{{- else -}}
+{{- printf "http://archivebox.localhost:%v" .Values.archivebox.port -}}
 {{- end -}}
 {{- end -}}
