@@ -27,6 +27,8 @@ flowchart LR
   pod -. optional external database .-> postgres[(PostgreSQL)]
   pod -. optional ban feed .-> pvc
   pvc -. external consumer .-> ban[fail2ban or equivalent]
+  backup[Backup CronJob] --> pvc
+  backup -. static Secret or workload identity .-> s3[(S3-compatible storage)]
   prom[Prometheus] -. optional .-> svc
 ```
 
@@ -64,10 +66,10 @@ Recommended production controls:
 - `/etc/ntfy` is a read-only ConfigMap mount. `/var/cache/ntfy` and `/tmp` are
   the only chart-managed writable paths, and ephemeral variants are bounded.
 - Kubernetes API token automounting is disabled by default for application and
-  backup pods.
-- Database, OIDC, SMTP, and S3 credentials are sourced from Secrets. Inline
-  credentials remain in Helm release state and are intended only for
-  development.
+  backup pods. Workload identity backups use a dedicated ServiceAccount.
+- Database, OIDC, and SMTP credentials are sourced from Secrets. S3 backups can
+  use a Secret or ambient AWS workload identity. Inline credentials remain in
+  Helm release state and are intended only for development.
 - NetworkPolicy is opt-in because allowed edge controllers and external
   services are cluster-specific. Operators own explicit egress for SMTP, OIDC,
   web push, S3, and external PostgreSQL.

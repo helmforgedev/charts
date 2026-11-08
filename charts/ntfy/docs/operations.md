@@ -48,6 +48,16 @@ and uploads one compressed archive to S3-compatible storage. It covers SQLite
 databases, attachments, and other files on that volume. It does not dump a
 PostgreSQL database.
 
+Static credentials can come from `backup.s3.existingSecret`. On AWS, set
+`backup.s3.credentialsFromPodIdentity: true` and `backup.s3.region` to use EKS
+Pod Identity or IRSA. This mode creates a dedicated backup ServiceAccount by
+default; configure `backup.serviceAccount.annotations` for IRSA, or associate
+the ServiceAccount with an EKS Pod Identity role. The chart does not render a
+static credential Secret in workload identity mode.
+Bucket creation is disabled by default so this identity needs only object-level
+permissions. Enable `backup.s3.createBucketIfNotExists` only when the identity
+is also authorized to manage buckets.
+
 ```bash
 kubectl get cronjob,jobs -n <namespace> \
   -l app.kubernetes.io/instance=<release>,app.kubernetes.io/component=backup
