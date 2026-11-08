@@ -30,6 +30,7 @@ app.kubernetes.io/part-of: helmforge
 {{- define "dawarich.cacheHost" -}}{{- if .Values.redis.enabled -}}{{ include "redis.clientServiceName" .Subcharts.redis }}{{- else -}}{{ .Values.cache.host }}{{- end -}}{{- end -}}
 {{- define "dawarich.cachePasswordSecret" -}}{{- if .Values.redis.enabled -}}{{ include "redis.secretName" .Subcharts.redis }}{{- else -}}{{ .Values.cache.passwordSecret }}{{- end -}}{{- end -}}
 {{- define "dawarich.identitySecretName" -}}{{ default (printf "%s-identity" (include "dawarich.fullname" . | trunc 53 | trimSuffix "-")) .Values.identity.existingSecret }}{{- end -}}
+{{- define "dawarich.oidcSecretName" -}}{{ default (printf "%s-oidc" (include "dawarich.fullname" . | trunc 53 | trimSuffix "-")) .Values.oidc.existingSecret }}{{- end -}}
 {{- define "dawarich.validate" -}}
 {{- if lt (int .Values.runtime.threads) (int .Values.worker.concurrency) -}}{{ fail "runtime.threads must cover worker.concurrency for the native database pool" }}{{- end -}}
 {{- if eq .Values.storage.s3.accessKeyIdKey .Values.storage.s3.secretAccessKeyKey -}}{{ fail "S3 access and secret keys must use distinct Secret keys" }}{{- end -}}
@@ -46,11 +47,11 @@ app.kubernetes.io/part-of: helmforge
 {{- if and .Values.postgresql.enabled (or .Values.database.host .Values.database.passwordSecret .Values.database.tls.caSecret) -}}{{ fail "Bundled and external PostGIS settings are mutually exclusive" }}{{- end -}}
 {{- if and .Values.redis.enabled (or .Values.cache.host .Values.cache.passwordSecret .Values.cache.tls.caSecret) -}}{{ fail "Bundled and external Redis settings are mutually exclusive" }}{{- end -}}
 {{- if and .Values.bootstrap.password .Values.bootstrap.existingSecret -}}{{ fail "Bootstrap password and existing Secret are mutually exclusive" }}{{- end -}}
-{{- if and .Values.oidc.enabled (not .Values.oidc.issuer) -}}{{ fail "OIDC requires oidc.issuer" }}{{- end -}}
-{{- if and .Values.oidc.enabled (not .Values.oidc.clientId) -}}{{ fail "OIDC requires oidc.clientId" }}{{- end -}}
-{{- if and .Values.oidc.enabled .Values.oidc.clientSecret .Values.oidc.existingSecret -}}{{ fail "OIDC clientSecret and existingSecret are mutually exclusive" }}{{- end -}}
-{{- if and .Values.oidc.enabled (not (or .Values.oidc.clientSecret .Values.oidc.existingSecret)) -}}{{ fail "OIDC requires clientSecret or existingSecret" }}{{- end -}}
-{{- if and (not .Values.oidc.enabled) (or .Values.oidc.issuer .Values.oidc.clientId .Values.oidc.clientSecret .Values.oidc.existingSecret) -}}{{ fail "OIDC settings require oidc.enabled" }}{{- end -}}
+{{- if and .Values.oidc.enabled (not (trim .Values.oidc.issuer)) -}}{{ fail "OIDC requires oidc.issuer" }}{{- end -}}
+{{- if and .Values.oidc.enabled (not (trim .Values.oidc.clientId)) -}}{{ fail "OIDC requires oidc.clientId" }}{{- end -}}
+{{- if and .Values.oidc.enabled (trim .Values.oidc.clientSecret) (trim .Values.oidc.existingSecret) -}}{{ fail "OIDC clientSecret and existingSecret are mutually exclusive" }}{{- end -}}
+{{- if and .Values.oidc.enabled (not (or (trim .Values.oidc.clientSecret) (trim .Values.oidc.existingSecret))) -}}{{ fail "OIDC requires clientSecret or existingSecret" }}{{- end -}}
+{{- if and (not .Values.oidc.enabled) (or (trim .Values.oidc.issuer) (trim .Values.oidc.clientId) (trim .Values.oidc.clientSecret) (trim .Values.oidc.existingSecret)) -}}{{ fail "OIDC settings require oidc.enabled" }}{{- end -}}
 {{- range $key, $_ := .Values.podLabels -}}{{- if has $key (list "app.kubernetes.io/name" "app.kubernetes.io/instance") -}}{{ fail "Pod labels cannot replace chart workload selectors" }}{{- end -}}{{- end -}}
 {{- range .Values.extraEnv -}}{{- if or (regexMatch "^PG[A-Z_]" .name) (has .name (list "HOME" "TMPDIR" "SCHEMA" "DATA_SCHEMA" "SSL_CERT_FILE" "SSL_CERT_DIR" "STORAGE_BACKEND" "NODE_OPTIONS" "GEM_HOME")) -}}{{ fail (printf "extraEnv cannot override managed setting %s" .name) }}{{- end -}}{{- end -}}
 {{- if ne (int .Values.replicaCount) 1 -}}{{ fail "Dawarich local shared storage requires one co-located web/worker replica" }}{{- end -}}
@@ -100,6 +101,46 @@ app.kubernetes.io/part-of: helmforge
     secretKeyRef: {name: {{ include "dawarich.metricsSecretName" . }}, key: {{ .Values.metrics.auth.passwordKey }}}
 {{- end }}
 - {name: ALLOW_EMAIL_PASSWORD_REGISTRATION, value: "false"}
+- {name: OIDC_ENABLED, value: {{ .Values.oidc.enabled | quote }}}
+{{- if .Values.oidc.enabled }}
+- {name: OIDC_ISSUER, value: {{ .Values.oidc.issuer | quote }}}
+- {name: OIDC_CLIENT_ID, value: {{ .Values.oidc.clientId | quote }}}
+- name: OIDC_CLIENT_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "dawarich.oidcSecretName" . }}
+      key: {{ .Values.oidc.clientSecretKey }}
+{{- if .Values.oidc.redirectUri }}
+- {name: OIDC_REDIRECT_URI, value: {{ .Values.oidc.redirectUri | quote }}}
+{{- end }}
+{{- if .Values.oidc.scope }}
+- {name: OIDC_SCOPE, value: {{ .Values.oidc.scope | quote }}}
+{{- end }}
+{{- if .Values.oidc.responseType }}
+- {name: OIDC_RESPONSE_TYPE, value: {{ .Values.oidc.responseType | quote }}}
+{{- end }}
+{{- if .Values.oidc.uidField }}
+- {name: OIDC_UID_FIELD, value: {{ .Values.oidc.uidField | quote }}}
+{{- end }}
+{{- if .Values.oidc.nameField }}
+- {name: OIDC_NAME_FIELD, value: {{ .Values.oidc.nameField | quote }}}
+{{- end }}
+{{- if .Values.oidc.emailField }}
+- {name: OIDC_EMAIL_FIELD, value: {{ .Values.oidc.emailField | quote }}}
+{{- end }}
+{{- if .Values.oidc.iconUrl }}
+- {name: OIDC_ICON_URL, value: {{ .Values.oidc.iconUrl | quote }}}
+{{- end }}
+{{- if .Values.oidc.buttonTitle }}
+- {name: OIDC_BUTTON_TITLE, value: {{ .Values.oidc.buttonTitle | quote }}}
+{{- end }}
+{{- if .Values.oidc.prompt }}
+- {name: OIDC_PROMPT, value: {{ .Values.oidc.prompt | quote }}}
+{{- end }}
+{{- if .Values.oidc.autoLogin }}
+- {name: OIDC_AUTO_LOGIN, value: "true"}
+{{- end }}
+{{- end }}
 - {name: OIDC_AUTO_REGISTER, value: "false"}
 - {name: APPLICATION_HOSTS, value: {{ (urlParse (include "dawarich.publicUrl" .)).host | quote }}}
 - {name: APPLICATION_PROTOCOL, value: {{ (urlParse (include "dawarich.publicUrl" .)).scheme | quote }}}

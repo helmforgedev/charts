@@ -2,7 +2,6 @@
 suite: Dawarich OIDC authentication
 templates:
   - templates/deployment.yaml
-  - templates/runtime.yaml
   - templates/oidc-secret.yaml
   - templates/externalsecret.yaml
 tests:
@@ -142,12 +141,19 @@ tests:
             name: OIDC_AUTO_LOGIN
             value: "true"
 
-  - it: creates ExternalSecret when target is enabled
+  - it: creates ExternalSecret when items entry is provided
     template: templates/externalsecret.yaml
     set:
       externalSecrets.enabled: true
-      externalSecrets.targets.oidc.enabled: true
-      externalSecrets.targets.oidc.data.clientSecret.remoteKey: secret/dawarich/oidc
+      externalSecrets.items:
+        - fullnameOverride: dawarich-eso-oidc
+          spec:
+            secretStoreRef:
+              name: my-store
+            data:
+              - secretKey: clientSecret
+                remoteRef:
+                  key: secret/dawarich/oidc
     asserts:
       - contains:
           path: spec.data
