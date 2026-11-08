@@ -118,3 +118,51 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: S3 settings require storage.driver=s3
+  - it: requires OIDC issuer when enabled
+    set:
+      oidc.enabled: true
+      oidc.clientId: dawarich-app
+      oidc.clientSecret: secret
+    asserts:
+      - failedTemplate:
+          errorMessage: OIDC requires oidc.issuer
+  - it: requires OIDC clientId when enabled
+    set:
+      oidc.enabled: true
+      oidc.issuer: https://auth.example.com
+      oidc.clientSecret: secret
+    asserts:
+      - failedTemplate:
+          errorMessage: OIDC requires oidc.clientId
+  - it: rejects competing OIDC secrets
+    set:
+      oidc.enabled: true
+      oidc.issuer: https://auth.example.com
+      oidc.clientId: dawarich-app
+      oidc.clientSecret: inline-secret
+      oidc.existingSecret: operator-secret
+    asserts:
+      - failedTemplate:
+          errorMessage: OIDC clientSecret and existingSecret are mutually exclusive
+  - it: requires OIDC secret credentials
+    set:
+      oidc.enabled: true
+      oidc.issuer: https://auth.example.com
+      oidc.clientId: dawarich-app
+    asserts:
+      - failedTemplate:
+          errorMessage: OIDC requires clientSecret or existingSecret
+  - it: rejects inactive OIDC settings
+    set:
+      oidc.issuer: https://auth.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: OIDC settings require oidc.enabled
+  - it: protects OIDC managed environment variables from extraEnv override
+    set:
+      extraEnv:
+        - name: OIDC_ENABLED
+          value: "true"
+    asserts:
+      - failedTemplate:
+          errorMessage: extraEnv cannot override managed setting OIDC_ENABLED
