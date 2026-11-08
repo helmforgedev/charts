@@ -1,0 +1,157 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Dawarich OIDC authentication
+templates:
+  - templates/deployment.yaml
+  - templates/runtime.yaml
+  - templates/oidc-secret.yaml
+  - templates/externalsecret.yaml
+tests:
+  - it: creates release secret when inline clientSecret is provided
+    template: templates/oidc-secret.yaml
+    set:
+      oidc.enabled: true
+      oidc.issuer: https://auth.example.com
+      oidc.clientId: dawarich-app
+      oidc.clientSecret: super-secret
+    asserts:
+      - isKind:
+          of: Secret
+      - equal:
+          path: stringData.clientSecret
+          value: super-secret
+
+  - it: injects OIDC environment variables into web and worker workloads
+    template: templates/deployment.yaml
+    set:
+      oidc.enabled: true
+      oidc.issuer: https://auth.example.com
+      oidc.clientId: dawarich-app
+      oidc.clientSecret: super-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_ENABLED
+            value: "true"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_ISSUER
+            value: https://auth.example.com
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_CLIENT_ID
+            value: dawarich-app
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-dawarich-oidc
+                key: clientSecret
+
+  - it: supports existingSecret without creating release secret
+    set:
+      oidc.enabled: true
+      oidc.issuer: https://auth.example.com
+      oidc.clientId: dawarich-app
+      oidc.existingSecret: custom-oidc-secret
+      oidc.clientSecretKey: customSecretKey
+    asserts:
+      - template: templates/oidc-secret.yaml
+        hasDocuments:
+          count: 0
+      - template: templates/deployment.yaml
+        contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: custom-oidc-secret
+                key: customSecretKey
+
+  - it: configures optional OIDC settings and claim mappings
+    template: templates/deployment.yaml
+    set:
+      oidc.enabled: true
+      oidc.issuer: https://auth.example.com
+      oidc.clientId: dawarich-app
+      oidc.clientSecret: super-secret
+      oidc.redirectUri: https://dawarich.example.com/users/auth/openid_connect/callback
+      oidc.scope: "openid profile email groups"
+      oidc.responseType: code
+      oidc.uidField: preferred_username
+      oidc.nameField: displayName
+      oidc.emailField: mail
+      oidc.iconUrl: https://auth.example.com/icon.png
+      oidc.buttonTitle: "Log in with Keycloak"
+      oidc.prompt: consent
+      oidc.autoLogin: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_REDIRECT_URI
+            value: https://dawarich.example.com/users/auth/openid_connect/callback
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_SCOPE
+            value: "openid profile email groups"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_RESPONSE_TYPE
+            value: code
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_UID_FIELD
+            value: preferred_username
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_NAME_FIELD
+            value: displayName
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_EMAIL_FIELD
+            value: mail
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_ICON_URL
+            value: https://auth.example.com/icon.png
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_BUTTON_TITLE
+            value: "Log in with Keycloak"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_PROMPT
+            value: consent
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_AUTO_LOGIN
+            value: "true"
+
+  - it: creates ExternalSecret when target is enabled
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.targets.oidc.enabled: true
+      externalSecrets.targets.oidc.data.clientSecret.remoteKey: secret/dawarich/oidc
+    asserts:
+      - contains:
+          path: spec.data
+          content:
+            secretKey: clientSecret
+            remoteRef:
+              key: secret/dawarich/oidc

@@ -46,6 +46,11 @@ app.kubernetes.io/part-of: helmforge
 {{- if and .Values.postgresql.enabled (or .Values.database.host .Values.database.passwordSecret .Values.database.tls.caSecret) -}}{{ fail "Bundled and external PostGIS settings are mutually exclusive" }}{{- end -}}
 {{- if and .Values.redis.enabled (or .Values.cache.host .Values.cache.passwordSecret .Values.cache.tls.caSecret) -}}{{ fail "Bundled and external Redis settings are mutually exclusive" }}{{- end -}}
 {{- if and .Values.bootstrap.password .Values.bootstrap.existingSecret -}}{{ fail "Bootstrap password and existing Secret are mutually exclusive" }}{{- end -}}
+{{- if and .Values.oidc.enabled (not .Values.oidc.issuer) -}}{{ fail "OIDC requires oidc.issuer" }}{{- end -}}
+{{- if and .Values.oidc.enabled (not .Values.oidc.clientId) -}}{{ fail "OIDC requires oidc.clientId" }}{{- end -}}
+{{- if and .Values.oidc.enabled .Values.oidc.clientSecret .Values.oidc.existingSecret -}}{{ fail "OIDC clientSecret and existingSecret are mutually exclusive" }}{{- end -}}
+{{- if and .Values.oidc.enabled (not (or .Values.oidc.clientSecret .Values.oidc.existingSecret)) -}}{{ fail "OIDC requires clientSecret or existingSecret" }}{{- end -}}
+{{- if and (not .Values.oidc.enabled) (or .Values.oidc.issuer .Values.oidc.clientId .Values.oidc.clientSecret .Values.oidc.existingSecret) -}}{{ fail "OIDC settings require oidc.enabled" }}{{- end -}}
 {{- range $key, $_ := .Values.podLabels -}}{{- if has $key (list "app.kubernetes.io/name" "app.kubernetes.io/instance") -}}{{ fail "Pod labels cannot replace chart workload selectors" }}{{- end -}}{{- end -}}
 {{- range .Values.extraEnv -}}{{- if or (regexMatch "^PG[A-Z_]" .name) (has .name (list "HOME" "TMPDIR" "SCHEMA" "DATA_SCHEMA" "SSL_CERT_FILE" "SSL_CERT_DIR" "STORAGE_BACKEND" "NODE_OPTIONS" "GEM_HOME")) -}}{{ fail (printf "extraEnv cannot override managed setting %s" .name) }}{{- end -}}{{- end -}}
 {{- if ne (int .Values.replicaCount) 1 -}}{{ fail "Dawarich local shared storage requires one co-located web/worker replica" }}{{- end -}}
