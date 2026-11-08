@@ -20,6 +20,16 @@ app.kubernetes.io/part-of: helmforge
 
 
 
+{{/* Merge chart-wide annotations with resource annotations; resource values win. */}}
+{{- define "dawarich.annotations" -}}
+{{- $common := .root.Values.commonAnnotations | default dict -}}
+{{- $specific := .specific | default dict -}}
+{{- $merged := merge (deepCopy $specific) $common -}}
+{{- if $merged -}}
+{{- toYaml $merged -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "dawarich.claimName" -}}{{- default (include "dawarich.fullname" .) .Values.persistence.existingClaim -}}{{- end -}}
 {{- define "dawarich.bootstrapSecretName" -}}{{- default (printf "%s-bootstrap" (include "dawarich.fullname" . | trunc 53 | trimSuffix "-")) .Values.bootstrap.existingSecret -}}{{- end -}}
 {{- define "dawarich.externalSecretName" -}}{{- if .item.fullnameOverride -}}{{ .item.fullnameOverride | trunc 63 | trimSuffix "-" }}{{- else -}}{{ printf "%s-%s" (include "dawarich.fullname" .root | trunc 40 | trimSuffix "-") (.item.name | default "bootstrap") | trunc 63 | trimSuffix "-" }}{{- end -}}{{- end -}}
