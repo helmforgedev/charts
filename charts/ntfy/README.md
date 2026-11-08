@@ -75,6 +75,7 @@ curl -s http://localhost:8080/test/json
 
 | Key | Default | Description |
 |-----|---------|-------------|
+| `commonAnnotations` | `{}` | Annotations applied to every chart-owned Kubernetes resource |
 | `ntfy.baseUrl` | `""` | Public base URL of the instance |
 | `ntfy.authDefaultAccess` | `"read-write"` | Default access for unauthenticated users |
 | `ntfy.behindProxy` | `true` | Trust X-Forwarded-For headers |
@@ -96,11 +97,11 @@ curl -s http://localhost:8080/test/json
 | `gateway.enabled` | `false` | Render an `HTTPRoute` (requires Gateway API CRDs) |
 | `gateway.parentRefs` | `[]` | Gateway parent refs — **required** when `gateway.enabled=true`; each entry must have `name` |
 | `gateway.hostnames` | `[]` | Hostnames the `HTTPRoute` matches |
-| `serviceAccount.automountServiceAccountToken` | `false` | Mount a Kubernetes API token into application and backup pods |
+| `serviceAccount.automountServiceAccountToken` | `false` | Mount a Kubernetes API token into the application pod |
 | `podDisruptionBudget.enabled` | `false` | Protect the singleton pod from voluntary disruption |
 | `networkPolicy.enabled` | `false` | Restrict ingress and optional egress |
 | `runtimeStorage.tmpSizeLimit` | `128Mi` | Maximum writable `/tmp` storage |
-| `postgresql.enabled` | `false` | Deploy HelmForge PostgreSQL `2.1.1` |
+| `postgresql.enabled` | `false` | Deploy HelmForge PostgreSQL `2.2.0` |
 
 ## Authentication
 
@@ -382,6 +383,30 @@ backup:
 The Secret must contain `access-key` and `secret-key` unless the key names are
 overridden. Test restore into a separate release before relying on the backup.
 The [operations guide](docs/operations.md) documents the full restore sequence.
+
+For EKS Pod Identity or IRSA, use the dedicated backup ServiceAccount instead
+of static S3 keys:
+
+```yaml
+backup:
+  enabled: true
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/ntfy-backup
+  s3:
+    endpoint: https://s3.amazonaws.com
+    bucket: ntfy-backups
+    region: us-east-1
+    createBucketIfNotExists: false
+    credentialsFromPodIdentity: true
+```
+
+EKS Pod Identity normally uses an association and does not require the IRSA
+annotation shown above. When `backup.serviceAccount.create` is disabled, set
+`backup.serviceAccount.name` to an existing dedicated ServiceAccount. Bucket
+creation is disabled by default so the backup identity only needs object-level
+permissions. Opt in to `createBucketIfNotExists` only when the identity also
+has bucket-management permission.
 
 ## SSO (OpenID Connect) and SMTP
 

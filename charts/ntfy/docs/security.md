@@ -30,6 +30,10 @@ passwords are rendered into Secrets but remain in Helm release state. Restrict
 access to Helm storage and Kubernetes Secrets, encrypt data at rest, and use
 provider-specific rotation procedures.
 
+For AWS backups, prefer EKS Pod Identity or IRSA over long-lived S3 keys. The
+chart uses a dedicated backup ServiceAccount so cloud permissions do not extend
+to the ntfy application pod. Scope the role to the configured bucket and prefix.
+
 Database, OIDC, and SMTP secret values are injected through environment
 variables. Restart the Deployment after rotation. The chart adds a checksum of
 the credential configuration, but cannot observe changes made directly to an

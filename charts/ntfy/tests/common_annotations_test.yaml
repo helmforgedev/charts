@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Common annotations
+templates:
+  - templates/configmap.yaml
+  - templates/deployment.yaml
+  - templates/service.yaml
+  - templates/serviceaccount.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should apply common annotations to the ConfigMap
+    template: templates/configmap.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+
+  - it: should apply common annotations only to Deployment metadata
+    template: templates/deployment.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+      - notExists:
+          path: spec.template.metadata.annotations["example.com/owner"]
+
+  - it: should let Service annotations override common annotations
+    template: templates/service.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+      service.annotations:
+        example.com/owner: networking
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: networking
+
+  - it: should apply common annotations to the workload ServiceAccount
+    template: templates/serviceaccount.yaml
+    set:
+      serviceAccount.create: true
+      commonAnnotations:
+        example.com/owner: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform

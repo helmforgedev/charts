@@ -3,6 +3,7 @@ suite: Backup
 templates:
   - templates/backup-cronjob.yaml
   - templates/backup-secret.yaml
+  - templates/backup-serviceaccount.yaml
   - templates/validate.yaml
 release:
   name: test
@@ -72,6 +73,102 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
+
+  - it: should use workload identity without rendering static credentials
+    template: templates/backup-cronjob.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: my-bucket
+      backup.s3.region: us-east-1
+      backup.s3.credentialsFromPodIdentity: true
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.serviceAccountName
+          value: test-ntfy-backup
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env[3].name
+          value: AWS_REGION
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env[3].value
+          value: us-east-1
+      - notContains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: S3_ACCESS_KEY
+      - notMatchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: "mc mb"
+
+  - it: should create the bucket only when explicitly enabled
+    template: templates/backup-cronjob.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: my-bucket
+      backup.s3.region: us-east-1
+      backup.s3.credentialsFromPodIdentity: true
+      backup.s3.createBucketIfNotExists: true
+    asserts:
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: "mc mb --ignore-existing --region"
+
+  - it: should render a dedicated annotated ServiceAccount for workload identity
+    template: templates/backup-serviceaccount.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+      backup.enabled: true
+      backup.s3.region: us-east-1
+      backup.s3.credentialsFromPodIdentity: true
+      backup.serviceAccount.annotations:
+        eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/ntfy-backup
+    asserts:
+      - isKind:
+          of: ServiceAccount
+      - equal:
+          path: metadata.name
+          value: test-ntfy-backup
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+      - equal:
+          path: metadata.annotations["eks.amazonaws.com/role-arn"]
+          value: arn:aws:iam::123456789012:role/ntfy-backup
+
+  - it: should not render a static credential Secret for workload identity
+    template: templates/backup-secret.yaml
+    set:
+      backup.enabled: true
+      backup.s3.region: us-east-1
+      backup.s3.credentialsFromPodIdentity: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should require a region for workload identity
+    template: templates/validate.yaml
+    set:
+      backup.enabled: true
+      backup.s3.credentialsFromPodIdentity: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "ntfy: backup.s3.region is required when backup.s3.credentialsFromPodIdentity is true"
+
+  - it: should require an existing dedicated ServiceAccount name when creation is disabled
+    template: templates/validate.yaml
+    set:
+      backup.enabled: true
+      backup.s3.region: us-east-1
+      backup.s3.credentialsFromPodIdentity: true
+      backup.serviceAccount.create: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "ntfy: backup.serviceAccount.name is required when workload identity is enabled and backup.serviceAccount.create is false"
 
   - it: should reject backup without persistent storage
     template: templates/validate.yaml

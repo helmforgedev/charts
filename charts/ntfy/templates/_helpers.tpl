@@ -66,6 +66,12 @@
 {{- if and .Values.backup.enabled (not .Values.persistence.enabled) -}}
   {{- fail "ntfy: backup.enabled requires persistence.enabled=true because the backup Job mounts the ntfy data PVC" -}}
 {{- end -}}
+{{- if and .Values.backup.enabled .Values.backup.s3.credentialsFromPodIdentity (empty .Values.backup.s3.region) -}}
+  {{- fail "ntfy: backup.s3.region is required when backup.s3.credentialsFromPodIdentity is true" -}}
+{{- end -}}
+{{- if and .Values.backup.enabled .Values.backup.s3.credentialsFromPodIdentity (not .Values.backup.serviceAccount.create) (empty .Values.backup.serviceAccount.name) -}}
+  {{- fail "ntfy: backup.serviceAccount.name is required when workload identity is enabled and backup.serviceAccount.create is false" -}}
+{{- end -}}
 {{- end -}}
 
 {{- define "ntfy.fullname" -}}
@@ -91,6 +97,16 @@ app.kubernetes.io/part-of: helmforge
 {{- end }}
 {{- end -}}
 
+{{- define "ntfy.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | indent 2 }}
+{{- end -}}
+{{- end -}}
+
 {{- define "ntfy.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "ntfy.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
@@ -106,6 +122,14 @@ app.kubernetes.io/component: server
 {{- default (include "ntfy.fullname" .) .Values.serviceAccount.name -}}
 {{- else -}}
 {{- default "default" .Values.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "ntfy.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create -}}
+{{- default (printf "%s-backup" (include "ntfy.fullname" .) | trunc 63 | trimSuffix "-") .Values.backup.serviceAccount.name -}}
+{{- else -}}
+{{- default "default" .Values.backup.serviceAccount.name -}}
 {{- end -}}
 {{- end -}}
 
