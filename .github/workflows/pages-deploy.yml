@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: Apache-2.0
+name: Deploy Helm repository
+
+on:
+  workflow_run:
+    workflows: ['Publish']
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  group: helm-repository-pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    name: Deploy Helm repository
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout Helm repository
+        uses: actions/checkout@v7
+        with:
+          ref: gh-pages
+          fetch-depth: 1
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Helm repository
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: .
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
+        with:
+          timeout: 1800000
