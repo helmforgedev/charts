@@ -42,7 +42,8 @@ try{
  assert.deepEqual(listeners,['0100007F:0BC2'],'Native Rails listener must be exclusively IPv4 loopback');
  await forward(async base=>{const request=client(base);
   assert.equal((await request('/api/v1/health')).status,200);
-  for(const path of ['/api/v1/auth/register','/api/v1/auth/register.json','/api/v1/auth/register/','/api/v1/auth/%72egister','/api/v1/auth%2fregister','//api/v1/auth/register','/api/v1/auth/apple','/api/v1/auth/google','/users','/users.json','/users/sign_up','/users/auth/openid_connect'])assert.equal((await request(path,{method:'POST',anonymous:true,json:{email:'never-created@example.test',password:'Owned-fixture-never-created'}})).status,403,'Public self-registration route must be denied: '+path);
+  for(const path of ['/api/v1/auth/register','/api/v1/auth/register.json','/api/v1/auth/register/','/api/v1/auth/%72egister','/api/v1/auth%2fregister','//api/v1/auth/register','/api/v1/auth/apple','/api/v1/auth/google','/users','/users.json','/users/sign_up'])assert.equal((await request(path,{method:'POST',anonymous:true,json:{email:'never-created@example.test',password:'Owned-fixture-never-created'}})).status,403,'Public self-registration route must be denied: '+path);
+  assert.equal((await request('/users/auth/openid_connect',{method:'POST',anonymous:true,json:{email:'never-created@example.test',password:'Owned-fixture-never-created'}})).status,values.oidc.enabled?422:403,'OAuth web namespace must deny provider enrollment when OIDC is disabled and reject forged provider POSTs when enabled: /users/auth/openid_connect');
   assert.equal((await request('/metrics',{anonymous:true})).status,404);
   assert.equal((await request('/api/v1/auth/login',{method:'POST',anonymous:true,json:{email:'demo@dawarich.app',password:'safepassword'}})).status,401);
   assert.equal((await request('/api/v1/auth/login',{method:'POST',anonymous:true,json:{email:values.bootstrap.email,password:'incorrect-owned-fixture'}})).status,401);

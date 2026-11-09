@@ -122,10 +122,12 @@ initial public administrator. No HTTP server runs during model provisioning.
 An existing unsafe demo credential blocks startup and requires explicit repair.
 
 The public proxy forwards to a Rails listener bound exclusively to loopback. It
-denies the unconditional native API registration routes, Apple/Google enrollment,
-the OAuth web namespace and the public signup page. The chart implements a
-local-account policy; enabling an OAuth environment variable does not remove these
-guards.
+denies the native API registration routes and Apple/Google enrollment. The public
+signup page remains denied in every configuration. The OAuth web namespace
+(`/users/auth`) is denied while `oidc.enabled` is false; with OIDC enabled the
+proxy forwards `/users/auth` to Rails so provider sign-in can complete. The chart
+implements a local-account policy: OIDC federation opens only that sign-in
+round-trip and never public registration.
 
 A chart-owned initializer uses the Rails middleware extension point to reject
 Devise account creation after `Rack::MethodOverride` has interpreted HTML form
