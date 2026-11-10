@@ -20,6 +20,32 @@ tests:
           path: stringData.clientSecret
           value: super-secret
 
+  - it: renders the strict nginx policy blocking the oauth web namespace when oidc is disabled
+    template: templates/runtime.yaml
+    set:
+      oidc.enabled: false
+    asserts:
+      - matchRegex:
+          path: data['nginx.conf']
+          pattern: 'location ~ \^/users/\(sign_up\|auth\)\(\[/\.\]\|\$\) \{ return 403; \}'
+      - matchRegex:
+          path: data['nginx.conf']
+          pattern: 'location ~ \^/users/sign_up\(\[/\.\]\|\$\) \{ return 403; \}'
+        not: true
+
+  - it: renders the nginx policy forwarding the oauth web namespace when oidc is enabled
+    template: templates/runtime.yaml
+    set:
+      oidc.enabled: true
+    asserts:
+      - matchRegex:
+          path: data['nginx.conf']
+          pattern: 'location ~ \^/users/sign_up\(\[/\.\]\|\$\) \{ return 403; \}'
+      - matchRegex:
+          path: data['nginx.conf']
+          pattern: 'location ~ \^/users/\(sign_up\|auth\)\(\[/\.\]\|\$\) \{ return 403; \}'
+        not: true
+
   - it: injects OIDC environment variables into web and worker workloads
     template: templates/deployment.yaml
     set:

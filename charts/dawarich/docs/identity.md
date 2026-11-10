@@ -16,7 +16,10 @@ rotate their passwords.
 ## Registration policy
 
 Rails binds only to loopback on port 3010. The public NGINX listener denies native
-API registration and Apple/Google enrollment, the signup page and web OAuth routes.
+API registration and Apple/Google enrollment, and denies the signup page in every
+configuration. The web OAuth namespace (`/users/auth`) is denied while
+`oidc.enabled` is false; with OIDC enabled the proxy forwards `/users/auth` so
+provider sign-in can complete.
 A documented Rails middleware initializer rejects Devise account creation after
 `Rack::MethodOverride`, so authenticated profile update and deletion retain their
 native HTTP methods. Native registration is also disabled in the cached setting.
