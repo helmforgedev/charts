@@ -1,0 +1,181 @@
+# SPDX-License-Identifier: Apache-2.0
+
+suite: common annotations
+tests:
+  - it: applies common annotations to the Deployment metadata
+    template: templates/deployment.yaml
+    set:
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+
+  - it: applies common annotations to the Service metadata
+    template: templates/service.yaml
+    set:
+      metrics.enabled: true
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+
+  - it: gives service annotations precedence over common annotations
+    template: templates/service.yaml
+    set:
+      metrics.enabled: true
+      commonAnnotations:
+        example.com/environment: global
+      metrics.service.annotations:
+        example.com/environment: service
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/environment"]
+          value: service
+
+  - it: applies common annotations to the node-agent DaemonSet metadata
+    template: templates/node-agent-daemonset.yaml
+    set:
+      nodeAgent.enabled: true
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+
+  - it: gives node-agent annotations precedence over common annotations
+    template: templates/node-agent-daemonset.yaml
+    set:
+      nodeAgent.enabled: true
+      commonAnnotations:
+        example.com/environment: global
+      nodeAgent.annotations:
+        example.com/environment: daemonset
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/environment"]
+          value: daemonset
+
+  - it: does not apply common annotations to the node-agent pod template
+    template: templates/node-agent-daemonset.yaml
+    set:
+      nodeAgent.enabled: true
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - isNull:
+          path: spec.template.metadata.annotations["example.com/team"]
+
+  - it: merges common annotations into each BackupStorageLocation
+    template: templates/backupstoragelocations.yaml
+    set:
+      commonAnnotations:
+        example.com/team: platform
+        example.com/environment: global
+      configuration.backupStorageLocations:
+        - name: primary
+          provider: aws
+          bucket: primary
+          annotations: {}
+        - name: secondary
+          provider: aws
+          bucket: secondary
+          annotations:
+            example.com/environment: secondary
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+        documentIndex: 0
+      - equal:
+          path: metadata.annotations["example.com/environment"]
+          value: global
+        documentIndex: 0
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+        documentIndex: 1
+      - equal:
+          path: metadata.annotations["example.com/environment"]
+          value: secondary
+        documentIndex: 1
+
+  - it: merges common annotations into each VolumeSnapshotLocation
+    template: templates/volumesnapshotlocations.yaml
+    set:
+      commonAnnotations:
+        example.com/team: platform
+        example.com/environment: global
+      configuration.volumeSnapshotLocations:
+        - name: primary
+          provider: aws
+          annotations: {}
+        - name: secondary
+          provider: aws
+          annotations:
+            example.com/environment: secondary
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+        documentIndex: 0
+      - equal:
+          path: metadata.annotations["example.com/environment"]
+          value: global
+        documentIndex: 0
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+        documentIndex: 1
+      - equal:
+          path: metadata.annotations["example.com/environment"]
+          value: secondary
+        documentIndex: 1
+
+  - it: merges common annotations into each Schedule
+    template: templates/schedules.yaml
+    set:
+      commonAnnotations:
+        example.com/team: platform
+        example.com/environment: global
+      configuration:
+        backupStorageLocations:
+          - name: default
+            provider: aws
+            bucket: backups
+            annotations: {}
+      schedules:
+        - name: daily
+          schedule: "0 2 * * *"
+          annotations: {}
+          template:
+            includedNamespaces:
+              - default
+        - name: weekly
+          schedule: "0 3 * * 0"
+          annotations:
+            example.com/environment: secondary
+          template:
+            includedNamespaces:
+              - default
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+        documentIndex: 0
+      - equal:
+          path: metadata.annotations["example.com/environment"]
+          value: global
+        documentIndex: 0
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+        documentIndex: 1
+      - equal:
+          path: metadata.annotations["example.com/environment"]
+          value: secondary
+        documentIndex: 1

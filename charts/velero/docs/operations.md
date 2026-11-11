@@ -73,6 +73,18 @@ If the node-agent is enabled, restart and observe that DaemonSet as well.
 
 ## Upgrade and Rollback
 
+The release that adopts the fixed `node-agent` DaemonSet name replaces the
+previous release-named DaemonSet instead of rolling the same Kubernetes object.
+Before this upgrade, record each schedule's existing `schedules[].disabled`
+value, temporarily disable only schedules that are currently enabled, and wait
+for active backup, restore, PodVolumeBackup, and data-movement operations to
+finish. Upgrade the release. When `nodeAgent.enabled=true`, wait for
+`daemonset/node-agent` to become Ready on the intended nodes; when it is false,
+skip that readiness check. Restore only the schedules disabled for this
+procedure and leave schedules that were already disabled unchanged. In-progress
+transfers can resume after an agent restart, but quiescing scheduled work avoids
+starting new transfers during the replacement.
+
 Before an upgrade, review the Velero and provider-plugin compatibility matrix,
 export the installed values, and confirm recent restore drills. Helm does not
 remove or roll back CRDs automatically. Treat CRD schema changes as a separate,

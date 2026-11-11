@@ -103,6 +103,7 @@ metrics:
 
 | Key | Default | Description |
 |-----|---------|-------------|
+| `commonAnnotations` | `{}` | Annotations added to chart-owned resource metadata, excluding pod templates |
 | `image.repository` | `docker.io/velero/velero` | Velero server image |
 | `image.tag` | `v1.18.4` | Velero server image tag |
 | `plugins.aws.tag` | `v1.14.0` | Default AWS/S3 plugin image tag |
@@ -137,7 +138,7 @@ metrics:
 | ClusterRoleBinding | `rbac.create` and `rbac.clusterAdministrator` |
 | Secret | `credentials.useSecret` and no `credentials.existingSecret` |
 | Deployment | Always |
-| DaemonSet | `nodeAgent.enabled` |
+| DaemonSet `node-agent` | `nodeAgent.enabled` |
 | Service | `metrics.enabled` |
 | ServiceMonitor | `metrics.serviceMonitor.enabled` |
 | NetworkPolicy | `networkPolicy.enabled` |
