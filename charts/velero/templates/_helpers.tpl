@@ -37,6 +37,14 @@ app.kubernetes.io/name: {{ include "velero.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
+{{- define "velero.renderAnnotations" -}}
+{{- $annotations := mergeOverwrite (dict) (.common | default dict) (.specific | default dict) -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "velero.image" -}}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}

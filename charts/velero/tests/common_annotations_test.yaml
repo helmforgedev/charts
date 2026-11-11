@@ -1,0 +1,71 @@
+# SPDX-License-Identifier: Apache-2.0
+
+suite: common annotations
+tests:
+  - it: applies common annotations to the Deployment metadata
+    template: templates/deployment.yaml
+    set:
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+
+  - it: applies common annotations to the Service metadata
+    template: templates/service.yaml
+    set:
+      metrics.enabled: true
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+
+  - it: gives service annotations precedence over common annotations
+    template: templates/service.yaml
+    set:
+      metrics.enabled: true
+      commonAnnotations:
+        example.com/environment: global
+      metrics.service.annotations:
+        example.com/environment: service
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/environment"]
+          value: service
+
+  - it: applies common annotations to the node-agent DaemonSet metadata
+    template: templates/node-agent-daemonset.yaml
+    set:
+      nodeAgent.enabled: true
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+
+  - it: gives node-agent annotations precedence over common annotations
+    template: templates/node-agent-daemonset.yaml
+    set:
+      nodeAgent.enabled: true
+      commonAnnotations:
+        example.com/environment: global
+      nodeAgent.annotations:
+        example.com/environment: daemonset
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/environment"]
+          value: daemonset
+
+  - it: does not apply common annotations to the node-agent pod template
+    template: templates/node-agent-daemonset.yaml
+    set:
+      nodeAgent.enabled: true
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - isNull:
+          path: spec.template.metadata.annotations["example.com/team"]

@@ -10,6 +10,10 @@ both the server and node-agent also receive ephemeral writable volumes at
 `/home/cnb/udmrepo` and `/home/cnb/.cache`. This preserves the read-only root
 filesystem while allowing Kopia to store configuration and cache data.
 
+The DaemonSet is named `node-agent` and its pods always include the
+`role: node-agent` label expected by Velero. These compatibility identifiers
+are fixed and cannot be changed through release naming or `nodeAgent.podLabels`.
+
 ## What to validate
 
 - your cluster policy allows the node-agent hostPath mounts
