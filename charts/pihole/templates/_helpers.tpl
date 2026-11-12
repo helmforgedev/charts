@@ -23,6 +23,19 @@ Fully qualified app name, truncated to 63 characters.
 {{- end }}
 
 {{/*
+Merge chart-wide annotations with resource-specific annotations.
+Resource-specific annotations take precedence.
+*/}}
+{{- define "pihole.renderAnnotations" -}}
+{{- $specific := default dict .specific -}}
+{{- $annotations := mergeOverwrite (deepCopy (default dict .root.Values.commonAnnotations)) $specific -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
+{{/*
 Chart label value.
 */}}
 {{- define "pihole.chart" -}}
@@ -61,6 +74,17 @@ ServiceAccount name.
 {{- default (include "pihole.fullname" .) .Values.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
+{{- end }}
+{{- end }}
+
+{{/*
+Dedicated backup ServiceAccount name.
+*/}}
+{{- define "pihole.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create }}
+{{- default (printf "%s-backup" (include "pihole.fullname" .)) .Values.backup.serviceAccount.name }}
+{{- else }}
+{{- .Values.backup.serviceAccount.name }}
 {{- end }}
 {{- end }}
 
@@ -342,8 +366,14 @@ Compile all validation warnings and errors into a single message.
   {{- if not .Values.backup.s3.endpoint -}}
     {{- $messages = append $messages "When backup.enabled is true, backup.s3.endpoint must be specified." -}}
   {{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+  {{- if and (not .Values.backup.s3.credentialsFromPodIdentity) (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
     {{- $messages = append $messages "When backup.enabled is true, either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey must be provided." -}}
+  {{- end -}}
+  {{- if and .Values.backup.s3.credentialsFromPodIdentity (not .Values.backup.s3.region) -}}
+    {{- $messages = append $messages "When backup.s3.credentialsFromPodIdentity is true, backup.s3.region must be specified." -}}
+  {{- end -}}
+  {{- if and (not .Values.backup.serviceAccount.create) (not .Values.backup.serviceAccount.name) -}}
+    {{- $messages = append $messages "When backup.serviceAccount.create is false, backup.serviceAccount.name must be specified." -}}
   {{- end -}}
 {{- end -}}
 {{- if and .Values.externalSecrets .Values.externalSecrets.enabled -}}

@@ -70,6 +70,39 @@ tests:
       - failedTemplate:
           errorMessagePattern: "When backup\.enabled is true, either backup\.s3\.existingSecret or both backup\.s3\.accessKey and backup\.s3\.secretKey must be provided\."
 
+  - it: should allow workload identity without static credentials
+    set:
+      backup.enabled: true
+      backup.s3.bucket: "my-bucket"
+      backup.s3.endpoint: "https://s3.amazonaws.com"
+      backup.s3.region: "us-east-1"
+      backup.s3.credentialsFromPodIdentity: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should require a region for workload identity
+    set:
+      backup.enabled: true
+      backup.s3.bucket: "my-bucket"
+      backup.s3.endpoint: "https://s3.amazonaws.com"
+      backup.s3.credentialsFromPodIdentity: true
+    asserts:
+      - failedTemplate:
+          errorMessagePattern: "When backup\.s3\.credentialsFromPodIdentity is true, backup\.s3\.region must be specified\."
+
+  - it: should require an existing dedicated backup ServiceAccount name
+    set:
+      backup.enabled: true
+      backup.s3.bucket: "my-bucket"
+      backup.s3.endpoint: "https://s3.amazonaws.com"
+      backup.s3.region: "us-east-1"
+      backup.s3.credentialsFromPodIdentity: true
+      backup.serviceAccount.create: false
+    asserts:
+      - failedTemplate:
+          errorMessagePattern: "When backup\.serviceAccount\.create is false, backup\.serviceAccount\.name must be specified\."
+
   - it: should fail when externalSecrets enabled without admin existingSecret
     set:
       externalSecrets.enabled: true

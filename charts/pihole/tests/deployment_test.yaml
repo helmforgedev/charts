@@ -17,6 +17,18 @@ tests:
           path: metadata.name
           value: test-pihole
 
+  - it: should apply common annotations to Deployment metadata only
+    template: templates/deployment.yaml
+    set:
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+      - isNull:
+          path: spec.template.metadata.annotations["example.com/team"]
+
   - it: should use Recreate strategy
     template: templates/deployment.yaml
     asserts:
@@ -554,8 +566,22 @@ tests:
           path: spec.template.spec.initContainers[0].resources.requests.cpu
           value: 50m
       - equal:
+          path: spec.template.spec.initContainers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.capabilities.drop
+          value:
+            - ALL
+      - equal:
           path: spec.template.spec.initContainers[1].name
           value: gravity-update
+      - equal:
+          path: spec.template.spec.initContainers[1].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.initContainers[1].securityContext.capabilities.drop
+          value:
+            - ALL
       - equal:
           path: spec.template.spec.initContainers[1].image
           value: docker.io/pihole/pihole:2026.10.0@sha256:d34134716fc32038b052a8674c7c6879e0ff21f0e6d8af345166fffa2c27c113

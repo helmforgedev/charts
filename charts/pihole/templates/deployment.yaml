@@ -6,6 +6,7 @@ metadata:
   labels:
     {{- include "pihole.labels" . | nindent 4 }}
     app.kubernetes.io/component: pihole
+  {{- include "pihole.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   replicas: 1
   strategy:
@@ -17,9 +18,9 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/config: {{ (include (print $.Template.BasePath "/configmap.yaml") . | fromYaml).data | toYaml | sha256sum }}
         {{- if .Values.unbound.enabled }}
-        checksum/unbound-config: {{ include (print $.Template.BasePath "/unbound-configmap.yaml") . | sha256sum }}
+        checksum/unbound-config: {{ (include (print $.Template.BasePath "/unbound-configmap.yaml") . | fromYaml).data | toYaml | sha256sum }}
         {{- end }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
@@ -55,6 +56,8 @@ spec:
         - name: gravity-init
           image: {{ include "pihole.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
           command: ["/bin/sh", "/scripts/init-gravity.sh"]
           {{- with .Values.gravity.resources }}
           resources:
@@ -70,6 +73,8 @@ spec:
         - name: gravity-update
           image: {{ include "pihole.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
           command:
             - /bin/sh
             - -c
