@@ -27,7 +27,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/config: {{ (include (print $.Template.BasePath "/configmap.yaml") . | fromYaml).data | toYaml | sha256sum }}
         {{- if .Values.auth.enabled }}
         checksum/auth-secret: {{ include "valkey.authChecksum" . }}
         {{- end }}
@@ -177,6 +177,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
   {{- if .Values.node.persistence.enabled }}
+  {{- include "valkey.pvcRetentionPolicy" .Values.node.persistence.retentionPolicy | nindent 2 }}
   volumeClaimTemplates:
     {{- include "valkey.volumeClaimTemplate" (dict "root" . "persistence" .Values.node.persistence) | nindent 4 }}
   {{- end }}

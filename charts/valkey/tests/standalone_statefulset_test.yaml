@@ -30,6 +30,18 @@ tests:
           path: metadata.annotations["argocd.argoproj.io/sync-wave"]
           value: "1"
 
+  - it: should merge common annotations into statefulset metadata only
+    template: standalone-statefulset.yaml
+    set:
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+      - isNull:
+          path: spec.template.metadata.annotations["example.com/team"]
+
   - it: should not render in replication mode
     template: standalone-statefulset.yaml
     set:
@@ -82,3 +94,22 @@ tests:
       - equal:
           path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
           value: 8Gi
+
+  - it: should omit PVC retention policy by default
+    template: standalone-statefulset.yaml
+    asserts:
+      - notExists:
+          path: spec.persistentVolumeClaimRetentionPolicy
+
+  - it: should configure PVC retention policy
+    template: standalone-statefulset.yaml
+    set:
+      standalone.persistence.retentionPolicy.whenDeleted: Retain
+      standalone.persistence.retentionPolicy.whenScaled: Delete
+    asserts:
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenDeleted
+          value: Retain
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenScaled
+          value: Delete
