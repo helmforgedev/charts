@@ -16,6 +16,7 @@ Use:
 - the default AWS plugin
 - an explicit `s3Url`
 - `s3ForcePathStyle=true` when the provider requires path-style addressing
+- `checksumAlgorithm=""` when the provider does not support AWS checksum headers
 
 ## Example
 
@@ -36,8 +37,13 @@ configuration:
         region: minio
         s3Url: http://minio.minio.svc.cluster.local:9000
         s3ForcePathStyle: true
+        checksumAlgorithm: ""
         insecureSkipTLSVerify: true
 ```
+
+Supported checksum algorithms are `CRC32`, `CRC32C`, `SHA1`, and `SHA256`.
+Set `checksumAlgorithm` to an explicit empty string to disable checksum headers
+for providers such as NetApp S3 that require requests without them.
 
 ## Validation checklist
 

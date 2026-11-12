@@ -64,6 +64,7 @@ configuration:
         region: minio
         s3Url: http://minio.minio.svc.cluster.local:9000
         s3ForcePathStyle: true
+        checksumAlgorithm: ""
         insecureSkipTLSVerify: true
 
 nodeAgent:
@@ -110,6 +111,7 @@ metrics:
 | `credentials.useSecret` | `true` | Mount credentials when `existingSecret`, `name`, or `secretContents` is set |
 | `credentials.existingSecret` | `""` | Existing credentials secret |
 | `configuration.backupStorageLocations` | one empty default entry | Backup storage definitions |
+| `configuration.backupStorageLocations[].config.checksumAlgorithm` | unset (`CRC32` upstream) | S3 checksum algorithm; set `""` to disable checksum headers |
 | `configuration.volumeSnapshotLocations` | `[]` | Snapshot storage definitions |
 | `configuration.defaultVolumesToFsBackup` | `false` | Default filesystem backup mode |
 | `nodeAgent.enabled` | `false` | Deploy filesystem backup DaemonSet |

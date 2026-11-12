@@ -29,6 +29,17 @@ assert.ok(container.args.includes(`--metrics-address=:${metricsPort}`), 'Velero 
 const version = kubectl(['exec', pod.metadata.name, '-c', 'velero', '--', '/velero', 'version', '--client-only']);
 assert.match(version, /Version:\s+v1\.18\.4\b/);
 
+if (release.endsWith('-s3-compatible')) {
+  const locations = JSON.parse(kubectl(['get', 'backupstoragelocations.velero.io', '-o', 'json'])).items;
+  const location = locations.find((candidate) => candidate.metadata.name === 'default');
+  assert.ok(location, 'Default BackupStorageLocation required');
+  assert.ok(
+    Object.hasOwn(location.spec.config ?? {}, 'checksumAlgorithm'),
+    'S3-compatible BackupStorageLocation must preserve checksumAlgorithm',
+  );
+  assert.equal(location.spec.config.checksumAlgorithm, '');
+}
+
 const services = JSON.parse(kubectl(['get', 'services', '-l', `app.kubernetes.io/instance=${release}`, '-o', 'json'])).items;
 const service = services.find((candidate) => candidate.spec.ports?.some((port) => port.name === 'metrics'));
 assert.ok(service, 'Metrics Service required');
