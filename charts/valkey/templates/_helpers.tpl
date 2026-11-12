@@ -54,7 +54,7 @@ Merge global annotations with resource-specific annotations.
 Resource-specific annotations win when keys overlap.
 */}}
 {{- define "valkey.annotations" -}}
-{{- $global := default dict .root.Values.annotations -}}
+{{- $global := mergeOverwrite (deepCopy (default dict .root.Values.commonAnnotations)) (default dict .root.Values.annotations) -}}
 {{- $local := default dict .annotations -}}
 {{- $annotations := mergeOverwrite (deepCopy $global) $local -}}
 {{- with $annotations -}}
@@ -71,13 +71,29 @@ annotations:
 {{- end -}}
 
 {{- define "valkey.serviceAnnotations" -}}
-{{- $global := default dict .root.Values.annotations -}}
+{{- $global := mergeOverwrite (deepCopy (default dict .root.Values.commonAnnotations)) (default dict .root.Values.annotations) -}}
 {{- $service := default dict .root.Values.service.annotations -}}
 {{- $local := default dict .annotations -}}
 {{- $annotations := mergeOverwrite (deepCopy $global) $service $local -}}
 {{- with $annotations -}}
 {{- toYaml . -}}
 {{- end -}}
+{{- end -}}
+
+{{/*
+Render the StatefulSet PVC retention policy only when explicitly configured.
+Omission preserves the Kubernetes default of retaining PVCs.
+*/}}
+{{- define "valkey.pvcRetentionPolicy" -}}
+{{- if or .whenDeleted .whenScaled }}
+persistentVolumeClaimRetentionPolicy:
+  {{- with .whenDeleted }}
+  whenDeleted: {{ . }}
+  {{- end }}
+  {{- with .whenScaled }}
+  whenScaled: {{ . }}
+  {{- end }}
+{{- end }}
 {{- end -}}
 
 {{- define "valkey.renderServiceAnnotations" -}}
