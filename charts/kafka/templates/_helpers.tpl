@@ -1,4 +1,17 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{/* Render StatefulSet PVC retention only when explicitly configured. */}}
+{{- define "kafka.pvcRetentionPolicy" -}}
+{{- if or .whenDeleted .whenScaled }}
+persistentVolumeClaimRetentionPolicy:
+  {{- with .whenDeleted }}
+  whenDeleted: {{ . }}
+  {{- end }}
+  {{- with .whenScaled }}
+  whenScaled: {{ . }}
+  {{- end }}
+{{- end }}
+{{- end -}}
+
 {{- define "kafka.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}

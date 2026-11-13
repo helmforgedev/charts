@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: PVC retention policies
+templates:
+  - templates/statefulset-single.yaml
+  - templates/statefulset-cluster.yaml
+  - templates/secret.yaml
+  - templates/configmap-scripts.yaml
+  - templates/configmap-metrics.yaml
+tests:
+  - it: omits single-broker PVC retention by default
+    template: templates/statefulset-single.yaml
+    asserts:
+      - notExists:
+          path: spec.persistentVolumeClaimRetentionPolicy
+
+  - it: configures single-broker PVC retention
+    template: templates/statefulset-single.yaml
+    set:
+      singleBroker.persistence.retentionPolicy.whenDeleted: Retain
+      singleBroker.persistence.retentionPolicy.whenScaled: Delete
+    asserts:
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenDeleted
+          value: Retain
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenScaled
+          value: Delete
+
+  - it: configures controller PVC retention
+    template: templates/statefulset-cluster.yaml
+    set:
+      architecture: cluster
+      cluster.controllers.persistence.retentionPolicy.whenDeleted: Retain
+      cluster.controllers.persistence.retentionPolicy.whenScaled: Delete
+    documentSelector:
+      path: metadata.name
+      value: RELEASE-NAME-kafka-controller
+    asserts:
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenDeleted
+          value: Retain
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenScaled
+          value: Delete
+
+  - it: configures broker PVC retention
+    template: templates/statefulset-cluster.yaml
+    set:
+      architecture: cluster
+      cluster.brokers.persistence.retentionPolicy.whenDeleted: Delete
+      cluster.brokers.persistence.retentionPolicy.whenScaled: Retain
+    documentSelector:
+      path: metadata.name
+      value: RELEASE-NAME-kafka-broker
+    asserts:
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenDeleted
+          value: Delete
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenScaled
+          value: Retain
