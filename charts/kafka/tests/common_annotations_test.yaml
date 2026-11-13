@@ -1,0 +1,73 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: common annotations
+templates:
+  - templates/statefulset-single.yaml
+  - templates/service-client.yaml
+  - templates/serviceaccount.yaml
+  - templates/configmap-scripts.yaml
+  - templates/secret.yaml
+tests:
+  - it: applies common annotations to StatefulSet metadata without changing pod metadata
+    template: templates/statefulset-single.yaml
+    set:
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+      - isNull:
+          path: spec.template.metadata.annotations["example.com/team"]
+
+  - it: lets client Service annotations override common annotations
+    template: templates/service-client.yaml
+    set:
+      commonAnnotations:
+        example.com/team: platform
+        example.com/owner: shared
+      service.annotations:
+        example.com/owner: kafka
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: kafka
+
+  - it: lets ServiceAccount annotations override common annotations
+    template: templates/serviceaccount.yaml
+    set:
+      serviceAccount.create: true
+      commonAnnotations:
+        example.com/team: platform
+        example.com/owner: shared
+      serviceAccount.annotations:
+        example.com/owner: kafka
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: kafka
+
+  - it: applies common annotations to chart-owned configuration and secrets
+    template: templates/configmap-scripts.yaml
+    set:
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform
+
+  - it: applies common annotations to the generated KRaft Secret
+    template: templates/secret.yaml
+    set:
+      commonAnnotations:
+        example.com/team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/team"]
+          value: platform

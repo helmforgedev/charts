@@ -4,6 +4,10 @@ templates:
   - templates/configmap-metrics.yaml
   - templates/service-metrics.yaml
   - templates/servicemonitor.yaml
+  - templates/statefulset-single.yaml
+  - templates/statefulset-cluster.yaml
+  - templates/configmap-scripts.yaml
+  - templates/secret.yaml
 tests:
   - it: renders the metrics configmap when enabled
     set:
@@ -21,3 +25,41 @@ tests:
     asserts:
       - hasDocuments:
           count: 2
+
+  - it: hardens the single-broker metrics init container
+    set:
+      metrics.enabled: true
+    template: templates/statefulset-single.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: copy-jmx-agent
+      - equal:
+          path: spec.template.spec.initContainers[1].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.initContainers[1].securityContext.capabilities.drop
+          value: [ALL]
+
+  - it: hardens controller and broker metrics init containers
+    set:
+      architecture: cluster
+      metrics.enabled: true
+    template: templates/statefulset-cluster.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[1].securityContext.allowPrivilegeEscalation
+          value: false
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.initContainers[1].securityContext.capabilities.drop
+          value: [ALL]
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.initContainers[1].securityContext.allowPrivilegeEscalation
+          value: false
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.initContainers[1].securityContext.capabilities.drop
+          value: [ALL]
+        documentIndex: 1

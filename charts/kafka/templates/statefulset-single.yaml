@@ -6,9 +6,16 @@ metadata:
   name: {{ include "kafka.singleStatefulSetName" . }}
   labels:
     {{- include "kafka.labels" . | nindent 4 }}
+  {{- with .Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   serviceName: {{ include "kafka.singleHeadlessServiceName" . }}
   replicas: 1
+  {{- if .Values.singleBroker.persistence.enabled }}
+  {{- include "kafka.pvcRetentionPolicy" .Values.singleBroker.persistence.retentionPolicy | nindent 2 }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "kafka.selectorLabels" . | nindent 6 }}
@@ -22,10 +29,10 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        checksum/kraft-secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
-        checksum/scripts: {{ include (print $.Template.BasePath "/configmap-scripts.yaml") . | sha256sum }}
+        checksum/kraft-secret: {{ (include (print $.Template.BasePath "/secret.yaml") . | fromYaml).stringData | toYaml | sha256sum }}
+        checksum/scripts: {{ (include (print $.Template.BasePath "/configmap-scripts.yaml") . | fromYaml).data | toYaml | sha256sum }}
         {{- if .Values.metrics.enabled }}
-        checksum/metrics-config: {{ include (print $.Template.BasePath "/configmap-metrics.yaml") . | sha256sum }}
+        checksum/metrics-config: {{ (include (print $.Template.BasePath "/configmap-metrics.yaml") . | fromYaml).data | toYaml | sha256sum }}
         {{- end }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
@@ -119,6 +126,8 @@ spec:
         - name: copy-jmx-agent
           image: "{{ .Values.metrics.image.repository }}:{{ .Values.metrics.image.tag }}"
           imagePullPolicy: {{ .Values.metrics.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
           command:
             - /bin/sh
             - -ec
