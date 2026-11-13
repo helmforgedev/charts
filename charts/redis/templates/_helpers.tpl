@@ -82,6 +82,22 @@ ServiceAccount name.
 {{- end -}}
 
 {{/*
+Render the StatefulSet PVC retention policy only when explicitly configured.
+Omission preserves the Kubernetes default of retaining PVCs.
+*/}}
+{{- define "redis.pvcRetentionPolicy" -}}
+{{- if or .whenDeleted .whenScaled }}
+persistentVolumeClaimRetentionPolicy:
+  {{- with .whenDeleted }}
+  whenDeleted: {{ . }}
+  {{- end }}
+  {{- with .whenScaled }}
+  whenScaled: {{ . }}
+  {{- end }}
+{{- end }}
+{{- end -}}
+
+{{/*
 Architecture checks.
 */}}
 {{- define "redis.isStandalone" -}}

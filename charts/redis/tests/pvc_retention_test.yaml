@@ -1,0 +1,104 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: PVC retention policies
+templates:
+  - standalone-statefulset.yaml
+  - replication-primary-statefulset.yaml
+  - replication-replica-statefulset.yaml
+  - sentinel-node-statefulset.yaml
+  - sentinel-statefulset.yaml
+  - cluster-statefulset.yaml
+  - configmap.yaml
+release:
+  name: test
+  namespace: redis-ns
+tests:
+  - it: should omit standalone PVC retention by default
+    template: standalone-statefulset.yaml
+    asserts:
+      - notExists:
+          path: spec.persistentVolumeClaimRetentionPolicy
+
+  - it: should configure standalone PVC retention
+    template: standalone-statefulset.yaml
+    set:
+      standalone.persistence.retentionPolicy.whenDeleted: Retain
+      standalone.persistence.retentionPolicy.whenScaled: Delete
+    asserts:
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenDeleted
+          value: Retain
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenScaled
+          value: Delete
+
+  - it: should configure replication primary PVC retention
+    template: replication-primary-statefulset.yaml
+    set:
+      architecture: replication
+      replication.primary.persistence.retentionPolicy.whenDeleted: Retain
+      replication.primary.persistence.retentionPolicy.whenScaled: Delete
+    asserts:
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenDeleted
+          value: Retain
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenScaled
+          value: Delete
+
+  - it: should configure replication replica PVC retention
+    template: replication-replica-statefulset.yaml
+    set:
+      architecture: replication
+      replication.replica.persistence.retentionPolicy.whenDeleted: Delete
+      replication.replica.persistence.retentionPolicy.whenScaled: Retain
+    asserts:
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenDeleted
+          value: Delete
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenScaled
+          value: Retain
+
+  - it: should configure Sentinel data node PVC retention
+    template: sentinel-node-statefulset.yaml
+    set:
+      architecture: sentinel
+      node.persistence.enabled: true
+      node.persistence.retentionPolicy.whenDeleted: Retain
+      node.persistence.retentionPolicy.whenScaled: Delete
+    asserts:
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenDeleted
+          value: Retain
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenScaled
+          value: Delete
+
+  - it: should configure Sentinel PVC retention
+    template: sentinel-statefulset.yaml
+    set:
+      architecture: sentinel
+      sentinel.persistence.enabled: true
+      sentinel.persistence.retentionPolicy.whenDeleted: Delete
+      sentinel.persistence.retentionPolicy.whenScaled: Retain
+    asserts:
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenDeleted
+          value: Delete
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenScaled
+          value: Retain
+
+  - it: should configure cluster PVC retention
+    template: cluster-statefulset.yaml
+    set:
+      architecture: cluster
+      cluster.persistence.retentionPolicy.whenDeleted: Retain
+      cluster.persistence.retentionPolicy.whenScaled: Delete
+    asserts:
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenDeleted
+          value: Retain
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenScaled
+          value: Delete
