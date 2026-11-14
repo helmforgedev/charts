@@ -49,6 +49,7 @@ capability dropped, the listener must remain at or above 1024.
 | --------------------------------------------- | -------- | ------- |
 | `containerPorts.http`                         | `3333`   | Ghostfolio process listener |
 | `service.port`                                | `3333`   | Kubernetes Service-facing port |
+| `commonAnnotations`                           | `{}`      | Chart-wide annotations; resource-specific annotations take precedence |
 | `ghostfolio.rootUrl`                          | derived  | Canonical public origin and OIDC callback base |
 | `ghostfolio.trustProxy`                       | `""`     | Exact Express trusted-proxy policy |
 | `ghostfolio.existingSecret`                   | `""`     | Stable access-token salt and JWT secret |

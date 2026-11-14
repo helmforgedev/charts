@@ -16,6 +16,17 @@
 {{- end -}}
 {{- end -}}
 
+{{/* Merge chart-wide annotations with resource-specific annotations taking precedence. */}}
+{{- define "ghostfolio.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "ghostfolio.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
