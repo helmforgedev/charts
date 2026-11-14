@@ -56,3 +56,25 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: service.dns.extraPorts names must be unique and cannot use the reserved names dns-tcp or dns-udp.
+
+  - it: should require a region for workload identity
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: backups
+      backup.s3.credentialsFromPodIdentity: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "adguard-home: backup.s3.region is required when backup.s3.credentialsFromPodIdentity is true"
+
+  - it: should require a dedicated service account name when creation is disabled
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: backups
+      backup.s3.region: us-east-1
+      backup.s3.credentialsFromPodIdentity: true
+      backup.serviceAccount.create: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "adguard-home: backup.serviceAccount.name is required when workload identity is enabled and backup.serviceAccount.create is false"

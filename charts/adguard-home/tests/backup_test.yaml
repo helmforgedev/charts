@@ -3,6 +3,8 @@ suite: Backup
 templates:
   - templates/backup-cronjob.yaml
   - templates/backup-configmap.yaml
+  - templates/backup-serviceaccount.yaml
+  - templates/secret.yaml
 release:
   name: test
   namespace: default
@@ -49,3 +51,66 @@ tests:
           path: data["backup.sh"]
       - isNotNull:
           path: data["upload-backup.sh"]
+
+  - it: should use workload identity without static credentials
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: backups
+      backup.s3.region: us-east-1
+      backup.s3.credentialsFromPodIdentity: true
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.serviceAccountName
+          value: test-adguard-home-backup
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.automountServiceAccountToken
+          value: false
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: AWS_REGION
+            value: us-east-1
+      - notContains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: S3_ACCESS_KEY
+          any: true
+
+  - it: should render a dedicated annotated backup service account
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: backups
+      backup.s3.region: us-east-1
+      backup.s3.credentialsFromPodIdentity: true
+      backup.serviceAccount.annotations:
+        eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/adguard-home-backup
+    template: templates/backup-serviceaccount.yaml
+    asserts:
+      - isKind:
+          of: ServiceAccount
+      - equal:
+          path: metadata.name
+          value: test-adguard-home-backup
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+      - equal:
+          path: metadata.annotations["eks.amazonaws.com/role-arn"]
+          value: arn:aws:iam::123456789012:role/adguard-home-backup
+
+  - it: should omit the static backup secret for workload identity
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: backups
+      backup.s3.region: us-east-1
+      backup.s3.credentialsFromPodIdentity: true
+    template: templates/secret.yaml
+    asserts:
+      - hasDocuments:
+          count: 0

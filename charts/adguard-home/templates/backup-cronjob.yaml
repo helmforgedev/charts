@@ -6,6 +6,7 @@ metadata:
   name: {{ include "adguard-home.fullname" . }}-backup
   labels:
     {{- include "adguard-home.labels" . | nindent 4 }}
+  {{- include "adguard-home.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   schedule: {{ .Values.backup.schedule | quote }}
   suspend: {{ .Values.backup.suspend }}
@@ -21,13 +22,22 @@ spec:
             {{- include "adguard-home.selectorLabels" . | nindent 12 }}
             app.kubernetes.io/component: backup
         spec:
-          automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+          serviceAccountName: {{ include "adguard-home.backupServiceAccountName" . }}
+          automountServiceAccountToken: {{ .Values.backup.serviceAccount.automountServiceAccountToken }}
+          {{- with .Values.podSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           restartPolicy: OnFailure
           initContainers:
             - name: archive
               image: "{{ .Values.backup.images.archiver.repository }}:{{ .Values.backup.images.archiver.tag }}"
               imagePullPolicy: {{ .Values.backup.images.archiver.pullPolicy }}
               command: ["/bin/sh", "/scripts/backup.sh"]
+              {{- with .Values.securityContext }}
+              securityContext:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
               {{- with .Values.backup.resources }}
               resources:
                 {{- toYaml . | nindent 16 }}
@@ -55,6 +65,16 @@ spec:
                   value: {{ .Values.backup.s3.bucket | quote }}
                 - name: S3_PREFIX
                   value: {{ .Values.backup.s3.prefix | quote }}
+                - name: S3_CREATE_BUCKET_IF_NOT_EXISTS
+                  value: {{ ternary "true" "false" .Values.backup.s3.createBucketIfNotExists | quote }}
+                - name: S3_CREDENTIALS_FROM_POD_IDENTITY
+                  value: {{ ternary "true" "false" .Values.backup.s3.credentialsFromPodIdentity | quote }}
+                {{- if .Values.backup.s3.credentialsFromPodIdentity }}
+                - name: AWS_REGION
+                  value: {{ .Values.backup.s3.region | quote }}
+                - name: AWS_DEFAULT_REGION
+                  value: {{ .Values.backup.s3.region | quote }}
+                {{- else }}
                 - name: S3_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
@@ -65,6 +85,11 @@ spec:
                     secretKeyRef:
                       name: {{ include "adguard-home.backupSecretName" . }}
                       key: {{ .Values.backup.s3.existingSecretSecretKeyKey | default "secret-key" }}
+                {{- end }}
+              {{- with .Values.securityContext }}
+              securityContext:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
               {{- with .Values.backup.resources }}
               resources:
                 {{- toYaml . | nindent 16 }}
