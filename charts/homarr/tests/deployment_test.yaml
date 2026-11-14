@@ -3,6 +3,24 @@ suite: deployment
 templates:
   - templates/deployment.yaml
 tests:
+  - it: should use the minimal capabilities required by the pinned image
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.add
+          content: CHOWN
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.add
+          content: DAC_OVERRIDE
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.add
+          content: SETGID
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.add
+          content: SETUID
+
   - it: should render a Deployment
     asserts:
       - isKind:
@@ -63,6 +81,12 @@ tests:
       - equal:
           path: spec.template.spec.initContainers[0].name
           value: wait-for-db
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - contains:
+          path: spec.template.spec.initContainers[0].securityContext.capabilities.drop
+          content: ALL
 
   - it: should set DB_DRIVER to better-sqlite3 by default
     asserts:

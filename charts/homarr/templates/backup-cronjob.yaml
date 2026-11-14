@@ -6,6 +6,7 @@ metadata:
   name: {{ include "homarr.fullname" . }}-backup
   labels:
     {{- include "homarr.labels" . | nindent 4 }}
+  {{- include "homarr.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   schedule: {{ .Values.backup.schedule | quote }}
   suspend: {{ .Values.backup.suspend }}
@@ -22,7 +23,13 @@ spec:
             app.kubernetes.io/component: backup
         spec:
           restartPolicy: Never
+          {{- if .Values.backup.s3.credentialsFromPodIdentity }}
+          serviceAccountName: {{ include "homarr.backupServiceAccountName" . }}
+          automountServiceAccountToken: {{ .Values.backup.serviceAccount.automountServiceAccountToken }}
+          {{- else }}
+          serviceAccountName: {{ include "homarr.serviceAccountName" . }}
           automountServiceAccountToken: false
+          {{- end }}
           {{- with .Values.imagePullSecrets }}
           imagePullSecrets:
             {{- toYaml . | nindent 12 }}
@@ -31,6 +38,8 @@ spec:
             {{- if eq (include "homarr.databaseMode" .) "sqlite" }}
             - name: sqlite-backup
               image: {{ .Values.backup.images.sqlite | quote }}
+              securityContext:
+                {{- toYaml .Values.backup.securityContext | nindent 16 }}
               command: ["/bin/sh", "/scripts/sqlite-backup.sh"]
               env:
                 - name: BACKUP_ARCHIVE_PREFIX
@@ -50,6 +59,8 @@ spec:
             {{- else if eq (include "homarr.databaseVendor" .) "postgres" }}
             - name: postgres-backup
               image: {{ .Values.backup.images.postgresql | quote }}
+              securityContext:
+                {{- toYaml .Values.backup.securityContext | nindent 16 }}
               command: ["/bin/sh", "/scripts/postgres-backup.sh"]
               env:
                 - name: BACKUP_ARCHIVE_PREFIX
@@ -82,8 +93,12 @@ spec:
           containers:
             - name: upload
               image: {{ .Values.backup.images.uploader | quote }}
+              securityContext:
+                {{- toYaml .Values.backup.securityContext | nindent 16 }}
               command: ["/bin/sh", "/scripts/upload-backup.sh"]
               env:
+                - name: MC_CONFIG_DIR
+                  value: /mc-config
                 - name: S3_ENDPOINT
                   value: {{ .Values.backup.s3.endpoint | quote }}
                 - name: S3_BUCKET
@@ -92,6 +107,12 @@ spec:
                   value: {{ .Values.backup.s3.prefix | quote }}
                 - name: S3_CREATE_BUCKET_IF_NOT_EXISTS
                   value: {{ ternary "true" "false" .Values.backup.s3.createBucketIfNotExists | quote }}
+                {{- if .Values.backup.s3.credentialsFromPodIdentity }}
+                - name: AWS_REGION
+                  value: {{ .Values.backup.s3.region | quote }}
+                - name: AWS_DEFAULT_REGION
+                  value: {{ .Values.backup.s3.region | quote }}
+                {{- else }}
                 - name: S3_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
@@ -102,6 +123,7 @@ spec:
                     secretKeyRef:
                       name: {{ include "homarr.backupSecretName" . }}
                       key: {{ .Values.backup.s3.existingSecretSecretKeyKey }}
+                {{- end }}
               {{- with .Values.backup.resources }}
               resources:
                 {{- toYaml . | nindent 16 }}
@@ -111,11 +133,15 @@ spec:
                   mountPath: /scripts
                 - name: backup-workdir
                   mountPath: /backup/out
+                - name: mc-config
+                  mountPath: /mc-config
           volumes:
             - name: scripts
               configMap:
                 name: {{ include "homarr.fullname" . }}-backup-scripts
             - name: backup-workdir
+              emptyDir: {}
+            - name: mc-config
               emptyDir: {}
             {{- if eq (include "homarr.databaseMode" .) "sqlite" }}
             - name: data

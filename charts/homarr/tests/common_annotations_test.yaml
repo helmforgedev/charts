@@ -1,0 +1,74 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: common annotations
+templates:
+  - templates/deployment.yaml
+  - templates/service.yaml
+  - templates/httproute.yaml
+  - templates/extra-manifests.yaml
+tests:
+  - it: applies common annotations to workloads and services
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+        template: templates/deployment.yaml
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+        template: templates/service.yaml
+
+  - it: lets service annotations override common annotations
+    template: templates/service.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+        example.com/environment: production
+      service.annotations:
+        example.com/owner: networking
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: networking
+      - equal:
+          path: metadata.annotations["example.com/environment"]
+          value: production
+
+  - it: merges common annotations into HTTPRoute with route precedence
+    template: templates/httproute.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+      gateway:
+        enabled: true
+        annotations:
+          example.com/owner: networking
+        parentRefs:
+          - name: shared-gateway
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: networking
+
+  - it: applies common annotations to extra manifests with manifest precedence
+    template: templates/extra-manifests.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+        example.com/environment: production
+      extraManifests:
+        - apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: custom
+            annotations:
+              example.com/owner: application
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: application
+      - equal:
+          path: metadata.annotations["example.com/environment"]
+          value: production

@@ -3,6 +3,8 @@ suite: backup-cronjob
 templates:
   - templates/backup-cronjob.yaml
   - templates/backup-configmap.yaml
+  - templates/backup-serviceaccount.yaml
+  - templates/secret.yaml
 tests:
   - it: should not render when backup is disabled
     template: templates/backup-cronjob.yaml
@@ -29,6 +31,15 @@ tests:
       - equal:
           path: spec.jobTemplate.spec.template.spec.automountServiceAccountToken
           value: false
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].securityContext.capabilities.drop
+          content: ALL
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
 
   - it: should use sqlite backup for default
     template: templates/backup-cronjob.yaml
@@ -65,3 +76,80 @@ tests:
       - equal:
           path: spec.jobTemplate.spec.template.spec.initContainers[0].name
           value: postgres-backup
+
+  - it: should use ambient AWS credentials without static Secret references
+    template: templates/backup-cronjob.yaml
+    set:
+      backup:
+        enabled: true
+        s3:
+          endpoint: https://s3.amazonaws.com
+          bucket: homarr
+          region: us-east-1
+          credentialsFromPodIdentity: true
+          accessKey: retained-access-key
+          secretKey: retained-secret-key
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.serviceAccountName
+          value: RELEASE-NAME-homarr-backup
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.automountServiceAccountToken
+          value: true
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: AWS_REGION
+            value: us-east-1
+      - notContains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: S3_ACCESS_KEY
+          any: true
+
+  - it: should create a dedicated annotated backup ServiceAccount
+    template: templates/backup-serviceaccount.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+      backup:
+        enabled: true
+        serviceAccount:
+          annotations:
+            eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/homarr-backup
+        s3:
+          endpoint: https://s3.amazonaws.com
+          bucket: homarr
+          region: us-east-1
+          credentialsFromPodIdentity: true
+    asserts:
+      - isKind:
+          of: ServiceAccount
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-homarr-backup
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+      - equal:
+          path: metadata.annotations["eks.amazonaws.com/role-arn"]
+          value: arn:aws:iam::123456789012:role/homarr-backup
+
+  - it: should not create static backup credentials for workload identity
+    template: templates/secret.yaml
+    set:
+      backup:
+        enabled: true
+        s3:
+          endpoint: https://s3.amazonaws.com
+          bucket: homarr
+          region: us-east-1
+          credentialsFromPodIdentity: true
+          accessKey: retained-access-key
+          secretKey: retained-secret-key
+    asserts:
+      - hasDocuments:
+          count: 1
+      - notEqual:
+          path: metadata.name
+          value: RELEASE-NAME-homarr-backup-s3

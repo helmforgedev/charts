@@ -15,6 +15,9 @@ image:
 # -- Image pull secrets
 imagePullSecrets: []
 
+# -- Annotations applied to all chart-owned Kubernetes resources
+commonAnnotations: {}
+
 # -- Override the release name
 nameOverride: ""
 
@@ -246,6 +249,14 @@ podSecurityContext:
 
 securityContext:
   allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+    add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETGID
+      - SETUID
   readOnlyRootFilesystem: false
 
 # =============================================================================
@@ -421,6 +432,26 @@ backup:
   # -- Resources for backup containers
   resources: {}
 
+  # -- Security context shared by backup init containers and uploader
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+
+  serviceAccount:
+    # -- Create a dedicated ServiceAccount for workload identity backups
+    create: true
+
+    # -- Name of the backup ServiceAccount; generated when empty
+    name: ""
+
+    # -- Annotations for workload identity, such as an AWS IAM role ARN
+    annotations: {}
+
+    # -- Mount the projected ServiceAccount token required by workload identity
+    automountServiceAccountToken: true
+
   s3:
     # -- S3-compatible endpoint URL
     endpoint: ""
@@ -430,6 +461,12 @@ backup:
 
     # -- Key prefix within the bucket
     prefix: homarr
+
+    # -- AWS region used by ambient workload identity credentials
+    region: ""
+
+    # -- Use ambient workload identity instead of static S3 credentials
+    credentialsFromPodIdentity: false
 
     # -- Auto-create the bucket if it does not exist
     createBucketIfNotExists: true

@@ -34,12 +34,27 @@ app.kubernetes.io/name: {{ include "homarr.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
+{{/* Merge chart-wide annotations with resource-specific annotations taking precedence. */}}
+{{- define "homarr.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "homarr.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
 {{- default (include "homarr.fullname" .) .Values.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
+{{- end }}
+
+{{- define "homarr.backupServiceAccountName" -}}
+{{- default (printf "%s-backup" (include "homarr.fullname" .)) .Values.backup.serviceAccount.name -}}
 {{- end }}
 
 {{- define "homarr.image" -}}
@@ -51,6 +66,26 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $databaseMode := include "homarr.databaseMode" . -}}
 {{- if and .Values.homarr.enableKubernetes (not .Values.serviceAccount.automountServiceAccountToken) -}}
 {{- fail "homarr.enableKubernetes=true requires serviceAccount.automountServiceAccountToken=true and scoped RBAC" -}}
+{{- end -}}
+{{- if .Values.backup.enabled -}}
+  {{- if not .Values.backup.s3.endpoint -}}
+    {{- fail "backup.s3.endpoint is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if not .Values.backup.s3.bucket -}}
+    {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if and .Values.backup.s3.credentialsFromPodIdentity (not .Values.backup.s3.region) -}}
+    {{- fail "backup.s3.region is required when backup.s3.credentialsFromPodIdentity is true" -}}
+  {{- end -}}
+  {{- if and .Values.backup.s3.credentialsFromPodIdentity (not .Values.backup.serviceAccount.create) (not .Values.backup.serviceAccount.name) -}}
+    {{- fail "backup.serviceAccount.name is required when workload identity is enabled and backup.serviceAccount.create is false" -}}
+  {{- end -}}
+  {{- if and (not .Values.backup.s3.credentialsFromPodIdentity) (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.accessKey) -}}
+    {{- fail "backup.s3.accessKey or backup.s3.existingSecret is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if and (not .Values.backup.s3.credentialsFromPodIdentity) (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.secretKey) -}}
+    {{- fail "backup.s3.secretKey or backup.s3.existingSecret is required when backup.enabled is true" -}}
+  {{- end -}}
 {{- end -}}
 {{- end }}
 
