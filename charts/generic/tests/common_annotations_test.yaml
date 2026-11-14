@@ -1,0 +1,58 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Common annotations
+templates:
+  - deployment.yaml
+  - service.yaml
+  - secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: applies common annotations to workload metadata only
+    template: deployment.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+      - notExists:
+          path: spec.template.metadata.annotations["example.com/owner"]
+
+  - it: gives Service annotations precedence over common annotations
+    template: service.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+        example.com/shared: common
+      service:
+        annotations:
+          example.com/owner: service
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: service
+      - equal:
+          path: metadata.annotations["example.com/shared"]
+          value: common
+
+  - it: gives named Secret annotations precedence over common annotations
+    template: secret.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+        example.com/shared: common
+      secrets:
+        - name: credentials
+          annotations:
+            example.com/owner: secret
+          stringData:
+            username: helmforge
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: secret
+      - equal:
+          path: metadata.annotations["example.com/shared"]
+          value: common

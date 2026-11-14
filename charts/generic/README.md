@@ -158,6 +158,11 @@ cronjobs:
 ```yaml
 containers:
   - name: api
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ALL]
+        add: [CHOWN, DAC_OVERRIDE, NET_BIND_SERVICE, SETGID, SETUID]
     ports:
       - containerPort: 3000
   - name: sidecar
@@ -264,7 +269,11 @@ The chart now includes opt-in primitives for common platform needs:
   ServiceMonitor, PodMonitor, PrometheusRule, KEDA, VPA, and Gateway API resources require their CRDs to exist before
   enabling them.
 - `rbac.create` and `networkPolicy.enabled` for least-privilege identity and traffic policy.
-- `securityPreset: baseline` or `restricted` for opt-in security contexts when explicit contexts are not set.
+- Chart-level container defaults disable privilege escalation and drop all capabilities. Any container whose effective
+  image repository is `nginx` or `docker.io/library/nginx` adds only `CHOWN`, `DAC_OVERRIDE`, `NET_BIND_SERVICE`, `SETGID`,
+  and `SETUID` for the official entrypoint and port 80. Set `capabilities.add: []` in a chart-level, preset, or
+  per-container security context to remove those additions. Security fields merge in precedence order: NGINX
+  compatibility, chart-level `securityContext`, `securityPreset`, then per-container `securityContext`.
 - `services[]`, `service.headless`, `service.nameOverride`, per-port `appProtocol`, and custom Ingress backends for richer
   networking. When `service.enabled=false`, Ingress paths must set `backend` and HTTPRoute rules must set `backendRefs`.
 - `podMonitor`, `prometheusRule`, advanced HPA metrics, and optional KEDA ScaledObject/ScaledJob support. KEDA
@@ -369,11 +378,13 @@ See the [examples/](examples/) directory for complete, ready-to-use values files
 | `nameOverride` | Override release name | `""` |
 | `fullnameOverride` | Override fully qualified name | `""` |
 | `commonLabels` | Labels added to all resources | `{}` |
+| `commonAnnotations` | Annotations added to chart-owned resources; resource-specific values take precedence | `{}` |
 | **Workload** | | |
 | `workload.enabled` | Enable long-running workload | `true` |
 | `workload.type` | `Deployment` / `StatefulSet` / `DaemonSet` | `Deployment` |
 | `workload.podManagementPolicy` | StatefulSet pod management | — |
 | `workload.volumeClaimTemplates` | StatefulSet PVC templates | `[]` |
+| `workload.persistentVolumeClaimRetentionPolicy` | StatefulSet PVC retention on deletion or scale-down; empty preserves Kubernetes Retain defaults | `{}` |
 | `workload.updateStrategy` | StatefulSet/DaemonSet update strategy | — |
 | `minReadySeconds` | Ready duration for long-running Pods; Deployments get a greater progress deadline at 600 or more; unused by Jobs/CronJobs | `0` |
 | **Image** | | |
@@ -401,7 +412,7 @@ See the [examples/](examples/) directory for complete, ready-to-use values files
 | `startupProbe` | Global startup probe (first container) | `{}` |
 | **Security** | | |
 | `podSecurityContext` | Pod-level security context | `{}` |
-| `securityContext` | Container-level security context | `{}` |
+| `securityContext` | Container-level security context | privilege escalation disabled; all capabilities dropped |
 | `securityPreset` | Optional `baseline` or `restricted` preset when explicit contexts are absent | `""` |
 | **Networking** | | |
 | `service.enabled` | Create the default Service for long-running workloads | `true` |

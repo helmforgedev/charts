@@ -8,8 +8,7 @@ metadata:
   name: {{ include "chart.name" $ }}-{{ .name }}
   labels:
     {{- include "chart.labels" $ | nindent 4 }}
-  annotations:
-    helm.sh/resource-policy: keep
+  {{- include "chart.renderAnnotations" (dict "root" $ "specific" .annotations "required" (dict "helm.sh/resource-policy" "keep")) | nindent 2 }}
 spec:
   capacity:
     storage: {{ .capacity }}
@@ -40,6 +39,8 @@ spec:
 {{- end }}
 {{- range .Values.persistence.persistentVolumes | default list }}
 {{- if .create }}
+{{- $requiredAnnotations := dict }}
+{{- if .keep }}{{- $_ := set $requiredAnnotations "helm.sh/resource-policy" "keep" }}{{- end }}
 ---
 apiVersion: v1
 kind: PersistentVolume
@@ -50,15 +51,7 @@ metadata:
     {{- with .labels }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
-  {{- if or .annotations .keep }}
-  annotations:
-    {{- if .keep }}
-    helm.sh/resource-policy: keep
-    {{- end }}
-    {{- with .annotations }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
-  {{- end }}
+  {{- include "chart.renderAnnotations" (dict "root" $ "specific" .annotations "required" $requiredAnnotations) | nindent 2 }}
 spec:
   capacity:
     storage: {{ .storage }}
