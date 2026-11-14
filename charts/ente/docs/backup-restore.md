@@ -25,6 +25,28 @@ backup:
     existingSecret: ente-backup-s3
 ```
 
+On Amazon S3, prefer ambient workload identity over long-lived access keys:
+
+```yaml
+backup:
+  enabled: true
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/ente-backup
+  s3:
+    endpoint: https://s3.us-east-1.amazonaws.com
+    bucket: backups
+    prefix: ente/postgresql
+    region: us-east-1
+    credentialsFromPodIdentity: true
+```
+
+The dedicated backup ServiceAccount supports IRSA annotations and EKS Pod
+Identity associations. When `credentialsFromPodIdentity` is true, the chart
+does not create or reference a backup credential Secret. If the ServiceAccount
+is managed elsewhere, set `backup.serviceAccount.create: false` and provide its
+name.
+
 ## Object backup
 
 Use provider-native replication or backup tooling for the live Ente bucket.

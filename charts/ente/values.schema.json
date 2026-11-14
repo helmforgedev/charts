@@ -3,7 +3,7 @@
   "title": "Ente Helm chart values",
   "type": "object",
   "additionalProperties": false,
-  "required": ["productionMode", "museum", "database", "postgresql", "storage", "smtp", "externalSecrets", "web", "ingress", "gateway", "networkPolicy", "pdb", "autoscaling", "metrics", "backup", "test", "serviceAccount"],
+  "required": ["commonAnnotations", "productionMode", "museum", "database", "postgresql", "storage", "smtp", "externalSecrets", "web", "ingress", "gateway", "networkPolicy", "pdb", "autoscaling", "metrics", "backup", "test", "serviceAccount"],
   "definitions": {
     "stringMap": {"type": "object", "additionalProperties": {"type": "string"}},
     "image": {
@@ -63,6 +63,7 @@
     }
   },
   "properties": {
+    "commonAnnotations": {"type": "object", "additionalProperties": {"type": "string"}},
     "global": {
       "type": "object",
       "description": "Global settings shared by the chart.",
@@ -459,18 +460,27 @@
     },
     "backup": {
       "type": "object", "additionalProperties": false,
-      "required": ["enabled", "schedule", "suspend", "concurrencyPolicy", "successfulJobsHistoryLimit", "failedJobsHistoryLimit", "backoffLimit", "postgresqlImage", "uploaderImage", "pgDumpArgs", "resources", "s3"],
+      "required": ["enabled", "schedule", "suspend", "concurrencyPolicy", "successfulJobsHistoryLimit", "failedJobsHistoryLimit", "backoffLimit", "postgresqlImage", "uploaderImage", "pgDumpArgs", "resources", "serviceAccount", "s3"],
       "properties": {
         "enabled": {"type": "boolean"}, "schedule": {"type": "string", "minLength": 1}, "suspend": {"type": "boolean"},
         "concurrencyPolicy": {"type": "string", "enum": ["Allow", "Forbid", "Replace"]},
         "successfulJobsHistoryLimit": {"type": "integer", "minimum": 0}, "failedJobsHistoryLimit": {"type": "integer", "minimum": 0},
         "backoffLimit": {"type": "integer", "minimum": 0}, "postgresqlImage": {"type": "string", "minLength": 1},
         "uploaderImage": {"type": "string", "minLength": 1}, "pgDumpArgs": {"type": "string"}, "resources": {"$ref": "#/definitions/resources"},
+        "serviceAccount": {
+          "type": "object", "additionalProperties": false,
+          "required": ["create", "name", "annotations", "automountServiceAccountToken"],
+          "properties": {
+            "create": {"type": "boolean"}, "name": {"type": "string"},
+            "annotations": {"$ref": "#/definitions/stringMap"}, "automountServiceAccountToken": {"type": "boolean"}
+          }
+        },
         "s3": {
           "type": "object", "additionalProperties": false,
-          "required": ["endpoint", "bucket", "prefix", "existingSecret", "existingSecretAccessKeyKey", "existingSecretSecretKeyKey", "accessKey", "secretKey"],
+          "required": ["endpoint", "bucket", "prefix", "region", "credentialsFromPodIdentity", "existingSecret", "existingSecretAccessKeyKey", "existingSecretSecretKeyKey", "accessKey", "secretKey"],
           "properties": {
-            "endpoint": {"type": "string"}, "bucket": {"type": "string"}, "prefix": {"type": "string"}, "existingSecret": {"type": "string"},
+            "endpoint": {"type": "string"}, "bucket": {"type": "string"}, "prefix": {"type": "string"},
+            "region": {"type": "string"}, "credentialsFromPodIdentity": {"type": "boolean"}, "existingSecret": {"type": "string"},
             "existingSecretAccessKeyKey": {"type": "string", "minLength": 1}, "existingSecretSecretKeyKey": {"type": "string", "minLength": 1},
             "accessKey": {"type": "string"}, "secretKey": {"type": "string"}
           }
