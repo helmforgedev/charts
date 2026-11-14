@@ -147,6 +147,7 @@ At least one bundle must remain enabled.
 | --- | --- | --- |
 | `safeUpgradePolicy.management` | `managed`, `external`, or `disabled` | `managed` |
 | `commonLabels` | Additional policy and binding labels | `{}` |
+| `commonAnnotations` | Additional policy and binding annotations; lifecycle annotations take precedence | `{}` |
 
 `managed` requires the Gateway API bundle to be enabled. Use `external` when a
 provider or platform release owns the policy. Use `disabled` only for CRD-only

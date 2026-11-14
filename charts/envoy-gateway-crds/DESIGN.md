@@ -76,6 +76,11 @@ the policy and binding. `external` declares a different owner. `disabled` is
 reserved for bootstrap, CRD-only rendering, and migration. The chart never
 silently suppresses ownership conflicts.
 
+The chart applies `commonAnnotations` only to the Helm-tracked policy and
+binding. Static CRDs under dependency `crds/` directories remain untemplated by
+design. Required lifecycle annotations, including `helm.sh/resource-policy`,
+take precedence over user-provided common annotations.
+
 ### Forward-only CRD lifecycle
 
 CRD downgrade is unsupported. A Helm rollback changes release metadata and

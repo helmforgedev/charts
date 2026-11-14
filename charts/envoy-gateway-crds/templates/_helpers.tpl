@@ -18,6 +18,17 @@ app.kubernetes.io/part-of: envoy-gateway
 {{- end }}
 {{- end -}}
 
+{{/* Render common annotations with lifecycle annotations taking precedence. */}}
+{{- define "envoy-gateway-crds.policyAnnotations" -}}
+{{- $common := deepCopy (.Values.commonAnnotations | default dict) -}}
+{{- $specific := dict
+  "gateway.networking.k8s.io/bundle-version" "v1.6.1"
+  "gateway.networking.k8s.io/channel" "standard"
+  "helm.sh/resource-policy" "keep"
+-}}
+{{- toYaml (mergeOverwrite $common $specific) -}}
+{{- end -}}
+
 {{/* Fail-fast lifecycle validation. */}}
 {{- define "envoy-gateway-crds.validate" -}}
 {{- if and (not .Values.crds.gatewayAPI.enabled) (not .Values.crds.envoyGateway.enabled) -}}
