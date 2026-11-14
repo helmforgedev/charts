@@ -98,3 +98,51 @@ tests:
       - equal:
           path: spec.template.spec.restartPolicy
           value: Never
+
+  - it: applies common annotations to the generated TLS Secret
+    set:
+      security.enabled: true
+      security.tls.selfSignedInit.enabled: true
+      commonAnnotations:
+        owner: platform
+    documentIndex: 3
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'kubectl annotate secret'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'b3duZXI9cGxhdGZvcm0=' # owner=platform
+
+  - it: safely transports shell metacharacters and annotates an existing Secret
+    set:
+      security.enabled: true
+      security.tls.selfSignedInit.enabled: true
+      commonAnnotations:
+        example.com/value: '$VAR $(touch /tmp/pwn) `id`'
+    documentIndex: 3
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'base64 -d'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'if kubectl get secret[\s\S]*annotate_secret[\s\S]*skipping generation'
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'touch /tmp/pwn'
+
+  - it: preserves a trailing newline in an annotation value
+    set:
+      security.enabled: true
+      security.tls.selfSignedInit.enabled: true
+      commonAnnotations:
+        example.com/value: "platform\n"
+    documentIndex: 3
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'ZXhhbXBsZS5jb20vdmFsdWU9cGxhdGZvcm0K' # example.com/value=platform plus newline
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'annotation_arg="\$\{annotation_arg%\.\}"'

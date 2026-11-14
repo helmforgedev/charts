@@ -257,6 +257,13 @@ dataTiers:
 | `backup.s3.existingSecret` | Secret with access-key / secret-key | `""` |
 | `backup.s3.existingSecretAccessKeyKey` | Access-key field in the existing or generated Secret | `access-key` |
 | `backup.s3.existingSecretSecretKeyKey` | Secret-key field in the existing or generated Secret | `secret-key` |
+| `backup.s3.credentialsFromPodIdentity` | Use the Elasticsearch pod workload identity; bucket must exist | `false` |
+| `backup.serviceAccount.create` | Create the dedicated snapshot CronJob ServiceAccount | `true` |
+| `backup.serviceAccount.name` | Snapshot CronJob ServiceAccount name override | `""` |
+| `master.persistence.retentionPolicy.whenDeleted` | Master PVC retention after StatefulSet deletion | `""` |
+| `master.persistence.retentionPolicy.whenScaled` | Master PVC retention after scale-down | `""` |
+| `data.persistence.retentionPolicy.whenDeleted` | Data PVC retention after StatefulSet deletion | `""` |
+| `data.persistence.retentionPolicy.whenScaled` | Data PVC retention after scale-down | `""` |
 
 ### ILM Policies
 

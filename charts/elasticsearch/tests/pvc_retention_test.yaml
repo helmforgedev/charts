@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: elasticsearch - PVC retention
+templates:
+  - templates/statefulset-master.yaml
+  - templates/statefulset-data.yaml
+  - templates/statefulset-data-hot.yaml
+  - templates/statefulset-data-warm.yaml
+
+tests:
+  - it: omits master PVC retention by default
+    template: templates/statefulset-master.yaml
+    asserts:
+      - notExists:
+          path: spec.persistentVolumeClaimRetentionPolicy
+
+  - it: configures master PVC retention
+    template: templates/statefulset-master.yaml
+    set:
+      master.persistence.retentionPolicy.whenDeleted: Retain
+      master.persistence.retentionPolicy.whenScaled: Delete
+    asserts:
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenDeleted
+          value: Retain
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenScaled
+          value: Delete
+
+  - it: configures data PVC retention
+    template: templates/statefulset-data.yaml
+    set:
+      clusterProfile: staging
+      security.existingTlsSecret: test-tls
+      data.persistence.retentionPolicy.whenDeleted: Delete
+      data.persistence.retentionPolicy.whenScaled: Retain
+    asserts:
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenDeleted
+          value: Delete
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenScaled
+          value: Retain
+
+  - it: configures hot tier PVC retention
+    template: templates/statefulset-data-hot.yaml
+    set:
+      dataTiers.hot.enabled: true
+      clusterProfile: staging
+      security.existingTlsSecret: test-tls
+      dataTiers.hot.retentionPolicy.whenDeleted: Retain
+      dataTiers.hot.retentionPolicy.whenScaled: Delete
+    asserts:
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenDeleted
+          value: Retain
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenScaled
+          value: Delete
+
+  - it: configures warm tier PVC retention
+    template: templates/statefulset-data-warm.yaml
+    set:
+      dataTiers.warm.enabled: true
+      clusterProfile: staging
+      security.existingTlsSecret: test-tls
+      dataTiers.warm.retentionPolicy.whenDeleted: Delete
+      dataTiers.warm.retentionPolicy.whenScaled: Retain
+    asserts:
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenDeleted
+          value: Delete
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenScaled
+          value: Retain
+

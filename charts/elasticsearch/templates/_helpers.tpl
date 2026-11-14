@@ -37,6 +37,16 @@ app.kubernetes.io/part-of: helmforge
 {{- end }}
 {{- end -}}
 
+{{/* Merge common annotations with resource-specific annotations. Specific values win. */}}
+{{- define "elasticsearch.annotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .annotations | default dict -}}
+{{- $merged := mergeOverwrite $common $specific -}}
+{{- if $merged -}}
+{{- toYaml $merged -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "elasticsearch.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "elasticsearch.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
@@ -87,6 +97,26 @@ app.kubernetes.io/component-group: elasticsearch
 {{- else -}}
 {{- default "default" .Values.serviceAccount.name -}}
 {{- end -}}
+{{- end -}}
+
+{{- define "elasticsearch.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create -}}
+{{- default (printf "%s-backup" (include "elasticsearch.fullname" .)) .Values.backup.serviceAccount.name -}}
+{{- else -}}
+{{- required "backup.serviceAccount.name is required when backup.serviceAccount.create is false" .Values.backup.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "elasticsearch.pvcRetentionPolicy" -}}
+{{- if or .whenDeleted .whenScaled }}
+persistentVolumeClaimRetentionPolicy:
+  {{- with .whenDeleted }}
+  whenDeleted: {{ . }}
+  {{- end }}
+  {{- with .whenScaled }}
+  whenScaled: {{ . }}
+  {{- end }}
+{{- end }}
 {{- end -}}
 
 {{- define "elasticsearch.image" -}}
@@ -435,7 +465,7 @@ Backup validation
   {{- if not .Values.backup.s3.bucket -}}
     {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
   {{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+  {{- if and (not .Values.backup.s3.credentialsFromPodIdentity) (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
     {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
   {{- end -}}
 true
@@ -521,6 +551,12 @@ Common Elasticsearch environment variables
       name: {{ include "elasticsearch.credentialsSecretName" . }}
       key: elastic-password
       optional: {{ eq (include "elasticsearch.security.enabled" .) "false" }}
+{{- if and .Values.backup.enabled .Values.backup.s3.credentialsFromPodIdentity }}
+- name: AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE
+  value: /usr/share/elasticsearch/config/repository-s3/eks-pod-identity-token
+- name: AWS_CONTAINER_CREDENTIALS_FULL_URI
+  value: http://169.254.170.23/v1/credentials
+{{- end }}
 {{- with .Values.extraEnv }}
 {{ toYaml . }}
 {{- end }}
@@ -541,6 +577,36 @@ Common Elasticsearch environment variables
 
 {{- define "elasticsearch.backupKeystoreInitContainer" -}}
 {{- if eq (include "elasticsearch.backupEnabled" .) "true" }}
+{{- if .Values.backup.s3.credentialsFromPodIdentity }}
+- name: configure-s3-workload-identity
+  image: {{ include "elasticsearch.image" . }}
+  imagePullPolicy: {{ .Values.image.pullPolicy }}
+  command:
+    - sh
+    - -c
+    - |
+      set -eu
+      cp -r /usr/share/elasticsearch/config/. /keystore-config/
+      mkdir -p /keystore-config/repository-s3
+      configured=false
+      if [ -n "${AWS_WEB_IDENTITY_TOKEN_FILE:-}" ]; then
+        ln -sf "${AWS_WEB_IDENTITY_TOKEN_FILE}" /keystore-config/repository-s3/aws-web-identity-token-file
+        configured=true
+      fi
+      if [ -n "${AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE:-}" ]; then
+        ln -sf "${AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE}" /keystore-config/repository-s3/eks-pod-identity-token
+        configured=true
+      fi
+      if [ "${configured}" != "true" ]; then
+        echo "No supported AWS workload identity token file was injected" >&2
+        exit 1
+      fi
+  volumeMounts:
+    - name: keystore-config
+      mountPath: /keystore-config
+  securityContext:
+    {{- toYaml .Values.securityContext | nindent 4 }}
+{{- else }}
 - name: keystore-s3
   image: {{ include "elasticsearch.image" . }}
   imagePullPolicy: {{ .Values.image.pullPolicy }}
@@ -569,6 +635,7 @@ Common Elasticsearch environment variables
       mountPath: /keystore-config
   securityContext:
     {{- toYaml .Values.securityContext | nindent 4 }}
+{{- end }}
 {{- end }}
 {{- end -}}
 
