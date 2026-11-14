@@ -50,6 +50,7 @@ The full value contract is in `values.yaml` and validated by `values.schema.json
 
 | Key | Default | Description |
 | --- | --- | --- |
+| `commonAnnotations` | `{}` | Annotations added to every chart-owned resource; resource-specific values take precedence |
 | `database.mode` | `auto` | `auto`, `sqlite`, `mysql` (HelmForge MySQL subchart), or `external` |
 | `adminService.port` | `3333` | Admin Service port |
 | `phishService.port` | `80` | Phishing Service port |
@@ -162,6 +163,26 @@ backup:
 ```
 
 For MySQL modes, use the MySQL dependency backup flow or external database backup tooling.
+
+On Amazon S3, prefer ambient workload identity over long-lived access keys:
+
+```yaml
+backup:
+  enabled: true
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/gophish-backup
+  s3:
+    endpoint: https://s3.amazonaws.com
+    bucket: gophish-backups
+    prefix: gophish
+    region: us-east-1
+    credentialsFromPodIdentity: true
+```
+
+The chart creates a dedicated backup ServiceAccount in workload identity mode. For EKS Pod Identity, associate the role
+outside the chart. To use an existing ServiceAccount, set `backup.serviceAccount.create: false` and provide
+`backup.serviceAccount.name`. Static credential Secrets are neither rendered nor referenced in workload identity mode.
 
 ## Examples
 
