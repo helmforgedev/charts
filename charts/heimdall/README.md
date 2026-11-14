@@ -23,6 +23,7 @@ helm install heimdall oci://ghcr.io/helmforgedev/helm/heimdall
 - **LinuxServer.io Image** — based on the maintained `linuxserver/heimdall` container
 - **Persistent Storage** — SQLite database and settings stored in `/config`
 - **S3-Compatible Backup** — CronJob that creates a tar archive of `/config` and uploads to any S3 endpoint
+- **Workload Identity** — S3 backups can use ambient cloud credentials through a dedicated ServiceAccount
 - **Ingress Support** — configurable ingress with TLS for HTTPS access
 - **PUID/PGID** — file ownership control for the container
 - **Hardened Defaults** — no API token, restricted capabilities, seccomp, and ingress NetworkPolicy
@@ -49,6 +50,9 @@ Set a non-empty `image.repository` and `image.tag`; the chart rejects empty valu
 
 `heimdall.containerPort` configures the real NGINX listener. It is independent
 from `service.port`, which controls only the Kubernetes Service port.
+
+Use `commonAnnotations` to apply annotations to every chart-owned resource.
+Resource-specific annotations take precedence when the same key is configured.
 
 ## Examples
 
@@ -117,7 +121,12 @@ backup:
 | `backup.s3.endpoint` | `""` | S3-compatible endpoint URL |
 | `backup.s3.bucket` | `""` | S3 bucket name |
 | `backup.s3.prefix` | `heimdall` | S3 key prefix |
+| `backup.s3.region` | `""` | AWS region used by workload identity |
+| `backup.s3.credentialsFromPodIdentity` | `false` | Use ambient workload identity instead of static credentials |
 | `backup.s3.existingSecret` | `""` | Existing secret with S3 credentials |
+| `backup.serviceAccount.create` | `true` | Create a dedicated backup ServiceAccount in workload identity mode |
+| `backup.serviceAccount.name` | `""` | Existing backup ServiceAccount name when creation is disabled |
+| `backup.serviceAccount.annotations` | `{}` | Workload identity annotations for the backup ServiceAccount |
 
 ### Service
 
