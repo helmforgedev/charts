@@ -131,3 +131,18 @@ tests:
       - notMatchRegex:
           path: spec.template.spec.containers[0].command[2]
           pattern: 'touch /tmp/pwn'
+
+  - it: preserves a trailing newline in an annotation value
+    set:
+      security.enabled: true
+      security.tls.selfSignedInit.enabled: true
+      commonAnnotations:
+        example.com/value: "platform\n"
+    documentIndex: 3
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'ZXhhbXBsZS5jb20vdmFsdWU9cGxhdGZvcm0K' # example.com/value=platform plus newline
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'annotation_arg="\$\{annotation_arg%\.\}"'
