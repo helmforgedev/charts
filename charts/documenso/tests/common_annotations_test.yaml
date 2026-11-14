@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Documenso common annotations
+templates:
+  - templates/deployment.yaml
+  - templates/service.yaml
+  - templates/secret.yaml
+tests:
+  - it: applies annotations to workload metadata only
+    template: templates/deployment.yaml
+    set:
+      commonAnnotations: { example.com/owner: platform }
+    asserts:
+      - equal: { path: 'metadata.annotations["example.com/owner"]', value: platform }
+      - notExists: { path: 'spec.template.metadata.annotations["example.com/owner"]' }
+  - it: lets Service annotations override common annotations
+    template: templates/service.yaml
+    set:
+      commonAnnotations: { example.com/owner: platform }
+      service.annotations: { example.com/owner: networking }
+    asserts:
+      - equal: { path: 'metadata.annotations["example.com/owner"]', value: networking }
+  - it: preserves the Secret resource policy with common annotations
+    template: templates/secret.yaml
+    set:
+      commonAnnotations: { example.com/owner: platform }
+    asserts:
+      - equal: { path: 'metadata.annotations["example.com/owner"]', value: platform }
+      - equal: { path: 'metadata.annotations["helm.sh/resource-policy"]', value: keep }

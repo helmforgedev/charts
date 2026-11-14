@@ -141,6 +141,7 @@ complete, commented contract, including resource and scheduling subfields.
 | `global` | `{}` | Values shared with dependency charts |
 | `image.tag` | `v2.21.0` | Human-readable upstream release |
 | `image.digest` | pinned | Immutable official multi-platform manifest |
+| `commonAnnotations` | `{}` | Annotations applied to chart-owned resources |
 | `replicaCount` | `1` | Application replicas |
 | `autoscaling.enabled` | `false` | CPU-based HPA with scale-out safeguards |
 | `autoscaling.minReplicas` | `2` | Minimum HPA replica count |

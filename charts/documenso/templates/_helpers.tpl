@@ -24,6 +24,16 @@ app.kubernetes.io/part-of: helmforge
 {{- end }}
 {{- end -}}
 
+{{- define "documenso.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | indent 2 }}
+{{- end -}}
+{{- end -}}
+
 {{- define "documenso.serviceAccountName" -}}{{- if .Values.serviceAccount.create -}}{{- default (include "documenso.fullname" .) .Values.serviceAccount.name -}}{{- else -}}{{- default "default" .Values.serviceAccount.name -}}{{- end -}}{{- end -}}
 {{- define "documenso.image" -}}{{- if .Values.image.digest -}}{{- printf "%s@%s" .Values.image.repository .Values.image.digest -}}{{- else -}}{{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}{{- end -}}{{- end -}}
 {{- define "documenso.waitImage" -}}{{- printf "%s:%s" .Values.waitForServices.image.repository .Values.waitForServices.image.tag -}}{{- end -}}
