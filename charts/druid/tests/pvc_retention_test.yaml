@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: PVC retention
+templates:
+  - templates/historical-statefulset.yaml
+  - templates/middlemanager-statefulset.yaml
+  - templates/zookeeper.yaml
+tests:
+  - it: omits retention policies by default
+    template: templates/zookeeper.yaml
+    asserts:
+      - notExists:
+          path: spec.persistentVolumeClaimRetentionPolicy
+        documentIndex: 3
+
+  - it: configures historical PVC retention
+    template: templates/historical-statefulset.yaml
+    set:
+      historical.enabled: true
+      historical.persistence.retentionPolicy.whenDeleted: Retain
+      historical.persistence.retentionPolicy.whenScaled: Delete
+    asserts:
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenDeleted
+          value: Retain
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenScaled
+          value: Delete
+
+  - it: configures middlemanager PVC retention
+    template: templates/middlemanager-statefulset.yaml
+    set:
+      middleManager.enabled: true
+      middleManager.persistence.retentionPolicy.whenDeleted: Delete
+      middleManager.persistence.retentionPolicy.whenScaled: Retain
+    asserts:
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenDeleted
+          value: Delete
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenScaled
+          value: Retain
+
+  - it: configures bundled ZooKeeper PVC retention
+    template: templates/zookeeper.yaml
+    set:
+      zookeeper.persistence.retentionPolicy.whenDeleted: Retain
+      zookeeper.persistence.retentionPolicy.whenScaled: Delete
+    asserts:
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenDeleted
+          value: Retain
+        documentIndex: 3
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenScaled
+          value: Delete
+        documentIndex: 3
