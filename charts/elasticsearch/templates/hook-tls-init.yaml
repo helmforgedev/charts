@@ -124,8 +124,18 @@ spec:
               echo "Installing kubectl..."
               apk add --no-cache kubectl >/dev/null 2>&1
 
+              annotate_secret() {
+                {{- range $key, $value := .Values.commonAnnotations }}
+                kubectl annotate secret "${SECRET_NAME}" -n "${NAMESPACE}" --overwrite \
+                  "$(printf '%s' {{ printf "%s=%s" $key $value | b64enc | quote }} | base64 -d)" >/dev/null
+                {{- else }}
+                :
+                {{- end }}
+              }
+
               # Idempotency: skip if Secret already exists
               if kubectl get secret "${SECRET_NAME}" -n "${NAMESPACE}" >/dev/null 2>&1; then
+                annotate_secret
                 echo "TLS Secret '${SECRET_NAME}' already exists - skipping generation."
                 exit 0
               fi
@@ -197,13 +207,7 @@ spec:
                 --from-file=tls.crt="${TMPDIR}/tls.crt" \
                 --from-file=tls.key="${TMPDIR}/tls.key"
 
-              {{- with .Values.commonAnnotations }}
-              kubectl annotate secret "${SECRET_NAME}" -n "${NAMESPACE}" --overwrite \
-                {{- range $key, $value := . }}
-                {{ printf "%s=%s" $key $value | quote }} \
-                {{- end }}
-                >/dev/null
-              {{- end }}
+              annotate_secret
 
               echo "TLS Secret '${SECRET_NAME}' created successfully in namespace ${NAMESPACE}."
 {{- end }}

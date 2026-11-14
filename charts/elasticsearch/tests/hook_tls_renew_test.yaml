@@ -17,4 +17,19 @@ tests:
           pattern: 'kubectl annotate secret'
       - matchRegex:
           path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
-          pattern: 'owner=platform'
+          pattern: 'b3duZXI9cGxhdGZvcm0=' # owner=platform
+
+  - it: safely transports shell metacharacters
+    set:
+      security.enabled: true
+      security.tls.selfSignedInit.enabled: true
+      commonAnnotations:
+        example.com/value: '$VAR $(touch /tmp/pwn) `id`'
+    documentIndex: 3
+    asserts:
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'base64 -d'
+      - notMatchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'touch /tmp/pwn'
