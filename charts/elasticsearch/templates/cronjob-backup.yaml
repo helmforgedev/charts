@@ -7,6 +7,8 @@ metadata:
   namespace: {{ (include "elasticsearch.namespace" .) }}
   labels:
     {{- include "elasticsearch.labels" . | nindent 4 }}
+  annotations:
+    {{- include "elasticsearch.annotations" (dict "root" .) | nindent 4 }}
 data:
   # Executed by initContainer (helmforge/mc) - ensures S3 bucket exists
   mc-init.sh: |
@@ -68,6 +70,8 @@ metadata:
   namespace: {{ (include "elasticsearch.namespace" .) }}
   labels:
     {{- include "elasticsearch.labels" . | nindent 4 }}
+  annotations:
+    {{- include "elasticsearch.annotations" (dict "root" .) | nindent 4 }}
 spec:
   schedule: {{ .Values.backup.schedule | quote }}
   suspend: {{ .Values.backup.suspend }}
@@ -82,11 +86,12 @@ spec:
             {{- include "elasticsearch.componentSelectorLabels" (dict "root" . "component" "backup") | nindent 12 }}
         spec:
           restartPolicy: OnFailure
-          serviceAccountName: {{ include "elasticsearch.serviceAccountName" . }}
-          automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+          serviceAccountName: {{ include "elasticsearch.backupServiceAccountName" . }}
+          automountServiceAccountToken: {{ .Values.backup.serviceAccount.automountServiceAccountToken }}
           securityContext:
             {{- toYaml .Values.podSecurityContext | nindent 12 }}
           # Step 1: mc ensures the S3 bucket exists before ES can write snapshots to it
+          {{- if not .Values.backup.s3.credentialsFromPodIdentity }}
           initContainers:
             - name: ensure-bucket
               image: {{ printf "%s:%s" .Values.backup.image.repository .Values.backup.image.tag }}
@@ -113,6 +118,7 @@ spec:
               volumeMounts:
                 - name: backup-script
                   mountPath: /scripts
+          {{- end }}
           # Step 2: curl calls the ES Snapshot API (repository-s3 is built in)
           containers:
             - name: backup
@@ -131,6 +137,7 @@ spec:
                   value: {{ .Values.backup.s3.endpoint | quote }}
                 - name: S3_PREFIX
                   value: {{ .Values.backup.s3.prefix | quote }}
+                {{- if not .Values.backup.s3.credentialsFromPodIdentity }}
                 - name: S3_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
@@ -141,6 +148,7 @@ spec:
                     secretKeyRef:
                       name: {{ include "elasticsearch.backupSecretName" . }}
                       key: {{ .Values.backup.s3.existingSecretSecretKeyKey }}
+                {{- end }}
                 {{- if eq (include "elasticsearch.security.enabled" .) "true" }}
                 - name: ELASTIC_PASSWORD
                   valueFrom:

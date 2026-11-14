@@ -37,6 +37,16 @@ app.kubernetes.io/part-of: helmforge
 {{- end }}
 {{- end -}}
 
+{{/* Merge common annotations with resource-specific annotations. Specific values win. */}}
+{{- define "elasticsearch.annotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .annotations | default dict -}}
+{{- $merged := mergeOverwrite $common $specific -}}
+{{- if $merged -}}
+{{- toYaml $merged -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "elasticsearch.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "elasticsearch.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
@@ -87,6 +97,26 @@ app.kubernetes.io/component-group: elasticsearch
 {{- else -}}
 {{- default "default" .Values.serviceAccount.name -}}
 {{- end -}}
+{{- end -}}
+
+{{- define "elasticsearch.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create -}}
+{{- default (printf "%s-backup" (include "elasticsearch.fullname" .)) .Values.backup.serviceAccount.name -}}
+{{- else -}}
+{{- required "backup.serviceAccount.name is required when backup.serviceAccount.create is false" .Values.backup.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "elasticsearch.pvcRetentionPolicy" -}}
+{{- if or .whenDeleted .whenScaled }}
+persistentVolumeClaimRetentionPolicy:
+  {{- with .whenDeleted }}
+  whenDeleted: {{ . }}
+  {{- end }}
+  {{- with .whenScaled }}
+  whenScaled: {{ . }}
+  {{- end }}
+{{- end }}
 {{- end -}}
 
 {{- define "elasticsearch.image" -}}
@@ -435,7 +465,7 @@ Backup validation
   {{- if not .Values.backup.s3.bucket -}}
     {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
   {{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+  {{- if and (not .Values.backup.s3.credentialsFromPodIdentity) (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
     {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
   {{- end -}}
 true
@@ -540,7 +570,7 @@ Common Elasticsearch environment variables
 {{- end -}}
 
 {{- define "elasticsearch.backupKeystoreInitContainer" -}}
-{{- if eq (include "elasticsearch.backupEnabled" .) "true" }}
+{{- if and (eq (include "elasticsearch.backupEnabled" .) "true") (not .Values.backup.s3.credentialsFromPodIdentity) }}
 - name: keystore-s3
   image: {{ include "elasticsearch.image" . }}
   imagePullPolicy: {{ .Values.image.pullPolicy }}
@@ -573,14 +603,14 @@ Common Elasticsearch environment variables
 {{- end -}}
 
 {{- define "elasticsearch.backupKeystoreVolumeMount" -}}
-{{- if eq (include "elasticsearch.backupEnabled" .) "true" }}
+{{- if and (eq (include "elasticsearch.backupEnabled" .) "true") (not .Values.backup.s3.credentialsFromPodIdentity) }}
 - name: keystore-config
   mountPath: /usr/share/elasticsearch/config
 {{- end }}
 {{- end -}}
 
 {{- define "elasticsearch.backupKeystoreVolume" -}}
-{{- if eq (include "elasticsearch.backupEnabled" .) "true" }}
+{{- if and (eq (include "elasticsearch.backupEnabled" .) "true") (not .Values.backup.s3.credentialsFromPodIdentity) }}
 - name: keystore-config
   emptyDir: {}
 {{- end }}

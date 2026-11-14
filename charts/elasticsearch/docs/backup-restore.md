@@ -19,6 +19,35 @@ backup:
     existingSecret: es-s3-credentials   # keys: access-key, secret-key
 ```
 
+Static credentials remain supported through `backup.s3.existingSecret` or the
+inline access and secret key values. The snapshot CronJob runs with its own
+configurable ServiceAccount.
+
+### Workload identity
+
+Set `backup.s3.credentialsFromPodIdentity=true` to let Elasticsearch obtain S3
+credentials from its pod identity instead of writing static credentials to a
+Secret and keystore. The S3 bucket must already exist. Configure the cloud
+identity on the main `serviceAccount`, because Elasticsearch nodes perform the
+snapshot I/O; `backup.serviceAccount` is dedicated to the orchestration
+CronJob.
+
+```yaml
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/elasticsearch-snapshots
+
+backup:
+  enabled: true
+  s3:
+    bucket: elasticsearch-backups
+    region: us-east-1
+    credentialsFromPodIdentity: true
+  serviceAccount:
+    create: true
+```
+
 ## Credentials secret
 
 ```bash

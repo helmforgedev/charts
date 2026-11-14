@@ -7,6 +7,8 @@ metadata:
   namespace: {{ (include "elasticsearch.namespace" .) }}
   labels:
     {{- include "elasticsearch.componentLabels" (dict "root" . "component" "coordinating") | nindent 4 }}
+  annotations:
+    {{- include "elasticsearch.annotations" (dict "root" .) | nindent 4 }}
 spec:
   serviceName: {{ include "elasticsearch.fullname" . }}-coordinating-headless
   replicas: {{ include "elasticsearch.coordinating.replicaCount" . }}
@@ -36,7 +38,7 @@ spec:
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
-      {{- if or .Values.sysctlInit.enabled (eq (include "elasticsearch.backupEnabled" .) "true") }}
+      {{- if or .Values.sysctlInit.enabled (and (eq (include "elasticsearch.backupEnabled" .) "true") (not .Values.backup.s3.credentialsFromPodIdentity)) }}
       initContainers:
         {{- if .Values.sysctlInit.enabled }}
         - name: sysctl

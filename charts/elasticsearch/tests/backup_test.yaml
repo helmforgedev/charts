@@ -2,12 +2,74 @@
 suite: elasticsearch - backup
 templates:
   - templates/cronjob-backup.yaml
+  - templates/backup-serviceaccount.yaml
   - templates/secret-s3.yaml
   - templates/statefulset-master.yaml
   - templates/statefulset-data.yaml
   - templates/statefulset-coordinating.yaml
 
 tests:
+  - it: workload identity uses a dedicated annotated ServiceAccount
+    template: templates/backup-serviceaccount.yaml
+    set:
+      backup:
+        enabled: true
+        serviceAccount:
+          annotations:
+            eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/elasticsearch-backup
+        s3:
+          bucket: test-bucket
+          credentialsFromPodIdentity: true
+    asserts:
+      - isKind:
+          of: ServiceAccount
+      - equal:
+          path: metadata.annotations["eks.amazonaws.com/role-arn"]
+          value: arn:aws:iam::123456789012:role/elasticsearch-backup
+
+  - it: workload identity suppresses static credentials and bucket initialization
+    set:
+      backup:
+        enabled: true
+        s3:
+          bucket: test-bucket
+          credentialsFromPodIdentity: true
+    template: templates/secret-s3.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: workload identity omits the static keystore init container
+    template: templates/statefulset-master.yaml
+    set:
+      backup:
+        enabled: true
+        s3:
+          bucket: test-bucket
+          credentialsFromPodIdentity: true
+    asserts:
+      - notExists:
+          path: spec.template.spec.initContainers
+
+  - it: backup CronJob uses its dedicated ServiceAccount
+    template: templates/cronjob-backup.yaml
+    set:
+      backup:
+        enabled: true
+        serviceAccount:
+          name: snapshot-runner
+        s3:
+          bucket: test-bucket
+          credentialsFromPodIdentity: true
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.serviceAccountName
+          value: snapshot-runner
+        documentIndex: 1
+      - notExists:
+          path: spec.jobTemplate.spec.template.spec.initContainers
+        documentIndex: 1
+
   - it: backup disabled should have no CronJob
     set:
       backup:
