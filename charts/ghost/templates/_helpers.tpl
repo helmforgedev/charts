@@ -24,8 +24,23 @@
 {{- end -}}
 {{- end -}}
 
+{{/* Merge chart-wide annotations with resource-specific annotations taking precedence. */}}
+{{- define "ghost.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "ghost.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "ghost.backupServiceAccountName" -}}
+{{- default (printf "%s-backup" (include "ghost.fullname" .)) .Values.backup.serviceAccount.name -}}
 {{- end -}}
 
 {{- define "ghost.labels" -}}
@@ -192,7 +207,13 @@ app.kubernetes.io/component: server
   {{- if not .Values.backup.s3.bucket -}}
     {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
   {{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.accessKey) -}}
+  {{- if and .Values.backup.s3.credentialsFromPodIdentity (not .Values.backup.s3.region) -}}
+    {{- fail "backup.s3.region is required when backup.s3.credentialsFromPodIdentity is true" -}}
+  {{- end -}}
+  {{- if and .Values.backup.s3.credentialsFromPodIdentity (not .Values.backup.serviceAccount.create) (not .Values.backup.serviceAccount.name) -}}
+    {{- fail "backup.serviceAccount.name is required when workload identity is enabled and backup.serviceAccount.create is false" -}}
+  {{- end -}}
+  {{- if and (not .Values.backup.s3.credentialsFromPodIdentity) (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.accessKey) -}}
     {{- fail "backup.s3.accessKey or backup.s3.existingSecret is required when backup.enabled is true" -}}
   {{- end -}}
 true

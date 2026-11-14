@@ -136,17 +136,23 @@ adapters when the container starts.
 | `ghost.url` | `""` | Public URL of the Ghost instance |
 | `image.tag` | `6.71.0` | Ghost image tag |
 | `containerPorts.http` | `2368` | Ghost process listener and container port |
+| `commonAnnotations` | `{}` | Annotations added to chart-owned resources; resource-specific annotations take precedence |
 | `mysql.enabled` | `true` | Deploy MySQL subchart |
 | `mysql` dependency | `2.2.0` | HelmForge MySQL chart version |
 | `mysql.image.tag` | `8.4.11` | MySQL image tag pinned to the Ghost-supported MySQL 8 major |
 | `persistence.enabled` | `true` | Enable content persistence |
 | `persistence.size` | `10Gi` | Content PVC size |
-| `serviceAccount.automountServiceAccountToken` | `false` | Mount the Kubernetes API token into application and backup pods |
+| `serviceAccount.automountServiceAccountToken` | `false` | Mount the Kubernetes API token into the Ghost application pod |
 | `runtimeStorage.tmpSizeLimit` | `256Mi` | Maximum writable `/tmp` storage |
 | `podDisruptionBudget.enabled` | `false` | Protect the singleton pod during voluntary disruption |
 | `networkPolicy.enabled` | `false` | Restrict inbound traffic to Ghost |
 | `networkPolicy.egress.enabled` | `false` | Restrict egress to DNS, MySQL, and configured rules |
 | `backup.enabled` | `false` | Enable S3 content backups |
+| `backup.s3.credentialsFromPodIdentity` | `false` | Use ambient workload identity instead of static S3 keys |
+| `backup.s3.region` | `""` | AWS region required for workload identity |
+| `backup.serviceAccount.create` | `true` | Create a dedicated backup ServiceAccount for workload identity |
+| `backup.serviceAccount.annotations` | `{}` | Workload identity annotations for the backup ServiceAccount |
+| `backup.serviceAccount.automountServiceAccountToken` | `true` | Mount the projected Kubernetes token required by workload identity |
 | `ingress.enabled` | `false` | Enable ingress |
 | `gateway.enabled` | `false` | Enable Gateway API HTTPRoute |
 | `externalSecrets.enabled` | `false` | Render ExternalSecret for database password |
@@ -189,6 +195,21 @@ backup:
     bucket: ghost-backups
     accessKey: "minioadmin"
     secretKey: "minioadmin"
+```
+
+For AWS workload identity, omit static credentials and annotate the dedicated backup ServiceAccount:
+
+```yaml
+backup:
+  enabled: true
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/ghost-backup
+  s3:
+    endpoint: https://s3.amazonaws.com
+    bucket: ghost-backups
+    region: us-east-1
+    credentialsFromPodIdentity: true
 ```
 
 ## Security

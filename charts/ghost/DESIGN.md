@@ -63,7 +63,7 @@ failover for MySQL.
 - Keep Ghost single-instance by default.
 - Persist `/var/lib/ghost/content` because it contains themes, images, media, and uploaded files.
 - Keep database credentials in Secrets and allow External Secrets for platform-managed credentials.
-- Provide S3-compatible content backups through an optional CronJob.
+- Provide S3-compatible content backups through an optional CronJob with static credentials or a dedicated workload identity ServiceAccount.
 - Render Ingress and Gateway API only when explicitly enabled.
 - Treat `containerPorts.http` as the single listener contract. It configures Ghost through `server__port` and drives
   the container port, probes, Service target, and NetworkPolicy port.
