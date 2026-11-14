@@ -42,6 +42,40 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
+Render common annotations merged with resource-specific annotations.
+Resource-specific annotations take precedence.
+*/}}
+{{- define "envoy-gateway.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
+{{/* Certgen hook annotations merged with common annotations. */}}
+{{- define "envoy-gateway.certgenAnnotations" -}}
+{{- $specific := dict
+  "helm.sh/hook" "pre-install,pre-upgrade"
+  "helm.sh/hook-weight" (.weight | toString)
+  "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded"
+-}}
+{{- include "envoy-gateway.renderAnnotations" (dict "root" .root "specific" $specific) -}}
+{{- end -}}
+
+{{/* GatewayClass cleanup hook annotations merged with common annotations. */}}
+{{- define "envoy-gateway.cleanupAnnotations" -}}
+{{- $specific := dict
+  "helm.sh/hook" "pre-delete"
+  "helm.sh/hook-weight" "-10"
+  "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded"
+-}}
+{{- include "envoy-gateway.renderAnnotations" (dict "root" . "specific" $specific) -}}
+{{- end -}}
+
+{{/*
 Namespace for chart-managed namespaced resources.
 */}}
 {{- define "envoy-gateway.namespace" -}}

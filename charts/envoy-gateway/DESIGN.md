@@ -71,6 +71,17 @@ configurable, so the chart keeps them as constants, marks them with the
 them by name. The optional demo backend (`gatewayAPI.examples`) uses the
 go-httpbin default listener on 8080 under the same exception.
 
+### Resource metadata and controller rollout
+
+`commonAnnotations` applies shared metadata to every resource rendered by the
+application chart. Resource-specific annotations, including ServiceAccount and
+Helm hook annotations, take precedence so identity and lifecycle behavior remain
+deterministic.
+
+The controller Deployment checksum hashes only the rendered `data` payload of
+the Envoy Gateway ConfigMap. Metadata-only changes therefore do not restart the
+controller, while every consumed configuration change still triggers a rollout.
+
 ## Production Boundary
 
 The controller runs `controller.replicaCount` (default 1) with an optional PDB.
