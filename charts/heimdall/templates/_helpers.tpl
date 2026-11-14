@@ -11,6 +11,23 @@
 {{- fail (printf "podLabels must not override required label %s" $key) -}}
 {{- end -}}
 {{- end -}}
+{{- if .Values.backup.enabled -}}
+{{- if not (trim .Values.backup.s3.endpoint) -}}
+{{- fail "backup.s3.endpoint is required when backup.enabled is true" -}}
+{{- end -}}
+{{- if not (trim .Values.backup.s3.bucket) -}}
+{{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
+{{- end -}}
+{{- if and .Values.backup.s3.credentialsFromPodIdentity (not (trim .Values.backup.s3.region)) -}}
+{{- fail "backup.s3.region is required when backup.s3.credentialsFromPodIdentity is true" -}}
+{{- end -}}
+{{- if and .Values.backup.s3.credentialsFromPodIdentity (not .Values.backup.serviceAccount.create) (not (trim .Values.backup.serviceAccount.name)) -}}
+{{- fail "backup.serviceAccount.name is required when backup.serviceAccount.create is false" -}}
+{{- end -}}
+{{- if and (not .Values.backup.s3.credentialsFromPodIdentity) (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+{{- fail "backup S3 credentials are required when workload identity is disabled" -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}
 
 {{- define "heimdall.name" -}}
@@ -45,11 +62,30 @@ app.kubernetes.io/name: {{ include "heimdall.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
+{{- define "heimdall.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $required := .required | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific $required -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | indent 2 }}
+{{- end -}}
+{{- end -}}
+
 {{- define "heimdall.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
 {{- default (include "heimdall.fullname" .) .Values.serviceAccount.name -}}
 {{- else -}}
 {{- default "default" .Values.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "heimdall.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create -}}
+{{- default (printf "%s-backup" (include "heimdall.fullname" .)) .Values.backup.serviceAccount.name -}}
+{{- else -}}
+{{- required "backup.serviceAccount.name is required when backup.serviceAccount.create is false" .Values.backup.serviceAccount.name -}}
 {{- end -}}
 {{- end -}}
 

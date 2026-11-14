@@ -21,6 +21,18 @@ Persistence therefore uses a single PVC and the Deployment switches to a
 the same PVC, creates a compressed archive, and uploads it to an S3-compatible
 endpoint.
 
+```mermaid
+flowchart LR
+  Client[Dashboard user] --> Ingress[Optional Ingress]
+  Ingress --> Service[Heimdall Service]
+  Service --> App[Heimdall Deployment]
+  App --> Config[(Config PVC)]
+  Backup[Backup CronJob] --> Config
+  Backup --> S3[S3-compatible storage]
+  Identity[Dedicated backup ServiceAccount] -. workload identity .-> Backup
+  Secret[Optional static credential Secret] -. static mode .-> Backup
+```
+
 ## Design Choices
 
 - `heimdall.containerPort` changes the actual NGINX plain-HTTP listener. The
@@ -32,7 +44,8 @@ endpoint.
   provide a supported multi-writer storage model.
 - The chart defaults to persistent storage and uses `Recreate` to prevent two
   pods from writing to one `ReadWriteOnce` volume during an update.
-- S3 credentials may come from an existing Secret. Inline credentials exist for
+- S3 credentials may come from ambient workload identity on a dedicated backup
+  ServiceAccount or from an existing Secret. Inline credentials exist for
   disposable tests and are not the production path.
 
 ## Production Boundary
@@ -58,15 +71,20 @@ binding, and applies `RuntimeDefault` seccomp. A read-only root filesystem is
 not enabled because s6-overlay and the upstream image write outside `/config`
 during initialization.
 
-ServiceAccount token automount is disabled by default. The NetworkPolicy
+ServiceAccount token automount is disabled for the application and static-key
+backup modes. Workload identity mode defaults token automount to true only for
+backup jobs through their dedicated ServiceAccount; operators can disable it
+with `backup.serviceAccount.automountServiceAccountToken`. The NetworkPolicy
 isolates ingress to the named HTTP port for the server pod. It deliberately does
 not isolate egress because enhanced tiles need to call operator-selected URLs;
 deployments with a known destination set should add an egress policy outside
-the chart. Backup containers use read-only root filesystems, no token, and all
-capabilities dropped. The archive init container runs as root so it can read
+the chart. Backup containers use read-only root filesystems and have all
+capabilities dropped; static-key mode also disables token automount. The
+archive init container runs as root so it can read
 root-owned TLS material under `/config`; it receives only `DAC_READ_SEARCH`,
 the PVC is mounted read-only, and privilege escalation remains disabled. The
-uploader remains non-root.
+uploader remains non-root. Static credential values and Secret references are
+not rendered in workload identity mode.
 
 ## Observability Boundary
 

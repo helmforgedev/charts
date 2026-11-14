@@ -32,6 +32,30 @@ backup:
     existingSecretSecretKeyKey: AWS_SECRET_ACCESS_KEY
 ```
 
+## Workload Identity
+
+Use ambient cloud credentials instead of a Kubernetes Secret by enabling
+workload identity. The chart creates a dedicated ServiceAccount for backup jobs;
+attach the platform-specific identity annotation to it:
+
+```yaml
+backup:
+  enabled: true
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/heimdall-backup
+  s3:
+    endpoint: https://s3.amazonaws.com
+    bucket: heimdall-backups
+    region: us-east-1
+    credentialsFromPodIdentity: true
+```
+
+When `credentialsFromPodIdentity` is enabled, static access keys and Secret
+references are neither rendered nor consumed. Set `backup.serviceAccount.create`
+to `false` and provide `backup.serviceAccount.name` to use an existing dedicated
+ServiceAccount.
+
 ## Inline Test Credentials
 
 Inline credentials create a chart-managed Secret and are intended for local
@@ -67,5 +91,5 @@ relations:
   - charts/heimdall/templates/backup-cronjob.yaml
 path: charts/heimdall/docs/backup.md
 version: 1.0
-date: 2026-06-14
+date: 2026-11-14
 -->

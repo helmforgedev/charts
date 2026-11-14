@@ -63,3 +63,35 @@ tests:
               secretKeyRef:
                 name: my-s3-secret
                 key: access-key
+
+  - it: should use workload identity without static credential references
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: my-backups
+      backup.s3.region: us-east-1
+      backup.s3.credentialsFromPodIdentity: true
+      backup.s3.existingSecret: ignored-secret
+      backup.s3.accessKey: ignored-access-key
+      backup.s3.secretKey: ignored-secret-key
+      backup.serviceAccount.name: heimdall-backup
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.serviceAccountName
+          value: heimdall-backup
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.automountServiceAccountToken
+          value: true
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: AWS_REGION
+            value: us-east-1
+      - notContains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: S3_ACCESS_KEY
+          any: true
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'MC_STS_ENDPOINT_s3'

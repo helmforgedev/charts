@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: common annotations
+templates:
+  - templates/deployment.yaml
+  - templates/service.yaml
+  - templates/pvc.yaml
+  - templates/networkpolicy.yaml
+tests:
+  - it: adds common annotations to chart-owned resources
+    set:
+      commonAnnotations:
+        owner: platform
+    asserts:
+      - equal:
+          path: metadata.annotations.owner
+          value: platform
+
+  - it: lets resource-specific annotations override common annotations
+    template: templates/service.yaml
+    set:
+      commonAnnotations:
+        owner: platform
+        shared: common
+      service.annotations:
+        owner: service
+    asserts:
+      - equal:
+          path: metadata.annotations.owner
+          value: service
+      - equal:
+          path: metadata.annotations.shared
+          value: common

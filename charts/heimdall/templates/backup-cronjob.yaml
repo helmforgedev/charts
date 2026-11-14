@@ -6,6 +6,7 @@ metadata:
   name: {{ include "heimdall.fullname" . }}-backup
   labels:
     {{- include "heimdall.labels" . | nindent 4 }}
+  {{- include "heimdall.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   schedule: {{ .Values.backup.schedule | quote }}
   suspend: {{ .Values.backup.suspend }}
@@ -22,7 +23,13 @@ spec:
             app.kubernetes.io/component: backup
         spec:
           restartPolicy: Never
+          {{- if .Values.backup.s3.credentialsFromPodIdentity }}
+          serviceAccountName: {{ include "heimdall.backupServiceAccountName" . }}
+          automountServiceAccountToken: {{ .Values.backup.serviceAccount.automountServiceAccountToken }}
+          {{- else }}
+          serviceAccountName: {{ include "heimdall.serviceAccountName" . }}
           automountServiceAccountToken: false
+          {{- end }}
           securityContext:
             seccompProfile:
               type: RuntimeDefault
@@ -81,7 +88,16 @@ spec:
                 - -c
                 - |
                   set -e
+                  {{- if .Values.backup.s3.credentialsFromPodIdentity }}
+                  export MC_HOST_s3="${S3_ENDPOINT}"
+                  sts_domain="amazonaws.com"
+                  case "${AWS_REGION}" in
+                    cn-*) sts_domain="amazonaws.com.cn" ;;
+                  esac
+                  export MC_STS_ENDPOINT_s3="https://sts.${AWS_REGION}.${sts_domain}"
+                  {{- else }}
                   mc alias set s3 "${S3_ENDPOINT}" "${S3_ACCESS_KEY}" "${S3_SECRET_KEY}" --api S3v4
+                  {{- end }}
                   {{- if .Values.backup.s3.createBucketIfNotExists }}
                   mc mb --ignore-existing "s3/${S3_BUCKET}"
                   {{- end }}
@@ -91,11 +107,17 @@ spec:
                   echo "Uploaded ${BASENAME} to s3/${S3_BUCKET}/{{ .Values.backup.s3.prefix }}/"
               env:
                 - name: MC_CONFIG_DIR
-                  value: /tmp/.mc
+                  value: /mc-config
                 - name: S3_ENDPOINT
                   value: {{ .Values.backup.s3.endpoint | quote }}
                 - name: S3_BUCKET
                   value: {{ .Values.backup.s3.bucket | quote }}
+                {{- if .Values.backup.s3.credentialsFromPodIdentity }}
+                - name: AWS_REGION
+                  value: {{ .Values.backup.s3.region | quote }}
+                - name: AWS_DEFAULT_REGION
+                  value: {{ .Values.backup.s3.region | quote }}
+                {{- else }}
                 - name: S3_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
@@ -106,12 +128,13 @@ spec:
                     secretKeyRef:
                       name: {{ include "heimdall.backupSecretName" . }}
                       key: {{ .Values.backup.s3.existingSecretSecretKeyKey }}
+                {{- end }}
               volumeMounts:
                 - name: backup-staging
                   mountPath: /backup
                   readOnly: true
-                - name: backup-tmp
-                  mountPath: /tmp
+                - name: mc-config
+                  mountPath: /mc-config
               {{- with .Values.backup.resources }}
               resources:
                 {{- toYaml . | nindent 16 }}
@@ -122,6 +145,6 @@ spec:
                 claimName: {{ .Values.persistence.existingClaim | default (include "heimdall.fullname" .) }}
             - name: backup-staging
               emptyDir: {}
-            - name: backup-tmp
+            - name: mc-config
               emptyDir: {}
 {{- end }}
