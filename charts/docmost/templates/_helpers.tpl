@@ -31,6 +31,16 @@ app.kubernetes.io/part-of: helmforge
 {{- end }}
 {{- end -}}
 
+{{- define "docmost.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "docmost.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "docmost.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
@@ -42,6 +52,53 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- else -}}
 {{- default "default" .Values.serviceAccount.name -}}
 {{- end -}}
+{{- end -}}
+
+{{- define "docmost.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create -}}
+{{- default (printf "%s-backup" (include "docmost.fullname" .)) .Values.backup.serviceAccount.name -}}
+{{- else -}}
+{{- required "docmost: backup.serviceAccount.name is required when backup.serviceAccount.create is false" .Values.backup.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "docmost.deploymentPayload" -}}
+{{- $appName := include "docmost.appSecretSecretName" . -}}
+{{- $appKey := include "docmost.appSecretKey" . -}}
+{{- $appObject := lookup "v1" "Secret" .Release.Namespace $appName -}}
+{{- $appValue := .Values.docmost.appSecret | b64enc -}}
+{{- if and (or .Values.docmost.existingSecret (not .Values.docmost.appSecret)) $appObject (hasKey ($appObject.data | default dict) $appKey) -}}
+  {{- $appValue = index $appObject.data $appKey -}}
+{{- end -}}
+{{- $databaseName := include "docmost.databaseSecretName" . -}}
+{{- $databaseKey := include "docmost.databaseSecretKey" . -}}
+{{- $databaseObject := lookup "v1" "Secret" .Release.Namespace $databaseName -}}
+{{- $databaseValue := .Values.database.external.password | b64enc -}}
+{{- if and (or .Values.database.external.existingSecret (not .Values.database.external.password)) $databaseObject (hasKey ($databaseObject.data | default dict) $databaseKey) -}}
+  {{- $databaseValue = index $databaseObject.data $databaseKey -}}
+{{- end -}}
+{{- $redisName := include "docmost.redisSecretName" . -}}
+{{- $redisKey := include "docmost.redisSecretKey" . -}}
+{{- $redisObject := lookup "v1" "Secret" .Release.Namespace $redisName -}}
+{{- $redisValue := .Values.redis.external.password | b64enc -}}
+{{- if and (or .Values.redis.external.existingSecret (not .Values.redis.external.password)) $redisObject (hasKey ($redisObject.data | default dict) $redisKey) -}}
+  {{- $redisValue = index $redisObject.data $redisKey -}}
+{{- end -}}
+{{- $storageName := include "docmost.storageSecretName" . -}}
+{{- $storageObject := lookup "v1" "Secret" .Release.Namespace $storageName -}}
+{{- $storageAccessKey := .Values.storage.s3.accessKey | b64enc -}}
+{{- $storageSecretKey := .Values.storage.s3.secretKey | b64enc -}}
+{{- if and .Values.storage.s3.existingSecret $storageObject (hasKey ($storageObject.data | default dict) .Values.storage.s3.existingSecretAccessKeyKey) -}}
+  {{- $storageAccessKey = index $storageObject.data .Values.storage.s3.existingSecretAccessKeyKey -}}
+{{- end -}}
+{{- if and .Values.storage.s3.existingSecret $storageObject (hasKey ($storageObject.data | default dict) .Values.storage.s3.existingSecretSecretKeyKey) -}}
+  {{- $storageSecretKey = index $storageObject.data .Values.storage.s3.existingSecretSecretKeyKey -}}
+{{- end -}}
+appSecret: {{ $appValue | quote }}
+databasePassword: {{ $databaseValue | quote }}
+redisPassword: {{ $redisValue | quote }}
+storageAccessKey: {{ $storageAccessKey | quote }}
+storageSecretKey: {{ $storageSecretKey | quote }}
 {{- end -}}
 
 {{- define "docmost.image" -}}
@@ -236,8 +293,14 @@ redis-password
   {{- if not .Values.backup.s3.bucket -}}
     {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
   {{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+  {{- if and (not .Values.backup.s3.credentialsFromPodIdentity) (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
     {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
+  {{- end -}}
+  {{- if and .Values.backup.s3.credentialsFromPodIdentity (not .Values.backup.s3.region) -}}
+    {{- fail "docmost: backup.s3.region is required when backup.s3.credentialsFromPodIdentity is true" -}}
+  {{- end -}}
+  {{- if and (not .Values.backup.serviceAccount.create) (not .Values.backup.serviceAccount.name) -}}
+    {{- fail "docmost: backup.serviceAccount.name is required when workload identity is enabled and backup.serviceAccount.create is false" -}}
   {{- end -}}
 true
 {{- end -}}
