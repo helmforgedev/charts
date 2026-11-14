@@ -554,6 +554,8 @@ Common Elasticsearch environment variables
 {{- if and .Values.backup.enabled .Values.backup.s3.credentialsFromPodIdentity }}
 - name: AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE
   value: /usr/share/elasticsearch/config/repository-s3/eks-pod-identity-token
+- name: AWS_CONTAINER_CREDENTIALS_FULL_URI
+  value: http://169.254.170.23/v1/credentials
 {{- end }}
 {{- with .Values.extraEnv }}
 {{ toYaml . }}
