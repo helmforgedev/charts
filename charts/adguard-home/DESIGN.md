@@ -24,7 +24,8 @@ flowchart TB
   eso[External Secrets Operator] -. optional .-> configSecret[AdGuardHome.yaml Secret]
   configSecret --> app
   sync[adguardhome-sync Deployment] -. optional .-> app
-  backup[Backup CronJob] --> s3[S3-compatible storage]
+  backupIdentity[Dedicated backup ServiceAccount] --> backup[Backup CronJob]
+  backup --> s3[S3-compatible storage]
 ```
 
 ## Main Design Choices
@@ -41,7 +42,8 @@ flowchart TB
   instances outside the scope of this chart's primary pod.
 - Render ExternalSecret resources only when explicitly enabled; the chart does
   not install External Secrets Operator or manage provider-side stores.
-- Keep S3 backup opt-in and use the HelmForge `mc` utility image for uploads.
+- Keep S3 backup opt-in, use a dedicated ServiceAccount, and support static
+  credentials, IRSA, or EKS Pod Identity through the HelmForge `mc` image.
 - Treat application listeners and public Service ports as separate contracts.
   Wizard and configured HTTP ports are passed to the pinned image through its
   supported `--web-addr` argument. The chart writes the DNS listener into a
@@ -82,6 +84,8 @@ separate trust boundaries and must be hardened by the cluster operator.
 
 Kubernetes API tokens are not mounted by default. Secret-backed configuration
 and S3 credentials should be preferred over inline credentials in production.
+For AWS, the backup ServiceAccount can instead use IRSA or an EKS Pod Identity
+association; the server and sync workloads never inherit that cloud identity.
 The optional NetworkPolicy limits ingress to the actual web and DNS listener
 ports. An empty peer list intentionally accepts all sources so externally
 originating DNS traffic is not broken; production environments can restrict it
@@ -92,7 +96,9 @@ and the Kubernetes DNS Service vary by cluster.
 AdGuard Home normally binds the privileged DNS port 53. A non-root deployment
 must either grant the narrowly scoped bind capability or select an unprivileged
 DNS listener and expose port 53 through the Service. The chart does not invent
-privileges automatically. The permission init container is separately
+broader privileges automatically: the default container drops all capabilities
+and adds only `NET_BIND_SERVICE`, denies privilege escalation, and uses the
+runtime-default seccomp profile. The permission init container is separately
 hardened and exists only to prepare volume ownership; disable it when the CSI
 driver already provides correct ownership.
 

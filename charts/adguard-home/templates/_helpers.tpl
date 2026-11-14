@@ -26,6 +26,16 @@ app.kubernetes.io/part-of: helmforge
 {{- end }}
 {{- end -}}
 
+{{- define "adguard-home.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "adguard-home.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "adguard-home.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
@@ -101,6 +111,14 @@ app.kubernetes.io/component: server
 {{- end -}}
 {{- end -}}
 
+{{- define "adguard-home.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create -}}
+{{- default (printf "%s-backup" (include "adguard-home.fullname" .)) .Values.backup.serviceAccount.name -}}
+{{- else -}}
+{{- required "adguard-home: backup.serviceAccount.name is required when workload identity is enabled and backup.serviceAccount.create is false" .Values.backup.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
 {{/* Sync secret name */}}
 {{- define "adguard-home.syncSecretName" -}}
 {{- if .Values.sync.existingSecret -}}
@@ -130,6 +148,17 @@ app.kubernetes.io/component: server
   {{- end -}}
   {{- if not $hasConfigKey -}}
     {{- fail "externalSecrets.data must contain an entry with secretKey 'AdGuardHome.yaml' when externalSecrets.enabled=true to populate the initial configuration." -}}
+  {{- end -}}
+{{- end -}}
+{{- if .Values.backup.enabled -}}
+  {{- if and (not .Values.backup.s3.credentialsFromPodIdentity) (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+    {{- fail "adguard-home: backup requires either backup.s3.existingSecret, both backup.s3.accessKey and backup.s3.secretKey, or backup.s3.credentialsFromPodIdentity=true" -}}
+  {{- end -}}
+  {{- if and .Values.backup.s3.credentialsFromPodIdentity (not .Values.backup.s3.region) -}}
+    {{- fail "adguard-home: backup.s3.region is required when backup.s3.credentialsFromPodIdentity is true" -}}
+  {{- end -}}
+  {{- if and (not .Values.backup.serviceAccount.create) (not .Values.backup.serviceAccount.name) -}}
+    {{- fail "adguard-home: backup.serviceAccount.name is required when workload identity is enabled and backup.serviceAccount.create is false" -}}
   {{- end -}}
 {{- end -}}
 {{- end -}}

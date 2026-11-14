@@ -7,6 +7,7 @@
 nameOverride: ""
 fullnameOverride: ""
 commonLabels: {}
+commonAnnotations: {}
 
 # =============================================================================
 # Image
@@ -243,9 +244,17 @@ probes:
 
 resources: {}
 
-podSecurityContext: {}
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
 
-securityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+    add:
+      - NET_BIND_SERVICE
 
 initPermissions:
   # -- Run an init container that normalizes AdGuard Home volume permissions before startup.
@@ -362,6 +371,15 @@ backup:
   archivePrefix: adguard-home
   # -- Resources for backup containers
   resources: {}
+  serviceAccount:
+    # -- Create a dedicated ServiceAccount for backup jobs
+    create: true
+    # -- Existing dedicated ServiceAccount name when create is false
+    name: ""
+    # -- Annotations for IRSA or another workload identity integration
+    annotations: {}
+    # -- Mount the Kubernetes API token into backup pods
+    automountServiceAccountToken: false
   images:
     archiver:
       repository: docker.io/library/busybox
@@ -374,6 +392,8 @@ backup:
   s3:
     # -- S3-compatible endpoint URL
     endpoint: ""
+    # -- AWS region used by workload identity and regional bucket creation
+    region: ""
     # -- Target bucket name
     bucket: ""
     # -- Optional prefix inside the bucket
@@ -388,6 +408,8 @@ backup:
     accessKey: ""
     # -- Inline secret key
     secretKey: ""
+    # -- Use EKS Pod Identity or IRSA instead of static S3 credentials
+    credentialsFromPodIdentity: false
 
 # =============================================================================
 # Extra

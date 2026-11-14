@@ -196,6 +196,7 @@ backup:
 |-----|---------|-------------|
 | `config.adGuardHome` | `{}` | Pre-seed AdGuardHome.yaml config (empty = wizard mode) |
 | `config.existingSecret` | `""` | Existing Secret with `AdGuardHome.yaml` key |
+| `commonAnnotations` | `{}` | Annotations added to every chart-owned resource; resource-specific annotations take precedence |
 
 ### Application Listeners
 
@@ -266,8 +267,10 @@ target.
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `podSecurityContext` | `{}` | Pod-level security context |
-| `securityContext` | `{}` | Main container security context |
+| `podSecurityContext.seccompProfile.type` | `RuntimeDefault` | Runtime-default seccomp profile |
+| `securityContext.allowPrivilegeEscalation` | `false` | Prevent privilege escalation |
+| `securityContext.capabilities.drop` | `[ALL]` | Drop all Linux capabilities before adding the required exception |
+| `securityContext.capabilities.add` | `[NET_BIND_SERVICE]` | Permit binding the configured DNS listener when it uses a privileged port |
 | `serviceAccount.automountServiceAccountToken` | `false` | Mount the Kubernetes API token into chart workloads |
 | `initPermissions.enabled` | `true` | Normalize `/opt/adguardhome/conf` and `/opt/adguardhome/work` permissions before startup |
 | `initPermissions.image.repository` | `docker.io/library/busybox` | Init permissions container image |
@@ -314,11 +317,37 @@ isolation and must include every required upstream DNS and HTTPS destination.
 | `backup.enabled` | `false` | Enable backup CronJob |
 | `backup.schedule` | `0 2 * * *` | Backup schedule |
 | `backup.s3.endpoint` | `""` | S3-compatible endpoint URL |
+| `backup.s3.region` | `""` | AWS region required by workload identity |
 | `backup.s3.bucket` | `""` | Target bucket |
 | `backup.s3.prefix` | `adguard-home` | Prefix inside bucket |
 | `backup.s3.accessKey` | `""` | Inline access key |
 | `backup.s3.secretKey` | `""` | Inline secret key |
 | `backup.s3.existingSecret` | `""` | Pre-created Secret for S3 credentials |
+| `backup.s3.credentialsFromPodIdentity` | `false` | Use IRSA or EKS Pod Identity instead of static keys |
+| `backup.serviceAccount.create` | `true` | Create the dedicated backup ServiceAccount |
+| `backup.serviceAccount.name` | `""` | Existing dedicated ServiceAccount when creation is disabled |
+| `backup.serviceAccount.annotations` | `{}` | IRSA or other workload identity annotations |
+| `backup.serviceAccount.automountServiceAccountToken` | `false` | Mount a Kubernetes API token into backup Pods |
+
+For IRSA, annotate the dedicated ServiceAccount and enable workload identity:
+
+```yaml
+backup:
+  enabled: true
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/adguard-home-backup
+  s3:
+    endpoint: https://s3.amazonaws.com
+    region: us-east-1
+    bucket: adguard-home-backups
+    credentialsFromPodIdentity: true
+```
+
+EKS Pod Identity does not use a ServiceAccount annotation. Set a stable
+`backup.serviceAccount.name`, install the EKS Pod Identity Agent unless the
+cluster uses EKS Auto Mode, and create the AWS-side association for the
+release namespace and ServiceAccount.
 
 ### Gateway API
 
@@ -369,13 +398,14 @@ isolation and must include every required upstream DNS and HTTPS destination.
 | Ingress | `ingress.enabled` | Web admin ingress |
 | HTTPRoute | `gateway.enabled` | Gateway API route for the web UI |
 | ExternalSecret | `externalSecrets.enabled` | Fetches AdGuardHome.yaml from external secrets store |
-| ServiceAccount | `serviceAccount.create` | Dedicated SA |
+| ServiceAccount | `serviceAccount.create` | Dedicated server SA |
+| ServiceAccount (backup) | `backup.enabled`, `backup.serviceAccount.create` | Dedicated backup identity |
 | NetworkPolicy | `networkPolicy.enabled` | Listener-scoped ingress and optional egress isolation |
 | Deployment (sync) | `sync.enabled` | adguardhome-sync |
 | Secret (sync) | `sync.enabled`, no `existingSecret` | Sync credentials |
 | CronJob (backup) | `backup.enabled` | Automated S3 backup |
 | ConfigMap (backup) | `backup.enabled` | Backup scripts |
-| Secret (backup) | `backup.enabled`, no S3 `existingSecret` | S3 credentials |
+| Secret (backup) | `backup.enabled`, static credentials, no S3 `existingSecret` | S3 credentials |
 
 ### Dual-Stack DNS Service
 

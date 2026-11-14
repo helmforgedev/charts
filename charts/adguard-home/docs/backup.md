@@ -42,6 +42,52 @@ backup:
     existingSecretSecretKeyKey: secret-key
 ```
 
+## Using IRSA
+
+```yaml
+backup:
+  enabled: true
+  serviceAccount:
+    name: adguard-home-backup
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/adguard-home-backup
+  s3:
+    endpoint: https://s3.amazonaws.com
+    region: us-east-1
+    bucket: adguard-backups
+    credentialsFromPodIdentity: true
+```
+
+The role needs the S3 permissions required to create the bucket when
+`createBucketIfNotExists=true`, list it, and upload objects below the selected
+prefix. Set `createBucketIfNotExists=false` when bucket creation is managed
+outside the chart.
+
+## Using EKS Pod Identity
+
+EKS Pod Identity does not use a ServiceAccount annotation. Give the dedicated
+ServiceAccount a stable name:
+
+```yaml
+backup:
+  enabled: true
+  serviceAccount:
+    name: adguard-home-backup
+  s3:
+    endpoint: https://s3.amazonaws.com
+    region: us-east-1
+    bucket: adguard-backups
+    credentialsFromPodIdentity: true
+```
+
+Install the EKS Pod Identity Agent unless the cluster uses EKS Auto Mode, then
+create an AWS-side Pod Identity association that maps the IAM role to the
+cluster, release namespace, and `adguard-home-backup` ServiceAccount.
+
+The upload container uses the `mc` credential chain through the regional AWS
+STS endpoint. Static credential environment variables and the chart-managed
+backup Secret are omitted in workload identity mode.
+
 ## Archive Naming
 
 Archives follow the pattern: `<archivePrefix>-<timestamp>.tar.gz`
@@ -59,7 +105,8 @@ backup:
 |----------|-----------|
 | CronJob (`*-backup`) | `backup.enabled` |
 | ConfigMap (`*-backup-scripts`) | `backup.enabled` |
-| Secret (`*-backup`) | `backup.enabled` and no `backup.s3.existingSecret` |
+| ServiceAccount (`*-backup`) | `backup.enabled` and `backup.serviceAccount.create` |
+| Secret (`*-backup`) | `backup.enabled`, static credentials, and no `backup.s3.existingSecret` |
 
 <!-- @AI-METADATA
 type: chart-docs
