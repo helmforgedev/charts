@@ -31,6 +31,14 @@
       "type": "object",
       "description": "Labels added to all resources"
     },
+    "commonAnnotations": {
+      "type": "object",
+      "description": "Annotations added to all chart-owned resources. Resource-specific annotations take precedence.",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {}
+    },
     "workload": {
       "type": "object",
       "description": "Workload type configuration (Deployment, StatefulSet, DaemonSet). Set enabled: false for Jobs/CronJobs-only releases.",
@@ -57,6 +65,22 @@
           "items": {
             "type": "object"
           }
+        },
+        "persistentVolumeClaimRetentionPolicy": {
+          "type": "object",
+          "description": "Lifecycle policy for PVCs created from StatefulSet volumeClaimTemplates. Empty preserves Kubernetes Retain defaults.",
+          "additionalProperties": false,
+          "properties": {
+            "whenDeleted": {
+              "type": "string",
+              "enum": ["Delete", "Retain"]
+            },
+            "whenScaled": {
+              "type": "string",
+              "enum": ["Delete", "Retain"]
+            }
+          },
+          "default": {}
         },
         "updateStrategy": {
           "type": "object",
@@ -250,11 +274,17 @@
     },
     "securityContext": {
       "type": "object",
-      "description": "Container-level security context"
+      "description": "Container-level security context",
+      "default": {
+        "allowPrivilegeEscalation": false,
+        "capabilities": {
+          "drop": ["ALL"]
+        }
+      }
     },
     "securityPreset": {
       "type": "string",
-      "description": "Optional security preset applied only when explicit pod/container contexts are not set",
+      "description": "Optional security preset. Per-container contexts take precedence; a preset takes precedence over chart-level defaults.",
       "enum": ["", "baseline", "restricted"],
       "default": ""
     },

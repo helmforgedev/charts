@@ -19,6 +19,9 @@ fullnameOverride: ""
 # -- Labels added to all resources
 commonLabels: {}
 
+# -- Annotations added to all chart-owned resources. Resource-specific annotations take precedence.
+commonAnnotations: {}
+
 # =============================================================================
 # Workload
 # =============================================================================
@@ -40,6 +43,11 @@ workload:
   #       resources:
   #         requests:
   #           storage: 10Gi
+
+  # -- Lifecycle policy for PVCs created from volumeClaimTemplates. Empty preserves Kubernetes Retain defaults.
+  persistentVolumeClaimRetentionPolicy: {}
+  #   whenDeleted: Retain
+  #   whenScaled: Retain
 
   # -- StatefulSet / DaemonSet specific
   # updateStrategy:
@@ -150,13 +158,17 @@ podSecurityContext: {}
   # fsGroup: 1000
   # runAsNonRoot: true
 
-securityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
   # readOnlyRootFilesystem: true
   # runAsNonRoot: true
   # runAsUser: 1000
 
-# -- Optional security preset. Empty leaves contexts unchanged.
-# baseline sets non-root/seccomp and drops Linux capabilities when not overridden.
+# -- Optional security preset. Per-container contexts take precedence; a preset takes precedence over chart-level defaults.
+# baseline sets non-root/seccomp and drops Linux capabilities.
 # restricted also sets read-only root filesystem and default UID/GID/fsGroup.
 securityPreset: ""
   # "" | baseline | restricted

@@ -46,6 +46,20 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 
 {{/*
+Render common, resource-specific, and required annotations in precedence order.
+*/}}
+{{- define "chart.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $required := .required | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific $required -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Selector labels for matchLabels.
 */}}
 {{- define "chart.selectorLabels" -}}
@@ -214,25 +228,38 @@ Used by deployment, job, and cronjob templates to avoid duplication.
   resources:
     {{- toYaml (.container.resources | default .root.Values.resources) | nindent 4 }}
   {{- end }}
-  {{- if or .container.securityContext .root.Values.securityContext }}
+  {{- $compatibilityContext := dict -}}
+  {{- $containerImage := .container.image | default dict -}}
+  {{- $imageRepository := $containerImage.repository | default .root.Values.image.repository -}}
+  {{- if or (eq $imageRepository "nginx") (eq $imageRepository "docker.io/library/nginx") -}}
+    {{- $compatibilityContext = dict
+      "allowPrivilegeEscalation" false
+      "capabilities" (dict
+        "drop" (list "ALL")
+        "add" (list "CHOWN" "DAC_OVERRIDE" "NET_BIND_SERVICE" "SETGID" "SETUID")) -}}
+  {{- end -}}
+  {{- $presetContext := dict -}}
+  {{- if eq .root.Values.securityPreset "baseline" -}}
+    {{- $presetContext = dict
+      "allowPrivilegeEscalation" false
+      "capabilities" (dict "drop" (list "ALL") "add" (list))
+      "runAsNonRoot" true -}}
+  {{- else if eq .root.Values.securityPreset "restricted" -}}
+    {{- $presetContext = dict
+      "allowPrivilegeEscalation" false
+      "capabilities" (dict "drop" (list "ALL") "add" (list))
+      "readOnlyRootFilesystem" true
+      "runAsNonRoot" true
+      "runAsUser" 1000 -}}
+  {{- end -}}
+  {{- $containerSecurityContext := mergeOverwrite
+    (deepCopy $compatibilityContext)
+    (deepCopy (.root.Values.securityContext | default dict))
+    (deepCopy $presetContext)
+    (deepCopy (.container.securityContext | default dict)) -}}
+  {{- if $containerSecurityContext }}
   securityContext:
-    {{- toYaml (.container.securityContext | default .root.Values.securityContext) | nindent 4 }}
-  {{- else if eq .root.Values.securityPreset "baseline" }}
-  securityContext:
-    allowPrivilegeEscalation: false
-    capabilities:
-      drop:
-        - ALL
-    runAsNonRoot: true
-  {{- else if eq .root.Values.securityPreset "restricted" }}
-  securityContext:
-    allowPrivilegeEscalation: false
-    capabilities:
-      drop:
-        - ALL
-    readOnlyRootFilesystem: true
-    runAsNonRoot: true
-    runAsUser: 1000
+    {{- toYaml $containerSecurityContext | nindent 4 }}
   {{- end }}
   {{- if or .container.volumeMounts .root.Values.persistence.mounts }}
   volumeMounts:
