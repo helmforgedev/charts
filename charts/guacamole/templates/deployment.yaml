@@ -5,6 +5,7 @@ metadata:
   name: {{ include "guacamole.fullname" . }}
   labels:
     {{- include "guacamole.labels" . | nindent 4 }}
+  {{- include "guacamole.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   replicas: 1
   selector:
@@ -18,8 +19,8 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        checksum/secrets: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
-        checksum/tomcat-port: {{ include (print $.Template.BasePath "/tomcat-port-configmap.yaml") . | sha256sum }}
+        checksum/secrets: {{ include "guacamole.databaseChecksumPayload" . | sha256sum }}
+        checksum/tomcat-port: {{ include "guacamole.tomcatPortPayload" . | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -43,6 +44,13 @@ spec:
         {{- if .Values.database.waitForConnection.enabled }}
         - name: wait-for-db
           image: docker.io/library/busybox:1.37
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            runAsUser: 65534
           {{- with .Values.database.waitForConnection.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

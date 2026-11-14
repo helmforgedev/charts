@@ -51,3 +51,30 @@ tests:
     asserts:
       - failedTemplate:
           errorMessagePattern: "oidc\.enabled is true, but one or more required endpoints .* are missing\."
+
+  - it: should fail workload identity backup without region
+    set:
+      backup:
+        enabled: true
+        s3:
+          endpoint: https://s3.amazonaws.com
+          bucket: test-bucket
+          credentialsFromPodIdentity: true
+    asserts:
+      - failedTemplate:
+          errorMessagePattern: "backup\.s3\.region is required when backup\.s3\.credentialsFromPodIdentity is true\."
+
+  - it: should require an existing backup ServiceAccount when creation is disabled
+    set:
+      backup:
+        enabled: true
+        serviceAccount:
+          create: false
+        s3:
+          endpoint: https://s3.amazonaws.com
+          bucket: test-bucket
+          region: us-east-1
+          credentialsFromPodIdentity: true
+    asserts:
+      - failedTemplate:
+          errorMessagePattern: "backup\.serviceAccount\.name is required when workload identity is enabled and backup\.serviceAccount\.create is false\."
