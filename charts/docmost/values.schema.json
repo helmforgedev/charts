@@ -22,6 +22,11 @@
       "type": "object",
       "description": "Labels added to every resource created by this chart"
     },
+    "commonAnnotations": {
+      "type": "object",
+      "description": "Annotations added to every resource created by this chart",
+      "additionalProperties": { "type": "string" }
+    },
     "replicaCount": {
       "type": "integer",
       "description": "Number of Docmost application replicas. Values greater than 1 require storage.mode=s3."
@@ -223,6 +228,17 @@
           }
         },
         "resources": { "type": "object", "description": "Resources applied to the backup dump and upload containers" },
+        "serviceAccount": {
+          "type": "object",
+          "description": "Dedicated ServiceAccount configuration for backup jobs",
+          "additionalProperties": false,
+          "properties": {
+            "create": { "type": "boolean", "description": "Create a dedicated ServiceAccount for backup jobs" },
+            "name": { "type": "string", "description": "Existing dedicated ServiceAccount name when create is false" },
+            "annotations": { "type": "object", "description": "Annotations for workload identity integrations", "additionalProperties": { "type": "string" } },
+            "automountServiceAccountToken": { "type": "boolean", "description": "Mount the Kubernetes API token into backup pods" }
+          }
+        },
         "database": {
           "type": "object",
           "description": "Database-specific backup settings",
@@ -235,6 +251,7 @@
           "description": "S3-compatible storage settings for backup uploads",
           "properties": {
             "endpoint": { "type": "string", "description": "S3-compatible endpoint URL" },
+            "region": { "type": "string", "description": "AWS region used by workload identity and regional bucket creation" },
             "bucket": { "type": "string", "description": "Target bucket name" },
             "prefix": { "type": "string", "description": "Optional key prefix inside the bucket" },
             "createBucketIfNotExists": { "type": "boolean", "description": "Create the bucket automatically when it does not exist yet" },
@@ -242,7 +259,8 @@
             "existingSecretAccessKeyKey": { "type": "string", "description": "Secret key name for the access key inside backup.s3.existingSecret" },
             "existingSecretSecretKeyKey": { "type": "string", "description": "Secret key name for the secret key inside backup.s3.existingSecret" },
             "accessKey": { "type": "string", "description": "Inline access key used when backup.s3.existingSecret is not set" },
-            "secretKey": { "type": "string", "description": "Inline secret key used when backup.s3.existingSecret is not set" }
+            "secretKey": { "type": "string", "description": "Inline secret key used when backup.s3.existingSecret is not set" },
+            "credentialsFromPodIdentity": { "type": "boolean", "description": "Use EKS Pod Identity or IRSA instead of static S3 credentials" }
           }
         }
       }

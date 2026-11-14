@@ -21,8 +21,8 @@ helm install docmost oci://ghcr.io/helmforgedev/helm/docmost
 ## Features
 
 - **Official Docmost image** based on `docmost/docmost`
-- **PostgreSQL subchart** bundled PostgreSQL `2.1.1` for default installs
-- **Redis subchart** bundled Redis `3.1.0` for default installs
+- **PostgreSQL subchart** bundled PostgreSQL `2.2.0` for default installs
+- **Redis subchart** bundled Redis `3.2.1` for default installs
 - **External services** support for managed PostgreSQL and Redis
 - **Local or S3 storage** for uploaded files
 - **Ingress support** configurable ingress with TLS
@@ -30,6 +30,8 @@ helm install docmost oci://ghcr.io/helmforgedev/helm/docmost
 - **External Secrets Operator** integration for secret material sourced outside Helm
 - **Dual-stack service controls** through `service.ipFamilyPolicy` and `service.ipFamilies`
 - **Optional backup CronJob** for PostgreSQL dumps uploaded to S3-compatible storage
+- **Workload identity backups** with a dedicated annotated ServiceAccount and no static S3 keys
+- **Common resource annotations** with resource-specific annotations taking precedence
 - **Values schema** `values.schema.json` validates chart inputs and improves Artifact Hub rendering
 
 ## Important Notes
@@ -175,6 +177,22 @@ backup:
     existingSecret: docmost-backup-s3
 ```
 
+For Amazon S3 with EKS Pod Identity or IRSA, omit static credentials and
+configure the dedicated backup ServiceAccount:
+
+```yaml
+backup:
+  enabled: true
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/docmost-backup
+  s3:
+    endpoint: https://s3.amazonaws.com
+    region: us-east-1
+    bucket: backups
+    credentialsFromPodIdentity: true
+```
+
 ## Key Values
 
 | Key | Default | Description |
@@ -202,6 +220,9 @@ backup:
 | `storage.s3.bucket` | `""` | S3 bucket name |
 | `backup.enabled` | `false` | Enable the PostgreSQL backup CronJob |
 | `backup.schedule` | `0 3 * * *` | Backup Cron schedule |
+| `backup.s3.credentialsFromPodIdentity` | `false` | Use EKS Pod Identity or IRSA instead of static S3 keys |
+| `backup.serviceAccount.create` | `true` | Create the dedicated backup ServiceAccount |
+| `backup.serviceAccount.annotations` | `{}` | Workload identity annotations for the backup ServiceAccount |
 | `resources.requests.memory` | `512Mi` | Docmost memory request |
 | `resources.limits.memory` | `1Gi` | Docmost memory limit |
 | `service.port` | `80` | Service port exposed by Kubernetes |
@@ -233,6 +254,8 @@ For production upgrades, take a database backup first and verify the secret refe
   the same `APP_SECRET` through `docmost.existingSecret`.
 - For S3 failures, verify endpoint reachability, bucket policy, path-style mode,
   and both keys in `storage.s3.existingSecret`.
+- For workload identity backup failures, verify `backup.s3.region`, the
+  dedicated ServiceAccount annotation, and the provider-side role binding.
 
 ## More Information
 
@@ -265,3 +288,4 @@ path: charts/docmost/README.md
 version: 1.0
 date: 2026-05-05
 -->
+| `commonAnnotations` | `{}` | Annotations added to all chart-owned resources |

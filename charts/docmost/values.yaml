@@ -16,6 +16,9 @@ fullnameOverride: ""
 # -- Labels added to every resource created by this chart
 commonLabels: {}
 
+# -- Annotations added to every resource created by this chart
+commonAnnotations: {}
+
 # -- Number of Docmost application replicas. Values greater than 1 require storage.mode=s3.
 replicaCount: 1
 
@@ -218,12 +221,23 @@ backup:
     uploader: docker.io/helmforge/mc:1.0.0
   # -- Resources applied to the backup dump and upload containers
   resources: {}
+  serviceAccount:
+    # -- Create a dedicated ServiceAccount for backup jobs
+    create: true
+    # -- Existing dedicated ServiceAccount name when create is false
+    name: ""
+    # -- Annotations for IRSA or another workload identity integration
+    annotations: {}
+    # -- Mount the Kubernetes API token into backup pods
+    automountServiceAccountToken: false
   database:
     # -- Extra arguments passed to pg_dump
     pgDumpArgs: ""
   s3:
     # -- S3-compatible endpoint URL, for example: https://s3.amazonaws.com or https://minio.example.com
     endpoint: ""
+    # -- AWS region used by workload identity and regional bucket creation
+    region: ""
     # -- Target bucket name
     bucket: ""
     # -- Optional key prefix inside the bucket
@@ -240,6 +254,8 @@ backup:
     accessKey: ""
     # -- Inline secret key used when backup.s3.existingSecret is not set
     secretKey: ""
+    # -- Use EKS Pod Identity or IRSA instead of static S3 credentials
+    credentialsFromPodIdentity: false
 
 service:
   # -- Service type for the Docmost HTTP service

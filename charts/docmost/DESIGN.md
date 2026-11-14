@@ -23,7 +23,8 @@ flowchart LR
   app --> redis[(Redis)]
   app --> storage[(Local PVC or S3)]
   secret[Secret or ExternalSecret] --> app
-  backup[Optional backup CronJob] --> postgres
+  identity[Dedicated backup ServiceAccount] --> backup[Optional backup CronJob]
+  backup --> postgres
   backup --> backupStore[(S3 backup bucket)]
 ```
 
@@ -58,6 +59,9 @@ while `service.port` remains the independent Kubernetes-facing port.
 - Ingress and Gateway API are independent, disabled-by-default routing choices.
 - Backups are opt-in and contain a PostgreSQL dump only; uploaded files require
   a separate storage-aware backup.
+- Backup jobs use a dedicated ServiceAccount. Static S3 credentials remain
+  supported, while EKS Pod Identity or IRSA can supply ambient credentials
+  without rendering access keys into a Secret.
 - `service.port` is not an application listener setting. The runtime listener
   is controlled only through `containerPorts.http`.
 
@@ -88,6 +92,10 @@ optional ExternalSecret. Inline password values are supported for development
 but are visible in Helm release state. Network encryption, database TLS, Redis
 TLS, NetworkPolicy, authentication policy, and object-store policy remain
 operator responsibilities.
+
+The backup ServiceAccount has token automount disabled by default. Workload
+identity annotations are isolated from the application ServiceAccount so an S3
+backup role is not granted to the Docmost Deployment.
 
 ## Observability Boundary
 

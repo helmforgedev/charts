@@ -31,6 +31,16 @@ app.kubernetes.io/part-of: helmforge
 {{- end }}
 {{- end -}}
 
+{{- define "docmost.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "docmost.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "docmost.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
@@ -42,6 +52,22 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- else -}}
 {{- default "default" .Values.serviceAccount.name -}}
 {{- end -}}
+{{- end -}}
+
+{{- define "docmost.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create -}}
+{{- default (printf "%s-backup" (include "docmost.fullname" .)) .Values.backup.serviceAccount.name -}}
+{{- else -}}
+{{- required "docmost: backup.serviceAccount.name is required when backup.serviceAccount.create is false" .Values.backup.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "docmost.deploymentPayload" -}}
+appSecret: {{ .Values.docmost.appSecret | quote }}
+databasePassword: {{ .Values.database.external.password | quote }}
+redisPassword: {{ .Values.redis.external.password | quote }}
+storageAccessKey: {{ .Values.storage.s3.accessKey | quote }}
+storageSecretKey: {{ .Values.storage.s3.secretKey | quote }}
 {{- end -}}
 
 {{- define "docmost.image" -}}
@@ -236,8 +262,14 @@ redis-password
   {{- if not .Values.backup.s3.bucket -}}
     {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
   {{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+  {{- if and (not .Values.backup.s3.credentialsFromPodIdentity) (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
     {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
+  {{- end -}}
+  {{- if and .Values.backup.s3.credentialsFromPodIdentity (not .Values.backup.s3.region) -}}
+    {{- fail "docmost: backup.s3.region is required when backup.s3.credentialsFromPodIdentity is true" -}}
+  {{- end -}}
+  {{- if and (not .Values.backup.serviceAccount.create) (not .Values.backup.serviceAccount.name) -}}
+    {{- fail "docmost: backup.serviceAccount.name is required when workload identity is enabled and backup.serviceAccount.create is false" -}}
   {{- end -}}
 true
 {{- end -}}
