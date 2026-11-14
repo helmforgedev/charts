@@ -35,6 +35,50 @@ tests:
           path: spec.jobTemplate.spec.template.spec.securityContext.seccompProfile.type
           value: RuntimeDefault
 
+  - it: should inherit the configured Ghost pod identity for backup volume access
+    template: templates/backup-cronjob.yaml
+    set:
+      podSecurityContext:
+        runAsNonRoot: true
+        runAsUser: 2000
+        runAsGroup: 3000
+        fsGroup: 4000
+        seccompProfile:
+          type: RuntimeDefault
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.example.com
+      backup.s3.bucket: ghost
+      backup.s3.accessKey: test
+      backup.s3.secretKey: test
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.securityContext.runAsUser
+          value: 2000
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.securityContext.runAsGroup
+          value: 3000
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.securityContext.fsGroup
+          value: 4000
+
+  - it: should use configured key names for generated inline credentials
+    template: templates/secret.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.example.com
+      backup.s3.bucket: ghost
+      backup.s3.accessKey: test-access
+      backup.s3.secretKey: test-secret
+      backup.s3.existingSecretAccessKeyKey: custom-access
+      backup.s3.existingSecretSecretKeyKey: custom-secret
+    asserts:
+      - equal:
+          path: stringData["custom-access"]
+          value: test-access
+      - equal:
+          path: stringData["custom-secret"]
+          value: test-secret
+
   - it: should use ambient AWS credentials without static Secret references
     template: templates/backup-cronjob.yaml
     set:

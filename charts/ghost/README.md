@@ -152,6 +152,7 @@ adapters when the container starts.
 | `backup.s3.region` | `""` | AWS region required for workload identity |
 | `backup.serviceAccount.create` | `true` | Create a dedicated backup ServiceAccount for workload identity |
 | `backup.serviceAccount.annotations` | `{}` | Workload identity annotations for the backup ServiceAccount |
+| `backup.serviceAccount.automountServiceAccountToken` | `true` | Mount the projected Kubernetes token required by workload identity |
 | `ingress.enabled` | `false` | Enable ingress |
 | `gateway.enabled` | `false` | Enable Gateway API HTTPRoute |
 | `externalSecrets.enabled` | `false` | Render ExternalSecret for database password |
