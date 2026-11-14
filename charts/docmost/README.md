@@ -177,8 +177,8 @@ backup:
     existingSecret: docmost-backup-s3
 ```
 
-For Amazon S3 with EKS Pod Identity or IRSA, omit static credentials and
-configure the dedicated backup ServiceAccount:
+For Amazon S3 with IRSA, omit static credentials and annotate the dedicated
+backup ServiceAccount:
 
 ```yaml
 backup:
@@ -186,6 +186,23 @@ backup:
   serviceAccount:
     annotations:
       eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/docmost-backup
+  s3:
+    endpoint: https://s3.amazonaws.com
+    region: us-east-1
+    bucket: backups
+    credentialsFromPodIdentity: true
+```
+
+For EKS Pod Identity, do not add the IRSA annotation. Set a stable ServiceAccount
+name, install the EKS Pod Identity Agent add-on when the cluster does not use EKS
+Auto Mode, and create an AWS-side association for the cluster, namespace, and
+ServiceAccount:
+
+```yaml
+backup:
+  enabled: true
+  serviceAccount:
+    name: docmost-backup
   s3:
     endpoint: https://s3.amazonaws.com
     region: us-east-1
@@ -254,8 +271,10 @@ For production upgrades, take a database backup first and verify the secret refe
   the same `APP_SECRET` through `docmost.existingSecret`.
 - For S3 failures, verify endpoint reachability, bucket policy, path-style mode,
   and both keys in `storage.s3.existingSecret`.
-- For workload identity backup failures, verify `backup.s3.region`, the
-  dedicated ServiceAccount annotation, and the provider-side role binding.
+- For IRSA backup failures, verify `backup.s3.region`, the dedicated
+  ServiceAccount role annotation, and the IAM trust policy. For EKS Pod Identity,
+  verify the agent add-on and the AWS-side cluster, namespace, and ServiceAccount
+  association; Pod Identity does not use the IRSA annotation.
 
 ## More Information
 

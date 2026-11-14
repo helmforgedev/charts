@@ -63,11 +63,42 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "docmost.deploymentPayload" -}}
-appSecret: {{ .Values.docmost.appSecret | quote }}
-databasePassword: {{ .Values.database.external.password | quote }}
-redisPassword: {{ .Values.redis.external.password | quote }}
-storageAccessKey: {{ .Values.storage.s3.accessKey | quote }}
-storageSecretKey: {{ .Values.storage.s3.secretKey | quote }}
+{{- $appName := include "docmost.appSecretSecretName" . -}}
+{{- $appKey := include "docmost.appSecretKey" . -}}
+{{- $appObject := lookup "v1" "Secret" .Release.Namespace $appName -}}
+{{- $appValue := .Values.docmost.appSecret | b64enc -}}
+{{- if and $appObject (hasKey ($appObject.data | default dict) $appKey) -}}
+  {{- $appValue = index $appObject.data $appKey -}}
+{{- end -}}
+{{- $databaseName := include "docmost.databaseSecretName" . -}}
+{{- $databaseKey := include "docmost.databaseSecretKey" . -}}
+{{- $databaseObject := lookup "v1" "Secret" .Release.Namespace $databaseName -}}
+{{- $databaseValue := .Values.database.external.password | b64enc -}}
+{{- if and $databaseObject (hasKey ($databaseObject.data | default dict) $databaseKey) -}}
+  {{- $databaseValue = index $databaseObject.data $databaseKey -}}
+{{- end -}}
+{{- $redisName := include "docmost.redisSecretName" . -}}
+{{- $redisKey := include "docmost.redisSecretKey" . -}}
+{{- $redisObject := lookup "v1" "Secret" .Release.Namespace $redisName -}}
+{{- $redisValue := .Values.redis.external.password | b64enc -}}
+{{- if and $redisObject (hasKey ($redisObject.data | default dict) $redisKey) -}}
+  {{- $redisValue = index $redisObject.data $redisKey -}}
+{{- end -}}
+{{- $storageName := include "docmost.storageSecretName" . -}}
+{{- $storageObject := lookup "v1" "Secret" .Release.Namespace $storageName -}}
+{{- $storageAccessKey := .Values.storage.s3.accessKey | b64enc -}}
+{{- $storageSecretKey := .Values.storage.s3.secretKey | b64enc -}}
+{{- if and $storageObject (hasKey ($storageObject.data | default dict) .Values.storage.s3.existingSecretAccessKeyKey) -}}
+  {{- $storageAccessKey = index $storageObject.data .Values.storage.s3.existingSecretAccessKeyKey -}}
+{{- end -}}
+{{- if and $storageObject (hasKey ($storageObject.data | default dict) .Values.storage.s3.existingSecretSecretKeyKey) -}}
+  {{- $storageSecretKey = index $storageObject.data .Values.storage.s3.existingSecretSecretKeyKey -}}
+{{- end -}}
+appSecret: {{ $appValue | quote }}
+databasePassword: {{ $databaseValue | quote }}
+redisPassword: {{ $redisValue | quote }}
+storageAccessKey: {{ $storageAccessKey | quote }}
+storageSecretKey: {{ $storageSecretKey | quote }}
 {{- end -}}
 
 {{- define "docmost.image" -}}
