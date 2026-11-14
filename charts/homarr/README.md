@@ -17,6 +17,7 @@ Current application version: `v2.6.0`.
 - **External Redis** optional external Redis for multi-instance setups
 - **Persistent storage** application data in `/appdata`
 - **S3-compatible backup** database-aware CronJob using `tar` for SQLite or `pg_dump` for PostgreSQL
+- **Workload identity backup** dedicated ServiceAccount support for ambient AWS credentials
 - **Ingress support** configurable ingress with TLS
 - **Gateway API support** optional HTTPRoute for modern Kubernetes ingress controllers
 - **Dual-stack ready Service** optional `ipFamilyPolicy` and `ipFamilies`
@@ -166,6 +167,22 @@ backup:
     secretKey: "secret-key"
 ```
 
+For AWS workload identity, omit static credentials and annotate the dedicated
+backup ServiceAccount:
+
+```yaml
+backup:
+  enabled: true
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/homarr-backup
+  s3:
+    endpoint: https://s3.amazonaws.com
+    bucket: homarr-backups
+    region: us-east-1
+    credentialsFromPodIdentity: true
+```
+
 ## Values
 
 | Key | Default | Description |
@@ -173,6 +190,7 @@ backup:
 | `image.repository` | `ghcr.io/homarr-labs/homarr` | Container image repository |
 | `image.tag` | `"v2.6.0"` | Homarr image tag |
 | `replicaCount` | `1` | Number of replicas |
+| `commonAnnotations` | `{}` | Annotations applied to all chart-owned resources |
 | `homarr.logLevel` | `info` | Log level |
 | `homarr.authProviders` | `credentials` | Auth providers (credentials, ldap, oidc) |
 | `homarr.enableDnsCaching` | `false` | Enable Homarr's internal DNS cache. Disabled by default for Kubernetes Service discovery stability |
@@ -213,6 +231,12 @@ backup:
 | `backup.schedule` | `"0 3 * * *"` | Backup cron schedule |
 | `backup.s3.endpoint` | `""` | S3-compatible endpoint URL |
 | `backup.s3.bucket` | `""` | S3 bucket name |
+| `backup.s3.region` | `""` | AWS region for ambient workload identity |
+| `backup.s3.credentialsFromPodIdentity` | `false` | Use ambient workload identity instead of static credentials |
+| `backup.serviceAccount.create` | `true` | Create a dedicated backup ServiceAccount |
+| `backup.serviceAccount.annotations` | `{}` | Workload identity annotations for the backup ServiceAccount |
+| `backup.securityContext.capabilities.drop` | `[ALL]` | Drop all Linux capabilities from backup containers |
+| `backup.sqliteSecurityContext.capabilities.add` | `[DAC_READ_SEARCH]` | Read private Homarr files during SQLite backups |
 
 ## Database Auto-Detection
 
@@ -253,10 +277,11 @@ outside this chart.
 
 ## Security Defaults
 
-The chart sets resource requests and limits, disables privilege escalation, and applies the `RuntimeDefault` seccomp profile
-by default. The official Homarr image configures nginx during startup, so the chart keeps the container root filesystem
-writable and does not force a non-root UID or dropped capabilities by default. Override `podSecurityContext` and
-`securityContext` only after validating compatible writable mounts for `/etc/nginx` and `/var/lib/nginx`.
+The chart sets resource requests and limits, disables privilege escalation, applies the `RuntimeDefault` seccomp profile,
+and drops the default Linux capability set. The pinned Homarr image configures nginx during startup and requires only
+`CHOWN`, `DAC_OVERRIDE`, `SETGID`, and `SETUID`, which the chart adds explicitly. The root filesystem remains writable for
+the image's nginx startup contract. Override `podSecurityContext` and `securityContext` only after validating the pinned
+image.
 
 ## Upgrade Notes
 
