@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Common annotations
+templates:
+  - templates/deployment.yaml
+  - templates/service-admin.yaml
+  - templates/config-secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should add common annotations to chart-owned resources
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+        template: templates/deployment.yaml
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+        template: templates/service-admin.yaml
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+        template: templates/config-secret.yaml
+
+  - it: should let resource annotations override common annotations
+    template: templates/service-admin.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+      adminService:
+        annotations:
+          example.com/owner: security
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: security

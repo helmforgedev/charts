@@ -216,3 +216,30 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey."
+
+  - it: should fail workload identity backup without region
+    set:
+      backup:
+        enabled: true
+        s3:
+          endpoint: https://s3.amazonaws.com
+          bucket: gophish-backups
+          credentialsFromPodIdentity: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.s3.region is required when workload identity is enabled."
+
+  - it: should require an existing dedicated ServiceAccount when creation is disabled
+    set:
+      backup:
+        enabled: true
+        serviceAccount:
+          create: false
+        s3:
+          endpoint: https://s3.amazonaws.com
+          bucket: gophish-backups
+          region: us-east-1
+          credentialsFromPodIdentity: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.serviceAccount.name is required when workload identity is enabled and creation is disabled"

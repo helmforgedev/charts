@@ -8,7 +8,8 @@ The chart-managed backup covers SQLite mode only. It archives the chart-managed 
 
 Persistent filesystem coverage: in SQLite mode, the backup archive includes the chart-managed PVC path mounted at `/opt/gophish/data`.
 
-Database coverage: in SQLite mode, the SQLite database file is inside the archived persistent filesystem path. Embedded MySQL and external MySQL database coverage are intentionally delegated to their database-specific backup tooling.
+Database coverage: in SQLite mode, the SQLite database file is inside the archived persistent filesystem path. Embedded
+MySQL and external MySQL database coverage are intentionally delegated to their database-specific backup tooling.
 
 MySQL modes are intentionally outside this backup boundary:
 
@@ -34,6 +35,29 @@ The S3 Secret must contain:
 - `secret-key`
 
 For local k3d validation only, inline `backup.s3.accessKey` and `backup.s3.secretKey` can be used.
+
+## AWS Workload Identity
+
+Use ambient credentials for IRSA or EKS Pod Identity instead of a static Secret:
+
+```yaml
+backup:
+  enabled: true
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/gophish-backup
+  s3:
+    endpoint: https://s3.amazonaws.com
+    bucket: gophish-backups
+    prefix: gophish
+    region: us-east-1
+    credentialsFromPodIdentity: true
+```
+
+The chart creates a dedicated backup ServiceAccount by default. EKS Pod Identity associations are configured outside the
+chart and usually do not need the IRSA annotation. Set `backup.serviceAccount.create: false` together with
+`backup.serviceAccount.name` to reuse an existing dedicated identity. Workload identity mode does not render or reference
+a static S3 credential Secret.
 
 ## Runtime Model
 

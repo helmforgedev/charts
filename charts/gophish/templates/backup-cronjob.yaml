@@ -8,6 +8,7 @@ metadata:
   labels:
     {{- include "gophish.labels" . | nindent 4 }}
     app.kubernetes.io/component: backup
+  {{- include "gophish.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   schedule: {{ .Values.backup.schedule | quote }}
   suspend: {{ .Values.backup.suspend }}
@@ -24,8 +25,13 @@ spec:
             app.kubernetes.io/component: backup
         spec:
           restartPolicy: OnFailure
+          {{- if .Values.backup.s3.credentialsFromPodIdentity }}
+          serviceAccountName: {{ include "gophish.backupServiceAccountName" . }}
+          automountServiceAccountToken: {{ .Values.backup.serviceAccount.automountServiceAccountToken }}
+          {{- else }}
           serviceAccountName: {{ include "gophish.serviceAccountName" . }}
           automountServiceAccountToken: false
+          {{- end }}
           {{- with .Values.podSecurityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
@@ -66,6 +72,12 @@ spec:
                   value: /backup/.mc
                 - name: S3_ENDPOINT
                   value: {{ .Values.backup.s3.endpoint | quote }}
+                {{- if .Values.backup.s3.credentialsFromPodIdentity }}
+                - name: AWS_REGION
+                  value: {{ .Values.backup.s3.region | quote }}
+                - name: AWS_DEFAULT_REGION
+                  value: {{ .Values.backup.s3.region | quote }}
+                {{- else }}
                 - name: S3_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
@@ -76,6 +88,7 @@ spec:
                     secretKeyRef:
                       name: {{ include "gophish.backupSecretName" . }}
                       key: {{ .Values.backup.s3.existingSecretSecretKeyKey }}
+                {{- end }}
               {{- with .Values.backup.containerSecurityContext }}
               securityContext:
                 {{- toYaml . | nindent 16 }}

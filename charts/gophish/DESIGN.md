@@ -39,7 +39,7 @@ separation, TLS choices, persistence, and site sync notes.
 - Generated `config.json` stored as a Secret, with `existingSecret` support for
   operator-managed configuration.
 - NetworkPolicy, dual-stack Service fields, ServiceAccount token control, and
-  backup support for SQLite mode.
+  backup support for SQLite mode with static credentials or ambient AWS workload identity.
 
 ## Production Boundary
 

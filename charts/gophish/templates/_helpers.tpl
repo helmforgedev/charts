@@ -31,6 +31,17 @@ app.kubernetes.io/name: {{ include "gophish.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
+{{- define "gophish.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $required := .required | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific $required -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | indent 2 }}
+{{- end -}}
+{{- end -}}
+
 {{- define "gophish.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
 {{- default (include "gophish.fullname" .) .Values.serviceAccount.name -}}
@@ -64,6 +75,40 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- default "config.json" .Values.gophish.config.existingSecretKey -}}
 {{- else -}}
 config.json
+{{- end -}}
+{{- end -}}
+
+{{- define "gophish.configPayload" -}}
+{
+  "admin_server": {
+    "listen_url": {{ .Values.gophish.adminServer.listenUrl | toJson }},
+    "use_tls": {{ .Values.gophish.adminServer.useTls }},
+    "cert_path": {{ .Values.gophish.adminServer.certPath | toJson }},
+    "key_path": {{ .Values.gophish.adminServer.keyPath | toJson }},
+    "trusted_origins": {{ .Values.gophish.adminServer.trustedOrigins | toJson }}
+  },
+  "phish_server": {
+    "listen_url": {{ .Values.gophish.phishServer.listenUrl | toJson }},
+    "use_tls": {{ .Values.gophish.phishServer.useTls }},
+    "cert_path": {{ .Values.gophish.phishServer.certPath | toJson }},
+    "key_path": {{ .Values.gophish.phishServer.keyPath | toJson }}
+  },
+  "db_name": {{ include "gophish.databaseName" . | trim | toJson }},
+  "db_path": {{ include "gophish.databasePath" . | trim | toJson }},
+  "migrations_prefix": "db/db_",
+  "contact_address": {{ .Values.gophish.contactAddress | toJson }},
+  "logging": {
+    "filename": {{ .Values.gophish.logging.filename | toJson }},
+    "level": {{ .Values.gophish.logging.level | toJson }}
+  }
+}
+{{- end -}}
+
+{{- define "gophish.configChecksumPayload" -}}
+{{- if .Values.gophish.config.existingSecret -}}
+{{- printf "%s:%s" .Values.gophish.config.existingSecret (include "gophish.configSecretKey" .) -}}
+{{- else -}}
+{{- include "gophish.configPayload" . -}}
 {{- end -}}
 {{- end -}}
 
@@ -148,6 +193,14 @@ __GOPHISH_DATABASE_DSN__
 {{- end -}}
 {{- end -}}
 
+{{- define "gophish.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create -}}
+{{- default (printf "%s-backup" (include "gophish.fullname" .) | trunc 63 | trimSuffix "-") .Values.backup.serviceAccount.name -}}
+{{- else -}}
+{{- required "backup.serviceAccount.name is required when workload identity is enabled and creation is disabled" .Values.backup.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "gophish.validateAll" -}}
 {{- $mode := include "gophish.effectiveDatabaseMode" . | trim -}}
 {{- $externalSignal := or .Values.database.external.existingSecret .Values.database.external.host -}}
@@ -224,7 +277,13 @@ __GOPHISH_DATABASE_DSN__
   {{- if not .Values.backup.s3.bucket -}}
   {{- fail "backup.s3.bucket is required when backup.enabled=true." -}}
   {{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+  {{- if and .Values.backup.s3.credentialsFromPodIdentity (not .Values.backup.s3.region) -}}
+  {{- fail "backup.s3.region is required when workload identity is enabled." -}}
+  {{- end -}}
+  {{- if and .Values.backup.s3.credentialsFromPodIdentity (not .Values.backup.serviceAccount.create) (not .Values.backup.serviceAccount.name) -}}
+  {{- fail "backup.serviceAccount.name is required when workload identity is enabled and creation is disabled" -}}
+  {{- end -}}
+  {{- if and (not .Values.backup.s3.credentialsFromPodIdentity) (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
   {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey." -}}
   {{- end -}}
 {{- end -}}
