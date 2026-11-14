@@ -551,6 +551,10 @@ Common Elasticsearch environment variables
       name: {{ include "elasticsearch.credentialsSecretName" . }}
       key: elastic-password
       optional: {{ eq (include "elasticsearch.security.enabled" .) "false" }}
+{{- if and .Values.backup.enabled .Values.backup.s3.credentialsFromPodIdentity }}
+- name: AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE
+  value: /usr/share/elasticsearch/config/repository-s3/eks-pod-identity-token
+{{- end }}
 {{- with .Values.extraEnv }}
 {{ toYaml . }}
 {{- end }}
@@ -570,7 +574,37 @@ Common Elasticsearch environment variables
 {{- end -}}
 
 {{- define "elasticsearch.backupKeystoreInitContainer" -}}
-{{- if and (eq (include "elasticsearch.backupEnabled" .) "true") (not .Values.backup.s3.credentialsFromPodIdentity) }}
+{{- if eq (include "elasticsearch.backupEnabled" .) "true" }}
+{{- if .Values.backup.s3.credentialsFromPodIdentity }}
+- name: configure-s3-workload-identity
+  image: {{ include "elasticsearch.image" . }}
+  imagePullPolicy: {{ .Values.image.pullPolicy }}
+  command:
+    - sh
+    - -c
+    - |
+      set -eu
+      cp -r /usr/share/elasticsearch/config/. /keystore-config/
+      mkdir -p /keystore-config/repository-s3
+      configured=false
+      if [ -n "${AWS_WEB_IDENTITY_TOKEN_FILE:-}" ]; then
+        ln -sf "${AWS_WEB_IDENTITY_TOKEN_FILE}" /keystore-config/repository-s3/aws-web-identity-token-file
+        configured=true
+      fi
+      if [ -n "${AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE:-}" ]; then
+        ln -sf "${AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE}" /keystore-config/repository-s3/eks-pod-identity-token
+        configured=true
+      fi
+      if [ "${configured}" != "true" ]; then
+        echo "No supported AWS workload identity token file was injected" >&2
+        exit 1
+      fi
+  volumeMounts:
+    - name: keystore-config
+      mountPath: /keystore-config
+  securityContext:
+    {{- toYaml .Values.securityContext | nindent 4 }}
+{{- else }}
 - name: keystore-s3
   image: {{ include "elasticsearch.image" . }}
   imagePullPolicy: {{ .Values.image.pullPolicy }}
@@ -600,17 +634,18 @@ Common Elasticsearch environment variables
   securityContext:
     {{- toYaml .Values.securityContext | nindent 4 }}
 {{- end }}
+{{- end }}
 {{- end -}}
 
 {{- define "elasticsearch.backupKeystoreVolumeMount" -}}
-{{- if and (eq (include "elasticsearch.backupEnabled" .) "true") (not .Values.backup.s3.credentialsFromPodIdentity) }}
+{{- if eq (include "elasticsearch.backupEnabled" .) "true" }}
 - name: keystore-config
   mountPath: /usr/share/elasticsearch/config
 {{- end }}
 {{- end -}}
 
 {{- define "elasticsearch.backupKeystoreVolume" -}}
-{{- if and (eq (include "elasticsearch.backupEnabled" .) "true") (not .Values.backup.s3.credentialsFromPodIdentity) }}
+{{- if eq (include "elasticsearch.backupEnabled" .) "true" }}
 - name: keystore-config
   emptyDir: {}
 {{- end }}

@@ -27,10 +27,13 @@ configurable ServiceAccount.
 
 Set `backup.s3.credentialsFromPodIdentity=true` to let Elasticsearch obtain S3
 credentials from its pod identity instead of writing static credentials to a
-Secret and keystore. The S3 bucket must already exist. Configure the cloud
-identity on the main `serviceAccount`, because Elasticsearch nodes perform the
-snapshot I/O; `backup.serviceAccount` is dedicated to the orchestration
-CronJob.
+Secret and keystore. The chart prepares the required token link under
+`${ES_PATH_CONF}/repository-s3` before every Elasticsearch node starts. It
+supports both `aws-web-identity-token-file` for IRSA and
+`eks-pod-identity-token` for EKS Pod Identity. The S3 bucket must already exist.
+Configure the cloud identity on the main `serviceAccount`, because
+Elasticsearch nodes perform the snapshot I/O; `backup.serviceAccount` is
+dedicated to the orchestration CronJob.
 
 ```yaml
 serviceAccount:

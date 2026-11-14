@@ -39,7 +39,7 @@ tests:
       - hasDocuments:
           count: 0
 
-  - it: workload identity omits the static keystore init container
+  - it: workload identity configures repository-s3 token symlinks
     template: templates/statefulset-master.yaml
     set:
       backup:
@@ -48,8 +48,20 @@ tests:
           bucket: test-bucket
           credentialsFromPodIdentity: true
     asserts:
-      - notExists:
-          path: spec.template.spec.initContainers
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: configure-s3-workload-identity
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: repository-s3/aws-web-identity-token-file
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: repository-s3/eks-pod-identity-token
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE
+            value: /usr/share/elasticsearch/config/repository-s3/eks-pod-identity-token
 
   - it: backup CronJob uses its dedicated ServiceAccount
     template: templates/cronjob-backup.yaml
