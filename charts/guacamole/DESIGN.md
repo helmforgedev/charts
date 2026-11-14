@@ -120,10 +120,12 @@ an S3-compatible endpoint:
 - MySQL backups use `mysqldump --single-transaction --quick`.
 - Uploads use the HelmForge `mc` image and optional bucket creation.
 
-S3 credentials can be supplied inline for chart-managed Secret creation or via
-`backup.s3.existingSecret` for externally managed credentials. The backup flow
-stores database state only; remote desktops and target systems remain external
-to Guacamole.
+S3 credentials can be supplied inline for chart-managed Secret creation, via
+`backup.s3.existingSecret` for externally managed credentials, or through
+ambient workload identity. Identity mode uses a dedicated configurable backup
+ServiceAccount, requires an AWS region, and does not render or reference static
+S3 credentials. The backup flow stores database state only; remote desktops and
+target systems remain external to Guacamole.
 
 ## Production boundary
 

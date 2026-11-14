@@ -31,12 +31,47 @@ app.kubernetes.io/name: {{ include "guacamole.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
+{{- define "guacamole.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $required := .required | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific $required -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | indent 2 }}
+{{- end -}}
+{{- end -}}
+
 {{- define "guacamole.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
 {{- default (include "guacamole.fullname" .) .Values.serviceAccount.name -}}
 {{- else -}}
 {{- default "default" .Values.serviceAccount.name -}}
 {{- end -}}
+{{- end -}}
+
+{{- define "guacamole.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create -}}
+{{- default (printf "%s-backup" (include "guacamole.fullname" .)) .Values.backup.serviceAccount.name -}}
+{{- else -}}
+{{- required "backup.serviceAccount.name is required when backup.serviceAccount.create is false" .Values.backup.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "guacamole.databaseChecksumPayload" -}}
+{{- $payload := dict "secretName" (include "guacamole.dbSecretName" .) "passwordKey" (include "guacamole.dbSecretPasswordKey" .) -}}
+{{- if not .Values.database.external.existingSecret -}}
+{{- $_ := set $payload "password" (include "guacamole.dbPassword" .) -}}
+{{- end -}}
+{{- toJson $payload -}}
+{{- end -}}
+
+{{- define "guacamole.tomcatPortPayload" -}}
+# The official image sources entrypoint.d scripts after generating CATALINA_BASE.
+xmlstarlet ed --inplace \
+  --update '/Server/Service/Connector[@protocol="HTTP/1.1"]/@port' \
+  --value "${GUACAMOLE_HTTP_PORT}" \
+  "${CATALINA_BASE}/conf/server.xml"
 {{- end -}}
 
 {{- define "guacamole.image" -}}
@@ -243,6 +278,23 @@ Compile all validation warnings and errors into a single message.
 {{- end -}}
 {{- if and .Values.saml.enabled (or (and (not .Values.saml.idpMetadataUrl) (not .Values.saml.idpUrl)) (and (not .Values.saml.entityId) (not .Values.ingress.enabled))) -}}
   {{- $messages = append $messages "saml.enabled is true, but idpMetadataUrl/idpUrl or entityId is missing." -}}
+{{- end -}}
+{{- if .Values.backup.enabled -}}
+  {{- if not .Values.backup.s3.endpoint -}}
+    {{- $messages = append $messages "backup.s3.endpoint is required when backup.enabled is true." -}}
+  {{- end -}}
+  {{- if not .Values.backup.s3.bucket -}}
+    {{- $messages = append $messages "backup.s3.bucket is required when backup.enabled is true." -}}
+  {{- end -}}
+  {{- if and .Values.backup.s3.credentialsFromPodIdentity (not .Values.backup.s3.region) -}}
+    {{- $messages = append $messages "backup.s3.region is required when backup.s3.credentialsFromPodIdentity is true." -}}
+  {{- end -}}
+  {{- if and .Values.backup.s3.credentialsFromPodIdentity (not .Values.backup.serviceAccount.create) (not .Values.backup.serviceAccount.name) -}}
+    {{- $messages = append $messages "backup.serviceAccount.name is required when workload identity is enabled and backup.serviceAccount.create is false." -}}
+  {{- end -}}
+  {{- if and (not .Values.backup.s3.credentialsFromPodIdentity) (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+    {{- $messages = append $messages "Static S3 backups require backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey." -}}
+  {{- end -}}
 {{- end -}}
 {{- if $messages -}}
   {{- $leader := "\n\n================================================================================\nCHART CONFIGURATION VALIDATION ERRORS:\n================================================================================\n" -}}

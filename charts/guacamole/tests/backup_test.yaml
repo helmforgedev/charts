@@ -3,6 +3,7 @@ suite: Backup
 templates:
   - templates/backup-cronjob.yaml
   - templates/backup-configmap.yaml
+  - templates/backup-serviceaccount.yaml
   - templates/secret.yaml
 release:
   name: test
@@ -71,3 +72,91 @@ tests:
           path: data["postgres-backup.sh"]
       - exists:
           path: data["upload-backup.sh"]
+
+  - it: should use ambient AWS credentials without static Secret references
+    template: templates/backup-cronjob.yaml
+    set:
+      postgresql.auth.password: test
+      backup:
+        enabled: true
+        s3:
+          endpoint: https://s3.amazonaws.com
+          bucket: test-bucket
+          region: us-east-1
+          credentialsFromPodIdentity: true
+          accessKey: retained-access-key
+          secretKey: retained-secret-key
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.serviceAccountName
+          value: test-guacamole-backup
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env[4].name
+          value: AWS_REGION
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env[5].name
+          value: AWS_DEFAULT_REGION
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env[0].value
+          value: /mc-config
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].volumeMounts[1].mountPath
+          value: /mc-config
+      - notExists:
+          path: spec.jobTemplate.spec.template.spec.containers[0].volumeMounts[1].readOnly
+      - notContains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: S3_ACCESS_KEY
+          any: true
+      - notContains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: S3_SECRET_KEY
+          any: true
+
+  - it: should create a dedicated annotated backup ServiceAccount
+    template: templates/backup-serviceaccount.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+      postgresql.auth.password: test
+      backup:
+        enabled: true
+        serviceAccount:
+          annotations:
+            eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/guacamole-backup
+        s3:
+          endpoint: https://s3.amazonaws.com
+          bucket: test-bucket
+          region: us-east-1
+          credentialsFromPodIdentity: true
+    asserts:
+      - isKind:
+          of: ServiceAccount
+      - equal:
+          path: metadata.name
+          value: test-guacamole-backup
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+      - equal:
+          path: metadata.annotations["eks.amazonaws.com/role-arn"]
+          value: arn:aws:iam::123456789012:role/guacamole-backup
+
+  - it: should not create static backup credentials for workload identity
+    template: templates/secret.yaml
+    set:
+      postgresql.auth.password: ""
+      backup:
+        enabled: true
+        s3:
+          endpoint: https://s3.amazonaws.com
+          bucket: test-bucket
+          region: us-east-1
+          credentialsFromPodIdentity: true
+          accessKey: retained-access-key
+          secretKey: retained-secret-key
+    asserts:
+      - hasDocuments:
+          count: 0

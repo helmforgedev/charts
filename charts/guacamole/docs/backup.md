@@ -29,11 +29,33 @@ backup:
 
 The secret must contain `access-key` and `secret-key` keys.
 
+## Using Workload Identity
+
+Use ambient credentials from the backup pod on platforms such as Amazon EKS.
+No static S3 credential Secret is rendered or referenced in this mode.
+
+```yaml
+backup:
+  enabled: true
+  serviceAccount:
+    create: true
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/guacamole-backup
+  s3:
+    endpoint: https://s3.amazonaws.com
+    bucket: my-backups
+    region: us-east-1
+    credentialsFromPodIdentity: true
+```
+
+Set `backup.serviceAccount.create: false` and provide
+`backup.serviceAccount.name` to reuse an existing identity-enabled account.
+
 ## How It Works
 
 - **PostgreSQL**: uses `pg_dump` with `--clean --if-exists`
 - **MySQL**: uses `mysqldump` with `--single-transaction --quick`
-- Dumps are compressed with gzip and uploaded via `minio/mc`
+- Dumps are compressed with gzip and uploaded via the HelmForge `mc` image
 - Archives are named `<archivePrefix>-<timestamp>.sql.gz`
 
 <!-- @AI-METADATA

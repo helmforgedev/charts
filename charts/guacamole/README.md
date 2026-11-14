@@ -122,6 +122,13 @@ See [OIDC with Keycloak guide](docs/oidc-keycloak.md) for detailed setup instruc
 
 ## Values
 
+### Common metadata
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `commonLabels` | `{}` | Labels added to chart-owned resources |
+| `commonAnnotations` | `{}` | Annotations added to chart-owned resources; resource-specific annotations take precedence |
+
 ### Images
 
 | Key | Default | Description |
@@ -198,6 +205,10 @@ See [OIDC with Keycloak guide](docs/oidc-keycloak.md) for detailed setup instruc
 | `backup.schedule` | `0 2 * * *` | Cron schedule |
 | `backup.s3.endpoint` | `""` | S3 endpoint URL |
 | `backup.s3.bucket` | `""` | S3 bucket |
+| `backup.s3.region` | `""` | AWS region required for workload identity |
+| `backup.s3.credentialsFromPodIdentity` | `false` | Use ambient workload identity instead of static keys |
+| `backup.serviceAccount.create` | `true` | Create a dedicated backup ServiceAccount |
+| `backup.serviceAccount.annotations` | `{}` | Workload identity annotations for the backup ServiceAccount |
 
 ### Extra
 
