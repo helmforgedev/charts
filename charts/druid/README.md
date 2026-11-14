@@ -73,6 +73,7 @@ flowchart LR
 | Key | Default | Description |
 |-----|---------|-------------|
 | `global` | `{}` | Helm ecosystem compatibility values |
+| `commonAnnotations` | `{}` | Annotations added to chart-owned resources; resource annotations take precedence |
 | `image.repository` | `apache/druid` | Druid container image |
 | `image.tag` | `"38.0.0"` | Image tag |
 | `coordinator.enabled` | `true` | Enable coordinator |
@@ -89,10 +90,14 @@ flowchart LR
 | `historical.enabled` | `false` | Enable historical segment serving |
 | `historical.port` | `8083` | Historical port |
 | `historical.persistence.size` | `10Gi` | Segment cache volume size |
+| `historical.persistence.retentionPolicy.whenDeleted` | `""` | PVC retention after StatefulSet deletion; `Retain`, `Delete`, or Kubernetes default |
+| `historical.persistence.retentionPolicy.whenScaled` | `""` | PVC retention after scale-down; `Retain`, `Delete`, or Kubernetes default |
 | `middleManager.enabled` | `false` | Enable middle manager ingestion workers |
 | `middleManager.port` | `8091` | MiddleManager port |
 | `middleManager.workerCapacity` | `2` | Tasks per middle manager |
 | `middleManager.persistence.size` | `10Gi` | Task storage volume size |
+| `middleManager.persistence.retentionPolicy.whenDeleted` | `""` | PVC retention after StatefulSet deletion; `Retain`, `Delete`, or Kubernetes default |
+| `middleManager.persistence.retentionPolicy.whenScaled` | `""` | PVC retention after scale-down; `Retain`, `Delete`, or Kubernetes default |
 | `metadata.mode` | `subchart` | Metadata mode: subchart or external |
 | `zookeeperConfig.mode` | `subchart` | ZooKeeper mode: subchart or external |
 | `deepStorage.type` | `local` | Deep storage: local or s3 |
@@ -110,6 +115,12 @@ flowchart LR
 | `securityContext.runAsNonRoot` | `true` | Run Druid containers as a non-root user |
 | `postgresql.enabled` | `true` | Enable PostgreSQL subchart |
 | `zookeeper.enabled` | `true` | Enable bundled ZooKeeper |
+| `zookeeper.persistence.retentionPolicy.whenDeleted` | `""` | PVC retention after StatefulSet deletion; `Retain`, `Delete`, or Kubernetes default |
+| `zookeeper.persistence.retentionPolicy.whenScaled` | `""` | PVC retention after scale-down; `Retain`, `Delete`, or Kubernetes default |
+
+PVC retention policies require Kubernetes 1.27 or later. On Kubernetes 1.26,
+enable the `StatefulSetAutoDeletePVC` feature gate on both the API server and
+controller manager.
 
 ## Druid 38.0.0 upgrade notes
 

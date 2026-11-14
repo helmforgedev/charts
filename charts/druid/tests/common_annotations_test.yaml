@@ -1,0 +1,71 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: common annotations
+templates:
+  - templates/broker-deployment.yaml
+  - templates/service.yaml
+  - templates/httproute.yaml
+  - templates/zookeeper.yaml
+tests:
+  - it: applies common annotations to Druid workloads and services
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+        template: templates/broker-deployment.yaml
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+        template: templates/service.yaml
+        documentIndex: 0
+
+  - it: lets service annotations override common annotations
+    template: templates/service.yaml
+    documentIndex: 0
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+      service.annotations:
+        example.com/owner: networking
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: networking
+
+  - it: merges common annotations into HTTPRoute with route precedence
+    template: templates/httproute.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+        example.com/environment: production
+      gatewayAPI:
+        enabled: true
+        annotations:
+          example.com/owner: networking
+        parentRefs:
+          - name: shared-gateway
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: networking
+      - equal:
+          path: metadata.annotations["example.com/environment"]
+          value: production
+
+  - it: applies common annotations to bundled ZooKeeper resources
+    template: templates/zookeeper.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+        documentIndex: 0
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+        documentIndex: 3
+

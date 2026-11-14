@@ -7,7 +7,9 @@ metadata:
   labels:
     {{- include "druid.labels" . | nindent 4 }}
     app.kubernetes.io/component: historical
+  {{- include "druid.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
+  {{- include "druid.pvcRetentionPolicy" .Values.historical.persistence.retentionPolicy | nindent 2 }}
   serviceName: {{ include "druid.fullname" . }}-historical-headless
   replicas: {{ .Values.historical.replicaCount }}
   selector:
@@ -23,7 +25,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/config: {{ include "druid.configChecksumPayload" . | sha256sum }}
         {{- with .Values.historical.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

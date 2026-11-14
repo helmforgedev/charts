@@ -26,6 +26,91 @@ app.kubernetes.io/part-of: helmforge
 {{- end }}
 {{- end -}}
 
+{{/* Merge chart-wide annotations with resource-specific annotations taking precedence. */}}
+{{- define "druid.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
+{{/* Render the exact common.runtime.properties payload shared by the ConfigMap and rollout checksum. */}}
+{{- define "druid.configChecksumPayload" -}}
+#
+# Extensions
+#
+druid.extensions.loadList=["druid-histogram", "druid-datasketches", "druid-lookups-cached-global", "{{ if eq (include "druid.metadataType" .) "mysql" }}mysql-metadata-storage{{ else }}postgresql-metadata-storage{{ end }}"{{ if eq .Values.deepStorage.type "s3" }}, "druid-s3-extensions"{{ end }}]
+
+#
+# ZooKeeper
+#
+druid.zk.service.host={{ include "druid.zookeeperHosts" . }}
+druid.zk.paths.base=/druid
+
+#
+# Metadata storage
+#
+druid.metadata.storage.type={{ include "druid.metadataType" . }}
+druid.metadata.storage.connector.connectURI={{ include "druid.metadataConnectUri" . }}
+druid.metadata.storage.connector.user={{ include "druid.metadataUsername" . }}
+druid.metadata.storage.connector.password=${env:DRUID_METADATA_PASSWORD}
+
+#
+# Deep storage
+#
+{{- if eq .Values.deepStorage.type "s3" }}
+druid.storage.type=s3
+druid.storage.bucket={{ .Values.deepStorage.s3.bucket }}
+druid.storage.baseKey={{ .Values.deepStorage.s3.baseKey }}
+druid.s3.accessKey=${env:DRUID_S3_ACCESS_KEY}
+druid.s3.secretKey=${env:DRUID_S3_SECRET_KEY}
+{{- if .Values.deepStorage.s3.endpointUrl }}
+druid.s3.endpoint.url={{ .Values.deepStorage.s3.endpointUrl }}
+druid.s3.enablePathStyleAccess=true
+{{- end }}
+druid.s3.endpoint.signingRegion={{ .Values.deepStorage.s3.region }}
+{{- else }}
+druid.storage.type=local
+druid.storage.storageDirectory=/opt/druid/var/druid/segments
+{{- end }}
+
+#
+# Indexing service logs
+#
+{{- if eq .Values.deepStorage.type "s3" }}
+druid.indexer.logs.type=s3
+druid.indexer.logs.s3Bucket={{ .Values.deepStorage.s3.bucket }}
+druid.indexer.logs.s3Prefix=druid/indexing-logs
+{{- else }}
+druid.indexer.logs.type=file
+druid.indexer.logs.directory=/opt/druid/var/druid/indexing-logs
+{{- end }}
+
+#
+# Service discovery
+#
+druid.selectors.indexing.serviceName=druid/overlord
+druid.selectors.coordinator.serviceName=druid/coordinator
+
+{{ .Values.druid.extraCommonProperties }}
+{{- end -}}
+
+{{/* Render the optional StatefulSet PVC retention contract. */}}
+{{- define "druid.pvcRetentionPolicy" -}}
+{{- if or .whenDeleted .whenScaled }}
+persistentVolumeClaimRetentionPolicy:
+  {{- with .whenDeleted }}
+  whenDeleted: {{ . }}
+  {{- end }}
+  {{- with .whenScaled }}
+  whenScaled: {{ . }}
+  {{- end }}
+{{- end }}
+{{- end -}}
+
 {{- define "druid.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "druid.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
