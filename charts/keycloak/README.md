@@ -280,10 +280,16 @@ postgresql:
 | `database.tls.existingConfigMap` | ConfigMap with database CA material | `""` |
 | `features.enabled` | Keycloak features to enable | `[]` |
 | `optimized.enabled` | Add `--optimized` startup arg | `false` |
+| `commonAnnotations` | Annotations added to all chart resources; resource-specific annotations take precedence | `{}` |
 | `backup.enabled` | Enable built-in S3 backup CronJob for database-backed modes | `false` |
 | `backup.schedule` | Backup schedule | `"0 3 * * *"` |
 | `backup.s3.endpoint` | S3-compatible endpoint URL | `""` |
 | `backup.s3.bucket` | Target bucket name | `""` |
+| `backup.s3.region` | AWS region for ambient workload identity | `""` |
+| `backup.s3.credentialsFromPodIdentity` | Use ambient workload identity instead of static credentials | `false` |
+| `backup.serviceAccount.create` | Create a dedicated backup ServiceAccount | `true` |
+| `backup.serviceAccount.annotations` | Workload identity annotations for the backup ServiceAccount | `{}` |
+| `backup.securityContext.capabilities.drop` | Linux capabilities removed from backup containers | `[ALL]` |
 | `postgresql.enabled` | Enable PostgreSQL subchart | `false` |
 | `postgresql.auth.database` | Subchart database name | `keycloak` |
 | `postgresql.auth.username` | Subchart database username | `keycloak` |

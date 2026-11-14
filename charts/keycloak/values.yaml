@@ -202,6 +202,12 @@ backup:
   archivePrefix: keycloak
   # -- Resources applied to the backup dump and upload containers
   resources: {}
+  # -- Security context shared by backup dump and upload containers
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
   images:
     uploader:
       repository: docker.io/helmforge/mc
@@ -222,6 +228,10 @@ backup:
     bucket: ""
     # -- Optional key prefix inside the bucket
     prefix: keycloak
+    # -- AWS region used by ambient workload identity credentials
+    region: ""
+    # -- Use ambient workload identity instead of static S3 credentials
+    credentialsFromPodIdentity: false
     # -- Create the bucket automatically when it does not exist yet
     createBucketIfNotExists: true
     # -- Existing secret containing access-key and secret-key
@@ -234,6 +244,15 @@ backup:
     accessKey: ""
     # -- Inline secret key used when backup.s3.existingSecret is not set
     secretKey: ""
+  serviceAccount:
+    # -- Create a dedicated ServiceAccount for workload identity backups
+    create: true
+    # -- Name of the backup ServiceAccount; generated when empty
+    name: ""
+    # -- Workload identity annotations, such as an AWS IAM role ARN
+    annotations: {}
+    # -- Mount the projected ServiceAccount token required by workload identity
+    automountServiceAccountToken: true
   database:
     # -- Extra arguments passed to pg_dump
     postgresDumpArgs: "--clean --if-exists"
@@ -629,6 +648,7 @@ terminationGracePeriodSeconds: 120
 podLabels: {}
 podAnnotations: {}
 annotations: {}
+commonAnnotations: {}
 
 # =============================================================================
 # Extra
