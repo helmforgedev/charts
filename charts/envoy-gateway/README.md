@@ -209,6 +209,7 @@ highAvailability:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `profile` | `custom` | Profile preset (dev, production-ha, custom) |
+| `commonAnnotations` | `{}` | Annotations added to every chart-owned Kubernetes resource; resource-specific annotations take precedence |
 | `namespaceOverride` | `""` | Namespace for chart-managed resources; target namespace must already exist |
 | `crds.enabled` | `true` | Migration bridge: retain bundled CRDs until the standalone release has been installed and ownership transferred |
 | `nameOverride` | `""` | Override chart name |

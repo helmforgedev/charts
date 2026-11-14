@@ -1,70 +1,74 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- define "envoy-gateway.configData" -}}
+envoy-gateway.yaml: |
+  apiVersion: gateway.envoyproxy.io/v1alpha1
+  kind: EnvoyGateway
+  gateway:
+    controllerName: gateway.envoyproxy.io/gatewayclass-controller
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyDeploymentSpec: {}
+      rateLimitDeployment:
+        container:
+          image: {{ printf "%s:%s" .Values.rateLimiting.service.image.repository .Values.rateLimiting.service.image.tag }}
+        {{- if and .Values.rateLimiting.enabled .Values.rateLimiting.externalRedis.host .Values.rateLimiting.externalRedis.auth.enabled }}
+        patch:
+          type: StrategicMerge
+          value:
+            spec:
+              template:
+                spec:
+                  containers:
+                    - name: envoy-ratelimit
+                      env:
+                        - name: REDIS_AUTH
+                          valueFrom:
+                            secretKeyRef:
+                              name: {{ .Values.rateLimiting.externalRedis.auth.secretName }}
+                              key: {{ .Values.rateLimiting.externalRedis.auth.secretKey }}
+        {{- else if and .Values.rateLimiting.enabled (not .Values.rateLimiting.externalRedis.host) .Values.redis.enabled .Values.redis.auth.enabled }}
+        patch:
+          type: StrategicMerge
+          value:
+            spec:
+              template:
+                spec:
+                  containers:
+                    - name: envoy-ratelimit
+                      env:
+                        - name: REDIS_AUTH
+                          valueFrom:
+                            secretKeyRef:
+                              name: {{ printf "%s-auth" (include "envoy-gateway.redisFullname" .) }}
+                              key: redis-password
+        {{- end }}
+  {{- if .Values.rateLimiting.enabled }}
+  rateLimit:
+    backend:
+      type: Redis
+      redis:
+        url: {{ include "envoy-gateway.ratelimit.redisUrl" . }}
+  {{- end }}
+  {{- if .Values.monitoring.enabled }}
+  telemetry:
+    metrics:
+      prometheus:
+        disable: false
+    {{- if .Values.monitoring.accessLogs.enabled }}
+    accessLog:
+      format:
+        type: {{ .Values.monitoring.accessLogs.format | upper }}
+    {{- end }}
+  {{- end }}
+{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ include "envoy-gateway.fullname" . }}-config
   namespace: {{ include "envoy-gateway.namespace" . }}
+  {{- include "envoy-gateway.renderAnnotations" (dict "root" .) | nindent 2 }}
   labels:
     {{- include "envoy-gateway.labels" . | nindent 4 }}
 data:
-  envoy-gateway.yaml: |
-    apiVersion: gateway.envoyproxy.io/v1alpha1
-    kind: EnvoyGateway
-    gateway:
-      controllerName: gateway.envoyproxy.io/gatewayclass-controller
-    provider:
-      type: Kubernetes
-      kubernetes:
-        envoyDeploymentSpec: {}
-        rateLimitDeployment:
-          container:
-            image: {{ printf "%s:%s" .Values.rateLimiting.service.image.repository .Values.rateLimiting.service.image.tag }}
-          {{- if and .Values.rateLimiting.enabled .Values.rateLimiting.externalRedis.host .Values.rateLimiting.externalRedis.auth.enabled }}
-          patch:
-            type: StrategicMerge
-            value:
-              spec:
-                template:
-                  spec:
-                    containers:
-                      - name: envoy-ratelimit
-                        env:
-                          - name: REDIS_AUTH
-                            valueFrom:
-                              secretKeyRef:
-                                name: {{ .Values.rateLimiting.externalRedis.auth.secretName }}
-                                key: {{ .Values.rateLimiting.externalRedis.auth.secretKey }}
-          {{- else if and .Values.rateLimiting.enabled (not .Values.rateLimiting.externalRedis.host) .Values.redis.enabled .Values.redis.auth.enabled }}
-          patch:
-            type: StrategicMerge
-            value:
-              spec:
-                template:
-                  spec:
-                    containers:
-                      - name: envoy-ratelimit
-                        env:
-                          - name: REDIS_AUTH
-                            valueFrom:
-                              secretKeyRef:
-                                name: {{ printf "%s-auth" (include "envoy-gateway.redisFullname" .) }}
-                                key: redis-password
-          {{- end }}
-    {{- if .Values.rateLimiting.enabled }}
-    rateLimit:
-      backend:
-        type: Redis
-        redis:
-          url: {{ include "envoy-gateway.ratelimit.redisUrl" . }}
-    {{- end }}
-    {{- if .Values.monitoring.enabled }}
-    telemetry:
-      metrics:
-        prometheus:
-          disable: false
-      {{- if .Values.monitoring.accessLogs.enabled }}
-      accessLog:
-        format:
-          type: {{ .Values.monitoring.accessLogs.format | upper }}
-      {{- end }}
-    {{- end }}
+  {{- include "envoy-gateway.configData" . | nindent 2 }}
