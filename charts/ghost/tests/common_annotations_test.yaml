@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Common annotations
+templates:
+  - templates/deployment.yaml
+  - templates/service.yaml
+  - templates/extra-manifests.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should add common annotations to chart-owned resources
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+      extraManifests:
+        - apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: extra
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+        template: templates/deployment.yaml
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+        template: templates/service.yaml
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+        template: templates/extra-manifests.yaml
+
+  - it: should let resource annotations override common annotations
+    template: templates/service.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+      service:
+        annotations:
+          example.com/owner: networking
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: networking
+
+  - it: should let extra manifest annotations override common annotations
+    template: templates/extra-manifests.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+      extraManifests:
+        - apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: extra
+            annotations:
+              example.com/owner: application
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: application
