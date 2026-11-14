@@ -236,6 +236,7 @@ backup:
 | `backup.serviceAccount.create` | `true` | Create a dedicated backup ServiceAccount |
 | `backup.serviceAccount.annotations` | `{}` | Workload identity annotations for the backup ServiceAccount |
 | `backup.securityContext.capabilities.drop` | `[ALL]` | Drop all Linux capabilities from backup containers |
+| `backup.sqliteSecurityContext.capabilities.add` | `[DAC_READ_SEARCH]` | Read private Homarr files during SQLite backups |
 
 ## Database Auto-Detection
 
