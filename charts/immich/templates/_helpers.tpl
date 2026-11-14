@@ -16,6 +16,16 @@ app.kubernetes.io/part-of: helmforge
 {{ toYaml . }}
 {{- end }}
 {{- end -}}
+{{- define "immich.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $required := .required | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific $required -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | indent 2 }}
+{{- end -}}
+{{- end -}}
 {{- define "immich.serviceAccountName" -}}{{- if .Values.serviceAccount.create -}}{{- default (include "immich.fullname" .) .Values.serviceAccount.name -}}{{- else -}}{{- default "default" .Values.serviceAccount.name -}}{{- end -}}{{- end -}}
 {{- define "immich.databaseInternalEnabled" -}}{{- if .Values.postgresql.enabled -}}true{{- end -}}{{- end -}}
 {{- define "immich.postgresqlFullname" -}}{{- if .Values.postgresql.fullnameOverride -}}{{ .Values.postgresql.fullnameOverride | trunc 63 | trimSuffix "-" }}{{- else -}}{{- printf "%s-%s" .Release.Name (default "postgresql" .Values.postgresql.nameOverride) | trunc 63 | trimSuffix "-" -}}{{- end -}}{{- end -}}

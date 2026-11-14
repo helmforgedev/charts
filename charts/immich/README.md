@@ -14,6 +14,7 @@ and the upstream VectorChord PostgreSQL image recommended by Immich.
 - External database and Redis/Valkey support with External Secrets Operator hooks.
 - Gateway API, Ingress, dual-stack Service support, HPA, PDB, NetworkPolicy,
   schema, and Helm tests.
+- Chart-wide common annotations with resource-specific override precedence.
 - Production, external-service, and networking guides with runnable examples.
 
 ## Install
@@ -33,10 +34,11 @@ dependency selection as separate controls. Review the complete contract in
 | Server | `server.*`, `service.*`, `resources` | One server pod listening on port `2283` behind a ClusterIP Service |
 | Machine learning | `machineLearning.*` | One pod with a persistent `10Gi` model cache |
 | Uploads | `server.persistence.*` | Persistent `50Gi` ReadWriteOnce volume |
-| PostgreSQL | `postgresql.*`, `database.external.*` | Bundled PostgreSQL `2.1.1` with the Immich VectorChord image |
-| Cache | `valkey.*` | Bundled Redis `3.1.0` aliased as `valkey` |
+| PostgreSQL | `postgresql.*`, `database.external.*` | Bundled PostgreSQL `2.2.0` with the Immich VectorChord image |
+| Cache | `valkey.*` | Bundled Redis `3.2.1` aliased as `valkey` |
 | Exposure | `ingress.*`, `gateway.*` | Disabled until explicitly configured |
 | Credentials | `externalSecrets.*`, existing Secret fields | Generated dependency credentials unless an external source is selected |
+| Metadata | `commonLabels`, `commonAnnotations` | Shared metadata on rendered resources, including `extraObjects`; resource-specific annotations win |
 
 The schema validates every documented default and rejects invalid listener
 ports, replica counts, persistence sizes, and enum values during `helm lint`,

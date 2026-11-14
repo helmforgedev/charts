@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: extra objects
+templates:
+  - templates/extra-objects.yaml
+tests:
+  - it: merges common annotations into extra objects with object precedence
+    set:
+      commonAnnotations:
+        owner: platform
+        shared: common
+      extraObjects:
+        - apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: extra-config
+            annotations:
+              owner: application
+          data:
+            release: '{{ .Release.Name }}'
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.annotations.owner
+          value: application
+      - equal:
+          path: metadata.annotations.shared
+          value: common
+      - equal:
+          path: data.release
+          value: RELEASE-NAME

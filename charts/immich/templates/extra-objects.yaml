@@ -1,5 +1,14 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- range .Values.extraObjects }}
+{{- $object := deepCopy . }}
+{{- $metadata := get $object "metadata" | default dict }}
+{{- $common := deepCopy ($.Values.commonAnnotations | default dict) }}
+{{- $specific := get $metadata "annotations" | default dict }}
+{{- $annotations := mergeOverwrite $common $specific }}
+{{- if $annotations }}
+{{- $_ := set $metadata "annotations" $annotations }}
+{{- end }}
+{{- $_ := set $object "metadata" $metadata }}
 ---
-{{ tpl (toYaml .) $ }}
+{{ tpl (toYaml $object) $ }}
 {{- end }}
