@@ -41,11 +41,29 @@ app.kubernetes.io/part-of: ente
 app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 
+{{- define "ente.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | indent 2 }}
+{{- end -}}
+{{- end -}}
+
 {{- define "ente.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
 {{- default (include "ente.fullname" .) .Values.serviceAccount.name -}}
 {{- else -}}
 {{- default "default" .Values.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "ente.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create -}}
+{{- default (printf "%s-backup" (include "ente.fullname" .) | trunc 63 | trimSuffix "-") .Values.backup.serviceAccount.name -}}
+{{- else -}}
+{{- required "backup.serviceAccount.name is required when workload identity is enabled and creation is disabled" .Values.backup.serviceAccount.name -}}
 {{- end -}}
 {{- end -}}
 
@@ -216,8 +234,10 @@ postgresql
 {{- if .Values.backup.enabled }}
   {{- if not .Values.backup.s3.endpoint -}}{{- fail "backup.enabled=true requires backup.s3.endpoint" -}}{{- end -}}
   {{- if not .Values.backup.s3.bucket -}}{{- fail "backup.enabled=true requires backup.s3.bucket" -}}{{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.accessKey) -}}{{- fail "backup.enabled=true requires backup.s3.accessKey or backup.s3.existingSecret" -}}{{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.secretKey) -}}{{- fail "backup.enabled=true requires backup.s3.secretKey or backup.s3.existingSecret" -}}{{- end -}}
+  {{- if and .Values.backup.s3.credentialsFromPodIdentity (not .Values.backup.s3.region) -}}{{- fail "backup.enabled=true requires backup.s3.region when workload identity is enabled" -}}{{- end -}}
+  {{- if and .Values.backup.s3.credentialsFromPodIdentity (not .Values.backup.serviceAccount.create) (not .Values.backup.serviceAccount.name) -}}{{- fail "backup.serviceAccount.name is required when workload identity is enabled and creation is disabled" -}}{{- end -}}
+  {{- if and (not .Values.backup.s3.credentialsFromPodIdentity) (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.accessKey) -}}{{- fail "backup.enabled=true requires backup.s3.accessKey or backup.s3.existingSecret" -}}{{- end -}}
+  {{- if and (not .Values.backup.s3.credentialsFromPodIdentity) (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.secretKey) -}}{{- fail "backup.enabled=true requires backup.s3.secretKey or backup.s3.existingSecret" -}}{{- end -}}
 {{- end }}
 {{- end -}}
 

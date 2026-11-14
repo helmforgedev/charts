@@ -423,6 +423,27 @@ backup:
 The CronJob backs up PostgreSQL only. Back up the object bucket and Museum
 Secrets with provider-native tools. Restore all three as one consistency set.
 
+For Amazon S3, the uploader can use IRSA or EKS Pod Identity without a static
+credential Secret:
+
+```yaml
+backup:
+  enabled: true
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/ente-backup
+  s3:
+    endpoint: https://s3.us-east-1.amazonaws.com
+    bucket: platform-backups
+    region: us-east-1
+    credentialsFromPodIdentity: true
+```
+
+Set `backup.serviceAccount.name` and `create: false` to use a pre-existing
+ServiceAccount. EKS Pod Identity associations are configured outside the chart.
+Static backup Secrets are not rendered or referenced when workload identity is
+enabled.
+
 Test a manual backup:
 
 ```bash

@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Ente common annotations
+templates:
+  - templates/configmap.yaml
+  - templates/museum-api-deployment.yaml
+  - templates/services.yaml
+  - templates/serviceaccount.yaml
+tests:
+  - it: applies common annotations to the ConfigMap
+    template: templates/configmap.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+
+  - it: applies common annotations only to Deployment metadata
+    template: templates/museum-api-deployment.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+      - notExists:
+          path: spec.template.metadata.annotations["example.com/owner"]
+
+  - it: lets Service annotations override common annotations
+    template: templates/services.yaml
+    documentIndex: 0
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+      museum.service.annotations:
+        example.com/owner: networking
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: networking
+
+  - it: applies common annotations to the workload ServiceAccount
+    template: templates/serviceaccount.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
