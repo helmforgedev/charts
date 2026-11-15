@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Common annotations
+templates:
+  - templates/statefulset.yaml
+  - templates/configmap.yaml
+  - templates/secret.yaml
+  - templates/acl-configmap.yaml
+  - templates/service.yaml
+  - templates/extra-manifests.yaml
+tests:
+  - it: should apply common annotations to workloads and services
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+        template: templates/statefulset.yaml
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+        template: templates/service.yaml
+
+  - it: should let service annotations override common annotations
+    template: templates/service.yaml
+    documentIndex: 0
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+        example.com/environment: production
+      service.annotations:
+        example.com/owner: networking
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: networking
+      - equal:
+          path: metadata.annotations["example.com/environment"]
+          value: production
+
+  - it: should apply common annotations to extra manifests with manifest precedence
+    template: templates/extra-manifests.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+        example.com/environment: production
+        example.com/template: '{{ .Release.Name }}'
+      extraManifests:
+        - apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: custom
+            annotations:
+              example.com/owner: application
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: application
+      - equal:
+          path: metadata.annotations["example.com/environment"]
+          value: production
+      - equal:
+          path: metadata.annotations["example.com/template"]
+          value: '{{ .Release.Name }}'

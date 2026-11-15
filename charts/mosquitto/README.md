@@ -196,10 +196,22 @@ broker:
     connection_messages false
 ```
 
+## Resource metadata and PVC retention
+
+Use `commonAnnotations` to add annotations to every chart-owned resource. Resource-specific annotations, such as
+`service.annotations`, take precedence when the same key is present in both maps.
+
+Persistent broker PVCs default to `Retain` when the StatefulSet is deleted or scaled down. Set
+`broker.persistence.retentionPolicy.whenDeleted` or `whenScaled` to `Delete` only when automatic data removal is
+intentional. On Kubernetes 1.26, deletion requires the `StatefulSetAutoDeletePVC` feature gate on the API server and
+controller manager. The gate is enabled by default from Kubernetes 1.27 through 1.31 but can still be disabled, so
+verify the controller manager setting. The feature is stable from Kubernetes 1.32.
+
 ## Key Values
 
 | Key | Default | Description |
 |-----|---------|-------------|
+| `commonAnnotations` | `{}` | Annotations added to chart-owned resources; resource-specific values take precedence |
 | `architecture.mode` | `standalone` | Broker topology: standalone or federated |
 | `broker.replicaCount` | `1` | Number of broker replicas |
 | `broker.listeners.mqtt` | `1883` | MQTT TCP listener port |
@@ -210,6 +222,8 @@ broker:
 | `broker.limits.maxConnections` | `0` | Maximum simultaneously connected clients (`0` keeps broker default) |
 | `broker.limits.maxPacketSize` | `0` | Maximum accepted MQTT packet size in bytes (`0` keeps broker default) |
 | `broker.federation.topicPattern` | `#` | Topic pattern bridged between federated brokers |
+| `broker.persistence.retentionPolicy.whenDeleted` | `Retain` | PVC retention when the StatefulSet is deleted |
+| `broker.persistence.retentionPolicy.whenScaled` | `Retain` | PVC retention when broker replicas are scaled down |
 | `auth.enabled` | `false` | Enable username/password authentication |
 | `acl.enabled` | `false` | Enable ACL file generation |
 | `service.type` | `ClusterIP` | Service type: `ClusterIP`, `NodePort`, or `LoadBalancer` |

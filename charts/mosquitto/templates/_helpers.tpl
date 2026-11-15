@@ -20,6 +20,17 @@
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" -}}
 {{- end -}}
 
+{{/* Merge chart-wide annotations with resource-specific annotations taking precedence. */}}
+{{- define "mosquitto.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "mosquitto.labels" -}}
 helm.sh/chart: {{ include "mosquitto.chart" . }}
 app.kubernetes.io/name: {{ include "mosquitto.name" . }}
