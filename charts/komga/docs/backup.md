@@ -1,6 +1,9 @@
 # Backup
 
-Komga stores its database and configuration in `/config`. The built-in backup CronJob exports each SQLite database with `VACUUM INTO`, copies the top-level application config files, optionally includes logs, and uploads the resulting archive to an S3-compatible bucket.
+Komga stores its database and configuration in `/config`. The built-in backup
+CronJob exports each SQLite database with `VACUUM INTO`, copies the top-level
+application config files, optionally includes logs, and uploads the resulting
+archive to an S3-compatible bucket.
 
 ## Enable Backup
 
@@ -28,6 +31,28 @@ backup:
 ```
 
 The secret must contain `access-key` and `secret-key` keys.
+
+## Using Workload Identity
+
+EKS Pod Identity and IRSA can provide ambient AWS credentials without a static Secret:
+
+```yaml
+backup:
+  enabled: true
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/komga-backup
+  s3:
+    endpoint: https://s3.amazonaws.com
+    bucket: my-backups
+    region: us-east-1
+    credentialsFromPodIdentity: true
+```
+
+Set `backup.serviceAccount.create: false` and
+`backup.serviceAccount.name` to use an existing ServiceAccount. The IAM role
+must allow the bucket operations required by the configured
+`createBucketIfNotExists` behavior and object upload.
 
 ## How It Works
 

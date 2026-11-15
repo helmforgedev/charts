@@ -3,6 +3,9 @@ suite: Backup
 templates:
   - templates/backup-cronjob.yaml
   - templates/backup-configmap.yaml
+  - templates/backup-serviceaccount.yaml
+  - templates/secret.yaml
+  - templates/validate.yaml
 release:
   name: test
   namespace: default
@@ -45,6 +48,12 @@ tests:
       - equal:
           path: spec.jobTemplate.spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
           value: false
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].securityContext.capabilities.drop
+          content: ALL
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
 
   - it: should render backup scripts ConfigMap
     template: templates/backup-configmap.yaml
@@ -67,3 +76,66 @@ tests:
       - matchRegex:
           path: data["sqlite-backup.sh"]
           pattern: "includeLogs|logs"
+
+  - it: should use workload identity without static credentials
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: test-bucket
+      backup.s3.region: us-east-1
+      backup.s3.credentialsFromPodIdentity: true
+      backup.serviceAccount.annotations:
+        eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/komga-backup
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.serviceAccountName
+          value: test-komga-backup
+        template: templates/backup-cronjob.yaml
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.automountServiceAccountToken
+          value: true
+        template: templates/backup-cronjob.yaml
+      - notExists:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env[?(@.name == "S3_ACCESS_KEY")]
+        template: templates/backup-cronjob.yaml
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: AWS_REGION
+            value: us-east-1
+        template: templates/backup-cronjob.yaml
+      - equal:
+          path: metadata.annotations["eks.amazonaws.com/role-arn"]
+          value: arn:aws:iam::123456789012:role/komga-backup
+        template: templates/backup-serviceaccount.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/secret.yaml
+      - matchRegex:
+          path: data["upload-backup.sh"]
+          pattern: "MC_STS_ENDPOINT_s3"
+        template: templates/backup-configmap.yaml
+
+  - it: should require a region for workload identity
+    template: templates/validate.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: test-bucket
+      backup.s3.credentialsFromPodIdentity: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.s3.region is required when backup.s3.credentialsFromPodIdentity is true"
+
+  - it: should require a named existing ServiceAccount when creation is disabled
+    template: templates/validate.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: test-bucket
+      backup.s3.region: us-east-1
+      backup.s3.credentialsFromPodIdentity: true
+      backup.serviceAccount.create: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.serviceAccount.name is required when workload identity is enabled and backup.serviceAccount.create is false"

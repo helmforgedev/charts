@@ -6,6 +6,7 @@ metadata:
   name: {{ include "komga.fullname" . }}-backup
   labels:
     {{- include "komga.labels" . | nindent 4 }}
+  {{- include "komga.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   schedule: {{ .Values.backup.schedule | quote }}
   suspend: {{ .Values.backup.suspend }}
@@ -21,7 +22,12 @@ spec:
             {{- include "komga.selectorLabels" . | nindent 12 }}
             app.kubernetes.io/component: backup
         spec:
+          {{- if .Values.backup.s3.credentialsFromPodIdentity }}
+          serviceAccountName: {{ include "komga.backupServiceAccountName" . }}
+          automountServiceAccountToken: {{ .Values.backup.serviceAccount.automountServiceAccountToken }}
+          {{- else }}
           automountServiceAccountToken: false
+          {{- end }}
           securityContext:
             seccompProfile:
               type: RuntimeDefault
@@ -33,6 +39,9 @@ spec:
               command: ["/bin/sh", "/scripts/sqlite-backup.sh"]
               securityContext:
                 allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
               {{- with .Values.backup.resources }}
               resources:
                 {{- toYaml . | nindent 16 }}
@@ -52,6 +61,9 @@ spec:
               command: ["/bin/sh", "/scripts/upload-backup.sh"]
               securityContext:
                 allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
               env:
                 - name: S3_ENDPOINT
                   value: {{ .Values.backup.s3.endpoint | quote }}
@@ -59,6 +71,12 @@ spec:
                   value: {{ .Values.backup.s3.bucket | quote }}
                 - name: S3_PREFIX
                   value: {{ .Values.backup.s3.prefix | quote }}
+                {{- if .Values.backup.s3.credentialsFromPodIdentity }}
+                - name: AWS_REGION
+                  value: {{ .Values.backup.s3.region | quote }}
+                - name: AWS_DEFAULT_REGION
+                  value: {{ .Values.backup.s3.region | quote }}
+                {{- else }}
                 - name: S3_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
@@ -69,6 +87,7 @@ spec:
                     secretKeyRef:
                       name: {{ include "komga.backupSecretName" . }}
                       key: {{ include "komga.backupSecretSecretKeyKey" . }}
+                {{- end }}
               {{- with .Values.backup.resources }}
               resources:
                 {{- toYaml . | nindent 16 }}
