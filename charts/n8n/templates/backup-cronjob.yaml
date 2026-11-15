@@ -1,4 +1,5 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- $backupEnabled := include "n8n.backupEnabled" . -}}
 {{- if .Values.backup.enabled }}
 apiVersion: batch/v1
 kind: CronJob
@@ -6,6 +7,7 @@ metadata:
   name: {{ include "n8n.fullname" . }}-backup
   labels:
     {{- include "n8n.labels" . | nindent 4 }}
+  {{- include "n8n.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   schedule: {{ .Values.backup.schedule | quote }}
   suspend: {{ .Values.backup.suspend }}
@@ -21,6 +23,8 @@ spec:
             {{- include "n8n.selectorLabels" . | nindent 12 }}
         spec:
           restartPolicy: Never
+          serviceAccountName: {{ include "n8n.backupServiceAccountName" . }}
+          automountServiceAccountToken: {{ .Values.backup.serviceAccount.automountServiceAccountToken }}
           {{- with .Values.imagePullSecrets }}
           imagePullSecrets:
             {{- toYaml . | nindent 12 }}
@@ -37,11 +41,24 @@ spec:
           tolerations:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- with .Values.podSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           initContainers:
             {{- if eq (include "n8n.databaseMode" .) "sqlite" }}
             - name: sqlite-backup
               image: {{ .Values.backup.images.sqlite | quote }}
               command: ["/bin/sh", "/scripts/sqlite-backup.sh"]
+              securityContext:
+                {{- $sqliteSecurityContext := deepCopy .Values.backup.securityContext }}
+                {{- if hasKey .Values.securityContext "runAsUser" }}
+                {{- $_ := set $sqliteSecurityContext "runAsUser" .Values.securityContext.runAsUser }}
+                {{- end }}
+                {{- if hasKey .Values.securityContext "runAsGroup" }}
+                {{- $_ := set $sqliteSecurityContext "runAsGroup" .Values.securityContext.runAsGroup }}
+                {{- end }}
+                {{- toYaml $sqliteSecurityContext | nindent 16 }}
               env:
                 - name: BACKUP_ARCHIVE_PREFIX
                   value: {{ .Values.backup.archivePrefix | quote }}
@@ -59,6 +76,8 @@ spec:
             - name: postgres-backup
               image: {{ .Values.backup.images.postgresql | quote }}
               command: ["/bin/sh", "/scripts/postgres-backup.sh"]
+              securityContext:
+                {{- toYaml .Values.backup.securityContext | nindent 16 }}
               env:
                 - name: BACKUP_ARCHIVE_PREFIX
                   value: {{ .Values.backup.archivePrefix | quote }}
@@ -89,6 +108,8 @@ spec:
             - name: upload
               image: {{ .Values.backup.images.uploader | quote }}
               command: ["/bin/sh", "/scripts/upload-backup.sh"]
+              securityContext:
+                {{- toYaml .Values.backup.securityContext | nindent 16 }}
               env:
                 - name: S3_ENDPOINT
                   value: {{ .Values.backup.s3.endpoint | quote }}
@@ -98,6 +119,14 @@ spec:
                   value: {{ .Values.backup.s3.prefix | quote }}
                 - name: S3_CREATE_BUCKET_IF_NOT_EXISTS
                   value: {{ ternary "true" "false" .Values.backup.s3.createBucketIfNotExists | quote }}
+                - name: MC_CONFIG_DIR
+                  value: /tmp/mc
+                {{- if .Values.backup.s3.credentialsFromPodIdentity }}
+                - name: AWS_REGION
+                  value: {{ .Values.backup.s3.region | quote }}
+                - name: AWS_DEFAULT_REGION
+                  value: {{ .Values.backup.s3.region | quote }}
+                {{- else }}
                 - name: S3_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
@@ -108,6 +137,7 @@ spec:
                     secretKeyRef:
                       name: {{ include "n8n.backupSecretName" . }}
                       key: {{ .Values.backup.s3.existingSecretSecretKeyKey }}
+                {{- end }}
               resources:
                 {{- toYaml .Values.backup.resources | nindent 16 }}
               volumeMounts:
@@ -115,12 +145,16 @@ spec:
                   mountPath: /scripts
                 - name: backup-workdir
                   mountPath: /backup/out
+                - name: uploader-tmp
+                  mountPath: /tmp
           volumes:
             - name: scripts
               configMap:
                 name: {{ include "n8n.fullname" . }}-backup-scripts
                 defaultMode: 0755
             - name: backup-workdir
+              emptyDir: {}
+            - name: uploader-tmp
               emptyDir: {}
             {{- if eq (include "n8n.databaseMode" .) "sqlite" }}
             - name: data

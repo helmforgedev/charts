@@ -16,6 +16,9 @@ fullnameOverride: ""
 # -- Labels added to every resource created by this chart
 commonLabels: {}
 
+# -- Annotations added to every chart-owned resource
+commonAnnotations: {}
+
 # =============================================================================
 # Image
 # =============================================================================
@@ -488,6 +491,23 @@ backup:
   # -- Resources for backup containers
   resources: {}
 
+  # -- Security context shared by backup init containers and the uploader
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+
+  serviceAccount:
+    # -- Create the dedicated ServiceAccount used by backup Jobs
+    create: true
+    # -- Existing dedicated backup ServiceAccount name when creation is disabled
+    name: ""
+    # -- Backup ServiceAccount annotations, such as an AWS IRSA role ARN
+    annotations: {}
+    # -- Mount the Kubernetes API token into backup Pods
+    automountServiceAccountToken: false
+
   s3:
     # -- S3-compatible endpoint URL
     endpoint: ""
@@ -497,6 +517,9 @@ backup:
 
     # -- Key prefix within the bucket
     prefix: n8n
+
+    # -- AWS region used by ambient workload identity credentials
+    region: ""
 
     # -- Auto-create the bucket if it does not exist
     createBucketIfNotExists: true
@@ -515,6 +538,9 @@ backup:
 
     # -- Inline S3 secret key (ignored when existingSecret is set)
     secretKey: ""
+
+    # -- Use EKS Pod Identity or IRSA instead of static S3 credentials
+    credentialsFromPodIdentity: false
 
   # -- Override database credentials for backup (uses app credentials if empty)
   database:

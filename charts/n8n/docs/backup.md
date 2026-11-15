@@ -19,11 +19,38 @@ backup:
     endpoint: https://s3.amazonaws.com
     bucket: my-backups
     prefix: n8n
-    accessKey: AKIAIOSFODNN7EXAMPLE
-    secretKey: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+    existingSecret: n8n-backup-s3
 ```
 
-For production, use `backup.s3.existingSecret` instead of inline credentials.
+The Secret contains the fields selected by `existingSecretAccessKeyKey` and
+`existingSecretSecretKeyKey`. The backup CronJob always uses its own dedicated
+ServiceAccount.
+
+## Workload identity
+
+Use the MinIO client's ambient IAM credential chain with IRSA or EKS Pod
+Identity instead of creating a static credential Secret:
+
+```yaml
+backup:
+  enabled: true
+  serviceAccount:
+    create: true
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/n8n-backup
+  s3:
+    endpoint: https://s3.amazonaws.com
+    region: us-east-1
+    bucket: my-backups
+    prefix: n8n
+    credentialsFromPodIdentity: true
+```
+
+EKS Pod Identity does not require the IRSA annotation. Create the AWS-side
+association for the release namespace and dedicated backup ServiceAccount. Set
+`backup.serviceAccount.create: false` with an explicit `name` to select an
+existing identity. The role needs bucket creation permission only when
+`createBucketIfNotExists` is enabled, plus list and object-write permissions.
 
 ## Restore principles
 
