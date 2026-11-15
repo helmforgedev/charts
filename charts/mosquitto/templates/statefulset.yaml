@@ -6,6 +6,7 @@ metadata:
   labels:
     {{- include "mosquitto.labels" . | nindent 4 }}
     app.kubernetes.io/component: broker
+  {{- include "mosquitto.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   {{- $probePort := "mqtt" -}}
   {{- if .Values.broker.tls.enabled }}
@@ -30,9 +31,9 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
-        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
-        checksum/acl: {{ include (print $.Template.BasePath "/acl-configmap.yaml") . | sha256sum }}
+        checksum/config: {{ (include (print $.Template.BasePath "/configmap.yaml") . | fromYaml).data | default dict | toYaml | sha256sum }}
+        checksum/secret: {{ .Values.auth | toJson | sha256sum }}
+        checksum/acl: {{ (include (print $.Template.BasePath "/acl-configmap.yaml") . | fromYaml).data | default dict | toYaml | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -268,6 +269,9 @@ spec:
               app.kubernetes.io/component: broker
       {{- end }}
   {{- if .Values.broker.persistence.enabled }}
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: {{ .Values.broker.persistence.retentionPolicy.whenDeleted }}
+    whenScaled: {{ .Values.broker.persistence.retentionPolicy.whenScaled }}
   volumeClaimTemplates:
     - metadata:
         name: data

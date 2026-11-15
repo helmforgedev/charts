@@ -20,6 +20,17 @@
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" -}}
 {{- end -}}
 
+{{/* Merge chart-wide annotations with resource-specific annotations taking precedence. */}}
+{{- define "mosquitto.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "mosquitto.labels" -}}
 helm.sh/chart: {{ include "mosquitto.chart" . }}
 app.kubernetes.io/name: {{ include "mosquitto.name" . }}
@@ -58,6 +69,22 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- .Values.auth.existingSecret -}}
 {{- else -}}
 {{- printf "%s-auth" (include "mosquitto.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Preserve an auto-generated password across upgrades. */}}
+{{- define "mosquitto.authPassword" -}}
+{{- if .Values.auth.password -}}
+{{- .Values.auth.password -}}
+{{- else -}}
+{{- $secretName := include "mosquitto.authSecretName" . -}}
+{{- $secret := lookup "v1" "Secret" .Release.Namespace $secretName -}}
+{{- $passwordKey := .Values.auth.existingSecretPasswordKey -}}
+{{- if and $secret (hasKey $secret "data") (hasKey (index $secret "data") $passwordKey) -}}
+{{- index $secret.data $passwordKey | b64dec -}}
+{{- else -}}
+{{- randAlphaNum 24 -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 
