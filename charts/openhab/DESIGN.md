@@ -83,10 +83,11 @@ path-aware archive that explicitly includes the configured addons subpath.
 
 The official image starts as root so its entrypoint can reconcile UID/GID 9001,
 adjust mounted-directory ownership, and then drop privileges through `gosu`.
-The main container therefore cannot force `runAsUser`, `runAsGroup`, a read-only
-root filesystem, or removal of every Linux capability without breaking startup.
-It still disables privilege escalation and uses the Pod's `RuntimeDefault`
-seccomp profile.
+The main container therefore cannot force `runAsUser`, `runAsGroup`, or a
+read-only root filesystem without breaking startup. It drops `ALL` capabilities,
+adds back only `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `SETGID`, and `SETUID`,
+disables privilege escalation, and uses the Pod's `RuntimeDefault` seccomp
+profile.
 
 Chart-owned helper containers do not share that exception. Config sync,
 subpath preparation, backup, and upload helpers drop all capabilities, disable

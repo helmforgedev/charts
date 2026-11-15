@@ -4,9 +4,10 @@
 
 The openHAB image ultimately runs the application as UID/GID `9001`, but its
 entrypoint starts as root so it can create the `openhab` user/group, adjust
-directory ownership, and then drop privileges through `gosu`. For that reason,
-the chart does not force `runAsUser`, `runAsGroup`, or `capabilities.drop: ALL`
-on the application container.
+directory ownership, and then drop privileges through `gosu`. The chart does
+not force `runAsUser` or `runAsGroup`; it drops the ambient Linux capability
+set and adds back only `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `SETGID`, and
+`SETUID` for this bootstrap.
 
 This chart applies the safe hardening controls that are compatible with the
 official image bootstrap sequence:
@@ -20,11 +21,14 @@ podSecurityContext:
 securityContext:
   allowPrivilegeEscalation: false
   readOnlyRootFilesystem: false   # openHAB writes to internal dirs at runtime
+  capabilities:
+    drop: [ALL]
+    add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
 ```
 
 `fsGroup: 9001` keeps mounted PVCs group-accessible after privilege drop.
 `allowPrivilegeEscalation: false` and `RuntimeDefault` seccomp reduce the
-runtime attack surface without removing the capabilities required during
+runtime attack surface while retaining only the capabilities required during
 startup.
 
 The entrypoint exception applies only to the main openHAB container. The

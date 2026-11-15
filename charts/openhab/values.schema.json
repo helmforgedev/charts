@@ -58,6 +58,12 @@
       "description": "Override the namespace used by chart-managed namespaced resources",
       "default": ""
     },
+    "commonAnnotations": {
+      "type": "object",
+      "description": "Annotations added to every chart-managed Kubernetes resource",
+      "additionalProperties": { "type": "string" },
+      "default": {}
+    },
     "serviceAccount": {
       "type": "object",
       "description": "ServiceAccount configuration",
@@ -117,7 +123,7 @@
     },
     "securityContext": {
       "type": "object",
-      "description": "Container-level security context. Do not set capabilities.drop — the entrypoint requires CAP_SETUID, CAP_SETGID, and CAP_CHOWN during initialization.",
+      "description": "Container-level security context. Drop ALL, then add only CHOWN, DAC_OVERRIDE, FOWNER, SETGID, and SETUID for the official entrypoint bootstrap.",
       "properties": {
         "allowPrivilegeEscalation": {
           "type": "boolean",
@@ -131,7 +137,7 @@
         },
         "capabilities": {
           "type": "object",
-          "description": "Optional Linux capability controls for the main container; preserve the capabilities required by the official entrypoint",
+          "description": "Linux capability controls for the main container; drop ALL and add only the capabilities required by the official entrypoint",
           "properties": {
             "add": {
               "type": "array",
@@ -631,6 +637,20 @@
           "description": "Prefix used in backup archive names",
           "default": "openhab"
         },
+        "serviceAccount": {
+          "type": "object",
+          "description": "ServiceAccount used exclusively by the backup CronJob",
+          "properties": {
+            "create": { "type": "boolean", "default": true },
+            "automountServiceAccountToken": { "type": "boolean", "default": false },
+            "annotations": {
+              "type": "object",
+              "additionalProperties": { "type": "string" },
+              "default": {}
+            },
+            "name": { "type": "string", "default": "" }
+          }
+        },
         "include": {
           "type": "object",
           "description": "What to include in the backup",
@@ -728,6 +748,10 @@
               "description": "Key prefix within the bucket",
               "default": "openhab"
             },
+            "region": {
+              "type": "string",
+              "description": "AWS region used by EKS Pod Identity or IRSA"
+            },
             "accessKey": {
               "type": "string",
               "description": "S3 access key"
@@ -739,6 +763,11 @@
             "existingSecret": {
               "type": "string",
               "description": "Use an existing Secret for S3 credentials (keys: access-key, secret-key)"
+            },
+            "credentialsFromPodIdentity": {
+              "type": "boolean",
+              "description": "Use EKS Pod Identity or IRSA instead of static S3 credentials",
+              "default": false
             }
           }
         }

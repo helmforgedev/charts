@@ -1,5 +1,6 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- if .Values.backup.enabled }}
+{{- include "openhab.validateBackup" . }}
 {{- $backupVolumeNames := list }}
 {{- $backupVolumeClaims := dict }}
 {{- if .Values.backup.include.userdata }}
@@ -22,6 +23,7 @@ metadata:
   labels:
     {{- include "openhab.labels" . | nindent 4 }}
     app.kubernetes.io/component: backup
+  {{- include "openhab.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   schedule: {{ .Values.backup.schedule | quote }}
   suspend: {{ .Values.backup.suspend }}
@@ -42,7 +44,8 @@ spec:
             app.kubernetes.io/component: backup
         spec:
           restartPolicy: OnFailure
-          automountServiceAccountToken: false
+          serviceAccountName: {{ include "openhab.backupServiceAccountName" . }}
+          automountServiceAccountToken: {{ .Values.backup.serviceAccount.automountServiceAccountToken }}
           securityContext:
             runAsUser: 9001
             runAsGroup: 9001
@@ -105,6 +108,14 @@ spec:
                   value: {{ .Values.backup.s3.bucket | quote }}
                 - name: S3_PREFIX
                   value: {{ .Values.backup.s3.prefix | quote }}
+                - name: MC_CONFIG_DIR
+                  value: /tmp/mc
+                {{- if .Values.backup.s3.credentialsFromPodIdentity }}
+                - name: AWS_REGION
+                  value: {{ .Values.backup.s3.region | quote }}
+                - name: AWS_DEFAULT_REGION
+                  value: {{ .Values.backup.s3.region | quote }}
+                {{- else }}
                 - name: S3_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
@@ -115,6 +126,7 @@ spec:
                     secretKeyRef:
                       name: {{ if .Values.backup.s3.existingSecret }}{{ .Values.backup.s3.existingSecret }}{{ else }}{{ include "openhab.fullname" . }}-backup{{ end }}
                       key: secret-key
+                {{- end }}
               {{- with .Values.backup.resources }}
               resources:
                 {{- toYaml . | nindent 16 }}

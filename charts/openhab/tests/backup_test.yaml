@@ -120,10 +120,10 @@ tests:
       backup.enabled: true
     asserts:
       - equal:
-          path: spec.jobTemplate.spec.template.spec.containers[0].env[3].valueFrom.secretKeyRef.key
+          path: spec.jobTemplate.spec.template.spec.containers[0].env[4].valueFrom.secretKeyRef.key
           value: access-key
       - equal:
-          path: spec.jobTemplate.spec.template.spec.containers[0].env[4].valueFrom.secretKeyRef.key
+          path: spec.jobTemplate.spec.template.spec.containers[0].env[5].valueFrom.secretKeyRef.key
           value: secret-key
 
   - it: should reference existingSecret when provided
@@ -132,8 +132,27 @@ tests:
       backup.s3.existingSecret: my-s3-secret
     asserts:
       - equal:
-          path: spec.jobTemplate.spec.template.spec.containers[0].env[3].valueFrom.secretKeyRef.name
+          path: spec.jobTemplate.spec.template.spec.containers[0].env[4].valueFrom.secretKeyRef.name
           value: my-s3-secret
+
+  - it: should use workload identity without static credential references
+    set:
+      backup.enabled: true
+      backup.s3.credentialsFromPodIdentity: true
+      backup.s3.region: us-east-1
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: AWS_REGION
+            value: us-east-1
+      - notContains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: S3_ACCESS_KEY
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.serviceAccountName
+          value: RELEASE-NAME-openhab-backup
 
   - it: should mount userdata volume when include.userdata is true
     set:
@@ -369,6 +388,15 @@ tests:
       - hasDocuments:
           count: 0
 
+  - it: should not create Secret when workload identity is enabled
+    set:
+      backup.enabled: true
+      backup.s3.credentialsFromPodIdentity: true
+      backup.s3.region: us-east-1
+    asserts:
+      - hasDocuments:
+          count: 0
+
   - it: should create Secret when backup enabled and no existingSecret
     set:
       backup.enabled: true
@@ -380,3 +408,26 @@ tests:
       - equal:
           path: type
           value: Opaque
+
+---
+suite: Backup ServiceAccount
+templates:
+  - backup-serviceaccount.yaml
+tests:
+  - it: should create a dedicated annotated ServiceAccount
+    set:
+      backup.enabled: true
+      commonAnnotations.owner: platform
+      backup.serviceAccount.annotations.backup-role: openhab-backup
+    asserts:
+      - isKind:
+          of: ServiceAccount
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-openhab-backup
+      - equal:
+          path: metadata.annotations.owner
+          value: platform
+      - equal:
+          path: metadata.annotations.backup-role
+          value: openhab-backup

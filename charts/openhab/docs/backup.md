@@ -18,8 +18,8 @@ The backup runs as a two-stage Kubernetes Job:
 
 Both containers run with the same UID/GID (9001) as openHAB, ensuring read
 access to the PVCs. They drop all Linux capabilities, use read-only root
-filesystems, disable privilege escalation, and do not mount a Kubernetes API
-token.
+filesystems and disable privilege escalation. A dedicated ServiceAccount is
+used so backup permissions remain separate from the openHAB workload.
 
 > **Storage access mode:** The backup Job mounts the same PVCs as the openHAB
 > StatefulSet. If the Job and StatefulSet can run on different nodes, those
@@ -94,6 +94,32 @@ backup:
     prefix: "prod"
     existingSecret: "my-s3-credentials"
 ```
+
+## Using EKS Pod Identity or IRSA
+
+The uploader can use ambient AWS credentials without creating or referencing a
+static credential Secret. Configure the dedicated backup ServiceAccount and an
+AWS region:
+
+```yaml
+backup:
+  enabled: true
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/openhab-backup
+  s3:
+    endpoint: "https://s3.amazonaws.com"
+    bucket: "openhab-backups"
+    prefix: "prod"
+    region: "us-east-1"
+    credentialsFromPodIdentity: true
+```
+
+For EKS Pod Identity, associate the generated `<release>-openhab-backup`
+ServiceAccount with the IAM role. For IRSA, use the annotation shown above.
+Set `backup.serviceAccount.automountServiceAccountToken: true` only when your
+identity integration explicitly requires the default Kubernetes API token;
+IRSA normally receives its projected token from the EKS admission webhook.
 
 ## S3 Compatibility
 

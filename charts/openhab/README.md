@@ -107,11 +107,14 @@ Use feature flags instead to enable optional components.
 | `image.repository` | Image repository | `docker.io/openhab/openhab` |
 | `replicaCount` | Must be 1 — no clustering support | `1` |
 | `namespaceOverride` | Namespace for chart-managed resources | `""` |
+| `commonAnnotations` | Annotations added to every chart-managed resource | `{}` |
 | `serviceAccount.automountServiceAccountToken` | Mount Kubernetes API token into the pod | `false` |
 | `podSecurityContext.fsGroup` | fsGroup for PVC ownership after privilege drop | `9001` |
 | `podSecurityContext.seccompProfile.type` | Pod seccomp profile | `RuntimeDefault` |
 | `securityContext.allowPrivilegeEscalation` | Prevent privilege escalation in the application container | `false` |
 | `securityContext.readOnlyRootFilesystem` | Remains writable for openHAB OSGi/Karaf runtime state | `false` |
+| `securityContext.capabilities.drop` | Drop the ambient Linux capability set | `[ALL]` |
+| `securityContext.capabilities.add` | Entrypoint bootstrap capabilities | `[CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]` |
 | `service.type` | Service type | `ClusterIP` |
 | `service.port` | HTTP port | `8080` |
 | `service.ipFamilyPolicy` | HTTP Service dual-stack policy | `""` |
@@ -193,6 +196,10 @@ Use feature flags instead to enable optional components.
 | `backup.failedJobsHistoryLimit` | Failed job history to retain | `3` |
 | `backup.backoffLimit` | Job backoff limit | `1` |
 | `backup.archivePrefix` | Archive filename prefix | `openhab` |
+| `backup.serviceAccount.create` | Create a dedicated backup ServiceAccount | `true` |
+| `backup.serviceAccount.automountServiceAccountToken` | Mount the Kubernetes API token in backup pods | `false` |
+| `backup.serviceAccount.annotations` | Backup ServiceAccount annotations (for example, an IRSA role) | `{}` |
+| `backup.serviceAccount.name` | Backup ServiceAccount name override | `""` |
 | `backup.include.userdata` | Back up `/openhab/userdata` | `true` |
 | `backup.include.conf` | Back up `/openhab/conf` | `true` |
 | `backup.images.utility.repository` | Backup utility image | `docker.io/library/alpine` |
@@ -203,9 +210,11 @@ Use feature flags instead to enable optional components.
 | `backup.s3.endpoint` | S3-compatible endpoint URL | `""` |
 | `backup.s3.bucket` | Target bucket name | `""` |
 | `backup.s3.prefix` | Key prefix within the bucket | `openhab` |
+| `backup.s3.region` | AWS region used by Pod Identity or IRSA | `""` |
 | `backup.s3.accessKey` | S3 access key | `""` |
 | `backup.s3.secretKey` | S3 secret key | `""` |
 | `backup.s3.existingSecret` | Existing Secret name (keys: `access-key`, `secret-key`) | `""` |
+| `backup.s3.credentialsFromPodIdentity` | Use EKS Pod Identity or IRSA instead of static credentials | `false` |
 
 ## Prometheus Metrics
 
@@ -303,6 +312,22 @@ backup:
     endpoint: "https://minio.example.com"
     bucket: "openhab-backups"
     existingSecret: "my-s3-credentials"   # keys: access-key, secret-key
+```
+
+For EKS Pod Identity or IRSA, annotate the dedicated backup ServiceAccount and
+enable ambient credentials:
+
+```yaml
+backup:
+  enabled: true
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/openhab-backup
+  s3:
+    endpoint: "https://s3.amazonaws.com"
+    bucket: "openhab-backups"
+    region: "us-east-1"
+    credentialsFromPodIdentity: true
 ```
 
 See [Automated Backup Guide](docs/backup.md) for full details including restore instructions.
