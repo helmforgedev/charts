@@ -236,9 +236,11 @@ postgresql:
 - keep sticky-session behavior aligned with the ingress controller in front of Keycloak
 - treat `jdbc-ping` as discovery and cache transport plumbing, not as a substitute for a Keycloak operator
 - plan image rollouts and rollbacks together with the external database and reverse-proxy layer
-- generated admin and database secrets trigger rollout on Helm upgrades
+- Helm upgrades with live cluster access preserve chart-generated admin and database passwords through `lookup`
+- offline and GitOps renderers cannot preserve generated passwords through `lookup`; set explicit password values, use existing Secrets, or enable External Secrets instead of leaving passwords empty
+- the runtime Secret checksum covers explicit chart-managed payload values; externally managed Secret changes still require an explicit rollout or restart
 - built-in backup targets the selected Keycloak database and uploads the compressed dump to S3-compatible storage
-- externally managed secret or truststore changes still require an explicit rollout or restart
+- externally managed truststore changes still require an explicit rollout or restart
 - provider and theme source changes can be rolled forward predictably with `rolloutToken`
 - HPA remains intentionally out of scope as a built-in feature for the current chart scope
 - `ingress.admin.enabled=true` requires `hostname.admin` in production mode
