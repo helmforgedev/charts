@@ -13,12 +13,22 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/part-of: helmforge
 {{ with .Values.commonLabels }}{{ toYaml . }}{{ end }}
 {{- end -}}
+{{- define "mssql.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
 {{- define "mssql.image" -}}{{ printf "%s:%s" .Values.image.repository .Values.image.tag }}{{- end -}}
 {{- define "mssql.authSecret" -}}{{ default (printf "%s-auth" (include "mssql.fullname" .)) .Values.auth.existingSecret }}{{- end -}}
 {{- define "mssql.tlsSecret" -}}{{ default (printf "%s-tls" (include "mssql.fullname" .)) .Values.tls.existingSecret }}{{- end -}}
 {{- define "mssql.dataClaim" -}}{{ default (printf "%s-data" (include "mssql.fullname" .)) .Values.persistence.existingClaim }}{{- end -}}
 {{- define "mssql.backupClaim" -}}{{ default (printf "%s-backup" (include "mssql.fullname" .)) .Values.backup.staging.existingClaim }}{{- end -}}
 {{- define "mssql.serviceAccountName" -}}{{ if .Values.serviceAccount.create }}{{ default (include "mssql.fullname" .) .Values.serviceAccount.name }}{{ else }}{{ default "default" .Values.serviceAccount.name }}{{ end }}{{- end -}}
+{{- define "mssql.backupServiceAccountName" -}}{{ if .Values.backup.serviceAccount.create }}{{ default (printf "%s-backup" (include "mssql.fullname" .)) .Values.backup.serviceAccount.name }}{{ else }}{{ required "backup.serviceAccount.name is required when creation is disabled" .Values.backup.serviceAccount.name }}{{ end }}{{- end -}}
 {{- define "mssql.edition" -}}{{ if and (hasPrefix "2025-" .Values.image.tag) (eq .Values.sql.edition "Developer") }}EnterpriseDeveloper{{ else }}{{ .Values.sql.edition }}{{ end }}{{- end -}}
 {{- define "mssql.externalSecretName" -}}{{ if .item.fullnameOverride }}{{ .item.fullnameOverride | trunc 63 | trimSuffix "-" }}{{ else }}{{ printf "%s-%s" (include "mssql.fullname" .root) (default "auth" .item.name) | trunc 63 | trimSuffix "-" }}{{ end }}{{- end -}}
 {{- define "mssql.validateExternalSecrets" -}}
@@ -41,8 +51,12 @@ app.kubernetes.io/part-of: helmforge
 {{- if and (eq .Values.sql.edition "ProductKey") (not .Values.license.existingSecret) -}}{{ fail "ProductKey edition requires license.existingSecret" }}{{- end -}}
 {{- if and .Values.backup.compression (has .Values.sql.edition (list "Express" "Web")) -}}{{ fail "backup compression is unavailable in Express and Web editions" }}{{- end -}}
 {{- if and .Values.backup.enabled (or (not .Values.persistence.enabled) (not .Values.backup.databases) (not .Values.backup.s3.bucket)) -}}{{ fail "backup requires persistent storage, explicit databases and an S3 bucket" }}{{- end -}}
-{{- if and .Values.backup.enabled (eq (not .Values.backup.s3.existingSecret) (not .Values.backup.workloadIdentity.enabled)) -}}{{ fail "backup requires exactly one static S3 Secret or workload identity" }}{{- end -}}
+{{- $ambientIdentity := .Values.backup.s3.credentialsFromPodIdentity -}}
+{{- $legacyIdentity := .Values.backup.workloadIdentity.enabled -}}
+{{- if and .Values.backup.enabled $ambientIdentity $legacyIdentity -}}{{ fail "backup cannot combine ambient and legacy workload identity modes" }}{{- end -}}
+{{- if and .Values.backup.enabled (eq (not .Values.backup.s3.existingSecret) (not (or $ambientIdentity $legacyIdentity))) -}}{{ fail "backup requires exactly one static S3 Secret or workload identity" }}{{- end -}}
 {{- if and .Values.backup.workloadIdentity.enabled (not .Values.backup.workloadIdentity.roleArn) -}}{{ fail "workload identity requires roleArn" }}{{- end -}}
+{{- if and .Values.backup.enabled (not .Values.backup.serviceAccount.create) (not .Values.backup.serviceAccount.name) -}}{{ fail "backup.serviceAccount.name is required when creation is disabled" }}{{- end -}}
 {{- if and .Values.backup.enabled .Values.networkPolicy.enabled (not .Values.backup.egress) -}}{{ fail "backup.egress must explicitly authorize the object storage endpoint" }}{{- end -}}
 {{- if and .Values.metrics.enabled (not .Values.metrics.ingressFrom) -}}{{ fail "metrics.ingressFrom must explicitly authorize Prometheus peers" }}{{- end -}}
 {{- if and .Values.metrics.enabled .Values.auth.existingSecret (not .Values.metrics.existingSecret) -}}{{ fail "external auth with metrics requires metrics.existingSecret containing the matching TLS DSN" }}{{- end -}}

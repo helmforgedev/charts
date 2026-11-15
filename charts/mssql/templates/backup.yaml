@@ -1,23 +1,24 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- if and .Values.license.acceptEULA .Values.backup.enabled }}
+{{- if .Values.backup.serviceAccount.create }}
+{{- $backupServiceAccountAnnotations := mergeOverwrite (deepCopy (.Values.backup.workloadIdentity.annotations | default dict)) (deepCopy (.Values.backup.serviceAccount.annotations | default dict)) }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: {{ include "mssql.fullname" . }}-backup
+  name: {{ include "mssql.backupServiceAccountName" . }}
   labels:
     {{- include "mssql.labels" . | nindent 4 }}
-  {{- with .Values.backup.workloadIdentity.annotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+  {{- include "mssql.renderAnnotations" (dict "root" . "specific" $backupServiceAccountAnnotations) | nindent 2 }}
 automountServiceAccountToken: false
 ---
+{{- end }}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: {{ include "mssql.fullname" . }}-backup
   labels:
     {{- include "mssql.labels" . | nindent 4 }}
+  {{- include "mssql.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   schedule: {{ .Values.backup.schedule | quote }}
   timeZone: {{ .Values.backup.timeZone }}
@@ -37,7 +38,7 @@ spec:
             app.kubernetes.io/component: backup
         spec:
           restartPolicy: Never
-          serviceAccountName: {{ include "mssql.fullname" . }}-backup
+          serviceAccountName: {{ include "mssql.backupServiceAccountName" . }}
           automountServiceAccountToken: false
           securityContext:
             runAsNonRoot: true
@@ -108,7 +109,7 @@ spec:
                 {{- if .Values.backup.workloadIdentity.enabled }}
                 - {name: AWS_ROLE_ARN, value: {{ .Values.backup.workloadIdentity.roleArn | quote }}}
                 - {name: AWS_WEB_IDENTITY_TOKEN_FILE, value: /identity/token}
-                {{- else }}
+                {{- else if not .Values.backup.s3.credentialsFromPodIdentity }}
                 - name: AWS_ACCESS_KEY_ID
                   valueFrom:
                     secretKeyRef: {name: {{ .Values.backup.s3.existingSecret }}, key: AWS_ACCESS_KEY_ID}

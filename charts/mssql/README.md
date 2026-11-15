@@ -69,6 +69,7 @@ the chart templates. These settings define the most common installation choices:
 
 | Value | Default | Purpose |
 |---|---|---|
+| `commonAnnotations` | `{}` | Add annotations to every chart-owned resource; resource-specific values take precedence |
 | `license.acceptEULA` | `false` | Explicitly accept Microsoft's EULA and render SQL resources |
 | `sql.edition` | `Express` | Select the licensed SQL Server edition independently of the image |
 | `sql.memoryLimitMB` | `3072` | Cap native SQL Server memory while leaving container headroom |
@@ -81,6 +82,8 @@ the chart templates. These settings define the most common installation choices:
 | `service.port` | `1433` | Set the client-facing SQL Service port |
 | `networkPolicy.enabled` | `true` | Restrict SQL, monitoring and backup network paths |
 | `backup.enabled` | `false` | Enable native full backup and S3 upload |
+| `backup.s3.credentialsFromPodIdentity` | `false` | Use ambient S3 credentials instead of a static Secret |
+| `backup.serviceAccount.create` | `true` | Create the dedicated ServiceAccount used by backup Jobs |
 | `metrics.enabled` | `false` | Enable the authenticated SQL exporter |
 | `externalSecrets.enabled` | `false` | Render ExternalSecret resources for supplied item definitions |
 
@@ -174,8 +177,12 @@ x86-64 container hosts, not ARM emulation.
 ## S3 backup and recovery
 
 Enable [the backup example](examples/backup-s3.yaml) with explicit databases,
-destination bucket, HTTPS endpoint/region and either static AWS credentials or an
-explicit AWS web-identity role. The chart does not create buckets or change retention.
+destination bucket, HTTPS endpoint/region and either a static AWS credentials Secret
+or ambient credentials through `backup.s3.credentialsFromPodIdentity`. Backup Jobs
+always use a dedicated ServiceAccount. Configure its name and identity annotations
+under `backup.serviceAccount`, or reference an existing dedicated account by setting
+`create: false`. The legacy explicit web-identity fields remain supported for upgrades.
+The chart does not create buckets or change retention.
 
 The SQL server writes consistent native backups into a dedicated staging PVC.
 A scheduled Job is placed on the SQL node so both containers can mount RWO storage.
