@@ -6,6 +6,7 @@ metadata:
   name: {{ include "keycloak.fullname" . }}
   labels:
     {{- include "keycloak.labels" . | nindent 4 }}
+  {{- include "keycloak.renderAnnotations" (dict "root" . "specific" .Values.annotations) | nindent 2 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   progressDeadlineSeconds: {{ .Values.deployment.progressDeadlineSeconds }}
@@ -27,8 +28,8 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        checksum/secrets: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
-        checksum/realm-import: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secrets: {{ include "keycloak.runtimeSecretPayloadChecksum" . }}
+        checksum/realm-import: {{ toJson .Values.realmImport.files | sha256sum }}
         checksum/providers: {{ printf "%s|%s|%s" .Values.extensions.providers.existingConfigMap .Values.extensions.providers.existingSecret .Values.extensions.providers.rolloutToken | sha256sum }}
         checksum/themes: {{ printf "%s|%s|%s" .Values.extensions.themes.existingConfigMap .Values.extensions.themes.existingSecret .Values.extensions.themes.rolloutToken | sha256sum }}
         {{- with .Values.podAnnotations }}

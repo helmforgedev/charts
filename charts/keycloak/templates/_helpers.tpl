@@ -31,12 +31,27 @@ app.kubernetes.io/name: {{ include "keycloak.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
+{{/* Merge chart-wide annotations with resource-specific annotations taking precedence. */}}
+{{- define "keycloak.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "keycloak.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
 {{- default (include "keycloak.fullname" .) .Values.serviceAccount.name -}}
 {{- else -}}
 {{- default "default" .Values.serviceAccount.name -}}
 {{- end -}}
+{{- end -}}
+
+{{- define "keycloak.backupServiceAccountName" -}}
+{{- default (printf "%s-backup" (include "keycloak.fullname" .)) .Values.backup.serviceAccount.name -}}
 {{- end -}}
 
 {{- define "keycloak.isProduction" -}}
@@ -194,6 +209,17 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- define "keycloak.adminSecretManagedByExternalSecret" -}}
 {{- if and .Values.externalSecrets.enabled .Values.externalSecrets.admin.enabled -}}true{{- end -}}
+{{- end -}}
+
+{{- define "keycloak.runtimeSecretPayloadChecksum" -}}
+{{- $payload := dict -}}
+{{- if and (not .Values.admin.existingSecret) (not (include "keycloak.adminSecretManagedByExternalSecret" .)) -}}
+  {{- $_ := set $payload "admin" (dict "username" .Values.admin.username "password" .Values.admin.password) -}}
+{{- end -}}
+{{- if and (include "keycloak.hasDatabase" .) (not (and (eq (include "keycloak.databaseMode" .) "external") .Values.database.external.existingSecret)) (not (include "keycloak.databaseSecretManagedByExternalSecret" .)) -}}
+  {{- $_ := set $payload "databasePassword" (include "keycloak.databasePasswordValue" .) -}}
+{{- end -}}
+{{- toJson $payload | sha256sum -}}
 {{- end -}}
 
 {{- define "keycloak.databaseMode" -}}
@@ -423,7 +449,13 @@ mysql
   {{- if not .Values.backup.s3.bucket -}}
     {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
   {{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+  {{- if and .Values.backup.s3.credentialsFromPodIdentity (not .Values.backup.s3.region) -}}
+    {{- fail "backup.s3.region is required when backup.s3.credentialsFromPodIdentity is true" -}}
+  {{- end -}}
+  {{- if and .Values.backup.s3.credentialsFromPodIdentity (not .Values.backup.serviceAccount.create) (not .Values.backup.serviceAccount.name) -}}
+    {{- fail "backup.serviceAccount.name is required when workload identity is enabled and backup.serviceAccount.create is false" -}}
+  {{- end -}}
+  {{- if and (not .Values.backup.s3.credentialsFromPodIdentity) (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
     {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
   {{- end -}}
 true
