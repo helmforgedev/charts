@@ -205,7 +205,7 @@ Persistent broker PVCs default to `Retain` when the StatefulSet is deleted or sc
 `broker.persistence.retentionPolicy.whenDeleted` or `whenScaled` to `Delete` only when automatic data removal is
 intentional. On Kubernetes 1.26, deletion requires the `StatefulSetAutoDeletePVC` feature gate on the API server and
 controller manager. The gate is enabled by default from Kubernetes 1.27 through 1.31 but can still be disabled, so
-verify the controller manager setting. The feature is stable from Kubernetes 1.32.
+verify both the API server and controller manager settings. The feature is stable from Kubernetes 1.32.
 
 ## Key Values
 
@@ -225,7 +225,7 @@ verify the controller manager setting. The feature is stable from Kubernetes 1.3
 | `broker.persistence.retentionPolicy.whenDeleted` | `Retain` | PVC retention when the StatefulSet is deleted |
 | `broker.persistence.retentionPolicy.whenScaled` | `Retain` | PVC retention when broker replicas are scaled down |
 | `auth.enabled` | `false` | Enable username/password authentication |
-| `auth.password` | `""` | Password for chart-managed authentication; generated once and preserved on upgrades when empty |
+| `auth.password` | `""` | Password; preserved by live Helm upgrades when empty; use `auth.existingSecret` with render-only or GitOps workflows |
 | `acl.enabled` | `false` | Enable ACL file generation |
 | `service.type` | `ClusterIP` | Service type: `ClusterIP`, `NodePort`, or `LoadBalancer` |
 | `service.sessionAffinity` | `None` | Service routing policy for client traffic |
