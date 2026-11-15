@@ -242,9 +242,18 @@ extstore:
   persistence:
     enabled: true
     size: 20Gi
+    retentionPolicy:
+      whenDeleted: Retain
+      whenScaled: Retain
 ```
 
 Do not combine PVC-backed extstore with HPA. The chart blocks that combination because each PVC is pod-local.
+The default retention policy preserves extstore PVCs when the StatefulSet is deleted or scaled down. Set either
+policy to `Delete` only when discarding the associated cache files is intentional.
+On Kubernetes 1.26, `Delete` also requires the `StatefulSetAutoDeletePVC` feature gate on both the API server and
+controller manager. Without that gate, use the default `Retain` policy and manage PVC deletion explicitly.
+The gate is enabled by default from Kubernetes 1.27 through 1.31 but can still be disabled, so operators must verify
+the controller manager setting before relying on automatic deletion. The feature is stable from Kubernetes 1.32.
 
 ## Autoscaling
 
@@ -328,6 +337,7 @@ networkPolicy:
 |-------|---------|-------------|
 | `architecture` | `standalone` | `standalone` or `distributed`. |
 | `replicaCount` | `1` | Number of Memcached pods. Must be `1` for standalone. |
+| `commonAnnotations` | `{}` | Annotations added to every rendered resource; resource-specific annotations take precedence. |
 | `image.repository` | `docker.io/library/memcached` | Official Memcached image. |
 | `image.tag` | `1.6.45` | Pinned image tag. |
 | `memcached.memoryLimitMB` | `64` | Memcached item memory limit passed to `-m`. |
@@ -340,6 +350,8 @@ networkPolicy:
 | `auth.sasl.databaseKey` | `memcachedsasldb` | Secret key containing a prepared SASL database for SASL mode. |
 | `tls.enabled` | `false` | Enables TLS startup flags. |
 | `extstore.enabled` | `false` | Enables Memcached extstore options. |
+| `extstore.persistence.retentionPolicy.whenDeleted` | `Retain` | PVC retention when the StatefulSet is deleted. |
+| `extstore.persistence.retentionPolicy.whenScaled` | `Retain` | PVC retention when replicas are scaled down. |
 | `metrics.enabled` | `false` | Enables Prometheus exporter sidecar and metrics Service. |
 | `metrics.memcachedTLS.enabled` | `false` | Enables TLS when the exporter scrapes Memcached. |
 | `metrics.memcachedTLS.serverName` | computed Service DNS | TLS verification name used by the metrics exporter. |

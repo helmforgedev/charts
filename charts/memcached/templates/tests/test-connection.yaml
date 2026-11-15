@@ -5,14 +5,18 @@ metadata:
   name: "{{ include "memcached.testPodName" . }}"
   labels:
     {{- include "memcached.labels" . | nindent 4 }}
-  annotations:
-    helm.sh/hook: test
-    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+  {{- include "memcached.renderAnnotations" (dict "root" . "specific" (dict "helm.sh/hook" "test" "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded")) | nindent 2 }}
 spec:
   restartPolicy: Never
   containers:
     - name: memcached-test
       image: docker.io/library/busybox:1.37.0
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop:
+            - ALL
       command:
         - sh
         - -ec

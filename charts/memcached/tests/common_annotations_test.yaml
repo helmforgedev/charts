@@ -1,0 +1,81 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Common annotations
+templates:
+  - statefulset.yaml
+  - service.yaml
+  - extra-manifests.yaml
+  - tests/test-connection.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: applies common annotations to chart resources
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+        template: statefulset.yaml
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+        template: service.yaml
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+        template: tests/test-connection.yaml
+
+  - it: lets resource annotations override common annotations
+    template: service.yaml
+    documentIndex: 1
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+        example.com/environment: production
+      service.annotations:
+        example.com/owner: networking
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: networking
+      - equal:
+          path: metadata.annotations["example.com/environment"]
+          value: production
+
+  - it: applies common annotations to extra manifests with manifest precedence
+    template: extra-manifests.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+        example.com/environment: production
+      extraManifests:
+        - apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: custom
+            annotations:
+              example.com/owner: application
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: application
+      - equal:
+          path: metadata.annotations["example.com/environment"]
+          value: production
+
+  - it: does not evaluate common annotation values as templates for extra manifests
+    template: extra-manifests.yaml
+    set:
+      commonAnnotations:
+        example.com/template: '{{ .Release.Name }}'
+      extraManifests:
+        - apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: custom
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/template"]
+          value: '{{ .Release.Name }}'
