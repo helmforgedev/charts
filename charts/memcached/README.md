@@ -252,6 +252,8 @@ The default retention policy preserves extstore PVCs when the StatefulSet is del
 policy to `Delete` only when discarding the associated cache files is intentional.
 On Kubernetes 1.26, `Delete` also requires the `StatefulSetAutoDeletePVC` feature gate on both the API server and
 controller manager. Without that gate, use the default `Retain` policy and manage PVC deletion explicitly.
+The gate is enabled by default from Kubernetes 1.27 through 1.31 but can still be disabled, so operators must verify
+the controller manager setting before relying on automatic deletion. The feature is stable from Kubernetes 1.32.
 
 ## Autoscaling
 
