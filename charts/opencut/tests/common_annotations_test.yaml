@@ -1,0 +1,89 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Common annotations
+templates:
+  - templates/deployment.yaml
+  - templates/service.yaml
+  - templates/ingress.yaml
+  - templates/httproute.yaml
+  - templates/redis-http.yaml
+  - templates/tests/test-connection.yaml
+tests:
+  - it: should apply common annotations to the web Deployment
+    template: templates/deployment.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+      - notExists:
+          path: spec.template.metadata.annotations["example.com/owner"]
+
+  - it: should let Service annotations override common annotations
+    template: templates/service.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+      service.annotations:
+        example.com/owner: networking
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: networking
+
+  - it: should let Ingress annotations override common annotations
+    template: templates/ingress.yaml
+    set:
+      ingress.enabled: true
+      commonAnnotations:
+        example.com/owner: platform
+      ingress.annotations:
+        example.com/owner: edge
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: edge
+
+  - it: should let HTTPRoute annotations override common annotations
+    template: templates/httproute.yaml
+    set:
+      gateway.enabled: true
+      gateway.parentRefs:
+        - name: public
+      commonAnnotations:
+        example.com/owner: platform
+      gateway.annotations:
+        example.com/owner: gateway
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: gateway
+
+  - it: should apply common annotations to both Redis HTTP resources
+    template: templates/redis-http.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+        documentIndex: 0
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+        documentIndex: 1
+
+  - it: should preserve Helm test hooks while applying common annotations
+    template: templates/tests/test-connection.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: test
