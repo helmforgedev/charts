@@ -51,12 +51,21 @@ tests:
           path: spec.template.spec.automountServiceAccountToken
           value: false
 
-  - it: should not drop ALL capabilities (entrypoint needs CAP_SETUID, CAP_SETGID, CAP_CHOWN)
+  - it: should drop ALL capabilities and add only the bootstrap set
     asserts:
-      - notExists:
+      - equal:
           path: spec.template.spec.containers[0].securityContext.capabilities
+          value:
+            drop:
+              - ALL
+            add:
+              - CHOWN
+              - DAC_OVERRIDE
+              - FOWNER
+              - SETGID
+              - SETUID
 
-  - it: should prevent privilege escalation without dropping required bootstrap capabilities
+  - it: should prevent privilege escalation
     asserts:
       - equal:
           path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation

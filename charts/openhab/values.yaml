@@ -23,6 +23,9 @@ fullnameOverride: ""
 # -- Override the namespace used by chart-managed namespaced resources. The target namespace must already exist.
 namespaceOverride: ""
 
+# -- Annotations added to every chart-managed Kubernetes resource
+commonAnnotations: {}
+
 # -- ServiceAccount configuration
 serviceAccount:
   # -- Create a ServiceAccount
@@ -55,13 +58,21 @@ podSecurityContext:
     type: RuntimeDefault
 
 # -- Container-level security context.
-# capabilities restrictions are intentionally omitted: the entrypoint requires
-# CAP_SETUID, CAP_SETGID, and CAP_CHOWN during initialization before dropping
-# to the openhab user.
+# Drop the ambient capability set, then add only the capabilities required by
+# the official entrypoint during initialization before it drops to openhab.
 # readOnlyRootFilesystem must remain false - openHAB writes to internal dirs at runtime.
 securityContext:
   allowPrivilegeEscalation: false
   readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+    add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
 
 # -- Service configuration
 service:
@@ -349,6 +360,13 @@ backup:
   # -- Prefix used in backup archive names: openhab-backup-<timestamp>.tar.gz
   archivePrefix: openhab
 
+  # -- ServiceAccount used exclusively by the backup CronJob
+  serviceAccount:
+    create: true
+    automountServiceAccountToken: false
+    annotations: {}
+    name: ""
+
   # -- What to include in the backup
   include:
     # -- Backup /openhab/userdata (JSONDB, persistence, rules state) - STRONGLY recommended
@@ -385,12 +403,16 @@ backup:
     bucket: ""
     # -- Key prefix within the bucket
     prefix: "openhab"
+    # -- AWS region used by EKS Pod Identity or IRSA
+    region: ""
     # -- S3 access key (stored in a Secret)
     accessKey: ""
     # -- S3 secret key (stored in a Secret)
     secretKey: ""
     # -- Use an existing Secret for S3 credentials (keys: access-key, secret-key)
     existingSecret: ""
+    # -- Use EKS Pod Identity or IRSA instead of static S3 credentials
+    credentialsFromPodIdentity: false
 
 # -- Node selector
 nodeSelector: {}

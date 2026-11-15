@@ -18,8 +18,8 @@ The backup runs as a two-stage Kubernetes Job:
 
 Both containers run with the same UID/GID (9001) as openHAB, ensuring read
 access to the PVCs. They drop all Linux capabilities, use read-only root
-filesystems, disable privilege escalation, and do not mount a Kubernetes API
-token.
+filesystems and disable privilege escalation. A dedicated ServiceAccount is
+used so backup permissions remain separate from the openHAB workload.
 
 > **Storage access mode:** The backup Job mounts the same PVCs as the openHAB
 > StatefulSet. If the Job and StatefulSet can run on different nodes, those
@@ -94,6 +94,49 @@ backup:
     prefix: "prod"
     existingSecret: "my-s3-credentials"
 ```
+
+## Using IRSA
+
+The uploader can use ambient AWS credentials without creating or referencing a
+static credential Secret. Configure the dedicated backup ServiceAccount and an
+AWS region:
+
+```yaml
+backup:
+  enabled: true
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/openhab-backup
+  s3:
+    endpoint: "https://s3.amazonaws.com"
+    bucket: "openhab-backups"
+    prefix: "prod"
+    region: "us-east-1"
+    credentialsFromPodIdentity: true
+```
+
+Set `backup.serviceAccount.automountServiceAccountToken: true` only when your
+identity integration explicitly requires the default Kubernetes API token;
+IRSA normally receives its projected token from the EKS admission webhook.
+
+## Using EKS Pod Identity
+
+Keep `backup.s3.credentialsFromPodIdentity: true` and the same endpoint,
+bucket, prefix, and region values shown above, but omit the ServiceAccount role
+annotation. The cluster must run the EKS Pod Identity Agent add-on. Create the
+association for the rendered backup ServiceAccount in its actual namespace.
+For release `my-openhab`, the default name is `my-openhab-backup`:
+
+```bash
+aws eks create-pod-identity-association \
+  --cluster-name <cluster-name> \
+  --namespace <namespace> \
+  --service-account my-openhab-backup \
+  --role-arn <role-arn>
+```
+
+If `fullnameOverride` or `backup.serviceAccount.name` is set, use the
+ServiceAccount name rendered by the chart instead.
 
 ## S3 Compatibility
 

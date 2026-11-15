@@ -43,6 +43,17 @@ app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
+{{/* Merge common annotations with resource-specific annotations. */}}
+{{- define "openhab.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{/*
 Namespace for chart-managed namespaced resources.
 */}}
@@ -68,6 +79,27 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/* Resolve the dedicated backup ServiceAccount name. */}}
+{{- define "openhab.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create -}}
+{{- default (printf "%s-backup" (include "openhab.fullname" .)) .Values.backup.serviceAccount.name -}}
+{{- else -}}
+{{- required "backup.serviceAccount.name is required when backup.serviceAccount.create is false" .Values.backup.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Validate backup identity and credentials. */}}
+{{- define "openhab.validateBackup" -}}
+{{- if .Values.backup.enabled -}}
+{{- if and .Values.backup.s3.credentialsFromPodIdentity (not .Values.backup.s3.region) -}}
+{{- fail "backup.s3.region is required when backup.s3.credentialsFromPodIdentity is true" -}}
+{{- end -}}
+{{- if and (not .Values.backup.serviceAccount.create) (not .Values.backup.serviceAccount.name) -}}
+{{- fail "backup.serviceAccount.name is required when backup.serviceAccount.create is false" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
 
 {{/*
 Validate replicaCount - openHAB does not support clustering.
