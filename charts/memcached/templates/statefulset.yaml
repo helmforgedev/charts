@@ -7,6 +7,7 @@ metadata:
   labels:
     {{- include "memcached.labels" . | nindent 4 }}
     app.kubernetes.io/component: memcached
+  {{- include "memcached.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   serviceName: {{ include "memcached.headlessServiceName" . }}
   {{- if not .Values.autoscaling.enabled }}
@@ -267,11 +268,15 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
   {{- if and .Values.extstore.enabled .Values.extstore.persistence.enabled }}
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: {{ .Values.extstore.persistence.retentionPolicy.whenDeleted }}
+    whenScaled: {{ .Values.extstore.persistence.retentionPolicy.whenScaled }}
   volumeClaimTemplates:
     - metadata:
         name: extstore
         labels:
           {{- include "memcached.selectorLabels" . | nindent 10 }}
+        {{- include "memcached.renderAnnotations" (dict "root" .) | nindent 8 }}
       spec:
         accessModes:
           {{- toYaml .Values.extstore.persistence.accessModes | nindent 10 }}
