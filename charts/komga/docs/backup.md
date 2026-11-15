@@ -88,7 +88,10 @@ aws eks create-pod-identity-association \
 The backup pod inherits `podSecurityContext` and accepts overrides through
 `backup.podSecurityContext`. When Komga uses a non-root-owned `/config` PVC,
 set `podSecurityContext.fsGroup` to the storage group or override it for the
-backup pod. Verify the existing directory permissions before enabling backup.
+backup pod. The SQLite init container stays at UID 0 so it can install the
+required package, while still disabling privilege escalation and dropping all
+Linux capabilities. Verify the existing directory permissions before enabling
+backup.
 
 ## How It Works
 
