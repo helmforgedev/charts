@@ -92,10 +92,16 @@ networkPolicy:
   extraEgress: []
 ```
 
+`commonAnnotations` applies shared metadata to every chart-owned resource.
+Resource-specific annotations for Services, Ingress, Gateway API, and
+ServiceAccounts override a shared key when both are set. Pod templates continue
+to use `podAnnotations` independently.
+
 ## Configuration
 
 | Parameter | Default | Description |
 | --- | --- | --- |
+| `commonAnnotations` | `{}` | Annotations applied to chart-owned resources; resource-specific values take precedence. |
 | `containerPorts.http` | `3000` | OpenCut process HTTP listener. |
 | `service.port` | `80` | OpenCut Service port; targets the named HTTP port. |
 | `opencut.siteUrl` | `""` | Public URL used by authentication callbacks and browser links. |

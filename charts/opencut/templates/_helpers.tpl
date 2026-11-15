@@ -36,6 +36,16 @@ app.kubernetes.io/part-of: helmforge
 {{- end }}
 {{- end -}}
 
+{{- define "opencut.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "opencut.image" -}}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
@@ -50,6 +60,10 @@ app.kubernetes.io/part-of: helmforge
 
 {{- define "opencut.secretName" -}}
 {{- printf "%s-app" (include "opencut.fullname" .) -}}
+{{- end -}}
+
+{{- define "opencut.rolloutPayload" -}}
+{{- dict "opencut" (dict "betterAuthSecret" (include "opencut.betterAuthSecret" .) "marbleWorkspaceKey" .Values.opencut.marbleWorkspaceKey "freesoundClientId" .Values.opencut.freesoundClientId "freesoundApiKey" .Values.opencut.freesoundApiKey) "databaseExternal" .Values.database.external "postgresqlAuth" .Values.postgresql.auth "redisAuth" .Values.redis.auth "redisExternal" .Values.redis.external "redisHttp" (dict "token" (include "opencut.redisRestToken" .) "external" .Values.redisHttp.external) | toJson -}}
 {{- end -}}
 
 {{- define "opencut.postgresqlName" -}}
@@ -236,10 +250,42 @@ app.kubernetes.io/part-of: helmforge
 
 {{- define "opencut.betterAuthSecret" -}}
 {{- $secretName := include "opencut.secretName" . -}}
-{{- if .Values.opencut.betterAuthSecret -}}{{ .Values.opencut.betterAuthSecret }}{{- else -}}{{- $existing := lookup "v1" "Secret" .Release.Namespace $secretName -}}{{- if and $existing (index $existing.data "better-auth-secret") -}}{{ index $existing.data "better-auth-secret" | b64dec }}{{- else -}}{{ randAlphaNum 48 }}{{- end -}}{{- end -}}
+{{- $cacheKey := "_helmforgeGeneratedBetterAuthSecret" -}}
+{{- if .Values.opencut.betterAuthSecret -}}
+{{- .Values.opencut.betterAuthSecret -}}
+{{- else if hasKey .Values $cacheKey -}}
+{{- index .Values $cacheKey -}}
+{{- else -}}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace $secretName -}}
+{{- $value := "" -}}
+{{- if and $existing (index $existing.data "better-auth-secret") -}}
+{{- $value = (index $existing.data "better-auth-secret" | b64dec) -}}
+{{- else -}}
+{{- $value = randAlphaNum 48 -}}
+{{- end -}}
+{{- $_ := set .Values $cacheKey $value -}}
+{{- $value -}}
+{{- end -}}
 {{- end -}}
 
 {{- define "opencut.redisRestToken" -}}
 {{- $secretName := include "opencut.secretName" . -}}
-{{- if and (not .Values.redisHttp.enabled) .Values.redisHttp.external.token -}}{{ .Values.redisHttp.external.token }}{{- else if .Values.redisHttp.token -}}{{ .Values.redisHttp.token }}{{- else -}}{{- $existing := lookup "v1" "Secret" .Release.Namespace $secretName -}}{{- if and $existing (index $existing.data "redis-rest-token") -}}{{ index $existing.data "redis-rest-token" | b64dec }}{{- else -}}{{ randAlphaNum 32 }}{{- end -}}{{- end -}}
+{{- $cacheKey := "_helmforgeGeneratedRedisRestToken" -}}
+{{- if and (not .Values.redisHttp.enabled) .Values.redisHttp.external.token -}}
+{{- .Values.redisHttp.external.token -}}
+{{- else if .Values.redisHttp.token -}}
+{{- .Values.redisHttp.token -}}
+{{- else if hasKey .Values $cacheKey -}}
+{{- index .Values $cacheKey -}}
+{{- else -}}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace $secretName -}}
+{{- $value := "" -}}
+{{- if and $existing (index $existing.data "redis-rest-token") -}}
+{{- $value = (index $existing.data "redis-rest-token" | b64dec) -}}
+{{- else -}}
+{{- $value = randAlphaNum 32 -}}
+{{- end -}}
+{{- $_ := set .Values $cacheKey $value -}}
+{{- $value -}}
+{{- end -}}
 {{- end -}}
