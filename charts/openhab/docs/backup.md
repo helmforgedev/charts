@@ -124,18 +124,19 @@ IRSA normally receives its projected token from the EKS admission webhook.
 Keep `backup.s3.credentialsFromPodIdentity: true` and the same endpoint,
 bucket, prefix, and region values shown above, but omit the ServiceAccount role
 annotation. The cluster must run the EKS Pod Identity Agent add-on. Create the
-association for the generated backup ServiceAccount in its actual namespace:
+association for the rendered backup ServiceAccount in its actual namespace.
+For release `my-openhab`, the default name is `my-openhab-backup`:
 
 ```bash
 aws eks create-pod-identity-association \
   --cluster-name <cluster-name> \
   --namespace <namespace> \
-  --service-account <release>-openhab-backup \
+  --service-account my-openhab-backup \
   --role-arn <role-arn>
 ```
 
-If `backup.serviceAccount.name` overrides the generated name, use that value in
-the association.
+If `fullnameOverride` or `backup.serviceAccount.name` is set, use the
+ServiceAccount name rendered by the chart instead.
 
 ## S3 Compatibility
 

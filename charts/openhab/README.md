@@ -332,15 +332,19 @@ backup:
 
 For EKS Pod Identity, keep the same S3 values but omit the ServiceAccount role
 annotation. Install the EKS Pod Identity Agent and create an association for
-the generated `<release>-openhab-backup` ServiceAccount:
+the rendered backup ServiceAccount. For release `my-openhab`, the default name
+is `my-openhab-backup`:
 
 ```bash
 aws eks create-pod-identity-association \
   --cluster-name <cluster-name> \
   --namespace <namespace> \
-  --service-account <release>-openhab-backup \
+  --service-account my-openhab-backup \
   --role-arn <role-arn>
 ```
+
+If `fullnameOverride` or `backup.serviceAccount.name` is set, use the
+ServiceAccount name rendered by the chart instead.
 
 See [Automated Backup Guide](docs/backup.md) for full details including restore instructions.
 
