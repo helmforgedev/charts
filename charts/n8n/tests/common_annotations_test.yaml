@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Common annotations
+templates:
+  - templates/deployment.yaml
+  - templates/service.yaml
+  - templates/pvc.yaml
+  - templates/ingress.yaml
+tests:
+  - it: should apply common annotations to chart-owned resources
+    template: templates/deployment.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+
+  - it: should let Service annotations override common annotations
+    template: templates/service.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+      service.annotations:
+        example.com/owner: networking
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: networking
+
+  - it: should let PVC annotations override common annotations
+    template: templates/pvc.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+      persistence.annotations:
+        example.com/owner: storage
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: storage
+
+  - it: should not copy common annotations to the Pod template
+    template: templates/deployment.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+    asserts:
+      - notExists:
+          path: spec.template.metadata.annotations["example.com/owner"]

@@ -26,6 +26,16 @@ app.kubernetes.io/part-of: helmforge
 {{- end }}
 {{- end -}}
 
+{{- define "n8n.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "n8n.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "n8n.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
@@ -42,6 +52,18 @@ app.kubernetes.io/component: worker
 {{- else -}}
 {{- default "default" .Values.serviceAccount.name -}}
 {{- end -}}
+{{- end -}}
+
+{{- define "n8n.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create -}}
+{{- default (printf "%s-backup" (include "n8n.fullname" .)) .Values.backup.serviceAccount.name -}}
+{{- else -}}
+{{- required "backup.serviceAccount.name is required when backup.serviceAccount.create is false" .Values.backup.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "n8n.rolloutPayload" -}}
+{{- dict "encryptionKey" .Values.encryptionKey "n8nEncryptionKey" .Values.n8n.encryptionKey "taskRunners" (dict "authToken" .Values.taskRunners.authToken "existingSecret" .Values.taskRunners.existingSecret "existingSecretKey" .Values.taskRunners.existingSecretKey) "database" .Values.database "postgresqlAuth" .Values.postgresql.auth "queueExternal" .Values.queue.external "redisAuth" .Values.redis.auth | toJson -}}
 {{- end -}}
 
 {{- define "n8n.image" -}}
@@ -294,8 +316,15 @@ redis-password
   {{- if not .Values.backup.s3.bucket -}}
     {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
   {{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
-    {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
+  {{- if .Values.backup.s3.credentialsFromPodIdentity -}}
+    {{- if not .Values.backup.s3.region -}}
+      {{- fail "backup.s3.region is required when backup.s3.credentialsFromPodIdentity is true" -}}
+    {{- end -}}
+  {{- else if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+    {{- fail "backup requires either backup.s3.existingSecret, both backup.s3.accessKey and backup.s3.secretKey, or backup.s3.credentialsFromPodIdentity=true" -}}
+  {{- end -}}
+  {{- if and (not .Values.backup.serviceAccount.create) (not .Values.backup.serviceAccount.name) -}}
+    {{- fail "backup.serviceAccount.name is required when backup.serviceAccount.create is false" -}}
   {{- end -}}
   {{- if and (eq (include "n8n.databaseMode" .) "sqlite") (not .Values.persistence.enabled) -}}
     {{- fail "backup for sqlite mode requires persistence.enabled=true" -}}

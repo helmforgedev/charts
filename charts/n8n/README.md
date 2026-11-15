@@ -159,6 +159,7 @@ externalSecrets:
 |-----|---------|-------------|
 | `image.repository` | `docker.io/n8nio/n8n` | n8n container image repository |
 | `image.tag` | `2.44.4` | n8n container image tag |
+| `commonAnnotations` | `{}` | Annotations added to every chart-owned resource |
 | `containerPorts.http` | `5678` | Main n8n process HTTP listener |
 | `containerPorts.runnerBroker` | `5679` | External task-runner broker listener |
 | `containerPorts.runnerHealth` | `5680` | External runner sidecar health listener |
@@ -189,6 +190,11 @@ externalSecrets:
 | `securityContext.runAsNonRoot` | `true` | Run n8n containers as the upstream non-root node user |
 | `ingress.enabled` | `false` | Enable ingress |
 | `backup.enabled` | `false` | Enable S3 backups |
+| `backup.s3.credentialsFromPodIdentity` | `false` | Use IRSA or EKS Pod Identity instead of static S3 keys |
+| `backup.s3.region` | `""` | AWS region required for workload identity |
+| `backup.serviceAccount.create` | `true` | Create the dedicated backup ServiceAccount |
+| `backup.serviceAccount.name` | `""` | Existing dedicated backup ServiceAccount when creation is disabled |
+| `backup.serviceAccount.annotations` | `{}` | Workload identity annotations for the backup ServiceAccount |
 | `service.ipFamilyPolicy` | `~` | IP family policy (`SingleStack`, `PreferDualStack`, `RequireDualStack`) |
 | `service.ipFamilies` | `[]` | IP families override (`IPv4`, `IPv6`) |
 | `gateway.enabled` | `false` | Enable Gateway API HTTPRoute |
@@ -300,12 +306,13 @@ reduces startup log noise. Operators can opt in with
 | Secret (encryption) | `encryptionKey.existingSecret` is empty |
 | Secret (database) | Database mode is not sqlite and no existing secret |
 | Secret (redis) | `queue.enabled` with Redis password configured |
-| Secret (backup) | `backup.enabled` and no `backup.s3.existingSecret` |
+| Secret (backup) | `backup.enabled`, static credentials, and no `backup.s3.existingSecret` |
 | PVC | `persistence.enabled` and no `persistence.existingClaim` |
 | Ingress | `ingress.enabled` |
 | HTTPRoute | `gateway.enabled` |
 | ExternalSecret | `externalSecrets.enabled` |
 | ServiceAccount | `serviceAccount.create` |
+| ServiceAccount (backup) | `backup.enabled` and `backup.serviceAccount.create` |
 | CronJob (backup) | `backup.enabled` |
 | ConfigMap (backup scripts) | `backup.enabled` |
 
