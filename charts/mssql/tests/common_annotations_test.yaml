@@ -1,0 +1,78 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Chart-wide resource annotations
+templates:
+  - configmap.yaml
+  - statefulset.yaml
+  - service.yaml
+  - serviceaccount.yaml
+  - secrets.yaml
+tests:
+  - it: applies common annotations to the consent ConfigMap
+    template: configmap.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+
+  - it: applies common annotations only to StatefulSet resource metadata
+    template: statefulset.yaml
+    set:
+      license.acceptEULA: true
+      commonAnnotations:
+        example.com/owner: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+      - notExists:
+          path: spec.template.metadata.annotations["example.com/owner"]
+
+  - it: gives Service annotations precedence over common annotations
+    template: service.yaml
+    documentIndex: 0
+    set:
+      license.acceptEULA: true
+      commonAnnotations:
+        example.com/owner: platform
+        example.com/environment: production
+      service.annotations:
+        example.com/owner: networking
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: networking
+      - equal:
+          path: metadata.annotations["example.com/environment"]
+          value: production
+
+  - it: gives ServiceAccount annotations precedence over common annotations
+    template: serviceaccount.yaml
+    set:
+      license.acceptEULA: true
+      commonAnnotations:
+        example.com/owner: platform
+      serviceAccount.annotations:
+        example.com/owner: database
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: database
+
+  - it: keeps retained Secret lifecycle annotations authoritative
+    template: secrets.yaml
+    documentIndex: 0
+    set:
+      license.acceptEULA: true
+      commonAnnotations:
+        helm.sh/resource-policy: delete
+        example.com/owner: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform

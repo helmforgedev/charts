@@ -1,19 +1,15 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- if .Values.license.acceptEULA }}
 {{- if and .Values.persistence.enabled (not .Values.persistence.existingClaim) }}
+{{- $dataAnnotations := deepCopy (.Values.persistence.annotations | default dict) }}
+{{- if .Values.persistence.retain }}{{- $_ := set $dataAnnotations "helm.sh/resource-policy" "keep" }}{{- end }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: {{ include "mssql.dataClaim" . }}
   labels:
     {{- include "mssql.labels" . | nindent 4 }}
-  annotations:
-    {{- if .Values.persistence.retain }}
-    helm.sh/resource-policy: keep
-    {{- end }}
-    {{- with .Values.persistence.annotations }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
+  {{- include "mssql.renderAnnotations" (dict "root" . "specific" $dataAnnotations) | nindent 2 }}
 spec:
   accessModes: [{{ .Values.persistence.accessMode }}]
   {{- if .Values.persistence.storageClass }}
@@ -31,10 +27,7 @@ metadata:
   name: {{ include "mssql.backupClaim" . }}
   labels:
     {{- include "mssql.labels" . | nindent 4 }}
-  {{- if .Values.backup.staging.retain }}
-  annotations:
-    helm.sh/resource-policy: keep
-  {{- end }}
+  {{- include "mssql.renderAnnotations" (dict "root" . "specific" (ternary (dict "helm.sh/resource-policy" "keep") (dict) .Values.backup.staging.retain)) | nindent 2 }}
 spec:
   accessModes: [ReadWriteOnce]
   {{- if .Values.backup.staging.storageClass }}

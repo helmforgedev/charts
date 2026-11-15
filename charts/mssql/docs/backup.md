@@ -13,9 +13,12 @@ Configure a dedicated staging PVC shared by SQL Server and the backup Job. RWO r
 affinity enforces this. ReadWriteOncePod cannot be shared between these Pods. The staging volume must fit the full selected backup set plus
 headroom for interruption orphans. SQL Server consumes the claim at installation, including storage classes with delayed binding.
 
-Use existing Secrets or External Secrets for passwords and S3 keys. For AWS workload identity, configure the backup ServiceAccount and trust
-policy explicitly; a rendered role annotation is not evidence of a working IAM federation. The uploader supports standard AWS CLI credential
-providers. The database ServiceAccount does not need access to S3.
+Use existing Secrets or External Secrets for passwords and S3 keys. To use the AWS CLI ambient credential chain instead, set
+`backup.s3.credentialsFromPodIdentity: true` and leave `backup.s3.existingSecret` empty. Configure the dedicated backup ServiceAccount under
+`backup.serviceAccount`; its annotations can carry an IRSA role, while EKS Pod Identity can associate the account externally. Set
+`backup.serviceAccount.create: false` with an explicit `name` to reuse an existing dedicated identity. A rendered account or role annotation
+is not evidence of working IAM federation. The database ServiceAccount does not receive S3 access. The legacy
+`backup.workloadIdentity` projection remains supported for upgrades but should not be selected for new installations.
 
 Use an HTTPS endpoint and a trusted CA bundle for private certificate authorities. Production must not bypass certificate verification.
 Scope S3 permissions to the configured bucket prefix and required upload/multipart operations. Configure optional SSE-S3 or SSE-KMS when the

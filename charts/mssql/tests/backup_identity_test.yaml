@@ -1,0 +1,92 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Backup ambient workload identity
+templates:
+  - backup.yaml
+tests:
+  - it: uses ambient credentials without static Secret references
+    template: backup.yaml
+    documentIndex: 1
+    set:
+      license.acceptEULA: true
+      backup.enabled: true
+      backup.databases: [app]
+      backup.s3.bucket: backups
+      backup.s3.credentialsFromPodIdentity: true
+      backup.staging.existingClaim: staging
+      backup.egress: [{to: [{ipBlock: {cidr: 10.0.0.0/24}}], ports: [{port: 443, protocol: TCP}]}]
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.serviceAccountName
+          value: RELEASE-NAME-mssql-backup
+      - notContains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: AWS_ACCESS_KEY_ID
+          any: true
+      - notContains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: AWS_WEB_IDENTITY_TOKEN_FILE
+          any: true
+
+  - it: creates a dedicated annotated backup ServiceAccount
+    template: backup.yaml
+    documentIndex: 0
+    set:
+      license.acceptEULA: true
+      backup.enabled: true
+      backup.databases: [app]
+      backup.s3.bucket: backups
+      backup.s3.credentialsFromPodIdentity: true
+      backup.staging.existingClaim: staging
+      backup.egress: [{to: [{ipBlock: {cidr: 10.0.0.0/24}}], ports: [{port: 443, protocol: TCP}]}]
+      commonAnnotations:
+        example.com/owner: platform
+      backup.serviceAccount.annotations:
+        eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/mssql-backup
+    asserts:
+      - isKind:
+          of: ServiceAccount
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+      - equal:
+          path: metadata.annotations["eks.amazonaws.com/role-arn"]
+          value: arn:aws:iam::123456789012:role/mssql-backup
+
+  - it: uses an existing dedicated backup ServiceAccount
+    template: backup.yaml
+    documentIndex: 0
+    set:
+      license.acceptEULA: true
+      backup.enabled: true
+      backup.databases: [app]
+      backup.s3.bucket: backups
+      backup.s3.credentialsFromPodIdentity: true
+      backup.serviceAccount.create: false
+      backup.serviceAccount.name: database-backup
+      backup.staging.existingClaim: staging
+      backup.egress: [{to: [{ipBlock: {cidr: 10.0.0.0/24}}], ports: [{port: 443, protocol: TCP}]}]
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: CronJob
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.serviceAccountName
+          value: database-backup
+
+  - it: requires an existing dedicated ServiceAccount when creation is disabled
+    template: backup.yaml
+    set:
+      license.acceptEULA: true
+      backup.enabled: true
+      backup.databases: [app]
+      backup.s3.bucket: backups
+      backup.s3.credentialsFromPodIdentity: true
+      backup.serviceAccount.create: false
+      backup.staging.existingClaim: staging
+      backup.egress: [{to: [{ipBlock: {cidr: 10.0.0.0/24}}], ports: [{port: 443, protocol: TCP}]}]
+    asserts:
+      - failedTemplate:
+          errorMessage: backup.serviceAccount.name is required when creation is disabled
