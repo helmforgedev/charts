@@ -211,6 +211,17 @@ annotations:
 {{- if and .Values.externalSecrets.enabled .Values.externalSecrets.admin.enabled -}}true{{- end -}}
 {{- end -}}
 
+{{- define "keycloak.runtimeSecretPayloadChecksum" -}}
+{{- $payload := dict -}}
+{{- if and (not .Values.admin.existingSecret) (not (include "keycloak.adminSecretManagedByExternalSecret" .)) -}}
+  {{- $_ := set $payload "admin" (dict "username" .Values.admin.username "password" .Values.admin.password) -}}
+{{- end -}}
+{{- if and (include "keycloak.hasDatabase" .) (not (and (eq (include "keycloak.databaseMode" .) "external") .Values.database.external.existingSecret)) (not (include "keycloak.databaseSecretManagedByExternalSecret" .)) -}}
+  {{- $_ := set $payload "databasePassword" (include "keycloak.databasePasswordValue" .) -}}
+{{- end -}}
+{{- toJson $payload | sha256sum -}}
+{{- end -}}
+
 {{- define "keycloak.databaseMode" -}}
 {{- $hasExternal := or (ne (.Values.database.external.host | default "") "") (ne (.Values.database.external.existingSecret | default "") "") -}}
 {{- $hasPostgresql := .Values.postgresql.enabled | default false -}}

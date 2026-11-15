@@ -58,6 +58,22 @@ tests:
           path: spec.strategy.rollingUpdate.maxSurge
           value: 1
 
+  - it: should checksum only active runtime Secret payload values
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["checksum/secrets"]
+          value: 11361371b421577dd8febded99a779eb017fd0fbac4320fef18349274a1e26bb
+
+  - it: should not roll Keycloak when backup-only S3 settings change
+    template: deployment.yaml
+    set:
+      backup.s3.prefix: alternate-prefix
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["checksum/secrets"]
+          value: 11361371b421577dd8febded99a779eb017fd0fbac4320fef18349274a1e26bb
+
   - it: should allow a longer deployment progress deadline for slow migrations
     template: deployment.yaml
     set:
