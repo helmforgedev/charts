@@ -250,6 +250,8 @@ extstore:
 Do not combine PVC-backed extstore with HPA. The chart blocks that combination because each PVC is pod-local.
 The default retention policy preserves extstore PVCs when the StatefulSet is deleted or scaled down. Set either
 policy to `Delete` only when discarding the associated cache files is intentional.
+On Kubernetes 1.26, `Delete` also requires the `StatefulSetAutoDeletePVC` feature gate on both the API server and
+controller manager. Without that gate, use the default `Retain` policy and manage PVC deletion explicitly.
 
 ## Autoscaling
 
