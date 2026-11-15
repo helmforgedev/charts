@@ -61,11 +61,12 @@ default UI, and persistent HTTP sessions in a dedicated SQLite database for
 Docker deployments. The chart's `/config` PVC covers both the main database
 and the session database. Back up that PVC before upgrading.
 
-Chart upgrades preserve the root UID/GID behavior used by previous releases so
-existing SQLite files remain writable. The compatible security defaults only
-prevent privilege escalation, select RuntimeDefault seccomp, and disable API
-token mounts. Both regular upgrades and `--reuse-values` upgrades retain the
-`/config` and `/data` PVC claims.
+Chart upgrades preserve the root UID/GID behavior used by previous releases.
+The container now drops all Linux capabilities, so verify that existing
+`/config` and `/data` files are accessible to the configured `runAsUser`,
+`runAsGroup`, or `fsGroup` before upgrading. Set `podSecurityContext.fsGroup`
+to the storage group when an existing PVC is not root-readable. Both regular
+upgrades and `--reuse-values` upgrades retain the PVC claims.
 
 ```bash
 helm upgrade komga helmforge/komga --namespace komga --reset-then-reuse-values
@@ -228,6 +229,7 @@ externalSecrets:
 | `backup.enabled` | `false` | Enable S3 backup CronJob |
 | `backup.schedule` | `0 2 * * *` | Cron schedule |
 | `backup.includeLogs` | `true` | Include `/config/logs` when present |
+| `backup.podSecurityContext` | `{}` | Backup pod overrides merged over `podSecurityContext`; use `fsGroup` for shared PVC access |
 | `backup.serviceAccount.create` | `true` | Create a dedicated ServiceAccount for workload identity backups |
 | `backup.serviceAccount.name` | `""` | Existing backup ServiceAccount name when creation is disabled |
 | `backup.serviceAccount.annotations` | `{}` | Workload identity annotations for the backup ServiceAccount |

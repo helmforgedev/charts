@@ -55,6 +55,25 @@ tests:
           path: spec.jobTemplate.spec.template.spec.containers[0].securityContext.capabilities.drop
           content: ALL
 
+  - it: should inherit application volume ownership and allow backup overrides
+    template: templates/backup-cronjob.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: test-bucket
+      backup.s3.accessKey: AKIA123
+      backup.s3.secretKey: secret123
+      podSecurityContext.fsGroup: 1000
+      backup.podSecurityContext.fsGroup: 2000
+      backup.podSecurityContext.fsGroupChangePolicy: OnRootMismatch
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.securityContext.fsGroup
+          value: 2000
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.securityContext.fsGroupChangePolicy
+          value: OnRootMismatch
+
   - it: should render backup scripts ConfigMap
     template: templates/backup-configmap.yaml
     set:
@@ -113,7 +132,7 @@ tests:
         template: templates/secret.yaml
       - matchRegex:
           path: data["upload-backup.sh"]
-          pattern: "MC_STS_ENDPOINT_s3"
+          pattern: 'MC_STS_ENDPOINT_s3="https://sts\.\$\{AWS_REGION\}\.\$\{sts_domain\}"'
         template: templates/backup-configmap.yaml
 
   - it: should require a region for workload identity

@@ -32,9 +32,9 @@ backup:
 
 The secret must contain `access-key` and `secret-key` keys.
 
-## Using Workload Identity
+## Using IRSA
 
-EKS Pod Identity and IRSA can provide ambient AWS credentials without a static Secret:
+IRSA provides ambient AWS credentials through a ServiceAccount annotation:
 
 ```yaml
 backup:
@@ -53,6 +53,42 @@ Set `backup.serviceAccount.create: false` and
 `backup.serviceAccount.name` to use an existing ServiceAccount. The IAM role
 must allow the bucket operations required by the configured
 `createBucketIfNotExists` behavior and object upload.
+
+## Using EKS Pod Identity
+
+EKS Pod Identity does not use a ServiceAccount annotation. Give the backup
+ServiceAccount a stable name:
+
+```yaml
+backup:
+  enabled: true
+  serviceAccount:
+    name: komga-backup
+  s3:
+    endpoint: https://s3.amazonaws.com
+    bucket: my-backups
+    region: us-east-1
+    credentialsFromPodIdentity: true
+```
+
+Install the EKS Pod Identity Agent unless the cluster uses EKS Auto Mode, then
+create the AWS-side association for the release namespace and rendered backup
+ServiceAccount:
+
+```bash
+aws eks create-pod-identity-association \
+  --cluster-name my-cluster \
+  --namespace komga \
+  --service-account komga-backup \
+  --role-arn arn:aws:iam::123456789012:role/komga-backup
+```
+
+## Backup Access to Existing Volumes
+
+The backup pod inherits `podSecurityContext` and accepts overrides through
+`backup.podSecurityContext`. When Komga uses a non-root-owned `/config` PVC,
+set `podSecurityContext.fsGroup` to the storage group or override it for the
+backup pod. Verify the existing directory permissions before enabling backup.
 
 ## How It Works
 
