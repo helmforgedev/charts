@@ -225,6 +225,7 @@ verify the controller manager setting. The feature is stable from Kubernetes 1.3
 | `broker.persistence.retentionPolicy.whenDeleted` | `Retain` | PVC retention when the StatefulSet is deleted |
 | `broker.persistence.retentionPolicy.whenScaled` | `Retain` | PVC retention when broker replicas are scaled down |
 | `auth.enabled` | `false` | Enable username/password authentication |
+| `auth.password` | `""` | Password for chart-managed authentication; generated once and preserved on upgrades when empty |
 | `acl.enabled` | `false` | Enable ACL file generation |
 | `service.type` | `ClusterIP` | Service type: `ClusterIP`, `NodePort`, or `LoadBalancer` |
 | `service.sessionAffinity` | `None` | Service routing policy for client traffic |

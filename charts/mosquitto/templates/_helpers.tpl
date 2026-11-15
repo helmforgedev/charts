@@ -72,6 +72,22 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
+{{/* Preserve an auto-generated password across upgrades. */}}
+{{- define "mosquitto.authPassword" -}}
+{{- if .Values.auth.password -}}
+{{- .Values.auth.password -}}
+{{- else -}}
+{{- $secretName := include "mosquitto.authSecretName" . -}}
+{{- $secret := lookup "v1" "Secret" .Release.Namespace $secretName -}}
+{{- $passwordKey := .Values.auth.existingSecretPasswordKey -}}
+{{- if and $secret (hasKey $secret "data") (hasKey (index $secret "data") $passwordKey) -}}
+{{- index $secret.data $passwordKey | b64dec -}}
+{{- else -}}
+{{- randAlphaNum 24 -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "mosquitto.aclConfigMapName" -}}
 {{- if .Values.acl.existingConfigMap -}}
 {{- .Values.acl.existingConfigMap -}}
