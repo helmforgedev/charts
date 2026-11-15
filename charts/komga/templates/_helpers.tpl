@@ -15,6 +15,17 @@
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{/* Merge chart-wide annotations with resource-specific annotations taking precedence. */}}
+{{- define "komga.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "komga.labels" -}}
 helm.sh/chart: {{ include "komga.chart" . }}
 {{ include "komga.selectorLabels" . }}
@@ -39,6 +50,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
+{{- define "komga.backupServiceAccountName" -}}
+{{- default (printf "%s-backup" (include "komga.fullname" .)) .Values.backup.serviceAccount.name -}}
+{{- end -}}
+
 {{- define "komga.image" -}}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
@@ -52,6 +67,15 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- if and .Values.backup.enabled (not .Values.backup.s3.bucket) -}}
 {{- fail "backup.enabled requires backup.s3.bucket" -}}
+{{- end -}}
+{{- if and .Values.backup.enabled .Values.backup.s3.credentialsFromPodIdentity (not .Values.backup.s3.region) -}}
+{{- fail "backup.s3.region is required when backup.s3.credentialsFromPodIdentity is true" -}}
+{{- end -}}
+{{- if and .Values.backup.enabled .Values.backup.s3.credentialsFromPodIdentity (not .Values.backup.serviceAccount.create) (not .Values.backup.serviceAccount.name) -}}
+{{- fail "backup.serviceAccount.name is required when workload identity is enabled and backup.serviceAccount.create is false" -}}
+{{- end -}}
+{{- if and .Values.backup.enabled (not .Values.backup.s3.credentialsFromPodIdentity) (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+{{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
 {{- end -}}
 {{- end -}}
 
