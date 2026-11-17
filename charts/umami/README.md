@@ -269,19 +269,43 @@ backup:
 The referenced secret must contain the keys configured by `backup.s3.existingSecretAccessKeyKey` and
 `backup.s3.existingSecretSecretKeyKey`.
 
-On EKS, prefer Pod Identity or IRSA with the dedicated backup ServiceAccount:
+On EKS, prefer Pod Identity or IRSA with the dedicated backup ServiceAccount. Both modes use this base configuration:
 
 ```yaml
 backup:
   enabled: true
-  serviceAccount:
-    annotations:
-      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/umami-backup
   s3:
     endpoint: https://s3.us-east-1.amazonaws.com
     bucket: umami-backups
     region: us-east-1
     credentialsFromPodIdentity: true
+```
+
+For EKS Pod Identity, install the
+[EKS Pod Identity Agent](https://docs.aws.amazon.com/eks/latest/userguide/pod-id-agent-setup.html) once per cluster
+unless EKS Auto Mode already provides it. Then associate the IAM role with the exact namespace and backup
+ServiceAccount. The default ServiceAccount name is `<release>-umami-backup`; Pod Identity does not use a ServiceAccount
+annotation.
+
+```bash
+aws eks create-addon \
+  --cluster-name <cluster-name> \
+  --addon-name eks-pod-identity-agent
+
+aws eks create-pod-identity-association \
+  --cluster-name <cluster-name> \
+  --namespace <release-namespace> \
+  --service-account <release>-umami-backup \
+  --role-arn <iam-role-arn>
+```
+
+For IRSA, add its role annotation instead:
+
+```yaml
+backup:
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/umami-backup
 ```
 
 Workload identity mode renders no static S3 credential Secret or credential environment variables. The identity needs

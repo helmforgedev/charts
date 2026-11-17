@@ -57,7 +57,10 @@ Change the default admin password immediately after first login.
   `backup.serviceAccount` for EKS Pod Identity or IRSA. This mode does not
   render or inject static S3 access keys. Supply `backup.s3.region`, allow DNS,
   HTTPS, and the applicable metadata endpoint, and grant only object access;
-  bucket creation remains opt-in.
+  bucket creation remains opt-in. EKS Pod Identity requires an association
+  between the IAM role, release namespace, and backup ServiceAccount; it does
+  not use a ServiceAccount annotation. Use `backup.serviceAccount.annotations`
+  only for IRSA or another annotation-based integration.
 
 ## Custom initialization
 
