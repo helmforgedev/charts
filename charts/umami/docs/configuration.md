@@ -11,17 +11,24 @@ cookie-less alternative to Google Analytics). This chart runs the Umami app
 |---|---|---|
 | `umami.port` | `3000` | App container port (Service exposes 80). |
 | `postgresql.enabled` | `true` | Bundle the HelmForge PostgreSQL subchart. |
-| `externalDatabase.*` | — | Managed PostgreSQL (when `postgresql.enabled=false`). |
+| `database.external.*` | — | Managed PostgreSQL (when `postgresql.enabled=false`). |
 | `ingress.*` / `gatewayApi.*` | disabled | Expose the UI via Ingress or Gateway API (HTTPRoute). |
 | `externalSecrets.*` | disabled | Source the app/DB secrets from an External Secrets store. |
 | `backup.*` | disabled | Scheduled `pg_dump` of the analytics database. |
+| `commonAnnotations` | `{}` | Annotations propagated to chart-owned resources. |
 
 ## Database
 
 PostgreSQL is the single source of truth (sites, events, sessions, users). Use
 the bundled subchart for small installs, or point at managed PostgreSQL via
-`externalDatabase.*`. The connection is assembled as a `DATABASE_URL` with the
+`database.external.*`. The connection is assembled as a `DATABASE_URL` with the
 password injected from a secret — never templated into a ConfigMap.
+
+Set `database.external.parameters` to append connection arguments such as
+`pgbouncer=true` to the generated URL. For a complete URL override, store the
+URL in `database.external.existingSecret` and select its key with
+`database.external.existingSecretUrlKey`. The structured host, port, and name
+remain in use by readiness, initialization, and backup jobs.
 
 > Umami also supports MySQL upstream; this chart standardizes on **PostgreSQL**.
 
@@ -46,6 +53,11 @@ Change the default admin password immediately after first login.
   [examples/external-secrets.yaml](../examples/external-secrets.yaml).
 - `backup.enabled=true` schedules `pg_dump` of the analytics DB — the only
   durable state — to S3-compatible storage.
+- Set `backup.s3.credentialsFromPodIdentity=true` and configure the dedicated
+  `backup.serviceAccount` for EKS Pod Identity or IRSA. This mode does not
+  render or inject static S3 access keys. Supply `backup.s3.region`, allow DNS,
+  HTTPS, and the applicable metadata endpoint, and grant only object access;
+  bucket creation remains opt-in.
 
 ## Custom initialization
 

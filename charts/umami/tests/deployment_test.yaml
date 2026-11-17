@@ -229,6 +229,39 @@ tests:
                 name: my-db-secret
                 key: db-pass
 
+  - it: should append parameters to the generated external database URL
+    set:
+      postgresql.enabled: false
+      database.external.host: pgbouncer.example.com
+      database.external.port: "6432"
+      database.external.parameters: "pgbouncer=true&connection_limit=10"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_URL
+            value: "postgresql://umami:$(DATABASE_PASSWORD)@pgbouncer.example.com:6432/umami?pgbouncer=true&connection_limit=10"
+
+  - it: should source a complete external database URL from an existing secret
+    set:
+      postgresql.enabled: false
+      database.external.host: pgbouncer.example.com
+      database.external.existingSecret: my-db-secret
+      database.external.existingSecretUrlKey: database-url
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_URL
+            valueFrom:
+              secretKeyRef:
+                name: my-db-secret
+                key: database-url
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_PASSWORD
+
   - it: should use configured PostgreSQL existingSecret
     set:
       postgresql.auth.existingSecret: umami-postgres

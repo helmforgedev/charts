@@ -103,6 +103,7 @@ database:
     username: umami
     existingSecret: umami-db
     existingSecretPasswordKey: database-password
+    parameters: pgbouncer=true
     init:
       enabled: true
       adminUsername: postgres
@@ -115,6 +116,30 @@ Create the secret:
 kubectl create secret generic umami-db \
   --from-literal=database-password='replace-me'
 ```
+
+`database.external.parameters` appends a query string to the generated URL without exposing credentials in values.
+For example, `pgbouncer=true` supports Prisma deployments that require PgBouncer compatibility mode. Do not include the
+leading `?`.
+
+When the structured fields are insufficient, store a complete URL in the same Secret and set
+`database.external.existingSecretUrlKey`:
+
+```bash
+kubectl create secret generic umami-db \
+  --from-literal=database-url='postgresql://umami:replace-me@pgbouncer.database.svc:6432/umami?pgbouncer=true'
+```
+
+```yaml
+database:
+  external:
+    host: pgbouncer.database.svc
+    port: 6432
+    existingSecret: umami-db
+    existingSecretUrlKey: database-url
+```
+
+The structured host, port, and database fields remain the source for the readiness check, optional database preparation,
+and backup jobs; keep them aligned with the complete URL. A complete URL and `parameters` cannot be configured together.
 
 Umami creates the `pgcrypto` extension during its first migration. Many managed databases require an owner or
 administrative account to create extensions. When the application user cannot do that, enable
@@ -244,12 +269,35 @@ backup:
 The referenced secret must contain the keys configured by `backup.s3.existingSecretAccessKeyKey` and
 `backup.s3.existingSecretSecretKeyKey`.
 
+On EKS, prefer Pod Identity or IRSA with the dedicated backup ServiceAccount:
+
+```yaml
+backup:
+  enabled: true
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/umami-backup
+  s3:
+    endpoint: https://s3.us-east-1.amazonaws.com
+    bucket: umami-backups
+    region: us-east-1
+    credentialsFromPodIdentity: true
+```
+
+Workload identity mode renders no static S3 credential Secret or credential environment variables. The identity needs
+`s3:PutObject` for the configured prefix and, when enabled, `s3:CreateBucket`; leave
+`backup.s3.createBucketIfNotExists=false` for object-only least privilege. IRSA additionally needs
+`sts:AssumeRoleWithWebIdentity`. Allow DNS and HTTPS egress to S3 and STS. If the CNI filters link-local traffic, allow
+the EKS Pod Identity or IRSA metadata endpoint for the cluster's IPv4 or IPv6 mode. Token automount is controlled by
+`backup.serviceAccount.automountServiceAccountToken` and remains disabled by default.
+
 For production, test restore procedures outside Helm. Backups without restore validation are only partial protection.
 
 ## Key Values
 
 | Key | Default | Description |
 | --- | --- | --- |
+| `commonAnnotations` | `{}` | Annotations applied to every chart-owned Kubernetes resource. |
 | `replicaCount` | `1` | Number of Umami pods. |
 | `image.repository` | `ghcr.io/umami-software/umami` | Umami image repository. |
 | `image.tag` | `3.4.0` | Umami image tag. |
@@ -260,7 +308,11 @@ For production, test restore procedures outside Helm. Backups without restore va
 | `gatewayAPI.enabled` | `false` | Enable Gateway API HTTPRoute. |
 | `postgresql.enabled` | `true` | Deploy bundled HelmForge PostgreSQL. |
 | `database.external.host` | `""` | External PostgreSQL host when bundled PostgreSQL is disabled. |
+| `database.external.parameters` | `""` | Query string appended to the generated `DATABASE_URL`, without `?`. |
+| `database.external.existingSecretUrlKey` | `""` | Key in the existing Secret containing a complete `DATABASE_URL`. |
 | `database.external.init.enabled` | `false` | Run optional external database preparation SQL before Umami starts. |
+| `backup.s3.credentialsFromPodIdentity` | `false` | Use EKS Pod Identity or IRSA instead of static S3 credentials. |
+| `backup.serviceAccount.*` | dedicated | Configure the dedicated workload identity ServiceAccount. |
 | `externalSecrets.enabled` | `false` | Render ExternalSecret resources. |
 | `networkPolicy.enabled` | `false` | Render NetworkPolicy. |
 | `pdb.enabled` | `false` | Render PodDisruptionBudget. |

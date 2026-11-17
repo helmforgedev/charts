@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Database URL validation
+templates:
+  - templates/deployment.yaml
+tests:
+  - it: should reject a URL key without an existing secret
+    set:
+      postgresql.enabled: false
+      database.external.host: db.example.com
+      database.external.existingSecretUrlKey: database-url
+    asserts:
+      - failedTemplate:
+          errorMessage: database.external.existingSecretUrlKey requires database.external.existingSecret
+
+  - it: should reject parameters with a complete URL override
+    set:
+      postgresql.enabled: false
+      database.external.host: db.example.com
+      database.external.existingSecret: my-db-secret
+      database.external.existingSecretUrlKey: database-url
+      database.external.parameters: pgbouncer=true
+    asserts:
+      - failedTemplate:
+          errorMessage: database.external.parameters cannot be combined with database.external.existingSecretUrlKey
+
+  - it: should reject external URL settings while bundled PostgreSQL is enabled
+    set:
+      database.external.parameters: pgbouncer=true
+    asserts:
+      - failedTemplate:
+          errorMessage: database.external.parameters requires postgresql.enabled=false

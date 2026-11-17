@@ -80,6 +80,8 @@ The chart renders `external-secrets.io/v1` resources only when enabled. It never
 flowchart LR
   cron[Backup CronJob<br/>postgres tools] -->|pg_dump| pg[(PostgreSQL<br/>bundled or external)]
   cron -->|upload| s3[(S3-compatible<br/>object storage)]
+  identity[Dedicated ServiceAccount<br/>Pod Identity or IRSA] -. ambient credentials .-> cron
+  secret[Static credential Secret] -. alternative credentials .-> cron
 ```
 
 The backup job is optional and designed for smaller self-hosted installations.
@@ -93,7 +95,7 @@ or managed database service.
 The chart maps common Umami environment variables to structured values. This makes production values easier to review than large `extraEnv` blocks:
 
 - `APP_SECRET` from generated, existing, or external-managed Secret.
-- `DATABASE_URL` composed by chart helpers.
+- `DATABASE_URL` composed by chart helpers with optional query parameters, or sourced as a complete URL from a Secret.
 - `DISABLE_TELEMETRY` and `DISABLE_UPDATES` default to true.
 - `FORCE_SSL`, `CLIENT_IP_HEADER`, `COLLECT_API_ENDPOINT`, `TRACKER_SCRIPT_NAME`, `ALLOWED_FRAME_URLS`, and related settings are optional structured values.
 
@@ -153,8 +155,8 @@ Ingress remains available for clusters that have not adopted Gateway API.
 - The initial `admin` password cannot be seeded from a Secret.
 - `gatewayAPI` renders a single HTTPRoute from `parentRefs`, `hostnames`, and
   `matches` instead of the `gatewayAPI.httpRoutes` list used by newer charts.
-- The backup CronJob dumps PostgreSQL only and does not reuse the application
-  security context.
+- The backup CronJob dumps PostgreSQL only; database-native physical backups
+  remain the responsibility of the PostgreSQL operator or managed service.
 
 ## Explicit Non-Goals
 

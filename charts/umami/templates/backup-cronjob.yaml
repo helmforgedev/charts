@@ -6,6 +6,7 @@ metadata:
   name: {{ include "umami.fullname" . }}-backup
   labels:
     {{- include "umami.labels" . | nindent 4 }}
+  {{- include "umami.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   schedule: {{ .Values.backup.schedule | quote }}
   suspend: {{ .Values.backup.suspend }}
@@ -21,10 +22,15 @@ spec:
             {{- include "umami.selectorLabels" . | nindent 12 }}
         spec:
           restartPolicy: Never
+          {{- if .Values.backup.s3.credentialsFromPodIdentity }}
+          serviceAccountName: {{ include "umami.backupServiceAccountName" . }}
+          automountServiceAccountToken: {{ .Values.backup.serviceAccount.automountServiceAccountToken }}
+          {{- else }}
           {{- if .Values.serviceAccount.create }}
           serviceAccountName: {{ include "umami.serviceAccountName" . }}
           {{- end }}
           automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+          {{- end }}
           {{- with .Values.imagePullSecrets }}
           imagePullSecrets:
             {{- toYaml . | nindent 12 }}
@@ -65,6 +71,8 @@ spec:
                       key: {{ include "umami.backupDbPasswordSecretKey" . }}
               resources:
                 {{- toYaml .Values.backup.resources | nindent 16 }}
+              securityContext:
+                {{- toYaml .Values.securityContext | nindent 16 }}
               volumeMounts:
                 - name: scripts
                   mountPath: /scripts
@@ -83,6 +91,12 @@ spec:
                   value: {{ .Values.backup.s3.prefix | quote }}
                 - name: S3_CREATE_BUCKET_IF_NOT_EXISTS
                   value: {{ ternary "true" "false" .Values.backup.s3.createBucketIfNotExists | quote }}
+                {{- if .Values.backup.s3.credentialsFromPodIdentity }}
+                - name: AWS_REGION
+                  value: {{ .Values.backup.s3.region | quote }}
+                - name: AWS_DEFAULT_REGION
+                  value: {{ .Values.backup.s3.region | quote }}
+                {{- else }}
                 - name: S3_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
@@ -93,8 +107,11 @@ spec:
                     secretKeyRef:
                       name: {{ include "umami.backupSecretName" . }}
                       key: {{ .Values.backup.s3.existingSecretSecretKeyKey }}
+                {{- end }}
               resources:
                 {{- toYaml .Values.backup.resources | nindent 16 }}
+              securityContext:
+                {{- toYaml .Values.securityContext | nindent 16 }}
               volumeMounts:
                 - name: scripts
                   mountPath: /scripts
