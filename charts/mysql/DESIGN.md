@@ -83,11 +83,14 @@ by default.
 ## Security Boundary
 
 - Authentication credentials must be managed via existingSecret or External Secrets Operator in production.
-- Non-root UID/GID 999 execution with dropped capabilities applies to the MySQL workload container.
-  When optional TLS permission normalization is enabled, its init container runs as UID 0 (`runAsNonRoot: false`)
-  and may require an admission policy exception on strict clusters.
+- Default UID/GID 999 execution with dropped capabilities applies to the MySQL workload container,
+  configurable via `securityContext.runAsUser` and `securityContext.runAsGroup`. When optional TLS permission
+  normalization is enabled, its init container runs as UID 0 (`runAsNonRoot: false`) to chown files to the
+  configured user/group, which may require an admission policy exception on strict clusters.
 - TLS key permission normalization is opt-in for clusters requiring strict key ownership (chmod 0600).
-- NetworkPolicy isolates internal database traffic. Egress restriction requires explicit opt-in via
+- NetworkPolicy is opt-in (`networkPolicy.enabled=false` by default). When enabled, ingress traffic is restricted
+  to the release namespace or configured `extraFrom` peers; disabling `allowSameNamespace` with an empty
+  `extraFrom` permits all sources on the MySQL port. Egress restriction requires explicit opt-in via
   `networkPolicy.egress.enabled` to limit traffic to authorized DNS, backup and external replication targets.
 
 ## Production Boundary
@@ -96,8 +99,9 @@ by default.
 - Production deployments must configure appropriate resource requests and limits matching workload concurrency.
 - Retained PVC storage classes with volume expansion support are recommended for data persistence.
 - When enabled, the chart's PodDisruptionBudget selects all release pods without role filtering.
-  With `minAvailable: 1`, the source pod alone satisfies the budget; dedicated replica protection
-  requires a separate PDB selecting `app.kubernetes.io/role: replica`.
+  With `minAvailable: 1`, the source pod alone satisfies the budget; operators requiring separate source and
+  replica availability guarantees should disable the chart PDB (`pdb.enabled=false`) and deploy separate,
+  non-overlapping role-specific PDBs targeting `app.kubernetes.io/role: source` and `app.kubernetes.io/role: replica`.
 
 ## Observability Boundary
 
