@@ -64,6 +64,8 @@ secondaries replicating from it, and elections on failure.
 | `architecture` | Must be `replicaset` |
 | `replicaSet.name` | Replica set name used by members and clients |
 | `replicaSet.members` | Number of data-bearing members |
+| `replicaSet.initJob.resources` | Resources for the `rs-init` bootstrap Job (prefer ≥256Mi request / 512Mi limit) |
+| `initContainerResources` | Resources for `init-keyfile` on members and arbiter (needed with strict ResourceQuota) |
 | `arbiter.enabled` | Add one non-data-bearing voting member |
 | `arbiter.resources` | Resource settings for the arbiter container |
 | `auth.replicaSetKey` | Internal auth key when not using existing secret |
@@ -86,6 +88,22 @@ auth:
 replicaSet:
   name: rs0
   members: 3
+  initJob:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        cpu: 100m
+        memory: 512Mi
+
+initContainerResources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi
 
 persistence:
   enabled: true

@@ -1,0 +1,231 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Sharded init resources
+templates:
+  - templates/sharded-mongos.yaml
+  - templates/sharded-configsvr.yaml
+  - templates/sharded-shard.yaml
+  - templates/job-sharded-init.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should apply initContainerResources to mongos init-keyfile
+    template: templates/sharded-mongos.yaml
+    documentSelector:
+      path: kind
+      value: Deployment
+    set:
+      architecture: sharded
+      auth:
+        enabled: true
+        rootPassword: secret
+        replicaSetKey: "0123456789abcdef0123456789abcdef"
+      initContainerResources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: init-keyfile
+      - equal:
+          path: spec.template.spec.initContainers[0].resources
+          value:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+
+  - it: should apply initContainerResources to configsvr init-keyfile
+    template: templates/sharded-configsvr.yaml
+    documentSelector:
+      path: kind
+      value: StatefulSet
+    set:
+      architecture: sharded
+      auth:
+        enabled: true
+        rootPassword: secret
+        replicaSetKey: "0123456789abcdef0123456789abcdef"
+      initContainerResources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: init-keyfile
+      - equal:
+          path: spec.template.spec.initContainers[0].resources
+          value:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+
+  - it: should apply initContainerResources to shard init-keyfile
+    template: templates/sharded-shard.yaml
+    documentSelector:
+      path: kind
+      value: StatefulSet
+    set:
+      architecture: sharded
+      auth:
+        enabled: true
+        rootPassword: secret
+        replicaSetKey: "0123456789abcdef0123456789abcdef"
+      sharded:
+        shards:
+          count: 1
+          membersPerShard: 1
+      initContainerResources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: init-keyfile
+      - equal:
+          path: spec.template.spec.initContainers[0].resources
+          value:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+
+  - it: should apply sharded.initJob.resources to the sharded-init container
+    template: templates/job-sharded-init.yaml
+    set:
+      architecture: sharded
+      auth:
+        enabled: false
+      sharded:
+        initJob:
+          asHook: false
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              cpu: 100m
+              memory: 512Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources
+          value:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              cpu: 100m
+              memory: 512Mi
+
+  - it: should apply distinct resource maps to init-keyfile and sharded-init when auth is enabled
+    template: templates/job-sharded-init.yaml
+    set:
+      architecture: sharded
+      auth:
+        enabled: true
+        rootPassword: secret
+        replicaSetKey: "0123456789abcdef0123456789abcdef"
+      initContainerResources:
+        requests:
+          cpu: 25m
+          memory: 32Mi
+        limits:
+          cpu: 75m
+          memory: 96Mi
+      sharded:
+        initJob:
+          asHook: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              cpu: 100m
+              memory: 512Mi
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: post-install
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: init-keyfile
+      - equal:
+          path: spec.template.spec.initContainers[0].resources
+          value:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 75m
+              memory: 96Mi
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: sharded-init
+      - equal:
+          path: spec.template.spec.containers[0].resources
+          value:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              cpu: 100m
+              memory: 512Mi
+
+  - it: should render sharded-init as a hook without resources when initJob is absent
+    template: templates/job-sharded-init.yaml
+    set:
+      architecture: sharded
+      auth:
+        enabled: false
+      sharded:
+        initJob: null
+    asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: post-install
+      - isNull:
+          path: spec.ttlSecondsAfterFinished
+      - isNull:
+          path: spec.template.spec.containers[0].resources
+
+  - it: should treat a null asHook key as false when the initJob map is present
+    template: templates/job-sharded-init.yaml
+    set:
+      architecture: sharded
+      auth:
+        enabled: false
+      sharded:
+        initJob:
+          asHook: null
+          resources: {}
+    asserts:
+      - isKind:
+          of: Job
+      - isNull:
+          path: metadata.annotations["helm.sh/hook"]
+      - equal:
+          path: spec.ttlSecondsAfterFinished
+          value: 300
+      - isNull:
+          path: spec.template.spec.containers[0].resources

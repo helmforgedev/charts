@@ -1,5 +1,19 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- if include "mongodb.isSharded" . }}
+{{- /*
+  asHook resolution for --reuse-values / null coalescing:
+  - sharded.initJob map absent → true (chart default lifecycle for new installs)
+  - map present but asHook key absent/null → false (same as legacy .asHook truthiness)
+  - asHook explicitly set → use that value
+*/ -}}
+{{- $asHook := false -}}
+{{- if not .Values.sharded.initJob -}}
+{{- $asHook = true -}}
+{{- else if hasKey .Values.sharded.initJob "asHook" -}}
+{{- $asHook = .Values.sharded.initJob.asHook -}}
+{{- else -}}
+{{- $asHook = false -}}
+{{- end -}}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -7,7 +21,7 @@ metadata:
   labels:
     {{- include "mongodb.labels" . | nindent 4 }}
     app.kubernetes.io/component: sharded-init
-  {{- if .Values.sharded.initJob.asHook }}
+  {{- if $asHook }}
   annotations:
     "helm.sh/hook": post-install
     "helm.sh/hook-weight": "5"
@@ -16,7 +30,7 @@ metadata:
 spec:
   backoffLimit: 10
   activeDeadlineSeconds: 900
-  {{- if not .Values.sharded.initJob.asHook }}
+  {{- if not $asHook }}
   ttlSecondsAfterFinished: 300
   {{- end }}
   template:
@@ -51,6 +65,10 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- with .Values.initContainerResources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           volumeMounts:
             - name: keyfile-readonly
               mountPath: /etc/mongodb/keyfile-readonly
@@ -78,6 +96,12 @@ spec:
           {{- with .Values.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.sharded.initJob }}
+          {{- with .resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- end }}
           {{- if include "mongodb.needsKeyFile" . }}
           volumeMounts:

@@ -198,7 +198,10 @@ deciding constraint, and review the
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `resources` | CPU/memory requests and limits | `{}` |
+| `resources` | CPU/memory requests and limits for mongod | `{}` |
+| `initContainerResources` | Resources for init containers (e.g. `init-keyfile` on members/arbiter/mongos/configsvr/shards) | `{}` |
+| `replicaSet.initJob.resources` | Resources for the `rs-init` Helm hook Job (prefer ≥256Mi/512Mi) | `{}` |
+| `sharded.initJob.resources` | Resources for the `sharded-init` Job (prefer ≥256Mi/512Mi) | `{}` |
 | `livenessProbe` | Liveness probe config | `mongosh ping, 30s delay` |
 | `readinessProbe` | Readiness probe config | `mongosh ping, 10s delay` |
 | `startupProbe` | Startup probe config | `mongosh ping, 5s delay, 30 failures` |
@@ -256,6 +259,7 @@ deciding constraint, and review the
 | `podSecurityContext` | Pod-level security context (`fsGroup: 999` and RuntimeDefault seccomp) | `{"fsGroup":999,"seccompProfile":{"type":"RuntimeDefault"}}` |
 | `securityContext` | Container-level security context (empty for compatibility) | `{}` |
 | `initContainerSecurityContext` | Init container security context (root, CHOWN only) | `{"runAsNonRoot":false,"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"],"add":["CHOWN"]}}` |
+| `initContainerResources` | Init container resources (`init-keyfile`) | `{}` |
 | `nodeSelector` | Node selector | `{}` |
 | `tolerations` | Tolerations | `[]` |
 | `affinity` | Affinity rules | `{}` |

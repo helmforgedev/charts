@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: rs-init Job
+templates:
+  - job-rs-init.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render the rs-init Job for replicaset
+    set:
+      architecture: replicaset
+      auth:
+        rootPassword: secret
+    asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.name
+          value: test-mongodb-rs-init
+
+  - it: should apply configurable resources to the rs-init container
+    set:
+      architecture: replicaset
+      auth:
+        rootPassword: secret
+      replicaSet:
+        initJob:
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              cpu: 100m
+              memory: 512Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources
+          value:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              cpu: 100m
+              memory: 512Mi
+
+  - it: should render rs-init without resources when replicaSet.initJob is absent
+    set:
+      architecture: replicaset
+      auth:
+        rootPassword: secret
+      replicaSet:
+        initJob: null
+    asserts:
+      - isKind:
+          of: Job
+      - isNull:
+          path: spec.template.spec.containers[0].resources
