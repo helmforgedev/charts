@@ -89,9 +89,9 @@ Configure and deploy HelmForge charts using interactive tools on [helmforge.dev]
 
 - **[Values Studio](https://helmforge.dev/playground)**: Interactive web-based values customizer with schema-driven forms,
   production presets (HA, S3 backups, External Secrets), and live YAML export.
-- **[Stack Builder](https://helmforge.dev/stack)**: Visual multi-chart stack composer across databases, caching,
-  messaging, and ingress. Generates ready-to-run configurations in 5 formats: Helm CLI, OCI registry,
-  Helmfile, ArgoCD Application, and FluxCD HelmRelease.
+- **[Stack Builder](https://helmforge.dev/stack)**: Visual multi-chart stack composer across
+  databases, caching, messaging, and ingress. Generates ready-to-run configurations in Bash,
+  Helmfile, and ArgoCD formats.
 - **[Public Roadmap](https://helmforge.dev/roadmap)**: Transparent delivery track record and strategic roadmap milestones.
 
 ## Validation

@@ -42,8 +42,9 @@ Replication mode is for read scaling and operational recovery support. It does n
 ```mermaid
 flowchart TD
   ExtStore[External secret store] -.->|optional ExternalSecret| K8sSecret["Kubernetes Secrets (auth, TLS, backup)"]
-  K8sSecret --> Pods[MySQL Pods]
-  Pods --> Init["Optional TLS permission init container (chmod 0600, chown 999:999)"]
+  K8sSecret --> Init["Optional TLS permission init container (chmod 0600, chown 999:999)"]
+  Init --> Pods[MySQL Pods]
+  K8sSecret --> Pods
   K8sSecret --> Backup[Backup CronJob]
 ```
 
@@ -81,23 +82,30 @@ by default.
 
 ## Security Boundary
 
-- Authentication credentials must be managed via xistingSecret or External Secrets Operator in production.
-- Non-root UID/GID 999 execution with dropped capabilities where supported.
+- Authentication credentials must be managed via existingSecret or External Secrets Operator in production.
+- Non-root UID/GID 999 execution with dropped capabilities applies to the MySQL workload container.
+  When optional TLS permission normalization is enabled, its init container runs as UID 0 (`runAsNonRoot: false`)
+  and may require an admission policy exception on strict clusters.
 - TLS key permission normalization is opt-in for clusters requiring strict key ownership (chmod 0600).
-- NetworkPolicy isolates internal database traffic and limits egress to authorized backup and external targets.
+- NetworkPolicy isolates internal database traffic. Egress restriction requires explicit opt-in via
+  `networkPolicy.egress.enabled` to limit traffic to authorized DNS, backup and external replication targets.
 
 ## Production Boundary
 
 - Standalone mode is a single failure domain; replication mode provides read scalability and manual recovery support.
 - Production deployments must configure appropriate resource requests and limits matching workload concurrency.
 - Retained PVC storage classes with volume expansion support are recommended for data persistence.
-- PodDisruptionBudget should be configured for replica StatefulSets during cluster upgrades.
+- When enabled, the chart's PodDisruptionBudget selects all release pods without role filtering.
+  With `minAvailable: 1`, the source pod alone satisfies the budget; dedicated replica protection
+  requires a separate PDB selecting `app.kubernetes.io/role: replica`.
 
 ## Observability Boundary
 
 - Optional mysqld-exporter sidecar provides metrics on a dedicated port.
 - ServiceMonitor integration connects with Prometheus Operator without bundling unmanaged CRDs.
-- Slow query log and error log output can be captured through standard Kubernetes container logging.
+- Error log output is captured through container logging. The slow query log is disabled by default;
+  when enabled through `config.myCnf`, MySQL writes it to a file that standard Kubernetes container
+  logging does not capture.
 
 ## Known Gaps
 
