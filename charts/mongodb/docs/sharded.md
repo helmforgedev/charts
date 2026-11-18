@@ -69,8 +69,14 @@ truly needs data distribution, not only failover.
 | `sharded.shards.count` | Number of shards |
 | `sharded.shards.membersPerShard` | Members per shard replica set |
 | `sharded.shards.persistence.*` | Storage per shard member |
+| `sharded.initJob.asHook` | Run `sharded-init` as a post-install hook (default `true`) |
+| `sharded.initJob.resources` | Resources for the `sharded-init` bootstrap Job (prefer ≥256Mi/512Mi) |
+| `initContainerResources` | Resources for `init-keyfile` on mongos/configsvr/shards |
 | `auth.existingKeySecret` | Existing key file secret for internal auth |
 | `metrics.enabled` | Exporter sidecar |
+
+When `sharded.initJob.asHook` is `false`, confirm that the existing Job is gone before changing `sharded.initJob.resources` or, with authentication enabled,
+`initContainerResources`. Wait for TTL cleanup or delete the completed Job before retrying. Kubernetes will not update an existing Job's Pod template.
 
 ## Example
 

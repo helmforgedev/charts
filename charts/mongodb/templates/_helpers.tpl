@@ -359,6 +359,10 @@ spec:
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .root.Values.initContainerResources }}
+      resources:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       volumeMounts:
         - name: keyfile-readonly
           mountPath: /etc/mongodb/keyfile-readonly

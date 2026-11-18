@@ -69,6 +69,36 @@ tests:
             name: data
             emptyDir: {}
 
+  - it: should apply configurable resources to the arbiter keyfile init container
+    template: templates/arbiter-statefulset.yaml
+    set:
+      architecture: replicaset
+      replicaSet.members: 2
+      arbiter.enabled: true
+      initContainerResources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: init-keyfile
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.cpu
+          value: 50m
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.memory
+          value: 64Mi
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.limits.cpu
+          value: 100m
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.limits.memory
+          value: 128Mi
+
   - it: registers and reconciles the arbiter in the replica set
     template: templates/job-rs-init.yaml
     set:
