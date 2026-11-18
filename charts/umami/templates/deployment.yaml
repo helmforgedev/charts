@@ -1,11 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 {{- include "umami.validateExternalDbInit" . }}
+{{- include "umami.validateDatabaseUrl" . }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "umami.fullname" . }}
   labels:
     {{- include "umami.labels" . | nindent 4 }}
+  {{- include "umami.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   strategy:
@@ -124,13 +126,22 @@ spec:
           env:
             - name: PORT
               value: {{ .Values.umami.port | quote }}
+            {{- if not .Values.database.external.existingSecretUrlKey }}
             - name: DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "umami.dbSecretName" . }}
                   key: {{ include "umami.dbSecretPasswordKey" . }}
+            {{- end }}
             - name: DATABASE_URL
+              {{- if .Values.database.external.existingSecretUrlKey }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.external.existingSecret }}
+                  key: {{ .Values.database.external.existingSecretUrlKey }}
+              {{- else }}
               value: {{ include "umami.databaseUrl" . | quote }}
+              {{- end }}
             - name: APP_SECRET
               valueFrom:
                 secretKeyRef:

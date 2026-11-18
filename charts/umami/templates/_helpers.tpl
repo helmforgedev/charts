@@ -3,6 +3,18 @@
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{/* Merge common annotations with resource-specific annotations. */}}
+{{- define "umami.renderAnnotations" -}}
+{{- $annotations := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- with .specific -}}
+  {{- $annotations = mergeOverwrite $annotations . -}}
+{{- end -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end -}}
+{{- end -}}
+
 {{- define "umami.fullname" -}}
 {{- if .Values.fullnameOverride -}}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
@@ -114,7 +126,12 @@ app.kubernetes.io/component: umami
 
 {{/* DATABASE_URL connection string */}}
 {{- define "umami.databaseUrl" -}}
-{{- printf "postgresql://%s:$(DATABASE_PASSWORD)@%s:%s/%s" (include "umami.dbUsername" .) (include "umami.dbHost" .) (include "umami.dbPort" .) (include "umami.dbName" .) -}}
+{{- $url := printf "postgresql://%s:$(DATABASE_PASSWORD)@%s:%s/%s" (include "umami.dbUsername" .) (include "umami.dbHost" .) (include "umami.dbPort" .) (include "umami.dbName" .) -}}
+{{- if .Values.database.external.parameters -}}
+{{- printf "%s?%s" $url .Values.database.external.parameters -}}
+{{- else -}}
+{{- $url -}}
+{{- end -}}
 {{- end -}}
 
 {{/* App secret name */}}
@@ -148,6 +165,15 @@ app.kubernetes.io/component: umami
 {{- end -}}
 {{- end -}}
 
+{{/* Dedicated backup ServiceAccount name. */}}
+{{- define "umami.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create -}}
+{{- printf "%s-backup" (include "umami.fullname" .) -}}
+{{- else -}}
+{{- .Values.backup.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
 {{/* Backup — validate required fields */}}
 {{- define "umami.backupEnabled" -}}
 {{- if .Values.backup.enabled -}}
@@ -157,8 +183,14 @@ app.kubernetes.io/component: umami
   {{- if not .Values.backup.s3.bucket -}}
     {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
   {{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.accessKey) (not (and .Values.externalSecrets.enabled .Values.externalSecrets.backup.enabled)) -}}
+  {{- if and (not .Values.backup.s3.credentialsFromPodIdentity) (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.accessKey) (not (and .Values.externalSecrets.enabled .Values.externalSecrets.backup.enabled)) -}}
     {{- fail "backup.s3.accessKey or backup.s3.existingSecret is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if and .Values.backup.s3.credentialsFromPodIdentity (not .Values.backup.s3.region) -}}
+    {{- fail "backup.s3.region is required when backup.s3.credentialsFromPodIdentity is true" -}}
+  {{- end -}}
+  {{- if and .Values.backup.s3.credentialsFromPodIdentity (not .Values.backup.serviceAccount.create) (not .Values.backup.serviceAccount.name) -}}
+    {{- fail "backup.serviceAccount.name is required when workload identity is enabled and backup.serviceAccount.create is false" -}}
   {{- end -}}
 true
 {{- end -}}
@@ -186,6 +218,23 @@ true
   {{- if and .Values.externalSecrets.database.enabled .Values.postgresql.enabled -}}
     {{- fail "externalSecrets.database.enabled requires postgresql.enabled=false" -}}
   {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Validate external database URL settings */}}
+{{- define "umami.validateDatabaseUrl" -}}
+{{- if .Values.database.external.existingSecretUrlKey -}}
+  {{- if not .Values.database.external.existingSecret -}}
+    {{- fail "database.external.existingSecretUrlKey requires database.external.existingSecret" -}}
+  {{- end -}}
+  {{- if .Values.postgresql.enabled -}}
+    {{- fail "database.external.existingSecretUrlKey requires postgresql.enabled=false" -}}
+  {{- end -}}
+  {{- if .Values.database.external.parameters -}}
+    {{- fail "database.external.parameters cannot be combined with database.external.existingSecretUrlKey" -}}
+  {{- end -}}
+{{- else if and .Values.database.external.parameters .Values.postgresql.enabled -}}
+  {{- fail "database.external.parameters requires postgresql.enabled=false" -}}
 {{- end -}}
 {{- end -}}
 
