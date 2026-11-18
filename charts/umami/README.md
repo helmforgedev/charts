@@ -289,7 +289,9 @@ For EKS Pod Identity, install the
 [EKS Pod Identity Agent](https://docs.aws.amazon.com/eks/latest/userguide/pod-id-agent-setup.html) once per cluster
 unless EKS Auto Mode already provides it. Then associate the IAM role with the exact namespace and backup
 ServiceAccount. The default ServiceAccount name is `<release>-umami-backup`; Pod Identity does not use a ServiceAccount
-annotation.
+annotation. Before creating the association, configure the IAM role trust policy to allow the
+`pods.eks.amazonaws.com` service principal to call `sts:AssumeRole` and `sts:TagSession`; see the
+[AWS Pod Identity association guide](https://docs.aws.amazon.com/eks/latest/userguide/pod-id-association.html).
 
 ```bash
 aws eks create-addon \
@@ -303,7 +305,11 @@ aws eks create-pod-identity-association \
   --role-arn <iam-role-arn>
 ```
 
-For IRSA, add its role annotation instead:
+For IRSA, the cluster must have an IAM OIDC provider for its issuer URL, and the IAM role trust policy must allow
+`sts:AssumeRoleWithWebIdentity` from that provider for the exact backup namespace and ServiceAccount. Follow the AWS
+guides to [create the OIDC provider](https://docs.aws.amazon.com/eks/latest/userguide/enable-iam-roles-for-service-accounts.html)
+and [configure the role trust](https://docs.aws.amazon.com/eks/latest/userguide/associate-service-account-role.html), then
+add the role annotation:
 
 ```yaml
 backup:
