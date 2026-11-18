@@ -126,7 +126,8 @@ When the structured fields are insufficient, store a complete URL in the same Se
 
 ```bash
 kubectl create secret generic umami-db \
-  --from-literal=database-url='postgresql://umami:replace-me@pgbouncer.database.svc:6432/umami?pgbouncer=true'
+  --from-literal=database-url='postgresql://umami:replace-me@pgbouncer.database.svc:6432/umami?pgbouncer=true' \
+  --from-literal=password='replace-me'
 ```
 
 ```yaml
@@ -139,7 +140,10 @@ database:
 ```
 
 The structured host, port, and database fields remain the source for the readiness check, optional database preparation,
-and backup jobs; keep them aligned with the complete URL. A complete URL and `parameters` cannot be configured together.
+and backup jobs; keep them aligned with the complete URL. When backups are enabled, the Secret must also contain the
+key selected by `database.external.existingSecretPasswordKey`, or configure a separate
+`backup.database.existingSecret` and `backup.database.existingSecretPasswordKey`. A complete URL and `parameters` cannot
+be configured together.
 
 Umami creates the `pgcrypto` extension during its first migration. Many managed databases require an owner or
 administrative account to create extensions. When the application user cannot do that, enable
@@ -337,6 +341,7 @@ For production, test restore procedures outside Helm. Backups without restore va
 | `database.external.init.enabled` | `false` | Run optional external database preparation SQL before Umami starts. |
 | `backup.s3.credentialsFromPodIdentity` | `false` | Use EKS Pod Identity or IRSA instead of static S3 credentials. |
 | `backup.serviceAccount.*` | dedicated | Configure the dedicated workload identity ServiceAccount. |
+| `backup.securityContext` | no escalation, drop `ALL` | Security context for the PostgreSQL and S3 uploader backup containers. |
 | `externalSecrets.enabled` | `false` | Render ExternalSecret resources. |
 | `networkPolicy.enabled` | `false` | Render NetworkPolicy. |
 | `pdb.enabled` | `false` | Render PodDisruptionBudget. |

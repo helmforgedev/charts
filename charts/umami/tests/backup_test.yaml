@@ -49,6 +49,44 @@ tests:
           path: spec.jobTemplate.spec.template.spec.containers[0].securityContext.capabilities.drop
           content: ALL
 
+  - it: should not propagate application-only security settings to backup images
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: http://minio:9000
+      backup.s3.bucket: backups
+      backup.s3.accessKey: admin
+      backup.s3.secretKey: admin123
+      securityContext.runAsNonRoot: true
+      securityContext.runAsUser: 1001
+    template: backup-cronjob.yaml
+    asserts:
+      - notExists:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].securityContext.runAsNonRoot
+      - notExists:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].securityContext.runAsUser
+      - notExists:
+          path: spec.jobTemplate.spec.template.spec.containers[0].securityContext.runAsNonRoot
+      - notExists:
+          path: spec.jobTemplate.spec.template.spec.containers[0].securityContext.runAsUser
+
+  - it: should apply an explicit backup security context
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: http://minio:9000
+      backup.s3.bucket: backups
+      backup.s3.accessKey: admin
+      backup.s3.secretKey: admin123
+      backup.securityContext.runAsNonRoot: true
+      backup.securityContext.runAsUser: 1000
+    template: backup-cronjob.yaml
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].securityContext.runAsUser
+          value: 1000
+
   - it: should create backup ConfigMap when enabled
     set:
       backup.enabled: true
