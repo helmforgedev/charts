@@ -259,7 +259,6 @@ deciding constraint, and review the
 | `podSecurityContext` | Pod-level security context (`fsGroup: 999` and RuntimeDefault seccomp) | `{"fsGroup":999,"seccompProfile":{"type":"RuntimeDefault"}}` |
 | `securityContext` | Container-level security context (empty for compatibility) | `{}` |
 | `initContainerSecurityContext` | Init container security context (root, CHOWN only) | `{"runAsNonRoot":false,"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"],"add":["CHOWN"]}}` |
-| `initContainerResources` | Init container resources (`init-keyfile`) | `{}` |
 | `nodeSelector` | Node selector | `{}` |
 | `tolerations` | Tolerations | `[]` |
 | `affinity` | Affinity rules | `{}` |

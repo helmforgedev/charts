@@ -75,7 +75,8 @@ truly needs data distribution, not only failover.
 | `auth.existingKeySecret` | Existing key file secret for internal auth |
 | `metrics.enabled` | Exporter sidecar |
 
-When `sharded.initJob.asHook` is `false`, wait for Job TTL cleanup or delete the completed Job before changing `sharded.initJob.resources` or (with auth) `initContainerResources`. Kubernetes will not update an existing Job's Pod template.
+When `sharded.initJob.asHook` is `false`, confirm that the existing Job is gone before changing `sharded.initJob.resources` or, with authentication enabled,
+`initContainerResources`. Wait for TTL cleanup or delete the completed Job before retrying. Kubernetes will not update an existing Job's Pod template.
 
 ## Example
 
