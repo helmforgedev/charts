@@ -20,6 +20,9 @@
 <p align="center">
   <a href="https://helmforge.dev">Website</a> |
   <a href="https://helmforge.dev/docs">Documentation</a> |
+  <a href="https://helmforge.dev/playground">Values Studio</a> |
+  <a href="https://helmforge.dev/stack">Stack Builder</a> |
+  <a href="https://helmforge.dev/roadmap">Roadmap</a> |
   <a href="https://repo.helmforge.dev">Helm Repository</a> |
   <a href="https://github.com/orgs/helmforgedev/packages?repo_name=charts">OCI Registry</a> |
   <a href="CONTRIBUTING.md">Contributing</a> |
@@ -79,6 +82,17 @@ Common categories include:
 - **Content and collaboration**: WordPress, Ghost, Drupal, Gitea, Wallabag, Castopod, Komga, and Open WebUI.
 - **Home automation**: Matterbridge and openHAB for Matter and broad smart-home platform integration.
 - **Reusable platform workloads**: the [`generic`](charts/generic) chart for internal services, workers, jobs, and sidecars.
+
+### Developer & Platform Tools
+
+Configure and deploy HelmForge charts using interactive tools on [helmforge.dev](https://helmforge.dev):
+
+- **[Values Studio](https://helmforge.dev/playground)**: Interactive web-based values customizer with schema-driven forms,
+  production presets (HA, S3 backups, External Secrets), and live YAML export.
+- **[Stack Builder](https://helmforge.dev/stack)**: Visual multi-chart stack composer across databases, caching,
+  messaging, and ingress. Generates ready-to-run configurations in 5 formats: Helm CLI, OCI registry,
+  Helmfile, ArgoCD Application, and FluxCD HelmRelease.
+- **[Public Roadmap](https://helmforge.dev/roadmap)**: Transparent delivery track record and strategic roadmap milestones.
 
 ## Validation
 
