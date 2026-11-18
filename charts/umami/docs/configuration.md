@@ -27,10 +27,13 @@ password injected from a secret — never templated into a ConfigMap.
 Set `database.external.parameters` to append connection arguments such as
 `pgbouncer=true` to the generated URL. For a complete URL override, store the
 URL in `database.external.existingSecret` and select its key with
-`database.external.existingSecretUrlKey`. The structured host, port, and name
-remain in use by readiness, initialization, and backup jobs. Backups also need
-the password key selected by `database.external.existingSecretPasswordKey`, or
-a backup-specific Secret configured through `backup.database.existingSecret`.
+`database.external.existingSecretUrlKey`; clear `database.external.parameters`
+because the two URL options are mutually exclusive. The structured host, port,
+name, and username remain in use by readiness, initialization, and backup jobs.
+Set `backup.database.username` when backups use a separate database user.
+Backups also need the password key selected by
+`database.external.existingSecretPasswordKey`, or a backup-specific Secret
+configured through `backup.database.existingSecret`.
 
 > Umami also supports MySQL upstream; this chart standardizes on **PostgreSQL**.
 

@@ -139,11 +139,11 @@ database:
     existingSecretUrlKey: database-url
 ```
 
-The structured host, port, and database fields remain the source for the readiness check, optional database preparation,
-and backup jobs; keep them aligned with the complete URL. When backups are enabled, the Secret must also contain the
-key selected by `database.external.existingSecretPasswordKey`, or configure a separate
-`backup.database.existingSecret` and `backup.database.existingSecretPasswordKey`. A complete URL and `parameters` cannot
-be configured together.
+The structured host, port, database, and username fields remain the source for the readiness check, optional database
+preparation, and backup jobs; keep them aligned with the complete URL. Set `backup.database.username` when backups use a
+separate database user. When backups are enabled, the Secret must also contain the key selected by
+`database.external.existingSecretPasswordKey`, or configure a separate `backup.database.existingSecret` and
+`backup.database.existingSecretPasswordKey`. A complete URL and `parameters` cannot be configured together.
 
 Umami creates the `pgcrypto` extension during its first migration. Many managed databases require an owner or
 administrative account to create extensions. When the application user cannot do that, enable
