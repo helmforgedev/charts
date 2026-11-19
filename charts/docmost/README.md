@@ -40,7 +40,7 @@ helm install docmost oci://ghcr.io/helmforgedev/helm/docmost
 - Docmost requires PostgreSQL and Redis
 - local storage uses `/app/data/storage`
 - S3 mode uses the official `AWS_S3_*` environment variables documented by Docmost
-- the default image tag is `0.96.0`, validated against the published `docmost/docmost:0.96.0` container image
+- the default image tag is `0.97.0`, validated against the published `docmost/docmost:0.97.0` container image
 - upstream telemetry can be disabled with `docmost.disableTelemetry=true`
 - this chart intentionally does not keep `Chart.lock`; dependencies are resolved by the repository release workflow
 
@@ -57,20 +57,19 @@ The pod does not mount a Kubernetes API token by default. Set
 `serviceAccount.automountServiceAccountToken=true` only when a concrete
 integration requires Kubernetes API credentials.
 
-## Upgrade to 0.96
+## Upgrade to 0.97.0
 
-Keep `APP_SECRET` stable: the new AES-256-GCM encryption service derives its
+Keep `APP_SECRET` stable: the AES-256-GCM encryption service derives its
 key from this existing secret. Back up PostgreSQL and uploaded files before
 upgrading. The chart reuses its generated application Secret on connected Helm
 upgrades; explicitly manage `docmost.appSecret` when rendering offline, or point
 `docmost.existingSecret` at a secret you own so the chart neither creates nor
 rotates one.
 
-This release updates Node and collaboration services, adds page-version
-comparison and attachments, fixes Redis ACL/URL/TLS handling, and includes
-security fixes. Review the [official release notes](https://github.com/docmost/docmost/releases/tag/v0.96.0).
-The bundled Redis chart moves to 3.0.0; its application image, default standalone
-storage and authentication contracts are unchanged, while its TLS probes are fixed.
+This release brings upstream fixes and optimizations. Review the
+[official release notes](https://github.com/docmost/docmost/releases/tag/v0.97.0).
+The bundled PostgreSQL `2.2.0` and Redis `3.2.1` subcharts retain the documented
+contracts.
 
 ## Quick Start
 
