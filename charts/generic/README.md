@@ -3,11 +3,11 @@
 A single chart that handles **Deployments**, **StatefulSets**, **DaemonSets**, **Jobs**, and **CronJobs** with a unified values
 interface. Designed for teams that deploy many services and want one chart to rule them all.
 
-The default `nginx:1.31.7` image fixes CVE-2026-90439, a buffer overflow in the
-HTTP/3 module. Version 1.31.5 also included fixes for buffered HTTP/2 proxy responses,
-worker shutdown, and FastCGI/uWSGI parameter handling. New control API, predicate
-location, JSON module, and early request-body features require explicit configuration.
-Existing Generic chart configuration remains compatible with this image update.
+The default `nginx:1.31.8` image fixes HTTP/3 SIGBUS on strict-alignment
+platforms, an SSL kTLS teardown warning with OpenSSL 3.2+, and a
+`working_directory` startup crash. The JSON parser now reports escape-sequence
+strings separately. Existing Generic chart configuration remains compatible
+with this image update.
 
 ## Install
 
@@ -307,7 +307,7 @@ templated (e.g. `{{ .Release.Namespace }}`) to derive per-environment paths from
 
 ### Breaking-change migration notes
 
-- The default image is pinned (currently `docker.io/library/nginx:1.31.7`) with `IfNotPresent` instead of relying on `latest`.
+- The default image is pinned (currently `docker.io/library/nginx:1.31.8`) with `IfNotPresent` instead of relying on `latest`.
 - Pod templates are deterministic; use `rollout.restartAt` or checksum-enabled ConfigMaps/Secrets for intentional rollouts.
 - HPA now fails validation when used with `DaemonSet` or when `hpa.maxReplicas` is missing.
 - HPA-enabled Deployments and StatefulSets omit `spec.replicas`. The first upgrade from a chart that set it explicitly,
@@ -390,7 +390,7 @@ See the [examples/](examples/) directory for complete, ready-to-use values files
 | **Image** | | |
 | `global.imageRegistry` | Optional registry prefix for unqualified repositories | `""` |
 | `image.repository` | Container image repository | `docker.io/library/nginx` |
-| `image.tag` | Image tag | `1.31.7` |
+| `image.tag` | Image tag | `1.31.8` |
 | `image.digest` | Image digest, takes precedence over tag | `""` |
 | `image.pullPolicy` | Pull policy | `IfNotPresent` |
 | `imagePullSecrets` | Registry pull secrets | `[]` |
