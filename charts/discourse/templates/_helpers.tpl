@@ -31,6 +31,16 @@ app.kubernetes.io/part-of: helmforge
 {{- end }}
 {{- end -}}
 
+{{/* Merge chart-wide annotations with resource annotations; resource values win. */}}
+{{- define "discourse.annotations" -}}
+{{- $common := .root.Values.commonAnnotations | default dict -}}
+{{- $specific := .specific | default dict -}}
+{{- $merged := merge (deepCopy $specific) $common -}}
+{{- if $merged -}}
+{{- toYaml $merged -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "discourse.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "discourse.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
