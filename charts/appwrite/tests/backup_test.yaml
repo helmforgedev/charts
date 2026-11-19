@@ -184,7 +184,33 @@ tests:
     template: templates/backup-cronjob.yaml
     asserts:
       - failedTemplate:
-          errorMessage: "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey"
+          errorMessage: "backup requires backup.s3.credentialsFromPodIdentity=true, backup.s3.existingSecret, or both backup.s3.accessKey and backup.s3.secretKey"
+
+  - it: should render backup cronjob with workload identity
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: backups
+      backup.s3.region: us-east-1
+      backup.s3.credentialsFromPodIdentity: true
+      backup.serviceAccount.create: true
+      backup.serviceAccount.annotations:
+        eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/appwrite-backup
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.serviceAccountName
+          value: test-appwrite-backup
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: AWS_REGION
+            value: "us-east-1"
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: S3_CREDENTIALS_FROM_POD_IDENTITY
+            value: "true"
 
   - it: should set suspend when configured
     set:
