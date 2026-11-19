@@ -15,7 +15,7 @@ with native login enabled, retained credentials and a restricted Kubernetes runt
 
 ## Architecture
 
-A Deployment runs the official docker.io/glanceapp/glance:v0.8.7 image on port 8080.
+A Deployment runs the official docker.io/glanceapp/glance:v0.8.8 image on port 8080.
 The application needs no database, cache service or persistent data volume.
 Configuration lives in a ConfigMap; authentication and widget tokens live in Secrets.
 The chart configures one native dashboard account. It is not a multi-tenant portal.
@@ -98,9 +98,10 @@ enforce suitable edge limits for sensitive public dashboards.
 | `nameOverride` | `""` | Override the chart name used in resource names. |
 | `fullnameOverride` | `""` | Override the complete resource name. |
 | `commonLabels` | `{}` | Extra resource labels; selector labels are reserved. |
+| `commonAnnotations` | `{}` | Annotations applied to every rendered resource. |
 | `replicaCount` | `1` | Glance replicas. Authentication rate limiting and widget caches are per pod. |
 | `image.repository` | `docker.io/glanceapp/glance` | Official upstream Glance image. |
-| `image.tag` | `v0.8.7` | Verified stable image tag. |
+| `image.tag` | `v0.8.8` | Verified stable image tag. |
 | `image.pullPolicy` | `IfNotPresent` | Kubernetes pull policy. |
 | `imagePullSecrets` | `[]` | Registry credentials for a private mirror. |
 | `auth.enabled` | `true` | Require native Glance login. Disable only behind a separately authenticated edge or for public dashboards. |
@@ -225,7 +226,7 @@ a configuration assessment, not a guarantee of application security.
 
 - [HelmForge documentation](https://helmforge.dev/docs/charts/glance)
 - [Report chart issues](https://github.com/helmforgedev/charts/issues)
-- [Official Glance configuration](https://github.com/glanceapp/glance/blob/v0.8.7/docs/configuration.md)
+- [Official Glance configuration](https://github.com/glanceapp/glance/blob/v0.8.8/docs/configuration.md)
 - [Official Glance releases](https://github.com/glanceapp/glance/releases)
 
 HelmForge charts are licensed under Apache-2.0. The deployed upstream application
