@@ -13,6 +13,15 @@ app.kubernetes.io/part-of: docuseal
 {{ toYaml . | nindent 0 }}
 {{- end }}
 {{- end -}}
+{{- define "docuseal.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
 {{- define "docuseal.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "docuseal.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
