@@ -5,11 +5,14 @@ kind: PersistentVolumeClaim
 metadata:
   name: {{ include "dawarich.claimName" . }}
   labels: {{ include "dawarich.labels" . | nindent 4 }}
+  {{- $specific := deepCopy (.Values.persistence.annotations | default dict) }}
+  {{- if .Values.persistence.retain }}
+  {{- $_ := set $specific "helm.sh/resource-policy" "keep" }}
+  {{- end }}
+  {{- with include "dawarich.annotations" (dict "root" . "specific" $specific) }}
   annotations:
-    {{- if .Values.persistence.retain }}
-    helm.sh/resource-policy: keep
-    {{- end }}
-    {{- with .Values.persistence.annotations }}{{ toYaml . | nindent 4 }}{{- end }}
+    {{- . | nindent 4 }}
+  {{- end }}
 spec:
   accessModes: {{ toYaml .Values.persistence.accessModes | nindent 4 }}
   {{- if eq .Values.persistence.storageClass "-" }}
