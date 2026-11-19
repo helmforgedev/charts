@@ -6,13 +6,11 @@ metadata:
   name: {{ include "bulwark-mail.fullname" . }}
   labels:
     {{- include "bulwark-mail.labels" . | nindent 4 }}
-  annotations:
-    {{- if .Values.persistence.retain }}
-    helm.sh/resource-policy: keep
-    {{- end }}
-    {{- with .Values.persistence.annotations }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
+  {{- $specific := deepCopy (.Values.persistence.annotations | default dict) -}}
+  {{- if .Values.persistence.retain }}
+  {{- $_ := set $specific "helm.sh/resource-policy" "keep" }}
+  {{- end }}
+  {{- include "bulwark-mail.renderAnnotations" (dict "root" . "specific" $specific) | nindent 2 }}
 spec:
   accessModes:
     {{- toYaml .Values.persistence.accessModes | nindent 4 }}

@@ -41,7 +41,7 @@ if (sharedStoreEnabled && !deployedValues.autoscaling?.enabled) {
 }
 
 const container = pod.spec.containers.find(item => item.name === 'bulwark-mail');
-assert.equal(container.image, 'ghcr.io/bulwarkmail/webmail:1.20.0-always');
+assert.equal(container.image, 'ghcr.io/bulwarkmail/webmail:1.21.2-always');
 assert.equal(container.securityContext.runAsNonRoot, true);
 assert.equal(container.securityContext.readOnlyRootFilesystem, true);
 assert.equal(
@@ -91,7 +91,7 @@ if (declarative) {
   assert.equal(setup.readOnly, false);
   assert.match(rootResponse.headers.get('location') || '', /^\\/setup(?:\\/|$)/);
 }
-console.log('Bulwark 1.20.0 health, config, session, settings, and setup-mode contract verified');
+console.log('Bulwark 1.21.2 health, config, session, settings, and setup-mode contract verified');
 `;
 
 const result = kubectl([

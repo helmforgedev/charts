@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: common annotations contract
+templates:
+  - deployment.yaml
+  - service.yaml
+  - serviceaccount.yaml
+  - secret.yaml
+  - ingress.yaml
+  - pdb.yaml
+  - hpa.yaml
+tests:
+  - it: renders common annotations across standard resources
+    set:
+      commonAnnotations:
+        helmforge.dev/test: shared-value
+        helmforge.dev/owner: platform-team
+    asserts:
+      - equal:
+          path: metadata.annotations["helmforge.dev/test"]
+          value: shared-value
+        template: deployment.yaml
+      - equal:
+          path: metadata.annotations["helmforge.dev/owner"]
+          value: platform-team
+        template: deployment.yaml
+      - equal:
+          path: metadata.annotations["helmforge.dev/test"]
+          value: shared-value
+        template: service.yaml
+      - equal:
+          path: metadata.annotations["helmforge.dev/owner"]
+          value: platform-team
+        template: service.yaml
+      - equal:
+          path: metadata.annotations["helmforge.dev/test"]
+          value: shared-value
+        template: serviceaccount.yaml
+      - equal:
+          path: metadata.annotations["helmforge.dev/test"]
+          value: shared-value
+        template: secret.yaml
+
+  - it: allows resource-specific annotations to override common annotations
+    set:
+      commonAnnotations:
+        helmforge.dev/test: base
+        helmforge.dev/shared: kept
+      service:
+        annotations:
+          helmforge.dev/test: overridden
+          service.specific: custom
+    asserts:
+      - equal:
+          path: metadata.annotations["helmforge.dev/test"]
+          value: overridden
+        template: service.yaml
+      - equal:
+          path: metadata.annotations["helmforge.dev/shared"]
+          value: kept
+        template: service.yaml
+      - equal:
+          path: metadata.annotations["service.specific"]
+          value: custom
+        template: service.yaml
