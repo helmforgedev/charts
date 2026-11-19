@@ -21,7 +21,7 @@ const pod = pods[0];
 assert.ok(pod.status.conditions?.some((condition) => condition.type === 'Ready' && condition.status === 'True'));
 const container = pod.spec.containers.find((candidate) => candidate.name === 'ghostfolio');
 assert.ok(container);
-assert.equal(container.image, 'docker.io/ghostfolio/ghostfolio:3.88.0');
+assert.equal(container.image, 'docker.io/ghostfolio/ghostfolio:3.100.0');
 assert.equal(pod.spec.automountServiceAccountToken, false);
 const httpPort = Number(container.env.find((entry) => entry.name === 'PORT')?.value);
 assert.ok(Number.isInteger(httpPort) && httpPort >= 1024, 'unprivileged Ghostfolio HTTP listener required');
