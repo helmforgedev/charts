@@ -43,6 +43,29 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
+{{- define "ckan.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create -}}
+{{- default (printf "%s-backup" (include "ckan.fullname" .)) .Values.backup.serviceAccount.name -}}
+{{- else -}}
+{{- default "default" .Values.backup.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Render annotations: merges commonAnnotations and component-specific annotations.
+Usage:
+{{- include "ckan.renderAnnotations" (dict "root" . "specific" .Values.serviceAccount.annotations) | nindent 2 }}
+*/}}
+{{- define "ckan.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "ckan.validate" -}}
 {{- if has .Values.image.tag (list "latest" "stable" "main" "master" "edge") -}}
 {{- fail "image.tag must be pinned and must not use a floating tag" -}}

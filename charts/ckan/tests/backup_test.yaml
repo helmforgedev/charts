@@ -3,6 +3,7 @@ suite: Backup
 templates:
   - backup-cronjob.yaml
   - backup-configmap.yaml
+  - backup-serviceaccount.yaml
 release:
   name: test
   namespace: default
@@ -91,3 +92,23 @@ tests:
           content:
             name: MC_CONFIG_DIR
             value: /backup/out/.mc
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.serviceAccountName
+          value: test-ckan-backup
+
+  - it: should create dedicated backup serviceaccount when enabled
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: http://minio:9000
+      backup.s3.bucket: backups
+      backup.s3.accessKey: admin
+      backup.s3.secretKey: admin123
+    template: backup-serviceaccount.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ServiceAccount
+      - equal:
+          path: metadata.name
+          value: test-ckan-backup
