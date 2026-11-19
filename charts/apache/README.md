@@ -29,7 +29,7 @@ helm install apache oci://ghcr.io/helmforgedev/helm/apache \
 
 ## Features
 
-- Official Apache HTTP Server image only, pinned to `2.4.69`.
+- Official Apache HTTP Server image only, pinned to `2.4.71`.
 - Non-root runtime on port `8080` with `RuntimeDefault` seccomp and dropped
   Linux capabilities.
 - Read-only root filesystem with explicit writable `emptyDir` volumes for logs
@@ -91,7 +91,7 @@ settings are:
 |---|---|---|
 | `replicaCount` | `2` | Apache replicas when autoscaling is disabled. |
 | `image.repository` | `docker.io/library/httpd` | Official Apache image repository. |
-| `image.tag` | `2.4.69` | Pinned Apache image tag. |
+| `image.tag` | `2.4.71` | Pinned Apache image tag. |
 | `containerPorts.http` | `8080` | Non-root listener used by Apache and probes. |
 | `service.port` | `80` | Client-facing Service port. |
 | `content.existingConfigMap` | `""` | Existing immutable content ConfigMap; inline content is used when empty. |
@@ -105,6 +105,7 @@ settings are:
 | `autoscaling.enabled` | `false` | Use an HPA instead of the fixed replica count. |
 | `pdb.enabled` | `false` | Render a PodDisruptionBudget. |
 | `externalSecrets.enabled` | `false` | Materialize the Basic Auth Secret with ESO. |
+| `commonAnnotations` | `{}` | Annotations added to every chart-owned resource; resource-specific annotations take precedence. |
 
 `containerPorts.http` controls the actual Apache `Listen` directive. It is
 independent from `service.port`, which controls only the Kubernetes Service.
@@ -229,7 +230,7 @@ remote content retrieval through extra configuration.
 
 ## Upgrade Notes
 
-Apache HTTP Server 2.4.69 removes legacy RFC 2069 compatibility from
+Apache HTTP Server 2.4.69+ removes legacy RFC 2069 compatibility from
 `mod_auth_digest`. Deployments that inject custom Digest-auth configuration
 must ensure every client supports the RFC 2617 or later challenge format before
 upgrading. The chart does not enable `mod_auth_digest` by default.
