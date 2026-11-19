@@ -117,7 +117,7 @@ through Ghost's environment-based configuration:
 ```yaml
 image:
   repository: registry.example.com/ghost-with-adapters
-  tag: "6.71.0"
+  tag: "6.77.0"
 
 ghost:
   extraEnv:
@@ -134,7 +134,7 @@ adapters when the container starts.
 | Key | Default | Description |
 |-----|---------|-------------|
 | `ghost.url` | `""` | Public URL of the Ghost instance |
-| `image.tag` | `6.71.0` | Ghost image tag |
+| `image.tag` | `6.77.0` | Ghost image tag |
 | `containerPorts.http` | `2368` | Ghost process listener and container port |
 | `commonAnnotations` | `{}` | Annotations added to chart-owned resources; resource-specific annotations take precedence |
 | `mysql.enabled` | `true` | Deploy MySQL subchart |
@@ -169,12 +169,13 @@ until MySQL becomes ready. Schedule the upgrade during a maintenance window,
 take a database backup first, and wait for the MySQL StatefulSet rollout to
 complete before validating Ghost readiness.
 
-Ghost `6.71.0` adds automation analytics, self-service site exports, member
-location maps and refreshed post/member screens. It also fixes scheduled-post
-races, member imports, Portal pricing and initialization, uploads, editor
-freezes, social previews and analytics links. Releases 6.66.0 through 6.71.0 do
+Ghost `6.77.0` adds file attachments in welcome and automation email editors,
+member creation sources in activity feeds, and named-newsletter send status
+tooltips. It also fixes custom-field form button overlap, design settings errors
+after theme upload, site export imports, and bumps minimum Node.js versions.
+Releases 6.72.0 through 6.77.0 do
 not document a breaking database or configuration change. Review the
-[official release](https://github.com/TryGhost/Ghost/releases/tag/v6.71.0).
+[official release](https://github.com/TryGhost/Ghost/releases/tag/v6.77.0).
 Files edited in Ghost Admin remain under `/var/lib/ghost/content/data`, so the
 chart's content PVC and S3 content backup already cover them. Review the
 upstream Ghost release notes before upgrading
