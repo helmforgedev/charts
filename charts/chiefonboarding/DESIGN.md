@@ -36,7 +36,7 @@ PostgreSQL endpoint before Supervisor starts. The Service always targets the
 named `http` container port, so `service.port` remains a client-facing contract
 that is independent from `chiefonboarding.port`.
 
-ChiefOnboarding 2.5.0 hard-codes `0.0.0.0:8000` in its packaged Supervisor
+ChiefOnboarding 2.5.2 hard-codes `0.0.0.0:8000` in its packaged Supervisor
 configuration. On a new database, Supervisor also starts Django Q concurrently
 with migrations in the web command, which can make the scheduler query tables
 that do not exist yet. The chart first applies the idempotent migrations, then
@@ -52,7 +52,7 @@ request against the configured port and tests a Django Q task.
 ### Official immutable image
 
 The default image is the official
-`docker.io/chiefonboarding/chiefonboarding:v2.5.0` artifact, pinned to its
+`docker.io/chiefonboarding/chiefonboarding:v2.5.2` artifact, pinned to its
 verified manifest digest. The tag communicates the upstream release and the
 digest prevents registry tag replacement from changing deployed bytes. Users
 can override both fields for controlled testing, but floating tags are outside
