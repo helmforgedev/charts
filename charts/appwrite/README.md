@@ -65,9 +65,9 @@ When ingress is enabled, requests are routed by path:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/appwrite/appwrite` | Appwrite server image |
-| `image.tag` | `2.5.0` | Image tag |
+| `image.tag` | `2.7.2` | Image tag |
 | `console.image.repository` | `docker.io/appwrite/new` | Console image |
-| `console.image.tag` | `1.2.74-self-hosted` | Console image tag |
+| `console.image.tag` | `1.2.181-self-hosted` | Console image tag |
 | `appwrite.locale` | `en` | Application locale |
 | `appwrite.domain` | `""` (auto-detected) | Appwrite domain |
 | `appwrite.openSslKeyV1` | `""` (auto-generated) | 64-char hex encryption key |
@@ -101,6 +101,12 @@ See the [security guide](docs/security.md) for the trust boundary and a
 production checklist.
 
 ## Upgrade Notes
+
+### Appwrite 2.7.2
+
+The [2.7 release](https://github.com/appwrite/appwrite/releases/tag/2.7.2)
+ships Console 1.2.181-self-hosted (was 1.2.74-self-hosted) and upstream Appwrite 2.7.2.
+Run `migrate` after upgrading.
 
 ### Appwrite 2.5.0
 

@@ -18,6 +18,8 @@ fullnameOverride: ""
 
 # -- Labels added to every resource created by this chart
 commonLabels: {}
+# -- Annotations added to every chart-owned resource.
+commonAnnotations: {}
 
 # =============================================================================
 # Images
@@ -27,7 +29,7 @@ image:
   # -- Appwrite server image repository
   repository: docker.io/appwrite/appwrite
   # -- Appwrite image tag. Defaults to appVersion.
-  tag: "2.5.0"
+  tag: "2.7.2"
   # -- Image pull policy
   pullPolicy: IfNotPresent
 
@@ -40,7 +42,7 @@ console:
     # -- Appwrite console image repository
     repository: docker.io/appwrite/new
     # -- Console image tag
-    tag: "1.2.74-self-hosted"
+    tag: "1.2.181-self-hosted"
     # -- Console image pull policy
     pullPolicy: IfNotPresent
 
@@ -411,6 +413,8 @@ networkPolicy:
   # -- Egress rules shared by every Appwrite pod. The default allows all destinations.
   egress:
     - {}
+  # -- Extra egress rules appended to the network policy
+  extraEgress: []
 
 # =============================================================================
 # Security
@@ -480,6 +484,15 @@ backup:
     uploader: docker.io/helmforge/mc:1.0.0
   # -- Resources for backup containers
   resources: {}
+  serviceAccount:
+    # -- Create a dedicated ServiceAccount for backup jobs
+    create: true
+    # -- Existing dedicated ServiceAccount name when create is false
+    name: ""
+    # -- Annotations for IRSA or another workload identity integration
+    annotations: {}
+    # -- Mount the Kubernetes API token into backup pods
+    automountServiceAccountToken: false
   # -- Pod security context for backup jobs
   podSecurityContext:
     runAsNonRoot: true
@@ -504,6 +517,8 @@ backup:
   s3:
     # -- S3-compatible endpoint URL (required when backup.enabled is true)
     endpoint: ""
+    # -- AWS region used by workload identity and regional bucket creation
+    region: ""
     # -- S3 bucket name (required when backup.enabled is true)
     bucket: ""
     # -- S3 key prefix inside the bucket
@@ -520,6 +535,8 @@ backup:
     accessKey: ""
     # -- S3 secret key (ignored when existingSecret is set)
     secretKey: ""
+    # -- Use EKS Pod Identity or IRSA instead of static S3 credentials
+    credentialsFromPodIdentity: false
 
 # =============================================================================
 # Scheduling

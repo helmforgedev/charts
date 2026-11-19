@@ -53,6 +53,28 @@ app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 {{- end -}}
 
+{{- define "appwrite.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create -}}
+{{- default (printf "%s-backup" (include "appwrite.fullname" .)) .Values.backup.serviceAccount.name -}}
+{{- else -}}
+{{- default "default" .Values.backup.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Render annotations block merging commonAnnotations with resource-specific annotations.
+Usage: {{ include "appwrite.renderAnnotations" (dict "root" . "specific" .Values.xxx.annotations) }}
+*/}}
+{{- define "appwrite.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "appwrite.validate" -}}
 {{- $databaseMode := include "appwrite.databaseMode" . -}}
 {{- $cacheMode := include "appwrite.cacheMode" . -}}
@@ -245,6 +267,12 @@ initContainers:
           echo "waiting for database";
           sleep 2;
         done
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+          - ALL
   - name: wait-for-redis
     image: docker.io/library/busybox:1.37
     imagePullPolicy: IfNotPresent
@@ -255,6 +283,12 @@ initContainers:
           echo "waiting for redis";
           sleep 2;
         done
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+          - ALL
   {{- if .waitForSchema }}
   - name: wait-for-appwrite-schema
     image: {{ include "appwrite.image" $root }}
@@ -262,12 +296,13 @@ initContainers:
     command: ["php", "-r"]
     args:
       - |
-        $deadline = time() + 180;
+        $deadline = time() + 300;
         $required = [
             '_console__metadata',
             '_console_projects',
-            '_console_messages',
             '_console_schedules',
+            '_console_users',
+            '_console_presenceLogs',
         ];
         do {
             try {
@@ -282,9 +317,10 @@ initContainers:
                     getenv('_APP_DB_PASS'),
                     [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
                 );
+                $placeholders = implode(',', array_fill(0, count($required), '?'));
                 $query = $database->prepare(
-                    'SELECT COUNT(*) FROM information_schema.tables '
-                    . 'WHERE table_schema = ? AND table_name IN (?, ?, ?, ?)'
+                    "SELECT COUNT(*) FROM information_schema.tables "
+                    . "WHERE table_schema = ? AND table_name IN ($placeholders)"
                 );
                 $query->execute([getenv('_APP_DB_SCHEMA'), ...$required]);
                 if ((int) $query->fetchColumn() === count($required)) {
@@ -295,7 +331,7 @@ initContainers:
             }
             sleep(2);
         } while (time() < $deadline);
-        fwrite(STDERR, "Appwrite database schema was not ready within 180 seconds\n");
+        fwrite(STDERR, "Appwrite database schema was not ready within 300 seconds\n");
         exit(1);
     env:
       {{- include "appwrite.commonEnv" $root | nindent 6 }}
@@ -590,8 +626,8 @@ startupProbe:
   {{- if not .Values.backup.s3.bucket -}}
     {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
   {{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
-    {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
+  {{- if and (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.credentialsFromPodIdentity) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+    {{- fail "backup requires backup.s3.credentialsFromPodIdentity=true, backup.s3.existingSecret, or both backup.s3.accessKey and backup.s3.secretKey" -}}
   {{- end -}}
 true
 {{- end -}}

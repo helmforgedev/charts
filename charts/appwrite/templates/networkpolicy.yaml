@@ -6,6 +6,7 @@ metadata:
   name: {{ include "appwrite.fullname" . }}-workloads
   labels:
     {{- include "appwrite.labels" . | nindent 4 }}
+  {{- include "appwrite.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   podSelector:
     matchLabels:
@@ -16,6 +17,9 @@ spec:
   ingress: []
   egress:
     {{- toYaml .Values.networkPolicy.egress | nindent 4 }}
+    {{- with .Values.networkPolicy.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
 {{- $components := list (dict "name" "api" "port" .Values.api.containerPort) (dict "name" "console" "port" .Values.console.containerPort) (dict "name" "realtime" "port" .Values.realtime.containerPort) }}
 {{- range $component := $components }}
 ---
@@ -26,6 +30,7 @@ metadata:
   labels:
     {{- include "appwrite.labels" $ | nindent 4 }}
     app.kubernetes.io/component: {{ $component.name }}
+  {{- include "appwrite.renderAnnotations" (dict "root" $) | nindent 2 }}
 spec:
   podSelector:
     matchLabels:
