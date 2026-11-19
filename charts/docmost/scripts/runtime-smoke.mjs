@@ -13,7 +13,7 @@ const pods = JSON.parse(run(['get', 'pods', '-l', `app.kubernetes.io/instance=${
 assert.ok(pods.length);
 for (const pod of pods) {
   const container = pod.spec.containers.find(c => c.name === 'docmost');
-  assert.match(container.image, /:0\.96\.0$/);
+  assert.match(container.image, /:0\.97\.0$/);
   const httpPort = container.ports?.find(port => port.name === 'http')?.containerPort;
   assert.ok(Number.isInteger(httpPort) && httpPort > 0, 'Docmost HTTP listener port is required');
   assert.equal(container.env?.find(variable => variable.name === 'PORT')?.value, String(httpPort));
@@ -24,12 +24,13 @@ for (const pod of pods) {
     const req = createRequire('/app/apps/server/package.json');
     (async () => {
       assert.equal((await fetch('http://127.0.0.1:${httpPort}/api/health')).status, 200);
-      const {EncryptionService} = req('./dist/integrations/encryption/encryption.service.js');
+      const {EncryptionService, EncryptionPurpose} = req('./dist/integrations/encryption/encryption.service.js');
       const encryption = new EncryptionService({getAppSecret: () => process.env.APP_SECRET});
+      const purpose = EncryptionPurpose?.INTEGRATION_TOKENS;
       const marker = 'helmforge-docmost-storage-fixture';
-      const encrypted = encryption.encrypt(marker);
+      const encrypted = purpose ? encryption.encrypt(marker, purpose) : encryption.encrypt(marker);
       assert.notEqual(encrypted, marker);
-      assert.equal(encryption.decrypt(encrypted), marker);
+      assert.equal(purpose ? encryption.decrypt(encrypted, purpose) : encryption.decrypt(encrypted), marker);
       let driver;
       if (process.env.STORAGE_DRIVER === 's3') {
         const {S3Driver} = req('./dist/integrations/storage/drivers/s3.driver.js');
@@ -43,7 +44,8 @@ for (const pod of pods) {
       const key = 'helmforge-runtime/' + process.env.HOSTNAME + '.txt';
       try {
         await driver.upload(key, Buffer.from(encrypted));
-        assert.equal(encryption.decrypt((await driver.read(key)).toString()), marker);
+        const decrypted = purpose ? encryption.decrypt((await driver.read(key)).toString(), purpose) : encryption.decrypt((await driver.read(key)).toString());
+        assert.equal(decrypted, marker);
       } finally { await driver.delete(key); }
       console.log('PASS Docmost health, APP_SECRET encryption and ' + process.env.STORAGE_DRIVER + ' upload/read/delete');
       process.exit(0);
