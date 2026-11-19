@@ -12,7 +12,7 @@ const pod = JSON.parse(run(['get', 'pods', '-l', `app.kubernetes.io/instance=${r
     && p.status.conditions?.some(c => c.type === 'Ready' && c.status === 'True'));
 assert.ok(pod);
 const app = pod.spec.containers.find(c => c.name === 'chiefonboarding');
-assert.equal(app.image, 'docker.io/chiefonboarding/chiefonboarding:v2.5.0@sha256:d0964135ea82f1a2e12633b6b47202a3926053a776f26a53a14c29f00470209f');
+assert.equal(app.image, 'docker.io/chiefonboarding/chiefonboarding:v2.5.2@sha256:8ed7293ba9dfe44f8572298ba707f5191fee848f15aff000817af2a6eb6be141');
 const listener = app.ports.find(port => port.name === 'http')?.containerPort;
 assert.ok(Number.isInteger(listener));
 assert.equal(app.env.find(env => env.name === 'CHIEFONBOARDING_PORT')?.value, String(listener));

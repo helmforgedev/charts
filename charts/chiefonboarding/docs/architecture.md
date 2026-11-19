@@ -44,7 +44,7 @@ The chart maps Helm values to environment variables:
 
 ## Listener Contract
 
-The official 2.5.0 image packages a Supervisor command with Gunicorn bound to
+The official 2.5.2 image packages a Supervisor command with Gunicorn bound to
 port 8000 and starts Django Q concurrently with migrations in the web command.
 The chart applies migrations before Supervisor so a fresh scheduler cannot
 query missing tables, then copies the configuration to `/tmp`, substitutes the
