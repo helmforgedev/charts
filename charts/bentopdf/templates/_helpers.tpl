@@ -33,3 +33,17 @@ app.kubernetes.io/part-of: helmforge
 {{- define "bentopdf.httpRouteName" -}}
 {{- if .route.name -}}{{ .route.name | trunc 63 | trimSuffix "-" }}{{- else if gt (int .index) 0 -}}{{ printf "%s-%v" (include "bentopdf.fullname" .root | trunc 55 | trimSuffix "-") .index }}{{- else -}}{{ include "bentopdf.fullname" .root }}{{- end -}}
 {{- end -}}
+
+{{/*
+Render annotations block merging commonAnnotations with resource-specific annotations.
+Usage: {{ include "bentopdf.renderAnnotations" (dict "root" . "specific" .Values.xxx.annotations) }}
+*/}}
+{{- define "bentopdf.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
