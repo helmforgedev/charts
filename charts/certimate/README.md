@@ -2,7 +2,7 @@
 
 Deploy [Certimate](https://github.com/certimate-go/certimate), a self-hosted certificate automation platform for ACME issuance, deployment, renewal, and monitoring.
 
-This chart packages the official `certimate/certimate:v0.4.35` image and follows the upstream container contract: HTTP on port `8090` and durable PocketBase data under `/app/pb_data`.
+This chart packages the official `certimate/certimate:v0.4.38` image and follows the upstream container contract: HTTP on port `8090` and durable PocketBase data under `/app/pb_data`.
 
 ## Features and architecture
 
@@ -87,11 +87,11 @@ Back up the PersistentVolumeClaim before upgrades. Certimate stores its
 PocketBase database, uploaded certificate material, ACME account state, workflow
 definitions, and provider credentials under `/app/pb_data`.
 
-Certimate 0.4.35 adds OpenSSH user-certificate authentication for SSH
-credentials and fixes Cloudflare SSL and Alibaba Cloud CAS certificate
-deployments. It does not change the container port, storage path, or chart
-configuration contract. Review the
-[official release](https://github.com/certimate-go/certimate/releases/tag/v0.4.35).
+Certimate 0.4.38 updates RFC 2136 credential handling, fixes UCloud, AxisNow,
+and Tencent Cloud VOD certificate deployments, adds LuaDNS and Alibaba Cloud
+MSE providers, and refines fnOS SSH preset scripts. It does not change the
+container port, storage path, or chart configuration contract. Review the
+[official release](https://github.com/certimate-go/certimate/releases/tag/v0.4.38).
 
 Before upgrading, export current overrides, review them against the new defaults
 and preserve `persistence.existingClaim`, storage size/class, UID/GID ownership,
@@ -115,7 +115,7 @@ exception when modeling egress.
 Local security scan:
 
 ```text
-Image: certimate/certimate:v0.4.35
+Image: certimate/certimate:v0.4.38
 Scanner: Kubescape v4.0.9, frameworks MITRE, NSA, SOC2
 Result: 93.93939 compliance score
 ```
