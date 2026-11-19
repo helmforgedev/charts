@@ -15,11 +15,22 @@ try {
  if(count===0){
   const password=fs.readFileSync('/run/bootstrap/password','utf8').trim();
   const user=await userService.createUser(username,password);
+  if(userRepository.setAdmin) await userRepository.setAdmin(user.id, true);
   await up_v1_5_0_snippets(db,user.id);
   console.log('Initial administrative account created before HTTP exposure');
- }else if(!await userRepository.findByUsername(username)){
-  throw new Error('Configured bootstrap administrator is absent from existing database; set bootstrap.username to the intended existing administrator or explicitly adopt the populated claim with bootstrap disabled');
- }else console.log('Existing administrator retained; password not reset');
+ }else {
+  const existing=await userRepository.findByUsername(username);
+  if(!existing){
+   throw new Error('Configured bootstrap administrator is absent from existing database; set bootstrap.username to the intended existing administrator or explicitly adopt the populated claim with bootstrap disabled');
+  }
+  if(userRepository.setAdmin) await userRepository.setAdmin(existing.id, true);
+  console.log('Existing administrator retained; password not reset');
+ }
+ const extraAdmins=(process.env.ADMIN_USERNAMES||'').split(',').map(s=>s.trim()).filter(Boolean);
+ for(const extra of extraAdmins){
+  const extraUser=await userRepository.findByUsername(extra);
+  if(extraUser&&userRepository.setAdmin) await userRepository.setAdmin(extraUser.id, true);
+ }
  db.exec('COMMIT');
  } catch(error) { db.exec('ROLLBACK'); throw error; }
 }finally{await shutdownDatabase();}

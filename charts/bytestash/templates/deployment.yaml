@@ -5,6 +5,7 @@ metadata:
   name: {{ include "bytestash.fullname" . }}
   labels:
     {{- include "bytestash.labels" . | nindent 4 }}
+  {{- include "bytestash.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   strategy:
@@ -18,7 +19,7 @@ spec:
         {{- include "bytestash.selectorLabels" . | nindent 8 }}
         {{- with .Values.podLabels }}{{ toYaml . | nindent 8 }}{{- end }}
       annotations:
-        checksum/scripts: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/scripts: {{ (include (print $.Template.BasePath "/configmap.yaml") . | fromYaml).data | toYaml | sha256sum }}
         checksum/bootstrap: {{ toJson .Values.bootstrap | sha256sum }}
         checksum/credentials: {{ toJson .Values.auth | sha256sum }}
         checksum/oidc: {{ toJson .Values.oidc | sha256sum }}
@@ -40,6 +41,7 @@ spec:
           command: [node, /opt/helmforge/bootstrap.mjs]
           env:
             - {name: BOOTSTRAP_USERNAME, value: {{ .Values.bootstrap.username | quote }}}
+            - {name: ADMIN_USERNAMES, value: {{ .Values.auth.adminUsernames | join "," | quote }}}
             - {name: DEBUG, value: "false"}
           securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
           resources: {{ toYaml .Values.bootstrap.resources | nindent 12 }}
