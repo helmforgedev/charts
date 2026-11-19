@@ -67,6 +67,28 @@ Image reference with tag defaulting to appVersion-rootless
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end }}
 
+{{/* Merge chart-wide annotations with resource-specific annotations taking precedence. */}}
+{{- define "gitea.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Backup ServiceAccount name
+*/}}
+{{- define "gitea.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create -}}
+  {{- default (printf "%s-backup" (include "gitea.fullname" .)) .Values.backup.serviceAccount.name -}}
+{{- else -}}
+  {{- default "default" .Values.backup.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
 {{/* ======================================================================== */}}
 {{/* Database helpers                                                          */}}
 {{/* ======================================================================== */}}
