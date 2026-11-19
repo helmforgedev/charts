@@ -26,6 +26,17 @@ app.kubernetes.io/part-of: helmforge
 {{- end }}
 {{- end -}}
 
+{{/* Render resource annotations merging commonAnnotations and resource-specific annotations */}}
+{{- define "cloudflared.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "cloudflared.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "cloudflared.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}

@@ -188,13 +188,13 @@ topologySpreadConstraints:
 
 ## Upgrade Notes
 
-Cloudflared 2026.10.1 retains the existing quick-tunnel and managed-token
-contracts. It improves QUIC request cancellation and DNS resolution retries.
-The new normalized-path access-rule behavior is present but disabled by default,
-so the forwarded request path and existing ingress selection remain unchanged.
+Cloudflared 2026.11.0 retains the existing quick-tunnel and managed-token
+contracts. It fixes WebSocket data buffering for messages larger than the caller buffer,
+disables container auto-updates via NO_AUTOUPDATE, fixes HTTP/2 stream regression,
+and enhances ingress matrix-parameter normalization.
 
 Review the
-[official 2026.10.1 release](https://github.com/cloudflare/cloudflared/releases/tag/2026.10.1)
+[official 2026.11.0 release](https://github.com/cloudflare/cloudflared/releases/tag/2026.11.0)
 before production rollout.
 
 For chart upgrades, pin the target version and preserve tunnel mode, Secret name
