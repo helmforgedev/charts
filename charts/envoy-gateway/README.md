@@ -1,7 +1,7 @@
 # Envoy Gateway
 
 A Helm chart for deploying [Envoy Gateway](https://gateway.envoyproxy.io/)
-v1.9.2 on Kubernetes 1.33 through 1.36. Envoy Gateway is a **Kubernetes
+v1.10.0 on Kubernetes 1.34 through 1.37. Envoy Gateway is a **Kubernetes
 operator** — it manages Envoy proxy pods automatically in response to Gateway
 API resources.
 
@@ -70,8 +70,8 @@ helm upgrade --install envoy-gateway \
 
 ## Quick Start
 
-Envoy Gateway v1.9.2 requires Gateway API v1.6.1 Experimental and supports
-Kubernetes 1.33 through 1.36. New installations use the standalone
+Envoy Gateway v1.10.0 requires Gateway API v1.6.1 Experimental and supports
+Kubernetes 1.34 through 1.37. New installations use the standalone
 `envoy-gateway-crds` release first, wait for discovery, then install this chart
 with `crds.enabled=false`. This makes the first `helm diff` work with Kubernetes
 validation enabled and gives CRDs an explicit forward-only lifecycle.
@@ -224,7 +224,7 @@ highAvailability:
 |-----|---------|-------------|
 | `controller.replicaCount` | `1` | Number of controller replicas (overridden by profile) |
 | `controller.image.repository` | `docker.io/envoyproxy/gateway` | Controller image repository |
-| `controller.image.tag` | `v1.9.2` | Controller image tag |
+| `controller.image.tag` | `v1.10.0` | Controller image tag |
 | `controller.image.pullPolicy` | `IfNotPresent` | Image pull policy |
 | `controller.resources.requests.cpu` | `100m` | CPU request (overridden by profile) |
 | `controller.resources.requests.memory` | `128Mi` | Memory request (overridden by profile) |
@@ -243,7 +243,7 @@ The certgen Job always runs as a pre-install and pre-upgrade hook to create the 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `certgen.image.repository` | `docker.io/envoyproxy/gateway` | Certgen image (same as controller) |
-| `certgen.image.tag` | `v1.9.2` | Certgen image tag |
+| `certgen.image.tag` | `v1.10.0` | Certgen image tag |
 | `certgen.image.pullPolicy` | `IfNotPresent` | Certgen image pull policy |
 
 ### Proxy (EnvoyProxy CRD)
@@ -256,10 +256,10 @@ The certgen Job always runs as a pre-install and pre-upgrade hook to create the 
 | `proxy.kind` | `Deployment` | Proxy workload kind: `Deployment` or `DaemonSet` |
 | `proxy.replicaCount` | `1` | Number of proxy replicas (Deployment mode only, overridden by profile) |
 | `proxy.image.repository` | `docker.io/envoyproxy/envoy` | Proxy image repository |
-| `proxy.image.tag` | `distroless-v1.39.3` | Proxy image tag |
+| `proxy.image.tag` | `distroless-v1.40.2` | Proxy image tag |
 | `proxy.image.pullPolicy` | `IfNotPresent` | Image pull policy |
 | `proxy.shutdownManager.image.repository` | `docker.io/envoyproxy/gateway` | Shutdown manager sidecar image repository |
-| `proxy.shutdownManager.image.tag` | `v1.9.2` | Shutdown manager sidecar image tag |
+| `proxy.shutdownManager.image.tag` | `v1.10.0` | Shutdown manager sidecar image tag |
 | `proxy.shutdownManager.image.pullPolicy` | `IfNotPresent` | Shutdown manager image pull policy |
 | `proxy.resources.requests.cpu` | `100m` | CPU request (overridden by profile) |
 | `proxy.resources.requests.memory` | `512Mi` | Memory request (overridden by profile) |
@@ -563,9 +563,9 @@ are discoverable. A server-connected install, upgrade, or server-side diff also
 checks Gateway API bundle `v1.6.1`/`experimental` and Envoy Gateway bundle
 `v1.9.0` annotations.
 
-`docker.io/envoyproxy/gateway:v1.9.2` is the canonical upstream patch image for
-the v1.9 release line. This chart pins the managed Envoy proxy image to
-`docker.io/envoyproxy/envoy:distroless-v1.39.3`, aligned with the upstream v1.9
+`docker.io/envoyproxy/gateway:v1.10.0` is the canonical upstream patch image for
+the v1.10 release line. This chart pins the managed Envoy proxy image to
+`docker.io/envoyproxy/envoy:distroless-v1.40.2`, aligned with the upstream v1.10
 compatibility matrix. The rate limit deployment uses the upstream v1.9.0
 default `docker.io/envoyproxy/ratelimit:17b1956c` and honors the
 `rateLimiting.service.image` override through the EnvoyGateway configuration.
@@ -578,13 +578,15 @@ uses its `-redis-client` endpoint, and Redis authentication is injected into the
 managed rate-limit Deployment through `REDIS_AUTH` from either the bundled or
 external Secret.
 
-Envoy Gateway v1.9.2 hardens Lua validation, controller-owned resources and
-Kubernetes JWT authentication, and fixes control-plane crashes, invalid merged
-listeners, repeated xDS pushes, UDP draining and traffic-policy translation.
-The matching Envoy v1.39.3 fixes CVE-2026-35189 and two remotely-triggerable
-filter crashes. Strict Lua validation now rejects `getfenv`, `setfenv`,
-`newproxy` and `module`; update affected scripts before upgrading. Review the
-[upstream v1.9.2 release notes](https://gateway.envoyproxy.io/news/releases/notes/v1.9.2/)
+Envoy Gateway v1.10.0 adds PDB unhealthy-pod eviction policy, graceful shutdown
+`healthCheckFailureDelay` tuning, strict Lua path and env-var allowlists, and
+`maxRequestHeaderLimit` on `ClientTrafficPolicy`. Cookie-based session
+persistence now uses `Path=/` unconditionally (GEP-1619); distinct `sessionName`
+values are required for rules on the same host. `ClusterSettings` is restructured
+to CDS-only fields, with retry policies moved to a new `BackendSettings` type.
+The matching Envoy v1.40.2 fixes upstream CVEs and stability improvements.
+Review the
+[upstream v1.10.0 release notes](https://gateway.envoyproxy.io/news/releases/notes/v1.10.0/)
 before upgrading. The supported CRD set remains Gateway API v1.6.1 Experimental
 with the Envoy Gateway v1.9.0 CRD bundle annotations.
 Apply the standalone CRD bundle server-side before the controller upgrade,
