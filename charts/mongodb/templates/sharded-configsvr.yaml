@@ -8,6 +8,7 @@ metadata:
   labels:
     {{- include "mongodb.labels" . | nindent 4 }}
     app.kubernetes.io/component: configsvr
+  {{- include "mongodb.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   serviceName: {{ include "mongodb.fullname" . }}-configsvr-headless
   replicas: {{ .Values.sharded.configServer.replicaCount }}
@@ -115,6 +116,15 @@ spec:
         - name: keyfile
           emptyDir: {}
         {{- end }}
+  {{- if or .Values.sharded.configServer.persistence.retentionPolicy.whenDeleted .Values.sharded.configServer.persistence.retentionPolicy.whenScaled }}
+  persistentVolumeClaimRetentionPolicy:
+    {{- with .Values.sharded.configServer.persistence.retentionPolicy.whenDeleted }}
+    whenDeleted: {{ . }}
+    {{- end }}
+    {{- with .Values.sharded.configServer.persistence.retentionPolicy.whenScaled }}
+    whenScaled: {{ . }}
+    {{- end }}
+  {{- end }}
   volumeClaimTemplates:
     - metadata:
         name: data
@@ -134,6 +144,7 @@ metadata:
   labels:
     {{- include "mongodb.labels" . | nindent 4 }}
     app.kubernetes.io/component: configsvr
+  {{- include "mongodb.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   type: ClusterIP
   clusterIP: None

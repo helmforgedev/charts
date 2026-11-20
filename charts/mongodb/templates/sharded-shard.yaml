@@ -10,6 +10,7 @@ metadata:
   labels:
     {{- include "mongodb.labels" $root | nindent 4 }}
     app.kubernetes.io/component: shard
+  {{- include "mongodb.renderAnnotations" (dict "root" $root) | nindent 2 }}
     mongodb.com/shard: {{ $shardIdx | quote }}
 spec:
   serviceName: {{ include "mongodb.fullname" $root }}-shard{{ $shardIdx }}-headless
@@ -120,6 +121,15 @@ spec:
         - name: keyfile
           emptyDir: {}
         {{- end }}
+  {{- if or $root.Values.sharded.shards.persistence.retentionPolicy.whenDeleted $root.Values.sharded.shards.persistence.retentionPolicy.whenScaled }}
+  persistentVolumeClaimRetentionPolicy:
+    {{- with $root.Values.sharded.shards.persistence.retentionPolicy.whenDeleted }}
+    whenDeleted: {{ . }}
+    {{- end }}
+    {{- with $root.Values.sharded.shards.persistence.retentionPolicy.whenScaled }}
+    whenScaled: {{ . }}
+    {{- end }}
+  {{- end }}
   volumeClaimTemplates:
     - metadata:
         name: data
@@ -140,6 +150,7 @@ metadata:
     {{- include "mongodb.labels" $root | nindent 4 }}
     app.kubernetes.io/component: shard
     mongodb.com/shard: {{ $shardIdx | quote }}
+  {{- include "mongodb.renderAnnotations" (dict "root" $root) | nindent 2 }}
 spec:
   type: ClusterIP
   clusterIP: None

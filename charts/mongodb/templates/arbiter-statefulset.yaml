@@ -7,10 +7,7 @@ metadata:
   labels:
     {{- include "mongodb.labels" . | nindent 4 }}
     app.kubernetes.io/component: arbiter
-  {{- with .Values.annotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+  {{- include "mongodb.renderAnnotations" (dict "root" . "specific" .Values.annotations) | nindent 2 }}
 spec:
   serviceName: {{ include "mongodb.arbiterHeadlessServiceName" . }}
   replicas: 1
@@ -29,10 +26,7 @@ spec:
       {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.podAnnotations }}
-      annotations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+      {{- include "mongodb.renderAnnotations" (dict "root" . "specific" .Values.podAnnotations) | nindent 6 }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -96,6 +90,22 @@ spec:
         - name: mongod
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            {{- if .Values.auth.enabled }}
+            - name: MONGO_INITDB_ROOT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mongodb.secretName" . }}
+                  key: mongodb-root-username
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mongodb.secretName" . }}
+                  key: mongodb-root-password
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           args:
             {{- include "mongodb.mongodArgs" . | nindent 12 }}
           ports:

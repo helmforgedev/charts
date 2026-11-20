@@ -148,7 +148,7 @@ deciding constraint, and review the
 |-----------|-------------|---------|
 | `architecture` | `standalone`, `replicaset`, or `sharded` | `standalone` |
 | `image.repository` | MongoDB image | `mongo` |
-| `image.tag` | Image tag | `9.0.4` |
+| `image.tag` | Image tag | `9.0.8` |
 | `nameOverride` | Override chart name | `""` |
 | `fullnameOverride` | Override full release name | `""` |
 
@@ -290,9 +290,9 @@ See the [`examples/`](examples/) directory:
 
 ## Upgrade Notes
 
-### Upgrading to 9.0.4
+### Upgrading to 9.0.8
 
-MongoDB `9.0.4` contains stability improvements and bug fixes.
+MongoDB `9.0.8` contains stability improvements and bug fixes.
 Review the [official 9.0 release notes](https://www.mongodb.com/docs/manual/release-notes/9.0/).
 
 ### Upgrading to 9.0.2
