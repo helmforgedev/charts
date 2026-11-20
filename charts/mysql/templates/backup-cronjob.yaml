@@ -22,6 +22,8 @@ spec:
             {{- include "mysql.selectorLabels" . | nindent 12 }}
         spec:
           restartPolicy: Never
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
           {{- if .Values.backup.s3.credentialsFromPodIdentity }}
           serviceAccountName: {{ include "mysql.backupServiceAccountName" . }}
           automountServiceAccountToken: {{ .Values.backup.serviceAccount.automountServiceAccountToken }}
@@ -48,6 +50,10 @@ spec:
           {{- end }}
           initContainers:
             - name: mysql-backup
+              {{- with .Values.securityContext }}
+              securityContext:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
               image: "{{ .Values.backup.images.mysql.repository }}:{{ .Values.backup.images.mysql.tag }}"
               imagePullPolicy: {{ .Values.backup.images.mysql.pullPolicy }}
               command: ["/bin/sh", "/scripts/mysql-backup.sh"]
@@ -81,6 +87,10 @@ spec:
                 {{- end }}
           containers:
             - name: upload
+              {{- with .Values.securityContext }}
+              securityContext:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
               image: "{{ .Values.backup.images.uploader.repository }}:{{ .Values.backup.images.uploader.tag }}"
               imagePullPolicy: {{ .Values.backup.images.uploader.pullPolicy }}
               command: ["/bin/sh", "/scripts/upload-backup.sh"]
