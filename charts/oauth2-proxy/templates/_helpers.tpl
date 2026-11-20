@@ -176,3 +176,36 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Render annotations combining commonAnnotations with resource-specific annotations.
+Usage:
+  {{- include "oauth2-proxy.renderAnnotations" (dict "root" . "context" "service") | nindent 2 }}
+*/}}
+{{- define "oauth2-proxy.renderAnnotations" -}}
+{{- $root := . -}}
+{{- $context := "" -}}
+{{- $extra := dict -}}
+{{- if kindIs "map" . -}}
+  {{- if hasKey . "root" -}}
+    {{- $root = .root -}}
+    {{- $context = .context | default "" -}}
+    {{- $extra = .extra | default dict -}}
+  {{- end -}}
+{{- end -}}
+{{- $specific := dict -}}
+{{- if eq $context "service" -}}
+  {{- $specific = $root.Values.service.annotations | default dict -}}
+{{- else if eq $context "serviceAccount" -}}
+  {{- $specific = $root.Values.serviceAccount.annotations | default dict -}}
+{{- else if eq $context "ingress" -}}
+  {{- $specific = $root.Values.ingress.annotations | default dict -}}
+{{- else -}}
+  {{- $specific = $extra | default dict -}}
+{{- end -}}
+{{- $merged := merge (deepCopy $specific) ($root.Values.commonAnnotations | default dict) -}}
+{{- if $merged }}
+annotations:
+  {{- toYaml $merged | nindent 2 }}
+{{- end }}
+{{- end -}}
