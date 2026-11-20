@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
+import {readFileSync} from 'node:fs';
 const [context, namespace, release] = process.argv.slice(2);
 if (!context?.startsWith('k3d-helmforge-') || !namespace || !release) {
   throw new Error('Explicit HelmForge lab context, namespace and release required');
@@ -37,6 +38,8 @@ fetch('http://127.0.0.1:${port}/health').then(async r=>{
  console.log(JSON.stringify({version,health:await r.json()}));
 }).catch(e=>{console.error(e.message);process.exitCode=1;});`;
 const result = JSON.parse(kubectl(['exec', pod.metadata.name, '-c', 'matterbridge', '--', 'node', '-e', code]));
-assert.equal(result.version, '3.10.14');
+const chartYaml = readFileSync(new URL('../Chart.yaml', import.meta.url), 'utf8');
+const expectedVersion = chartYaml.match(/^appVersion:\s*["']?([^"'\s]+)["']?/m)?.[1] ?? '3.11.3';
+assert.equal(result.version, expectedVersion);
 
-console.log(`Matterbridge standalone 3.10.14: listener=${listenerPort} service=${servicePort.port} and live HTTP health verified.`);
+console.log(`Matterbridge standalone ${expectedVersion}: listener=${listenerPort} service=${servicePort.port} and live HTTP health verified.`);
