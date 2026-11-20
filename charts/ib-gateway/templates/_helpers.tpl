@@ -26,6 +26,15 @@ app.kubernetes.io/part-of: helmforge
 {{ toYaml . }}
 {{- end }}
 {{- end -}}
+{{- define "ib-gateway.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
 {{- define "ib-gateway.image" -}}
 {{- if .Values.image.digest -}}{{ printf "%s@%s" .Values.image.repository .Values.image.digest }}
 {{- else -}}{{ printf "%s:%s" .Values.image.repository .Values.image.tag }}{{- end -}}
