@@ -6,6 +6,7 @@ metadata:
   name: {{ include "hoppscotch.fullname" . }}
   namespace: {{ include "hoppscotch.namespace" . }}
   labels: {{ include "hoppscotch.labels" . | nindent 4 }}
+  {{- include "hoppscotch.renderAnnotations" (dict "root" . ) | nindent 2 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   strategy:
@@ -20,8 +21,8 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
-        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/config: {{ (include (print $.Template.BasePath "/configmap.yaml") . | fromYaml).data | toYaml | sha256sum }}
+        checksum/secret: {{ (include (print $.Template.BasePath "/secret.yaml") . | fromYaml).data | toYaml | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
