@@ -9,13 +9,14 @@ kind: Deployment
 {{- $_ := set $usedMountPaths .mountPath true }}
 {{- end }}
 {{- end }}
-{{- $mountRuntimeTmp := and $securityProfileEnabled (not (hasKey $usedMountPaths "/tmp")) }}
+{{- $mountRuntimeTmp := not (hasKey $usedMountPaths "/tmp") }}
 {{- $mountRuntimeNpm := and $securityProfileEnabled (not (hasKey $usedMountPaths "/app/.npm")) }}
 {{- $mountRuntimeOptNpm := and $securityProfileEnabled (not (hasKey $usedMountPaths "/opt/app-root/src/.npm")) }}
 metadata:
   name: {{ include "langflow.fullname" . }}
   labels:
     {{- include "langflow.labels" . | nindent 4 }}
+  {{- include "langflow.renderAnnotations" (dict "root" . "specific" dict) | nindent 2 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   strategy:
@@ -30,7 +31,8 @@ spec:
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.podAnnotations }}
+      {{- $podAnnotations := mergeOverwrite (deepCopy (.Values.commonAnnotations | default dict)) (.Values.podAnnotations | default dict) }}
+      {{- with $podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -158,12 +160,13 @@ spec:
             timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
             failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
           {{- end }}
-          {{- $securityContext := .Values.securityContext | default dict }}
+          {{- $defaultContainerSecurityContext := dict "allowPrivilegeEscalation" false "capabilities" (dict "drop" (list "ALL")) }}
           {{- if $securityProfileEnabled }}
-          {{- $defaultContainerSecurityContext := dict "allowPrivilegeEscalation" false "readOnlyRootFilesystem" true "capabilities" (dict "drop" (list "ALL")) }}
-          {{- $profileContainerSecurityContext := get $securityProfile "containerSecurityContext" | default dict }}
-          {{- $securityContext = mergeOverwrite (deepCopy $defaultContainerSecurityContext) $profileContainerSecurityContext $securityContext }}
+          {{- $_ := set $defaultContainerSecurityContext "readOnlyRootFilesystem" true }}
           {{- end }}
+          {{- $profileContainerSecurityContext := get $securityProfile "containerSecurityContext" | default dict }}
+          {{- $userSecurityContext := .Values.securityContext | default dict }}
+          {{- $securityContext := mergeOverwrite (deepCopy $defaultContainerSecurityContext) $profileContainerSecurityContext $userSecurityContext }}
           {{- with $securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}

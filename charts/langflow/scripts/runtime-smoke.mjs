@@ -12,7 +12,9 @@ const pods = JSON.parse(execFileSync('kubectl', [...target, 'get', 'pods', '-l',
 const pod = pods.find(p => !p.metadata.deletionTimestamp && p.status.conditions?.some(c => c.type === 'Ready' && c.status === 'True')
   && p.spec.containers.some(c => c.name === 'langflow'));
 assert.ok(pod, 'Ready Langflow pod required');
-const output = execFileSync('kubectl', [...target, 'exec', '-i', pod.metadata.name, '-c', 'langflow', '--', 'python', '-', '1.12.6', 'create'], {
+const chartYaml = readFileSync(new URL('../Chart.yaml', import.meta.url), 'utf8');
+const expectedVersion = chartYaml.match(/^appVersion:\s*["']?([^"'\s]+)["']?/m)?.[1] ?? '1.13.2';
+const output = execFileSync('kubectl', [...target, 'exec', '-i', pod.metadata.name, '-c', 'langflow', '--', 'python', '-', expectedVersion, 'create'], {
   input: readFileSync(new URL('./runtime-smoke.py', import.meta.url)), encoding: 'utf8', timeout: 160000, stdio: ['pipe', 'pipe', 'pipe'],
 });
 console.log(output.trim());
