@@ -6,15 +6,11 @@ metadata:
   name: {{ include "ib-gateway.claimName" . }}
   labels:
     {{- include "ib-gateway.labels" . | nindent 4 }}
-  {{- if or .Values.persistence.retain .Values.persistence.annotations }}
-  annotations:
-    {{- if .Values.persistence.retain }}
-    helm.sh/resource-policy: keep
-    {{- end }}
-    {{- with .Values.persistence.annotations }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
-  {{- end }}
+  {{- $pvcAnnotations := deepCopy (.Values.persistence.annotations | default dict) -}}
+  {{- if .Values.persistence.retain -}}
+    {{- $_ := set $pvcAnnotations "helm.sh/resource-policy" "keep" -}}
+  {{- end -}}
+  {{- include "ib-gateway.renderAnnotations" (dict "root" . "specific" $pvcAnnotations) | nindent 2 }}
 spec:
   accessModes:
     {{- toYaml .Values.persistence.accessModes | nindent 4 }}

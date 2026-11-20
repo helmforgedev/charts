@@ -55,9 +55,9 @@ endorsed by Interactive Brokers.
 
 ## Image provenance
 
-The default image is `ghcr.io/gnzsnz/ib-gateway:10.51`, pinned to manifest
-digest `sha256:1e2236804ac949b789197c225a048c0c891c9958f948c87166226e5b647ff581`.
-The Linux amd64 and arm64 manifests were verified on 2026-10-12.
+The default image is `ghcr.io/gnzsnz/ib-gateway:10.52`, pinned to manifest
+digest `sha256:b72591b3b0965d4d29cec25163ff8d5f08e6b549c2fe0ce84944b4d173c9b652`.
+The Linux amd64 and arm64 manifests were verified on 2026-11-19.
 
 ## Credentials and External Secrets
 
@@ -114,7 +114,7 @@ uses `minAvailable: 1`; it does not make the workload highly available.
 
 | Value | Default | Purpose |
 | --- | --- | --- |
-| `image.tag` | `10.51` | Release channel paired with an immutable digest |
+| `image.tag` | `10.52` | Release channel paired with an immutable digest |
 | `replicaCount` | `1` | Enforced singleton session owner |
 | `gateway.tradingMode` | `paper` | `paper`, `live`, or `both` |
 | `gateway.readOnlyApi` | `true` | Disable order-changing API calls |
