@@ -14,7 +14,7 @@ tests:
           of: Deployment
       - equal:
           path: spec.template.spec.containers[0].image
-          value: docker.io/langflowai/langflow:1.12.6
+          value: docker.io/langflowai/langflow:1.13.2
       - equal:
           path: spec.template.metadata.labels["app.kubernetes.io/name"]
           value: langflow
@@ -122,13 +122,17 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].livenessProbe.httpGet.path
           value: /health_check
-  - it: preserves the previous security contract by default
+  - it: renders baseline container security context by default
     template: templates/deployment.yaml
     asserts:
       - notExists:
           path: spec.template.spec.securityContext
-      - notExists:
-          path: spec.template.spec.containers[0].securityContext
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
   - it: tolerates an absent security profile during reuse-values upgrades
     template: templates/deployment.yaml
     set:
@@ -136,8 +140,12 @@ tests:
     asserts:
       - isKind:
           of: Deployment
-      - notExists:
-          path: spec.template.spec.containers[0].securityContext
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
   - it: applies profile defaults and explicit overrides
     template: templates/deployment.yaml
     set:
