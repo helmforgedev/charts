@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Common annotations and retention policy
+templates:
+  - templates/statefulset.yaml
+  - templates/service.yaml
+  - templates/bootstrap.yaml
+tests:
+  - it: renders common annotations across resources
+    set:
+      commonAnnotations:
+        helmforge.dev/test: verified
+    asserts:
+      - equal:
+          path: metadata.annotations["helmforge.dev/test"]
+          value: verified
+        template: templates/statefulset.yaml
+      - equal:
+          path: spec.template.metadata.annotations["helmforge.dev/test"]
+          value: verified
+        template: templates/statefulset.yaml
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.annotations["helmforge.dev/test"]
+          value: verified
+        template: templates/statefulset.yaml
+      - equal:
+          path: metadata.annotations["helmforge.dev/test"]
+          value: verified
+        template: templates/service.yaml
+      - equal:
+          path: metadata.annotations["helmforge.dev/test"]
+          value: verified
+        template: templates/bootstrap.yaml
+
+  - it: renders persistent volume claim retention policy
+    template: templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenDeleted
+          value: Retain
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenScaled
+          value: Retain

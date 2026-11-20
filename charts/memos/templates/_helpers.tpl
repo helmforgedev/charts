@@ -1,4 +1,14 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{/* Merge chart-wide annotations with resource-specific annotations taking precedence. */}}
+{{- define "memos.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
 {{- define "memos.name" -}}{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}{{- end -}}
 {{- define "memos.fullname" -}}{{- if .Values.fullnameOverride -}}{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}{{- else -}}{{- printf "%s-%s" .Release.Name (include "memos.name" .) | trunc 63 | trimSuffix "-" -}}{{- end -}}{{- end -}}
 {{- define "memos.chart" -}}{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" -}}{{- end -}}

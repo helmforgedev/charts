@@ -20,22 +20,22 @@ export async function oauthSmoke({context,namespace,base,api,username,memoName})
    const verifier=randomBytes(48).toString('base64url'),state=randomBytes(32).toString('base64url');
    const url=new URL('https://127.0.0.1:'+tlsPort+'/authorize');for(const [key,value]of Object.entries({client_id:'memos-fixture',redirect_uri:redirectUri,response_type:'code',scope:'openid profile email',state,code_challenge:createHash('sha256').update(verifier).digest('base64url'),code_challenge_method:'S256'}))url.searchParams.set(key,value);
    const response=await request(url);assert.equal(response.status,302);const callback=new URL(response.headers.location);assert.equal(callback.searchParams.get('state'),state);assert.equal(callback.origin,'https://memos.example.test');
-   return {idpName,code:callback.searchParams.get('code'),redirectUri,codeVerifier:verifier};
+   return {identityProvider:idpName,idpName,code:callback.searchParams.get('code'),redirectUri,codeVerifier:verifier};
   }
-  const provider=await(await api('/api/v1/'+idpName)).json();assert.equal(provider.name,idpName);
-  const identityPath='/api/v1/users/'+username+'/linkedIdentities';
+  const provider=await(await api('/api/'+idpName)).json();assert.equal(provider.name,idpName);
+  const identityPath='/api/users/'+username+'/linkedIdentities';
   const existing=(await(await api(identityPath)).json()).linkedIdentities??[];
-  if(!existing.length){const linked=await(await api(identityPath,{method:'POST',body:await credentials('hf-admin')})).json();assert.equal(linked.externUid,'hf-admin');}
-  else assert.equal(existing.find(i=>i.idpName===idpName)?.externUid,'hf-admin');
-  const signin=body=>fetch(base+'/api/v1/auth/signin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ssoCredentials:body}),signal:AbortSignal.timeout(15000)});
+  if(!existing.length){const linked=await(await api(identityPath,{method:'POST',body:{parent:'users/'+username,...await credentials('hf-admin')}})).json();assert.equal(linked.externalUid||linked.externUid,'hf-admin');}
+  else assert.equal((existing.find(i=>(i.identityProvider||i.idpName)===idpName)?.externalUid||existing.find(i=>(i.identityProvider||i.idpName)===idpName)?.externUid),'hf-admin');
+  const signin=body=>fetch(base+'/api/auth/signin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ssoCredentials:body}),signal:AbortSignal.timeout(15000)});
   const valid=await credentials('hf-admin'),login=await signin(valid);assert.equal(login.status,200);const result=await login.json();assert.equal(result.user.name,'users/'+username);assert.equal(result.user.role,'ADMIN');assert.ok(result.accessToken);
-  const memo=await fetch(base+'/api/v1/'+memoName,{headers:{Authorization:'Bearer '+result.accessToken}});assert.equal(memo.status,200);
-  const before=(await(await api('/api/v1/users')).json()).users.map(u=>u.name).sort();
+  const memo=await fetch(base+'/api/'+memoName,{headers:{Authorization:'Bearer '+result.accessToken}});assert.equal(memo.status,200);
+  const before=(await(await api('/api/users')).json()).users.map(u=>u.name).sort();
   for(const subject of ['hf-new','hf-other']){const denied=await signin(await credentials(subject));assert.equal(denied.status,403);assert.equal((await denied.json()).accessToken,undefined);}
-  const after=(await(await api('/api/v1/users')).json()).users.map(u=>u.name).sort();assert.deepEqual(after,before);
+  const after=(await(await api('/api/users')).json()).users.map(u=>u.name).sort();assert.deepEqual(after,before);
   await api(identityPath,{method:'POST',body:await credentials('hf-other'),status:409});
   for(const invalid of [valid,{...await credentials('hf-admin'),codeVerifier:'wrong-verifier'}]){const denied=await signin(invalid);assert.notEqual(denied.status,200);assert.equal((await denied.json()).accessToken,undefined);}
-  const retained=(await(await api(identityPath)).json()).linkedIdentities;assert.equal(retained.find(i=>i.idpName===idpName).externUid,'hf-admin');
+  const retained=(await(await api(identityPath)).json()).linkedIdentities;assert.equal((retained.find(i=>(i.identityProvider||i.idpName)===idpName).externalUid||retained.find(i=>(i.identityProvider||i.idpName)===idpName).externUid),'hf-admin');
   console.log('PASS native OAuth2 trusted HTTPS, explicit account linkage, provider-enforced S256 and one-use code, closed enrollment and subject-change denial');
  }finally{
   if(process.platform==='win32'&&child.exitCode===null){try{execFileSync('taskkill',['/PID',String(child.pid),'/T','/F'],{stdio:'ignore'});}catch(error){let gone=false;try{process.kill(child.pid,0);}catch(e){if(e.code==='ESRCH')gone=true;else throw e;}if(!gone)throw error;}}else child.kill();
