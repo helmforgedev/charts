@@ -158,7 +158,7 @@ externalSecrets:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/n8nio/n8n` | n8n container image repository |
-| `image.tag` | `2.44.4` | n8n container image tag |
+| `image.tag` | `3.2.2` | n8n container image tag |
 | `commonAnnotations` | `{}` | Annotations added to every chart-owned resource |
 | `containerPorts.http` | `5678` | Main n8n process HTTP listener |
 | `containerPorts.runnerBroker` | `5679` | External task-runner broker listener |
