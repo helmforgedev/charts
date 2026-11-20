@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
+import {readFileSync} from 'node:fs';
 
 const [context, namespace, release] = process.argv.slice(2);
 assert.ok(context?.startsWith('k3d-helmforge-') && namespace && release);
@@ -13,7 +14,9 @@ const pod = pods.find(p => !p.metadata.deletionTimestamp
   && p.spec.containers.some(c => c.name === 'medikeep'));
 assert.ok(pod, 'Ready MediKeep pod required');
 const container = pod.spec.containers.find(c => c.name === 'medikeep');
-assert.match(container.image, /:v0\.72\.0$/);
+const chartYaml = readFileSync(new URL('../Chart.yaml', import.meta.url), 'utf8');
+const expectedVersion = chartYaml.match(/^appVersion:\s*["']?([^"'\s]+)["']?/m)?.[1] ?? '0.74.0';
+assert.match(container.image, new RegExp(`:v?${expectedVersion.replace(/\\./g, '\\.')}$`));
 const ssoOnly = ['true', '1', 'yes', 'on'].includes(
   container.env.find(e => e.name === 'SSO_ONLY_MODE')?.value?.toLowerCase());
 const result = run(['exec', pod.metadata.name, '-c', 'medikeep', '--', 'python', '-c', `
@@ -30,6 +33,6 @@ if config['sso_only']:
         raise AssertionError('Password login must be disabled')
     except urllib.error.HTTPError as error:
         assert error.code == 403, error.code
-print('MediKeep 0.72.0 health and authentication mode verified; sso_only=' + str(config['sso_only']))
+print('MediKeep ${expectedVersion} health and authentication mode verified; sso_only=' + str(config['sso_only']))
 `]);
 console.log(result.trim());
