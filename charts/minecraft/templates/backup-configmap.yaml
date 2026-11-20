@@ -7,6 +7,7 @@ metadata:
   labels:
     {{- include "minecraft.labels" . | nindent 4 }}
     app.kubernetes.io/component: backup
+  {{- include "minecraft.renderAnnotations" (dict "root" .) | nindent 2 }}
 data:
   pre-backup.sh: |
     #!/bin/sh
@@ -49,11 +50,24 @@ data:
     ARCHIVE_NAME=$(basename "${BACKUP_FILE}")
 
     echo "[backup] Configuring S3 client..."
-    mc alias set backup "${S3_ENDPOINT}" "${S3_ACCESS_KEY}" "${S3_SECRET_KEY}"
+    if [ "${S3_CREDENTIALS_FROM_POD_IDENTITY}" = "true" ]; then
+      export MC_HOST_backup="${S3_ENDPOINT}"
+      sts_domain="amazonaws.com"
+      case "${AWS_REGION}" in
+        cn-*) sts_domain="amazonaws.com.cn" ;;
+      esac
+      export MC_STS_ENDPOINT_backup="https://sts.${AWS_REGION}.${sts_domain}"
+    else
+      mc alias set backup "${S3_ENDPOINT}" "${S3_ACCESS_KEY}" "${S3_SECRET_KEY}" --api S3v4
+    fi
 
     {{- if .Values.backup.s3.createBucketIfNotExists }}
     echo "[backup] Ensuring bucket exists..."
-    mc mb --ignore-existing "backup/${S3_BUCKET}"
+    if [ "${S3_CREDENTIALS_FROM_POD_IDENTITY}" = "true" ]; then
+      mc mb --ignore-existing --region="${AWS_REGION}" "backup/${S3_BUCKET}"
+    else
+      mc mb --ignore-existing "backup/${S3_BUCKET}"
+    fi
     {{- end }}
 
     TARGET="backup/${S3_BUCKET}/${S3_PREFIX}/${ARCHIVE_NAME}"

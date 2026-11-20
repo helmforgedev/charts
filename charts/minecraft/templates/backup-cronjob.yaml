@@ -7,6 +7,7 @@ metadata:
   labels:
     {{- include "minecraft.labels" . | nindent 4 }}
     app.kubernetes.io/component: backup
+  {{- include "minecraft.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   schedule: {{ .Values.backup.schedule | quote }}
   suspend: {{ .Values.backup.suspend }}
@@ -30,11 +31,11 @@ spec:
           imagePullSecrets:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.podSecurityContext }}
           securityContext:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
+            {{- toYaml .Values.backup.podSecurityContext | nindent 12 }}
           restartPolicy: Never
+          serviceAccountName: {{ include "minecraft.backupServiceAccountName" . }}
+          automountServiceAccountToken: {{ .Values.backup.serviceAccount.automountServiceAccountToken }}
           initContainers:
             - name: pre-backup
               image: {{ .Values.backup.images.worker }}
@@ -49,6 +50,8 @@ spec:
                     secretKeyRef:
                       name: {{ include "minecraft.secretName" . }}
                       key: {{ include "minecraft.secretKey" . }}
+              securityContext:
+                {{- toYaml .Values.backup.securityContext | nindent 16 }}
               {{- with .Values.backup.resources }}
               resources:
                 {{- toYaml . | nindent 16 }}
@@ -63,6 +66,8 @@ spec:
               env:
                 - name: BACKUP_ARCHIVE_PREFIX
                   value: {{ .Values.backup.archivePrefix | quote }}
+              securityContext:
+                {{- toYaml .Values.backup.securityContext | nindent 16 }}
               {{- with .Values.backup.resources }}
               resources:
                 {{- toYaml . | nindent 16 }}
@@ -87,6 +92,7 @@ spec:
                   value: {{ .Values.backup.s3.bucket | quote }}
                 - name: S3_PREFIX
                   value: {{ .Values.backup.s3.prefix | quote }}
+                {{- if not .Values.backup.s3.credentialsFromPodIdentity }}
                 - name: S3_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
@@ -97,6 +103,19 @@ spec:
                     secretKeyRef:
                       name: {{ include "minecraft.backupSecretName" . }}
                       key: {{ .Values.backup.s3.existingSecretSecretKeyKey }}
+                {{- end }}
+                - name: MC_CONFIG_DIR
+                  value: /backup/out/.mc
+                - name: S3_CREDENTIALS_FROM_POD_IDENTITY
+                  value: {{ ternary "true" "false" .Values.backup.s3.credentialsFromPodIdentity | quote }}
+                {{- if .Values.backup.s3.credentialsFromPodIdentity }}
+                - name: AWS_REGION
+                  value: {{ .Values.backup.s3.region | quote }}
+                - name: AWS_DEFAULT_REGION
+                  value: {{ .Values.backup.s3.region | quote }}
+                {{- end }}
+              securityContext:
+                {{- toYaml .Values.backup.securityContext | nindent 16 }}
               {{- with .Values.backup.resources }}
               resources:
                 {{- toYaml . | nindent 16 }}
@@ -120,6 +139,8 @@ spec:
                     secretKeyRef:
                       name: {{ include "minecraft.secretName" . }}
                       key: {{ include "minecraft.secretKey" . }}
+              securityContext:
+                {{- toYaml .Values.backup.securityContext | nindent 16 }}
               {{- with .Values.backup.resources }}
               resources:
                 {{- toYaml . | nindent 16 }}

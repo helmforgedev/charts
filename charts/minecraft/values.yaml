@@ -16,6 +16,9 @@ fullnameOverride: ""
 # -- Labels added to every resource created by this chart
 commonLabels: {}
 
+# -- Annotations added to every resource created by this chart
+commonAnnotations: {}
+
 # =============================================================================
 # Image
 # =============================================================================
@@ -24,7 +27,7 @@ image:
   # -- Container image repository
   repository: docker.io/itzg/minecraft-server
   # -- Container image tag
-  tag: "2026.10.0"
+  tag: "2026.11.0"
   # -- Image pull policy
   pullPolicy: IfNotPresent
 
@@ -413,12 +416,35 @@ backup:
 
   images:
     # -- Image used for RCON commands and tar archiving (must have sh, tar, and rcon-cli)
-    worker: docker.io/itzg/minecraft-server:2026.10.0
+    worker: docker.io/itzg/minecraft-server:2026.11.0
     # -- Image used for S3 upload (MinIO client)
     uploader: docker.io/helmforge/mc:1.0.0
 
+  # -- Dedicated ServiceAccount configuration for backup jobs
+  serviceAccount:
+    # -- Specifies whether a dedicated ServiceAccount should be created
+    create: true
+    # -- The name of the ServiceAccount to use (if not set, generated from release name)
+    name: ""
+    # -- Annotations to add to the backup ServiceAccount (e.g. AWS IRSA / EKS Pod Identity)
+    annotations: {}
+    # -- Automount API credentials for the backup ServiceAccount
+    automountServiceAccountToken: false
+
   # -- Resources for backup containers
   resources: {}
+
+  # -- Pod-level security context for backup jobs
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
+
+  # -- Container-level security context for backup jobs
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
 
   s3:
     # -- S3-compatible endpoint URL (e.g., https://s3.amazonaws.com, https://minio.example.com)
@@ -447,6 +473,12 @@ backup:
 
     # -- Inline S3 secret key (ignored when existingSecret is set)
     secretKey: ""
+
+    # -- Use ambient workload identity (e.g., AWS IRSA / EKS Pod Identity) instead of static credentials
+    credentialsFromPodIdentity: false
+
+    # -- AWS region required when credentialsFromPodIdentity is true
+    region: ""
 
 # =============================================================================
 # Mods & Plugins
