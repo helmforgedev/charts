@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { setTimeout as delay } from 'node:timers/promises';
+
+const chartYaml = readFileSync(new URL('../Chart.yaml', import.meta.url), 'utf8');
+const expectedVersion = chartYaml.match(/^appVersion:\s*["']?([^"'\s]+)["']?/m)?.[1] || '0.83.1';
+const versionRegex = new RegExp(`management server version ${expectedVersion.replace(/\./g, '\\.')}\\b`);
 
 if (Number(process.versions.node.split('.')[0]) < 22) {
   throw new Error('Node.js >= 22 is required for the relay WebSocket smoke test');
@@ -51,7 +56,7 @@ for (let index = 0; index < 360; index += 1) {
   if (logs.includes('running metrics server:')) break;
   await delay(1000);
 }
-assert.match(logs, /management server version 0\.81\.5\b/);
+assert.match(logs, versionRegex);
 assert.match(logs, /running metrics server:/);
 
 function forward(podName, remotePorts) {
@@ -86,11 +91,13 @@ async function forwardedPorts(state, expected) {
 
 function stopForward(state) {
   if (state.child.exitCode !== null) return;
-  if (process.platform === 'win32') {
-    execFileSync('taskkill', ['/PID', String(state.child.pid), '/T', '/F'], { stdio: 'ignore' });
-  } else {
-    state.child.kill('SIGTERM');
-  }
+  try {
+    if (process.platform === 'win32') {
+      execFileSync('taskkill', ['/PID', String(state.child.pid), '/T', '/F'], { stdio: 'ignore' });
+    } else {
+      state.child.kill('SIGTERM');
+    }
+  } catch {}
 }
 
 const serverForward = forward(serverPod.metadata.name, [serverHttpPort, metricsPort]);
@@ -152,7 +159,7 @@ try {
     );
   });
   console.log(
-    `NetBird 0.81.5: server HTTP ${serverHttpPort}, metrics ${metricsPort}, dashboard HTTP ${dashboardHttpPort}, embedded OIDC, relay WebSocket, and Prometheus exposition verified.`,
+    `NetBird ${expectedVersion}: server HTTP ${serverHttpPort}, metrics ${metricsPort}, dashboard HTTP ${dashboardHttpPort}, embedded OIDC, relay WebSocket, and Prometheus exposition verified.`,
   );
 } finally {
   stopForward(serverForward);
