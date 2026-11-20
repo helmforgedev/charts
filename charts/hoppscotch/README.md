@@ -76,12 +76,13 @@ backend process inside the AIO image.
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `mode` | Chart mode: `dev` or `production` | `dev` |
-| `image.tag` | Hoppscotch image tag | `2026.9.0` |
+| `commonAnnotations` | Annotations added to all resources | `{}` |
+| `image.tag` | Hoppscotch image tag | `2026.10.1` |
 | `namespaceOverride` | Namespace for chart-managed resources. Use with an external database; bundled PostgreSQL remains in the Helm release namespace. | `""` |
 | `replicaCount` | Number of replicas | `1` |
 | `ingress.enabled` | Enable Ingress | `false` |
 | `ingress.host` | Primary hostname (auto-derives all URLs) | `""` |
-| `postgresql.enabled` | Enable PostgreSQL subchart (`helmforge/postgresql` `2.1.1`) | `true` |
+| `postgresql.enabled` | Enable PostgreSQL subchart (`helmforge/postgresql` `2.2.0`) | `true` |
 | `postgresql.initdb.scripts` | Bootstrap Hoppscotch PostgreSQL extensions | `pg_trgm` |
 | `postgresqlExtensionsJob.enabled` | Run the pre-upgrade hook that ensures `pg_trgm` exists on bundled PostgreSQL PVCs before Prisma migrations | `true` |
 | `postgresqlExtensionsJob.requireExistingResources` | Only render the `pg_trgm` pre-upgrade hook when bundled PostgreSQL resources already exist | `true` |
@@ -104,10 +105,11 @@ backend process inside the AIO image.
 
 ## Upgrade Notes
 
-Hoppscotch `2026.9.0` adds the AI assistant and related provider connections for Enterprise Self-Host, introduces Enterprise
-Cloud capabilities, and updates backend dependencies and Caddy to address high-severity vulnerabilities. The Community Edition
-deployment contract, database migration command, ports, and health endpoint remain compatible with `2026.8.2`. Back up the
-PostgreSQL database and keep `DATA_ENCRYPTION_KEY` stable before upgrading.
+Hoppscotch `2026.10.1` improves the desktop experience by granting bundle origins
+on Windows and fixes chat reply links to open directly in the browser. The deployment
+contract, database migration command, ports, and health endpoint remain compatible with
+`2026.9.0`. Back up the PostgreSQL database and keep `DATA_ENCRYPTION_KEY` stable
+before upgrading.
 The bundled PostgreSQL path now derives `DATABASE_URL` from the PostgreSQL
 user password Secret, bootstraps `pg_trgm` on fresh data directories, and runs
 a pre-upgrade hook to apply `pg_trgm` to existing bundled PostgreSQL PVCs before

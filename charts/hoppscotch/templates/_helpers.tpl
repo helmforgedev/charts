@@ -27,6 +27,16 @@ app.kubernetes.io/part-of: helmforge
 {{- end }}
 {{- end -}}
 
+{{- define "hoppscotch.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "hoppscotch.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "hoppscotch.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
