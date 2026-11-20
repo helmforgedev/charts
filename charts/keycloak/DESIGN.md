@@ -54,7 +54,7 @@ It should not try to behave like the Keycloak Operator.
 ## Image and Version Baseline
 
 - image: `quay.io/keycloak/keycloak`
-- current app baseline: `26.8.1`
+- current app baseline: `26.8.2`
 
 ## Supported Modes in v1
 
