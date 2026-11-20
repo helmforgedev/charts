@@ -130,7 +130,7 @@ chromium:
 | Key | Default | Description |
 | --- | --- | --- |
 | `image.repository` | `ghcr.io/karakeep-app/karakeep` | Main Karakeep image |
-| `image.tag` | `"0.34.1"` | Main Karakeep image tag |
+| `image.tag` | `"0.35.0"` | Main Karakeep image tag |
 | `containerPorts.http` | `3000` | Karakeep process listener port |
 | `karakeep.nextAuthUrl` | `""` | Public URL of the Karakeep instance |
 | `karakeep.browserConnectOnDemand` | `true` | Connect to Chromium only when crawling needs it |
