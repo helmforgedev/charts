@@ -225,7 +225,7 @@ Operational documents:
 |-----------|-------------|---------|
 | `architecture` | `standalone` or `replication` | `standalone` |
 | `image.repository` | MySQL image repository | `docker.io/library/mysql` |
-| `image.tag` | MySQL image tag | `26.7.0` |
+| `image.tag` | MySQL image tag | `26.10.0` |
 | `auth.database` | App database created at bootstrap | `app` |
 | `auth.username` | App user created at bootstrap | `app` |
 | `auth.existingSecret` | Existing secret for passwords | `""` |
