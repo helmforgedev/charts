@@ -12,15 +12,15 @@ try {
  let ready=false;const deadline=Date.now()+120000;
  while(Date.now()<deadline&&child.exitCode===null&&!spawnError){try{if((await request('/healthz')).ok){ready=true;break;}}catch{}await new Promise(r=>setTimeout(r,250));}
  if(!ready)throw new Error('Private bootstrap listener did not become ready: '+(spawnError?.message||diagnostics));
- const profileResponse=await request('/api/v1/instance/profile');if(!profileResponse.ok)throw new Error('Unable to read native setup state');
+ const profileResponse=await request('/api/instance/profile');if(!profileResponse.ok)throw new Error('Unable to read native setup state');
  const profile=await profileResponse.json();
  if(typeof profile.version!=='string')throw new Error('Native instance profile is incomplete');
  if(profile.needsSetup===true){
   const password=fs.readFileSync('/bootstrap-auth/password','utf8');const username=process.env.BOOTSTRAP_USERNAME;
-  const response=await request('/api/v1/users',{username,password,displayName:process.env.BOOTSTRAP_DISPLAY_NAME});
+  const response=await request('/api/users',{username,password,displayName:process.env.BOOTSTRAP_DISPLAY_NAME});
   if(!response.ok)throw new Error('Native administrator creation failed with HTTP '+response.status);
   const user=await response.json();if(user.role!=='ADMIN')throw new Error('Native bootstrap did not create ADMIN role');
-  const login=await request('/api/v1/auth/signin',{passwordCredentials:{username,password}});if(!login.ok)throw new Error('New administrator cannot authenticate');
+  const login=await request('/api/auth/signin',{passwordCredentials:{username,password}});if(!login.ok)throw new Error('New administrator cannot authenticate');
   console.log('Initial administrator created and authenticated on loopback before public exposure');
  }else if(profile.needsSetup===false||profile.needsSetup===undefined){
   // Protobuf JSON can omit the default false field. The instance profile endpoint succeeded.

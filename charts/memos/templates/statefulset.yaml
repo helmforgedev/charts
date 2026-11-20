@@ -5,6 +5,7 @@ metadata:
   name: {{ include "memos.fullname" . }}
   labels:
     {{- include "memos.labels" . | nindent 4 }}
+  {{- include "memos.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   serviceName: {{ include "memos.fullname" . }}
   replicas: {{ .Values.replicaCount }}
@@ -24,7 +25,9 @@ spec:
         {{- if .Values.bootstrap.enabled }}
         checksum/bootstrap: {{ printf "%s%s" (toJson .Values.bootstrap) (.Files.Get "files/bootstrap.mjs") | sha256sum }}
         {{- end }}
-        {{- with .Values.podAnnotations }}{{ toYaml . | nindent 8 }}{{- end }}
+        {{- with mergeOverwrite (deepCopy (.Values.commonAnnotations | default dict)) (.Values.podAnnotations | default dict) }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       serviceAccountName: {{ include "memos.serviceAccountName" . }}
       automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
@@ -92,7 +95,7 @@ spec:
             - {name: bootstrap-script, mountPath: /bootstrap-script, readOnly: true}
             - {name: bootstrap-auth, mountPath: /bootstrap-auth, readOnly: true}
             - {name: tmp, mountPath: /tmp}
-            - {name: provisioning, mountPath: /etc/secrets, readOnly: true}
+            - {name: provisioning, mountPath: /etc/memos/config, readOnly: true}
             {{- if include "memos.databaseComponents" . }}
             - {name: database-runtime, mountPath: /database-runtime, readOnly: true}
             {{- end }}
@@ -180,7 +183,7 @@ spec:
             - name: data
               mountPath: {{ .Values.persistence.mountPath }}
             - name: provisioning
-              mountPath: /etc/secrets
+              mountPath: /etc/memos/config
               readOnly: true
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
@@ -252,9 +255,13 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
   {{- if and .Values.persistence.enabled (not .Values.persistence.existingClaim) }}
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: {{ .Values.persistence.retentionPolicy.whenDeleted }}
+    whenScaled: {{ .Values.persistence.retentionPolicy.whenScaled }}
   volumeClaimTemplates:
     - metadata:
         name: data
+        {{- include "memos.renderAnnotations" (dict "root" . "specific" .Values.persistence.annotations) | nindent 8 }}
       spec:
         accessModes:
           {{- toYaml .Values.persistence.accessModes | nindent 10 }}

@@ -5,7 +5,7 @@
 Deploy [Memos](https://github.com/usememos/memos), a lightweight self-hosted note-taking service, with
 production-oriented Kubernetes defaults.
 
-This chart packages the official `docker.io/neosmemo/memos:0.31.0` image and exposes the runtime settings that matter
+This chart packages the official `docker.io/neosmemo/memos:26.11.1` image and exposes the runtime settings that matter
 for Kubernetes: persistent data, SQLite or external database configuration, canonical instance URL, ingress/Gateway API
 exposure, network policy, pod disruption budgets, file-backed deployment configuration, and non-root security context.
 
@@ -115,7 +115,7 @@ the administrator UI or a file-backed `ACCESS` instance setting. RSS was removed
 
 ## Deployment Configuration
 
-Memos 0.31 can load OAuth2 identity providers and instance settings from JSON files under `/etc/secrets`. Keep the JSON
+Memos 26.11 can load OAuth2 identity providers and instance settings from JSON files under `/etc/memos/config`. Keep the JSON
 in a Kubernetes Secret and let the chart mount it read-only:
 
 ```yaml
@@ -191,7 +191,7 @@ unknown fields, duplicate stable keys, and invalid cross-resource authentication
 | Parameter | Description | Default |
 | --- | --- | --- |
 | `image.repository` | Official Memos image repository | `docker.io/neosmemo/memos` |
-| `image.tag` | Pinned Memos release | `0.31.0` |
+| `image.tag` | Pinned Memos release | `26.11.1` |
 | `app.port` | Native Memos HTTP listener port | `5230` |
 | `memos.instanceUrl` | Canonical external HTTP(S) URL, independent from access policy | `""` |
 | `database.driver` | Database backend: `sqlite`, `mysql`, or `postgres` | `sqlite` |
