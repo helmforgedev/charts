@@ -6,6 +6,7 @@ metadata:
   name: {{ include "oauth2-proxy.fullname" . }}
   labels:
     {{- include "oauth2-proxy.labels" . | nindent 4 }}
+  {{- include "oauth2-proxy.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
@@ -22,8 +23,15 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
-        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/config: {{ (include (print $.Template.BasePath "/configmap.yaml") . | fromYaml).data | toYaml | sha256sum }}
+        {{- $secretContent := include (print $.Template.BasePath "/secret.yaml") . -}}
+        {{- if $secretContent }}
+        {{- with (fromYaml $secretContent) }}
+        {{- if .stringData }}
+        checksum/secret: {{ .stringData | toYaml | sha256sum }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
