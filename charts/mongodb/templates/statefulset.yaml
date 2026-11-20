@@ -6,10 +6,7 @@ metadata:
   name: {{ include "mongodb.fullname" . }}
   labels:
     {{- include "mongodb.labels" . | nindent 4 }}
-  {{- with .Values.annotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+  {{- include "mongodb.renderAnnotations" (dict "root" . "specific" .Values.annotations) | nindent 2 }}
 spec:
   serviceName: {{ include "mongodb.headlessServiceName" . }}
   replicas: {{ include "mongodb.replicaCount" . }}
@@ -22,6 +19,15 @@ spec:
       app.kubernetes.io/component: mongodb
   template:
     {{- include "mongodb.podTemplate" (dict "root" . "component" "mongodb") | nindent 4 }}
+  {{- if and .Values.persistence.enabled (or .Values.persistence.retentionPolicy.whenDeleted .Values.persistence.retentionPolicy.whenScaled) }}
+  persistentVolumeClaimRetentionPolicy:
+    {{- with .Values.persistence.retentionPolicy.whenDeleted }}
+    whenDeleted: {{ . }}
+    {{- end }}
+    {{- with .Values.persistence.retentionPolicy.whenScaled }}
+    whenScaled: {{ . }}
+    {{- end }}
+  {{- end }}
   {{- if .Values.persistence.enabled }}
   volumeClaimTemplates:
     - metadata:

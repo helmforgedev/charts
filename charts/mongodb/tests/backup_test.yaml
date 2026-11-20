@@ -3,6 +3,7 @@ suite: Backup
 templates:
   - templates/backup-configmap.yaml
   - templates/backup-cronjob.yaml
+  - templates/backup-serviceaccount.yaml
   - templates/secret.yaml
 release:
   name: test
@@ -88,3 +89,40 @@ tests:
       - equal:
           path: spec.jobTemplate.spec.template.spec.initContainers[0].securityContext.allowPrivilegeEscalation
           value: false
+
+  - it: should render backup ServiceAccount when backup enabled
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    template: templates/backup-serviceaccount.yaml
+    asserts:
+      - isKind:
+          of: ServiceAccount
+      - equal:
+          path: metadata.name
+          value: test-mongodb-backup
+
+  - it: should configure workload identity when credentialsFromPodIdentity is true
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.us-west-2.amazonaws.com
+      backup.s3.bucket: backups
+      backup.s3.credentialsFromPodIdentity: true
+      backup.s3.region: us-west-2
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env[5].name
+          value: S3_CREDENTIALS_FROM_POD_IDENTITY
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env[5].value
+          value: "true"
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env[6].name
+          value: AWS_REGION
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env[6].value
+          value: us-west-2

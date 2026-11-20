@@ -15,13 +15,16 @@ fullnameOverride: ""
 # -- Labels added to all resources
 commonLabels: {}
 
+# -- Common annotations added to every resource created by this chart
+commonAnnotations: {}
+
 # =============================================================================
 # Image
 # =============================================================================
 
 image:
   repository: docker.io/library/mongo
-  tag: "9.0.4"
+  tag: "9.0.8"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -115,6 +118,10 @@ sharded:
     persistence:
       size: 8Gi
       storageClass: ""
+      # -- PVC retention when the StatefulSet is deleted or scaled. Retain or Delete. Empty uses the Kubernetes default.
+      retentionPolicy:
+        whenDeleted: ""
+        whenScaled: ""
 
   shards:
     # -- Number of shards
@@ -126,6 +133,10 @@ sharded:
     persistence:
       size: 16Gi
       storageClass: ""
+      # -- PVC retention when the StatefulSet is deleted or scaled. Retain or Delete. Empty uses the Kubernetes default.
+      retentionPolicy:
+        whenDeleted: ""
+        whenScaled: ""
 
 # =============================================================================
 # Persistence
@@ -142,6 +153,10 @@ persistence:
   size: 8Gi
   # -- Use an existing PVC (standalone only)
   existingClaim: ""
+  # -- PVC retention when the StatefulSet is deleted or scaled. Retain or Delete. Empty uses the Kubernetes default.
+  retentionPolicy:
+    whenDeleted: ""
+    whenScaled: ""
 
 # =============================================================================
 # Mongod Configuration
@@ -208,7 +223,14 @@ podSecurityContext:
   seccompProfile:
     type: RuntimeDefault
 
-securityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
+  runAsUser: 999
+  runAsGroup: 999
+  runAsNonRoot: true
+  capabilities:
+    drop:
+      - ALL
 
 # -- Security context applied to init containers (such as the replica-set
 # keyfile bootstrap container). The default runs as the image default user
@@ -284,9 +306,9 @@ livenessProbe:
       - -ec
       - |
         if [ -n "${MONGO_INITDB_ROOT_USERNAME:-}" ]; then
-          mongosh --quiet --eval "db.adminCommand('ping')" -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin
+          mongosh --norc --quiet --eval "db.adminCommand('ping')" -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin
         else
-          mongosh --quiet --eval "db.adminCommand('ping')"
+          mongosh --norc --quiet --eval "db.adminCommand('ping')"
         fi
   initialDelaySeconds: 30
   periodSeconds: 20
@@ -300,13 +322,13 @@ readinessProbe:
       - -ec
       - |
         if [ -n "${MONGO_INITDB_ROOT_USERNAME:-}" ]; then
-          mongosh --quiet --eval "db.adminCommand('ping')" -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin
+          mongosh --norc --quiet --eval "db.adminCommand('ping')" -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin
         else
-          mongosh --quiet --eval "db.adminCommand('ping')"
+          mongosh --norc --quiet --eval "db.adminCommand('ping')"
         fi
   initialDelaySeconds: 10
   periodSeconds: 10
-  timeoutSeconds: 5
+  timeoutSeconds: 10
   failureThreshold: 3
 
 startupProbe:
@@ -316,13 +338,13 @@ startupProbe:
       - -ec
       - |
         if [ -n "${MONGO_INITDB_ROOT_USERNAME:-}" ]; then
-          mongosh --quiet --eval "db.adminCommand('ping')" -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin
+          mongosh --norc --quiet --eval "db.adminCommand('ping')" -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin
         else
-          mongosh --quiet --eval "db.adminCommand('ping')"
+          mongosh --norc --quiet --eval "db.adminCommand('ping')"
         fi
   initialDelaySeconds: 5
   periodSeconds: 10
-  timeoutSeconds: 5
+  timeoutSeconds: 15
   failureThreshold: 30
 
 # =============================================================================
@@ -354,6 +376,17 @@ metrics:
 backup:
   # -- Enable built-in backup CronJob support
   enabled: false
+
+  # -- Dedicated ServiceAccount configuration for backup jobs
+  serviceAccount:
+    # -- Specifies whether a dedicated ServiceAccount should be created
+    create: true
+    # -- The name of the ServiceAccount to use (if not set, generated from release name)
+    name: ""
+    # -- Annotations to add to the backup ServiceAccount (e.g. AWS IRSA / EKS Pod Identity)
+    annotations: {}
+    # -- Automount API credentials for the backup ServiceAccount
+    automountServiceAccountToken: false
   # -- Backup schedule in Cron format
   schedule: "0 3 * * *"
   # -- Suspend backup execution
@@ -377,7 +410,7 @@ backup:
       pullPolicy: IfNotPresent
     mongodb:
       repository: docker.io/library/mongo
-      tag: "9.0.4"
+      tag: "9.0.8"
       pullPolicy: IfNotPresent
   s3:
     # -- S3-compatible endpoint URL, for example: https://s3.amazonaws.com or https://minio.example.com
@@ -398,6 +431,10 @@ backup:
     accessKey: ""
     # -- Inline secret key used when backup.s3.existingSecret is not set
     secretKey: ""
+    # -- Use ambient workload identity (e.g. AWS IRSA / EKS Pod Identity) instead of static credentials
+    credentialsFromPodIdentity: false
+    # -- AWS region required when credentialsFromPodIdentity is true
+    region: ""
   database:
     # -- Extra arguments passed to mongodump
     mongoDumpArgs: ""
