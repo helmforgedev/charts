@@ -164,12 +164,12 @@ When an ExternalSecret owns a target Secret, the native generated Secret for tha
 
 ## Keycloak 26.8.x rollout notes
 
-The default image is `quay.io/keycloak/keycloak:26.8.1`. This patch supersedes
-26.8.0 and includes security fixes.
+The default image is `quay.io/keycloak/keycloak:26.8.2`. This patch supersedes
+26.8.1 and includes security fixes.
 
 Before rolling this version into production:
 
-- read the official [26.8.0 release notes](https://www.keycloak.org/docs/26.8.0/release_notes/) and [26.8.1 release](https://github.com/keycloak/keycloak/releases/tag/26.8.1)
+- read the official [26.8.0 release notes](https://www.keycloak.org/docs/26.8.0/release_notes/) and [26.8.2 release](https://github.com/keycloak/keycloak/releases/tag/26.8.2)
 - migrate `multi-site` deployments toward the `stateless` feature before the deprecated multi-cluster v1 support is removed
 - verify background index creation completes on large database tables after the schema migration
 - validate database startup and migration logs
