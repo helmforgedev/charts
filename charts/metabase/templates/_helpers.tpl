@@ -122,11 +122,37 @@ app.kubernetes.io/instance: {{ .Release.Name }}
   {{- if not .Values.backup.s3.bucket -}}
     {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
   {{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.accessKey) -}}
-    {{- fail "backup.s3.accessKey or backup.s3.existingSecret is required when backup.enabled is true" -}}
+  {{- if and (not .Values.backup.s3.credentialsFromPodIdentity) (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.accessKey) -}}
+    {{- fail "backup.s3.accessKey or backup.s3.existingSecret is required when backup.enabled is true and credentialsFromPodIdentity is false" -}}
+  {{- end -}}
+  {{- if and .Values.backup.s3.credentialsFromPodIdentity (not .Values.backup.s3.region) -}}
+    {{- fail "backup.s3.region is required when backup.s3.credentialsFromPodIdentity is true" -}}
   {{- end -}}
 true
 {{- end -}}
+{{- end -}}
+
+{{/* Backup — dedicated ServiceAccount name */}}
+{{- define "metabase.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create -}}
+{{- default (printf "%s-backup" (include "metabase.fullname" .)) .Values.backup.serviceAccount.name -}}
+{{- else -}}
+{{- required "metabase: backup.serviceAccount.name is required when backup.serviceAccount.create is false" .Values.backup.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Render merged annotations: root.Values.commonAnnotations and specific annotations.
+Usage: {{- include "metabase.renderAnnotations" (dict "root" . "specific" .Values.service.annotations) | nindent 2 }}
+*/}}
+{{- define "metabase.renderAnnotations" -}}
+{{- $root := .root | default . -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := merge (deepCopy $specific) (deepCopy ($root.Values.commonAnnotations | default dict)) -}}
+{{- with $annotations }}
+annotations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
 {{- end -}}
 
 {{/* Backup — database host */}}

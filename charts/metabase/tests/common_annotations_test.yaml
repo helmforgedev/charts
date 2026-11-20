@@ -1,0 +1,102 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Common annotations and backup service account
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should apply commonAnnotations to deployment
+    template: templates/deployment.yaml
+    set:
+      commonAnnotations:
+        helmforge.dev/test: "true"
+    asserts:
+      - equal:
+          path: metadata.annotations["helmforge.dev/test"]
+          value: "true"
+      - equal:
+          path: spec.template.metadata.annotations["helmforge.dev/test"]
+          value: "true"
+
+  - it: should apply commonAnnotations to service
+    template: templates/service.yaml
+    set:
+      commonAnnotations:
+        helmforge.dev/test: "true"
+      service.annotations:
+        custom/service: "value"
+    asserts:
+      - equal:
+          path: metadata.annotations["helmforge.dev/test"]
+          value: "true"
+      - equal:
+          path: metadata.annotations["custom/service"]
+          value: "value"
+
+  - it: should apply commonAnnotations to serviceaccount
+    template: templates/serviceaccount.yaml
+    set:
+      commonAnnotations:
+        helmforge.dev/test: "true"
+      serviceAccount.create: true
+    asserts:
+      - equal:
+          path: metadata.annotations["helmforge.dev/test"]
+          value: "true"
+
+  - it: should apply commonAnnotations to secret
+    template: templates/secret.yaml
+    set:
+      commonAnnotations:
+        helmforge.dev/test: "true"
+    asserts:
+      - equal:
+          path: metadata.annotations["helmforge.dev/test"]
+          value: "true"
+
+  - it: should create dedicated backup service account and workload identity env vars
+    template: templates/backup-serviceaccount.yaml
+    set:
+      backup.enabled: true
+      backup.serviceAccount.create: true
+      backup.serviceAccount.annotations:
+        eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/backup
+      backup.s3.endpoint: https://s3.us-east-1.amazonaws.com
+      backup.s3.region: us-east-1
+      backup.s3.bucket: my-bucket
+      backup.s3.credentialsFromPodIdentity: true
+    asserts:
+      - isKind:
+          of: ServiceAccount
+      - equal:
+          path: metadata.name
+          value: test-metabase-backup
+      - equal:
+          path: metadata.annotations["eks.amazonaws.com/role-arn"]
+          value: "arn:aws:iam::123456789012:role/backup"
+      - equal:
+          path: metadata.labels["app.kubernetes.io/component"]
+          value: backup
+
+  - it: should configure backup cronjob with dedicated service account and workload identity
+    template: templates/backup-cronjob.yaml
+    set:
+      backup.enabled: true
+      backup.serviceAccount.create: true
+      backup.s3.endpoint: https://s3.us-east-1.amazonaws.com
+      backup.s3.region: us-east-1
+      backup.s3.bucket: my-bucket
+      backup.s3.credentialsFromPodIdentity: true
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.serviceAccountName
+          value: test-metabase-backup
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: S3_CREDENTIALS_FROM_POD_IDENTITY
+            value: "true"
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: AWS_REGION
+            value: us-east-1
