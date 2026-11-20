@@ -26,6 +26,16 @@ app.kubernetes.io/part-of: helmforge
 {{- end }}
 {{- end -}}
 
+{{- define "karakeep.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "karakeep.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "karakeep.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
