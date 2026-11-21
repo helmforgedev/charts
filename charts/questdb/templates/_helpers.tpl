@@ -6,6 +6,15 @@
 app.kubernetes.io/name: {{ include "questdb.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
+{{/* Merge common annotations with resource-specific annotations. */}}
+{{- define "questdb.renderAnnotations" -}}
+{{- $specific := default dict .specific -}}
+{{- $annotations := mergeOverwrite (deepCopy (default dict .root.Values.commonAnnotations)) $specific -}}
+{{- with $annotations }}
+annotations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
 {{- define "questdb.labels" -}}
 helm.sh/chart: {{ include "questdb.chart" . }}
 {{ include "questdb.selectorLabels" . }}
