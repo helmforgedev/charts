@@ -103,7 +103,7 @@ Use feature flags instead to enable optional components.
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `image.tag` | openHAB image tag | `5.2.3` |
+| `image.tag` | openHAB image tag | `5.2.4` |
 | `image.repository` | Image repository | `docker.io/openhab/openhab` |
 | `replicaCount` | Must be 1 — no clustering support | `1` |
 | `namespaceOverride` | Namespace for chart-managed resources | `""` |
@@ -257,7 +257,7 @@ See [Prometheus Metrics Guide](docs/metrics.md) for full details.
 
 ## Upgrade Notes
 
-openHAB `5.2.3` includes the security fixes introduced in `5.2.2`, plus fixes
+openHAB `5.2.4` includes the security fixes introduced in `5.2.2`, plus fixes
 for authentication through openHAB Cloud and reverse proxies and the Main UI
 map tile provider. Back up the `userdata`, `conf`, and `addons` PVCs before
 upgrading. openHAB 5.x still requires Java 21, which is provided by the official
