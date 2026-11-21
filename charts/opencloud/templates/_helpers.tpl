@@ -98,3 +98,42 @@ app.kubernetes.io/part-of: helmforge
 {{- end }}
 {{- toYaml ._opencloudTLSData }}
 {{- end -}}
+
+{{/*
+Render annotations combining commonAnnotations with resource-specific annotations.
+Usage:
+  {{- include "opencloud.renderAnnotations" (dict "root" . "context" "service") | nindent 2 }}
+  or
+  {{- include "opencloud.renderAnnotations" . | nindent 2 }}
+*/}}
+{{- define "opencloud.renderAnnotations" -}}
+{{- $root := . -}}
+{{- $context := "" -}}
+{{- $extra := dict -}}
+{{- if kindIs "map" . -}}
+  {{- if hasKey . "root" -}}
+    {{- $root = .root -}}
+    {{- $context = .context | default "" -}}
+    {{- $extra = .extra | default dict -}}
+  {{- end -}}
+{{- end -}}
+{{- $specific := dict -}}
+{{- if eq $context "service" -}}
+  {{- $specific = $root.Values.service.annotations | default dict -}}
+{{- else if eq $context "ingress" -}}
+  {{- $specific = $root.Values.ingress.annotations | default dict -}}
+{{- else if eq $context "serviceAccount" -}}
+  {{- $specific = $root.Values.serviceAccount.annotations | default dict -}}
+{{- else if eq $context "persistence" -}}
+  {{- $specific = $root.Values.persistence.annotations | default dict -}}
+{{- else if eq $context "httpRoute" -}}
+  {{- $specific = $extra | default dict -}}
+{{- else if eq $context "externalSecret" -}}
+  {{- $specific = $extra | default dict -}}
+{{- end -}}
+{{- $merged := merge (deepCopy $extra) (deepCopy $specific) ($root.Values.commonAnnotations | default dict) -}}
+{{- if $merged }}
+annotations:
+  {{- toYaml $merged | nindent 2 }}
+{{- end }}
+{{- end -}}

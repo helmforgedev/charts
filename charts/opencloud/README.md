@@ -1,6 +1,6 @@
 # OpenCloud Helm Chart
 
-OpenCloud file collaboration with the official `opencloudeu/opencloud:7.2.4` image, native identity initialization,
+OpenCloud file collaboration with the official `opencloudeu/opencloud:7.2.5` image, native identity initialization,
 extended-attribute storage checks and retained configuration. The chart runs one monolithic instance with planned
 downtime during upgrades.
 
@@ -211,5 +211,5 @@ This manifest scan does not replace application review or image vulnerability ma
 
 ## Sources
 
-- [OpenCloud v7.2.4](https://github.com/opencloud-eu/opencloud/tree/v7.2.4)
+- [OpenCloud v7.2.5](https://github.com/opencloud-eu/opencloud/tree/v7.2.5)
 - [PosixFS storage requirements](https://docs.opencloud.eu/docs/admin/configuration/storage/storage-posix)
