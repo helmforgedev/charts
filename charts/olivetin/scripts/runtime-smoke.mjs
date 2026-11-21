@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+
+const chartYaml = readFileSync(new URL('../Chart.yaml', import.meta.url), 'utf8');
+const expectedVersion = chartYaml.match(/^appVersion:\s*["']?([^"'\s]+)["']?/m)?.[1] || '3000.22.0';
+const versionRegex = new RegExp(`:${expectedVersion.replace(/\./g, '\\.')}$`);
 
 const [context, namespace, release] = process.argv.slice(2);
 assert.match(context ?? '', /^k3d-/);
@@ -26,7 +31,7 @@ const pod = pods.items.find(
 assert.ok(pod, 'Ready OliveTin pod not found');
 const container = pod.spec.containers.find((item) => item.name === 'olivetin');
 assert.ok(container, 'OliveTin container not found');
-assert.match(container.image, /:3000\.20\.0$/);
+assert.match(container.image, versionRegex);
 
 const httpContainerPort = container.ports.find((port) => port.name === 'http')?.containerPort;
 const portEnvironment = container.env.find((entry) => entry.name === 'PORT')?.value;
@@ -63,16 +68,24 @@ const fetchForwarded = async (remotePort, path) => {
 
     const localPort = output.match(/127\.0\.0\.1:(\d+)/)?.[1];
     assert.ok(localPort, output);
-    return await fetch(`http://127.0.0.1:${localPort}${path}`, {
+    const response = await fetch(`http://127.0.0.1:${localPort}${path}`, {
       signal: AbortSignal.timeout(30_000),
     });
+    const body = await response.text();
+    return {
+      status: response.status,
+      headers: response.headers,
+      text: async () => body,
+    };
   } finally {
     if (child.exitCode === null && child.signalCode === null) {
-      if (process.platform === 'win32') {
-        execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
-      } else {
-        child.kill();
-      }
+      try {
+        if (process.platform === 'win32') {
+          execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+        } else {
+          child.kill();
+        }
+      } catch {}
     }
   }
 };
