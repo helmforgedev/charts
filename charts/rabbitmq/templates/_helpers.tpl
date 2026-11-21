@@ -32,6 +32,16 @@ app.kubernetes.io/name: {{ include "rabbitmq.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
+{{/* Merge common annotations with resource-specific annotations. */}}
+{{- define "rabbitmq.renderAnnotations" -}}
+{{- $specific := default dict .specific -}}
+{{- $annotations := mergeOverwrite (deepCopy (default dict .root.Values.commonAnnotations)) $specific -}}
+{{- with $annotations }}
+annotations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "rabbitmq.validateAll" -}}
 {{- if hasKey .Values.podLabels "app.kubernetes.io/name" -}}
   {{- fail "podLabels must not override the app.kubernetes.io/name selector label" -}}

@@ -227,8 +227,8 @@ stopped; the hardened chart intentionally does not run a root init container.
 
 ### Runtime efficiency
 
-- the default image is `docker.io/library/rabbitmq:4.3.6-alpine`; it contains the management, Prometheus, and Kubernetes peer-discovery plugins, and the chart enables only the plugins requested by values
-- RabbitMQ 4.3.6 fixes exchange binding cleanup, quorum reconciliation, classic queue recovery, AMQP 1.0 validation and credential expiry
+- the default image is `docker.io/library/rabbitmq:4.4.0-alpine`; it contains the management, Prometheus, and Kubernetes peer-discovery plugins, and the chart enables only the plugins requested by values
+- RabbitMQ 4.4.0 fixes exchange binding cleanup, quorum reconciliation, classic queue recovery, AMQP 1.0 validation and credential expiry
 - `management.referrerPolicy=no-referrer` enables the upstream Referrer-Policy support with a privacy-preserving default; set it to `""` to defer to the browser default
 - `runtime.disableSchedulerBusyWait=true` is enabled by default to reduce idle CPU from Erlang scheduler spin-wait in containers
 - default Kubernetes probes use lightweight TCP checks against the active AMQP listener instead of recurring `rabbitmq-diagnostics` commands
@@ -240,7 +240,7 @@ stopped; the hardened chart intentionally does not run a root init container.
 |-----------|-------------|---------|
 | `architecture` | `single-node` or `cluster` | `single-node` |
 | `image.repository` | RabbitMQ image repository | `docker.io/library/rabbitmq` |
-| `image.tag` | RabbitMQ image tag | `4.3.6-alpine` |
+| `image.tag` | RabbitMQ image tag | `4.4.0-alpine` |
 | `auth.username` | Application username | `user` |
 | `auth.password` | Application password | `""` |
 | `auth.erlangCookie` | Erlang cookie | `""` |
