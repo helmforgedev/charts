@@ -36,7 +36,7 @@ Before upgrading:
 
 For distributed deployments, plan upgrades more carefully. The chart does not automate Qdrant cluster rebalancing or zero-downtime shard migration.
 
-Qdrant `1.19.2` improves sparse-vector upserts, proxy-segment persistence and
+Qdrant `1.20.2` improves sparse-vector upserts, proxy-segment persistence and
 recovery, Raft snapshot concurrency, and several search paths. It also fixes
 possible Gridstore write tearing, unfinished-operation flush consistency, and
 payload-index crash recovery. Internal gRPC now accepts only read-write API

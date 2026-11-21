@@ -48,7 +48,7 @@ Distributed mode is not a replica toggle. It requires at least two replicas, per
 `persistence.existingClaim`. Pod zero starts with its stable URI and subsequent ordinals join it through `--bootstrap`.
 The chart owns that startup command only in distributed mode and continues to append user-supplied `app.args`.
 
-The official image declares root, but Qdrant 1.19.2 was validated with UID/GID 1000, an fsGroup-owned existing volume,
+The official image declares root, but Qdrant 1.20.2 was validated with UID/GID 1000, an fsGroup-owned existing volume,
 RuntimeDefault seccomp and a read-only root filesystem. When security context values are empty, the template applies
 that verified profile. Any non-empty user context is rendered exactly as supplied instead of merging new defaults into
 an older custom policy. This preserves intentional UID, GID and filesystem choices during upgrades.

@@ -36,6 +36,7 @@ metadata:
   name: {{ include "qdrant.fullname" . }}
   labels:
     {{- include "qdrant.labels" . | nindent 4 }}
+  {{- include "qdrant.renderAnnotations" (dict "root" . "specific" .Values.annotations) | nindent 2 }}
 spec:
   serviceName: {{ include "qdrant.fullname" . }}-headless
   replicas: {{ .Values.replicaCount }}
@@ -251,9 +252,13 @@ spec:
       {{- end }}
       {{- end }}
   {{- if and .Values.persistence.enabled (not .Values.persistence.existingClaim) }}
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: {{ .Values.persistence.retentionPolicy.whenDeleted | default "Retain" }}
+    whenScaled: {{ .Values.persistence.retentionPolicy.whenScaled | default "Retain" }}
   volumeClaimTemplates:
     - metadata:
         name: data
+        {{- include "qdrant.renderAnnotations" (dict "root" . "specific" .Values.persistence.annotations) | nindent 8 }}
       spec:
         accessModes:
           {{- toYaml .Values.persistence.accessModes | nindent 10 }}
