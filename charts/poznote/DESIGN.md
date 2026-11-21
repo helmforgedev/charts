@@ -10,7 +10,7 @@ notes, attachments, and application configuration stored under
 accept a single writable application pod.
 
 The chart uses the official
-`ghcr.io/timothepoznanski/poznote:6.121.0` image. The optional upstream MCP
+`ghcr.io/timothepoznanski/poznote:6.149.0` image. The optional upstream MCP
 server is a separate product image and is outside this chart's workload scope.
 
 ## Architecture
