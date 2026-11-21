@@ -94,3 +94,42 @@ app.kubernetes.io/part-of: helmforge
 {{- define "papra.httpRouteName" -}}
 {{- if .route.name -}}{{ .route.name | trunc 63 | trimSuffix "-" }}{{- else if gt (int .index) 0 -}}{{ printf "%s-%v" (include "papra.fullname" .root | trunc 55 | trimSuffix "-") .index }}{{- else -}}{{ include "papra.fullname" .root }}{{- end -}}
 {{- end -}}
+
+{{/*
+Render annotations combining commonAnnotations with resource-specific annotations.
+Usage:
+  {{- include "papra.renderAnnotations" (dict "root" . "context" "service") | nindent 2 }}
+  or
+  {{- include "papra.renderAnnotations" . | nindent 2 }}
+*/}}
+{{- define "papra.renderAnnotations" -}}
+{{- $root := . -}}
+{{- $context := "" -}}
+{{- $extra := dict -}}
+{{- if kindIs "map" . -}}
+  {{- if hasKey . "root" -}}
+    {{- $root = .root -}}
+    {{- $context = .context | default "" -}}
+    {{- $extra = .extra | default dict -}}
+  {{- end -}}
+{{- end -}}
+{{- $specific := dict -}}
+{{- if eq $context "service" -}}
+  {{- $specific = $root.Values.service.annotations | default dict -}}
+{{- else if eq $context "ingress" -}}
+  {{- $specific = $root.Values.ingress.annotations | default dict -}}
+{{- else if eq $context "serviceAccount" -}}
+  {{- $specific = $root.Values.serviceAccount.annotations | default dict -}}
+{{- else if eq $context "persistence" -}}
+  {{- $specific = $root.Values.persistence.annotations | default dict -}}
+{{- else if eq $context "httpRoute" -}}
+  {{- $specific = $extra | default dict -}}
+{{- else if eq $context "externalSecret" -}}
+  {{- $specific = $extra | default dict -}}
+{{- end -}}
+{{- $merged := merge (deepCopy $extra) (deepCopy $specific) ($root.Values.commonAnnotations | default dict) -}}
+{{- if $merged }}
+annotations:
+  {{- toYaml $merged | nindent 2 }}
+{{- end }}
+{{- end -}}
