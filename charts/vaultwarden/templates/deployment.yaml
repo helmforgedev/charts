@@ -6,6 +6,7 @@ metadata:
   name: {{ include "vaultwarden.fullname" . }}
   labels:
     {{- include "vaultwarden.labels" . | nindent 4 }}
+  {{- include "vaultwarden.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   replicas: 1
   strategy:
@@ -26,7 +27,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        checksum/secrets: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/secrets: {{ include "vaultwarden.runtimePayload" . | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -64,6 +65,11 @@ spec:
       initContainers:
         - name: wait-for-db
           image: docker.io/library/busybox:1.37
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           command:
             - sh
             - -c

@@ -236,7 +236,7 @@ Official reference:
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `image.repository` | Vaultwarden image repository | `docker.io/vaultwarden/server` |
-| `image.tag` | Vaultwarden image tag | `1.37.4` |
+| `image.tag` | Vaultwarden image tag | `1.37.5` |
 | `domain` | Public Vaultwarden domain | `""` |
 | `database.mode` | `auto`, `sqlite`, `external`, `postgresql`, or `mysql` | `auto` |
 | `database.external.vendor` | External database vendor | `postgres` |

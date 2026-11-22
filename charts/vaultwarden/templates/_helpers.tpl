@@ -357,7 +357,7 @@ database-url
   {{- if not .Values.backup.s3.bucket -}}
     {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
   {{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+  {{- if and (not .Values.backup.s3.credentialsFromPodIdentity) (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
     {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
   {{- end -}}
   {{- if and .Values.backup.s3.caSecret .Values.backup.s3.insecureSkipVerify -}}
@@ -423,4 +423,29 @@ true
 {{- else -}}
 database-password
 {{- end -}}
+{{- end -}}
+
+{{- define "vaultwarden.renderAnnotations" -}}
+{{- $root := .root | default . -}}
+{{- $specific := .specific -}}
+{{- $common := $root.Values.commonAnnotations | default dict -}}
+{{- $merged := merge (dict) ($specific | default dict) $common -}}
+{{- if $merged }}
+annotations:
+{{- toYaml $merged | nindent 2 }}
+{{- end }}
+{{- end -}}
+
+{{- define "vaultwarden.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create -}}
+{{- default (printf "%s-backup" (include "vaultwarden.fullname" .)) .Values.backup.serviceAccount.name -}}
+{{- else -}}
+{{- default "default" .Values.backup.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "vaultwarden.runtimePayload" -}}
+admin: {{ include "vaultwarden.adminToken" . }}
+smtp: {{ include "vaultwarden.smtpPassword" . }}
+db: {{- if and (ne (include "vaultwarden.databaseMode" .) "sqlite") (not (and (eq (include "vaultwarden.databaseMode" .) "external") .Values.database.external.existingSecret)) }} {{ include "vaultwarden.databaseUrl" . }}|{{ include "vaultwarden.databasePasswordValue" . }}{{- end }}
 {{- end -}}
