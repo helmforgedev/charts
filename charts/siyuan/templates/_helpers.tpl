@@ -1,4 +1,16 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{/* Merge common annotations with resource-specific annotations. */}}
+{{- define "siyuan.renderAnnotations" -}}
+{{- $annotations := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- with .specific -}}
+  {{- $annotations = mergeOverwrite $annotations . -}}
+{{- end -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end -}}
+{{- end -}}
+
 {{- define "siyuan.name" -}}{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}{{- end -}}
 {{- define "siyuan.fullname" -}}{{- if .Values.fullnameOverride -}}{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}{{- else -}}{{- printf "%s-%s" .Release.Name (include "siyuan.name" .) | trunc 63 | trimSuffix "-" -}}{{- end -}}{{- end -}}
 {{- define "siyuan.chart" -}}{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" -}}{{- end -}}

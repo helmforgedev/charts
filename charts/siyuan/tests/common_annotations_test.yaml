@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: common annotations contract
+templates:
+  - deployment.yaml
+  - service.yaml
+  - secret.yaml
+tests:
+  - it: should render commonAnnotations across resources
+    set:
+      commonAnnotations:
+        helmforge.dev/test: "true"
+        team: "platform"
+    asserts:
+      - equal:
+          path: metadata.annotations["helmforge.dev/test"]
+          value: "true"
+        template: deployment.yaml
+      - equal:
+          path: metadata.annotations["team"]
+          value: "platform"
+        template: deployment.yaml
+      - equal:
+          path: metadata.annotations["helmforge.dev/test"]
+          value: "true"
+        template: service.yaml
+      - equal:
+          path: metadata.annotations["team"]
+          value: "platform"
+        template: service.yaml
+      - equal:
+          path: metadata.annotations["helmforge.dev/test"]
+          value: "true"
+        template: secret.yaml
+      - equal:
+          path: metadata.annotations["team"]
+          value: "platform"
+        template: secret.yaml
+
+  - it: should merge Deployment annotations with commonAnnotations
+    set:
+      commonAnnotations:
+        team: "platform"
+        shared: "base"
+      annotations:
+        shared: "override"
+        custom: "val"
+    asserts:
+      - equal:
+          path: metadata.annotations["team"]
+          value: "platform"
+        template: deployment.yaml
+      - equal:
+          path: metadata.annotations["shared"]
+          value: "override"
+        template: deployment.yaml
+      - equal:
+          path: metadata.annotations["custom"]
+          value: "val"
+        template: deployment.yaml
