@@ -182,11 +182,13 @@ async function forward(action, remotePort = 3000, target) {
     await action("http://127.0.0.1:" + port);
   } finally {
     if (pf.exitCode === null && pf.signalCode === null) {
-      if (process.platform === "win32")
-        execFileSync("taskkill", ["/PID", String(pf.pid), "/T", "/F"], {
-          stdio: "ignore",
-        });
-      else pf.kill();
+      if (process.platform === "win32") {
+        try {
+          execFileSync("taskkill", ["/PID", String(pf.pid), "/T", "/F"], {
+            stdio: "ignore",
+          });
+        } catch {}
+      } else pf.kill();
     }
   }
 }

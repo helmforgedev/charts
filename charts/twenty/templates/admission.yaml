@@ -7,6 +7,7 @@ kind: Secret
 metadata:
   name: {{ $name }}
   labels: {{ include "twenty.labels" . | nindent 4 }}
+{{- include "twenty.renderAnnotations" (list .) | nindent 2 }}
 type: Opaque
 data:
   key: {{ get $data "key" | default (randAlphaNum 64 | b64enc) | quote }}
@@ -16,6 +17,7 @@ kind: Service
 metadata:
   name: {{ $name }}
   labels: {{ include "twenty.labels" . | nindent 4 }}
+{{- include "twenty.renderAnnotations" (list .) | nindent 2 }}
 spec:
   type: ClusterIP
   ipFamilyPolicy: PreferDualStack
@@ -29,6 +31,7 @@ kind: Deployment
 metadata:
   name: {{ $name }}
   labels: {{ include "twenty.labels" . | nindent 4 }}
+{{- include "twenty.renderAnnotations" (list .) | nindent 2 }}
 spec:
   replicas: 1
   selector:
@@ -42,7 +45,7 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
         app.kubernetes.io/component: enrollment-admission
       annotations:
-        checksum/runtime: {{ include (print $.Template.BasePath "/runtime.yaml") . | sha256sum }}
+        checksum/runtime: {{ include "twenty.runtimePayload" . | sha256sum }}
     spec:
       serviceAccountName: {{ include "twenty.serviceAccountName" . }}
       automountServiceAccountToken: false
