@@ -219,3 +219,32 @@ app.kubernetes.io/part-of: helmforge
 {{- fail "externalSecrets.apiVersion must be external-secrets.io/v1" -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Render annotations combining commonAnnotations and resource-specific annotations.
+*/}}
+{{- define "zookeeper.renderAnnotations" -}}
+{{- $root := .root | default . -}}
+{{- $extra := .annotations | default dict -}}
+{{- $common := $root.Values.commonAnnotations | default dict -}}
+{{- $merged := merge (deepCopy $extra) $common -}}
+{{- if $merged }}
+annotations:
+  {{- toYaml $merged | nindent 2 }}
+{{- end }}
+{{- end -}}
+
+{{/*
+Render persistentVolumeClaimRetentionPolicy for StatefulSet.
+*/}}
+{{- define "zookeeper.pvcRetentionPolicy" -}}
+{{- if or .whenDeleted .whenScaled }}
+persistentVolumeClaimRetentionPolicy:
+  {{- with .whenDeleted }}
+  whenDeleted: {{ . }}
+  {{- end }}
+  {{- with .whenScaled }}
+  whenScaled: {{ . }}
+  {{- end }}
+{{- end }}
+{{- end -}}

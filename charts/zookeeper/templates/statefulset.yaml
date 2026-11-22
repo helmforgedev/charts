@@ -7,6 +7,7 @@ metadata:
   namespace: {{ include "zookeeper.namespace" . | quote }}
   labels:
     {{- include "zookeeper.labels" . | nindent 4 }}
+  {{- include "zookeeper.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   serviceName: {{ include "zookeeper.headlessServiceName" . }}
   replicas: {{ .Values.replicaCount }}
@@ -26,9 +27,9 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/config: {{ (include (print $.Template.BasePath "/configmap.yaml") . | fromYaml).data | toYaml | sha256sum }}
         {{- if include "zookeeper.hasChartManagedSensitiveSecret" . }}
-        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/secret: {{ printf "%s|%s|%s" (include "zookeeper.authPassword" .) .Values.tls.client.keystorePassword .Values.tls.client.truststorePassword | sha256sum }}
         {{- end }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
@@ -230,6 +231,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
   {{- if .Values.persistence.enabled }}
+  {{- include "zookeeper.pvcRetentionPolicy" .Values.persistence.retentionPolicy | nindent 2 }}
   volumeClaimTemplates:
     - metadata:
         name: data
