@@ -182,6 +182,18 @@ memory-limit.ini: |
 {{- end -}}
 {{- end -}}
 
+{{/* Merge common annotations with resource-specific annotations. */}}
+{{- define "strava-statistics.renderAnnotations" -}}
+{{- $annotations := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- with .specific -}}
+  {{- $annotations = mergeOverwrite $annotations . -}}
+{{- end -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end -}}
+{{- end -}}
+
 {{/*
 Validation helper
 */}}
