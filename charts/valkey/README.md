@@ -313,4 +313,4 @@ See `examples/`:
 - Valkey Sentinel: <https://valkey.io/docs/latest/operate/oss_and_stack/management/sentinel/>
 - Valkey Cluster: <https://valkey.io/docs/latest/operate/oss_and_stack/management/scaling/>
 - Valkey security: <https://valkey.io/docs/latest/operate/oss_and_stack/management/security/>
-- Valkey 9.1.2 security release: <https://github.com/valkey-io/valkey/releases/tag/9.1.2>
+- Valkey 9.1.3 security release: <https://github.com/valkey-io/valkey/releases/tag/9.1.3>
