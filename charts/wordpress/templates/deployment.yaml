@@ -8,6 +8,7 @@ metadata:
   labels:
     {{- include "wordpress.labels" . | nindent 4 }}
     app.kubernetes.io/component: wordpress
+  {{- include "wordpress.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
@@ -22,7 +23,7 @@ spec:
     metadata:
       annotations:
         {{- if .Values.php.ini }}
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/config: {{ .Values.php.ini | sha256sum }}
         {{- end }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
@@ -50,6 +51,11 @@ spec:
       initContainers:
         - name: wait-for-db
           image: docker.io/library/busybox:1.37
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           command:
             - sh
             - -c
@@ -284,6 +290,11 @@ spec:
         - name: metrics
           image: "{{ .Values.metrics.image.repository }}:{{ .Values.metrics.image.tag }}"
           imagePullPolicy: {{ .Values.metrics.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           args:
             - --scrape_uri=http://localhost:{{ .Values.containerPorts.http }}/server-status?auto
           ports:

@@ -301,8 +301,8 @@ Backup enabled (with validation).
   {{- if not .Values.backup.s3.bucket -}}
     {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
   {{- end -}}
-  {{- if and (ne (include "wordpress.externalSecretBackupEnabled" .) "true") (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
-    {{- fail "backup requires backup.s3.existingSecret, externalSecrets.backup.enabled, or both backup.s3.accessKey and backup.s3.secretKey" -}}
+  {{- if and (ne (include "wordpress.externalSecretBackupEnabled" .) "true") (not .Values.backup.s3.credentialsFromPodIdentity) (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+    {{- fail "backup requires backup.s3.credentialsFromPodIdentity, backup.s3.existingSecret, externalSecrets.backup.enabled, or both backup.s3.accessKey and backup.s3.secretKey" -}}
   {{- end -}}
 true
 {{- end -}}
@@ -740,5 +740,25 @@ $memcached_servers = array(
 {{- define "wordpress.validateGatewayAPI" -}}
 {{- if and .Values.gatewayAPI.enabled (empty .Values.gatewayAPI.parentRefs) -}}
 {{- fail "gatewayAPI.parentRefs must contain at least one parentRef when gatewayAPI.enabled=true" -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Backup ServiceAccount name */}}
+{{- define "wordpress.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create -}}
+{{- default (printf "%s-backup" (include "wordpress.fullname" .)) .Values.backup.serviceAccount.name -}}
+{{- else -}}
+{{- default "default" .Values.backup.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Common annotations helper */}}
+{{- define "wordpress.renderAnnotations" -}}
+{{- $root := .root -}}
+{{- $componentAnnotations := .annotations | default dict -}}
+{{- $allAnnotations := merge (dict) $componentAnnotations ($root.Values.commonAnnotations | default dict) -}}
+{{- if $allAnnotations -}}
+annotations:
+  {{- toYaml $allAnnotations | nindent 2 }}
 {{- end -}}
 {{- end -}}
