@@ -7,7 +7,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: docker.io/stalwartlabs/stalwart:v0.16.27
+          value: docker.io/stalwartlabs/stalwart:v1.1.1
       - equal:
           path: spec.template.spec.containers[0].readinessProbe.httpGet.path
           value: /healthz/ready
@@ -52,3 +52,23 @@ tests:
           value: data
       - exists:
           path: spec.template.spec.volumes[1].emptyDir
+  - it: renders common annotations and retention policy
+    set:
+      commonAnnotations:
+        helmforge.dev/test: global
+      persistence.retentionPolicy:
+        whenDeleted: Retain
+        whenScaled: Delete
+    asserts:
+      - equal:
+          path: metadata.annotations["helmforge.dev/test"]
+          value: global
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenDeleted
+          value: Retain
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenScaled
+          value: Delete
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.annotations["helmforge.dev/test"]
+          value: global

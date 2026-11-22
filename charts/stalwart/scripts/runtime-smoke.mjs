@@ -22,7 +22,7 @@ assert.equal(pods.length, desiredReplicas, 'Stalwart pod count must match Statef
 for (const pod of pods) {
   assert.ok(pod.status.conditions?.some((condition) => condition.type === 'Ready' && condition.status === 'True'));
   const container = pod.spec.containers.find((candidate) => candidate.name === 'stalwart');
-  assert.equal(container?.image, 'docker.io/stalwartlabs/stalwart:v0.16.27');
+  assert.equal(container?.image, 'docker.io/stalwartlabs/stalwart:v1.1.1');
   assert.equal(pod.spec.automountServiceAccountToken, false);
 }
 

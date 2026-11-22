@@ -7,12 +7,11 @@ metadata:
   labels:
     {{- include "stalwart.labels" . | nindent 4 }}
     app.kubernetes.io/component: configuration
+  {{- $jobAnnotations := dict }}
   {{- if .Values.applyJob.useHelmHooks }}
-  annotations:
-    helm.sh/hook: post-install,post-upgrade
-    helm.sh/hook-weight: "5"
-    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+    {{- $jobAnnotations = dict "helm.sh/hook" "post-install,post-upgrade" "helm.sh/hook-weight" "5" "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded" }}
   {{- end }}
+  {{- include "stalwart.renderAnnotations" (dict "root" . "specific" $jobAnnotations) | nindent 2 }}
 spec:
   backoffLimit: {{ .Values.applyJob.backoffLimit }}
   activeDeadlineSeconds: {{ .Values.applyJob.activeDeadlineSeconds }}
