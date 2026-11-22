@@ -6,6 +6,7 @@ metadata:
   name: {{ include "rustfs.fullname" . }}
   labels:
     {{- include "rustfs.labels" . | nindent 4 }}
+  {{- include "rustfs.renderAnnotations" (dict "root" . "specific" .Values.annotations) | nindent 2 }}
 spec:
   serviceName: {{ include "rustfs.fullname" . }}-headless
   replicas: {{ .Values.replicaCount }}
@@ -21,7 +22,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/config: {{ (include (print $.Template.BasePath "/configmap.yaml") . | fromYaml).data | toYaml | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -129,15 +130,13 @@ spec:
       {{- end }}
       {{- end }}
   {{- if and .Values.persistence.enabled (not .Values.persistence.existingClaim) }}
+  {{- include "rustfs.pvcRetentionPolicy" .Values.persistence.retentionPolicy | nindent 2 }}
   volumeClaimTemplates:
     - metadata:
         name: data
         labels:
           {{- include "rustfs.labels" . | nindent 10 }}
-        {{- with .Values.persistence.annotations }}
-        annotations:
-          {{- toYaml . | nindent 10 }}
-        {{- end }}
+        {{- include "rustfs.renderAnnotations" (dict "root" . "specific" .Values.persistence.annotations) | nindent 8 }}
       spec:
         accessModes:
           {{- toYaml .Values.persistence.accessModes | nindent 10 }}
