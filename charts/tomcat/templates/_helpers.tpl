@@ -1,4 +1,26 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{/* Merge common annotations with resource-specific annotations. */}}
+{{- define "tomcat.renderAnnotations" -}}
+{{- $annotations := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- with .specific -}}
+  {{- $annotations = mergeOverwrite $annotations . -}}
+{{- end -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end -}}
+{{- end -}}
+
+{{/* Payload-only checksum for Tomcat configuration */}}
+{{- define "tomcat.configPayload" -}}
+server.xml: |-
+{{ .Values.tomcat.serverXml | default "" | indent 2 }}
+defaultRoot.index: |-
+{{ .Values.webapps.defaultRoot.index | default "" | indent 2 }}
+defaultRoot.health: |-
+{{ .Values.webapps.defaultRoot.health | default "" | indent 2 }}
+{{- end -}}
+
 {{- define "tomcat.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}

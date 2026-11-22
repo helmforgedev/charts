@@ -7,6 +7,8 @@ metadata:
   labels:
     {{- include "tomcat.labels" . | nindent 4 }}
     app.kubernetes.io/component: tomcat
+  {{- $deploymentAnnotations := merge (deepCopy (.Values.annotations | default dict)) (.Values.deploymentAnnotations | default dict) -}}
+  {{- include "tomcat.renderAnnotations" (dict "root" . "specific" $deploymentAnnotations) | nindent 2 }}
 spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
@@ -20,7 +22,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/config: {{ include "tomcat.configPayload" . | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
