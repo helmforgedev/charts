@@ -98,7 +98,7 @@ Metabase image, so proxy-based environments can mirror both images:
 ```yaml
 image:
   repository: registry.example.com/proxy/metabase/metabase
-  tag: v0.64.2
+  tag: v0.65.4
 
 waitForDatabase:
   image:
@@ -170,7 +170,7 @@ externalSecrets:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/metabase/metabase` | Metabase container image repository |
-| `image.tag` | `v0.64.2` | Metabase container image tag |
+| `image.tag` | `v0.65.4` | Metabase container image tag |
 | `waitForDatabase.image.repository` | `docker.io/library/busybox` | Wait-for-db init container image repository |
 | `waitForDatabase.image.tag` | `1.37` | Wait-for-db init container image tag |
 | `waitForDatabase.image.pullPolicy` | `IfNotPresent` | Wait-for-db init container image pull policy |
@@ -223,6 +223,11 @@ externalSecrets:
 | `externalSecrets.data` | `[]` | Remote key mappings (must include encryption key entry) |
 
 ## Upgrade Notes
+
+### Upgrading to v0.65.4
+
+Metabase `v0.65.4` includes upstream bug fixes and analytics improvements.
+Review the [official v0.65.4 release notes](https://github.com/metabase/metabase/releases/tag/v0.65.4).
 
 ### Upgrading to v0.64.2
 

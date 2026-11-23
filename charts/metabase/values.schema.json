@@ -14,12 +14,18 @@
     "nameOverride": { "type": "string", "description": "Override the chart name", "default": "" },
     "fullnameOverride": { "type": "string", "description": "Override the full release name", "default": "" },
     "commonLabels": { "type": "object", "description": "Labels added to every resource" },
+    "commonAnnotations": {
+      "type": "object",
+      "description": "Annotations added to every resource",
+      "additionalProperties": { "type": "string" },
+      "default": {}
+    },
     "image": {
       "type": "object",
       "description": "Container image configuration",
       "properties": {
         "repository": { "type": "string", "default": "docker.io/metabase/metabase" },
-        "tag": { "type": "string", "description": "Image tag", "default": "v0.64.2" },
+        "tag": { "type": "string", "description": "Image tag", "default": "v0.65.4" },
         "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"], "default": "IfNotPresent" }
       }
     },
@@ -275,6 +281,16 @@
             "uploader": { "type": "string", "minLength": 1 }
           }
         },
+        "serviceAccount": {
+          "type": "object",
+          "description": "Dedicated ServiceAccount for backup jobs",
+          "properties": {
+            "create": { "type": "boolean", "default": true },
+            "name": { "type": "string", "default": "" },
+            "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
+            "automountServiceAccountToken": { "type": "boolean", "default": false }
+          }
+        },
         "resources": { "type": "object", "description": "CPU and memory for backup containers" },
         "podSecurityContext": {
           "type": "object",
@@ -304,9 +320,11 @@
           "description": "S3-compatible storage configuration",
           "properties": {
             "endpoint": { "type": "string" },
+            "region": { "type": "string" },
             "bucket": { "type": "string" },
             "prefix": { "type": "string" },
             "createBucketIfNotExists": { "type": "boolean" },
+            "credentialsFromPodIdentity": { "type": "boolean", "default": false },
             "existingSecret": { "type": "string" },
             "existingSecretAccessKeyKey": { "type": "string" },
             "existingSecretSecretKeyKey": { "type": "string" },
