@@ -69,15 +69,15 @@ If an existing Secret or
 explicit password is omitted, the chart generates and retains an initial
 credential. It does not reset an existing account when the credential changes.
 
-## Upgrade to 1.16.0
+## Upgrade to 1.23.0
 
-This release adds private trip sharing for family members, editable profile
-names, exact trip-to-map links and shared-achievement previews. It also fixes
-geocoding deduplication, GPX exports, queued test email and archived Immich
-photo filtering. Back up PostGIS and persistent files, and preserve encryption
-secrets before upgrading. See the
-[official release notes](https://github.com/Freika/dawarich/releases/tag/1.16.0).
-HelmForge PostgreSQL `2.1.1` and Redis `3.1.0` retain the documented image,
+This release includes security fixes from an upstream audit, hardened container
+images without curl/git/npm, OTP challenge support on OIDC logins, enhanced
+integration URL and redirect security, and automatic trip detection. Back up
+PostGIS and persistent files, and preserve encryption secrets before upgrading.
+See the
+[official release notes](https://github.com/Freika/dawarich/releases/tag/1.23.0).
+HelmForge PostgreSQL `2.2.0` and Redis `3.2.1` retain the documented image,
 storage, authentication, and TLS contracts.
 
 ## Examples
@@ -274,6 +274,6 @@ manifests; it does not replace image vulnerability management or application rev
 
 ## Sources
 
-- [Dawarich 1.16.0](https://github.com/Freika/dawarich/tree/1.16.0)
+- [Dawarich 1.23.0](https://github.com/Freika/dawarich/tree/1.23.0)
 - [Official PostGIS image](https://github.com/postgis/docker-postgis)
 - [Official unprivileged NGINX image](https://github.com/nginx/docker-nginx-unprivileged)
