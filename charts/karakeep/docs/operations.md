@@ -14,7 +14,7 @@ make validate-chart CHART=karakeep
 Verify that every image tag is pinned:
 
 ```bash
-make image-verify IMAGE=ghcr.io/karakeep-app/karakeep:0.34.1
+make image-verify IMAGE=ghcr.io/karakeep-app/karakeep:0.35.0
 make image-verify IMAGE=docker.io/getmeili/meilisearch:v1.53.0
 make image-verify IMAGE=ghcr.io/karakeep-app/karakeep-chrome:154.0.8037.57-r1
 ```

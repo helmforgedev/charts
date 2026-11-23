@@ -54,7 +54,7 @@ kubectl([
   '--',
   'node',
   '-e',
-  "fetch('http://127.0.0.1:' + process.env.PORT + '/api/health').then(async response => { if (!response.ok) throw new Error('Karakeep health returned ' + response.status); console.log(await response.text()); })",
+  "(async () => { for (let i = 0; i < 30; i++) { try { const r = await fetch('http://127.0.0.1:' + process.env.PORT + '/api/health'); if (r.ok) { console.log(await r.text()); return; } } catch {} await new Promise(r => setTimeout(r, 1000)); } throw new Error('Karakeep health did not respond'); })()",
 ]);
 
 if (containers.has('chromium')) {
@@ -71,7 +71,7 @@ if (containers.has('chromium')) {
     '--',
     'node',
     '-e',
-    "fetch(process.env.BROWSER_WEB_URL + '/json/version').then(async response => { if (!response.ok) throw new Error('Chromium returned ' + response.status); const body = await response.json(); if (!body.webSocketDebuggerUrl) throw new Error('Chromium debugger URL is missing'); console.log(body.Browser); })",
+    "(async () => { for (let i = 0; i < 30; i++) { try { const r = await fetch(process.env.BROWSER_WEB_URL + '/json/version'); if (r.ok) { const b = await r.json(); if (b.webSocketDebuggerUrl) { console.log(b.Browser); return; } } } catch {} await new Promise(r => setTimeout(r, 1000)); } throw new Error('Chromium did not respond'); })()",
   ]);
 }
 
@@ -98,7 +98,7 @@ if (containers.has('meilisearch')) {
     '--',
     'node',
     '-e',
-    "fetch(process.env.MEILI_ADDR + '/health').then(async response => { if (!response.ok) throw new Error('Meilisearch returned ' + response.status); const body = await response.json(); if (body.status !== 'available') throw new Error('Meilisearch is not available'); console.log(body.status); })",
+    "(async () => { for (let i = 0; i < 30; i++) { try { const r = await fetch(process.env.MEILI_ADDR + '/health'); if (r.ok) { const b = await r.json(); if (b.status === 'available') { console.log(b.status); return; } } } catch {} await new Promise(r => setTimeout(r, 1000)); } throw new Error('Meilisearch did not respond'); })()",
   ]);
 }
 
