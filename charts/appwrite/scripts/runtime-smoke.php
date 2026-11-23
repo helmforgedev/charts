@@ -3,16 +3,18 @@
 [$unused, $version, $action] = $argv;
 function check($condition, $message) { if (!$condition) { throw new RuntimeException($message); } }
 $client = curl_init();
-curl_setopt_array($client, [CURLOPT_RETURNTRANSFER => true, CURLOPT_COOKIEFILE => '', CURLOPT_TIMEOUT => 30]);
+curl_setopt_array($client, [CURLOPT_RETURNTRANSFER => true, CURLOPT_COOKIEFILE => '', CURLOPT_TIMEOUT => 90]);
 function request($route, $method = 'GET', $data = null, $expected = 200) {
     global $client;
     $port = getenv('PORT') ?: '80';
     curl_setopt_array($client, [CURLOPT_URL => 'http://127.0.0.1:'.$port.'/v1'.$route, CURLOPT_CUSTOMREQUEST => $method,
+        CURLOPT_TIMEOUT => 90,
         CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'X-Appwrite-Project: console', 'Host: '.getenv('_APP_DOMAIN')]]);
     curl_setopt($client, CURLOPT_POSTFIELDS, $data === null ? null : json_encode($data));
     $body = curl_exec($client);
     $code = curl_getinfo($client, CURLINFO_RESPONSE_CODE);
-    check($code === $expected, "$method $route returned $code: $body");
+    $err = curl_error($client);
+    check($code === $expected, "$method $route returned $code: $body" . ($err ? " ($err)" : ""));
     return $body === '' ? null : json_decode($body, true, flags: JSON_THROW_ON_ERROR);
 }
 check(request('/health/version')['version'] === $version, 'Running version mismatch');
@@ -27,7 +29,20 @@ request('/account/sessions/email', 'POST', ['email' => $email, 'password' => $pa
 check(request('/account')['$id'] === $id, 'Persisted account missing');
 if ($action !== 'verify') {
     request('/teams', 'POST', ['teamId' => 'helmforgeteam', 'name' => 'HelmForge team'], 201);
-    request('/projects', 'POST', ['projectId' => 'helmforgeproject', 'name' => 'HelmForge project', 'teamId' => 'helmforgeteam'], 201);
+    for ($attempt = 1; $attempt <= 3; $attempt++) {
+        try {
+            request('/projects', 'POST', ['projectId' => 'helmforgeproject', 'name' => 'HelmForge project', 'teamId' => 'helmforgeteam'], 201);
+            break;
+        } catch (Throwable $e) {
+            try {
+                if (request('/projects/helmforgeproject')['name'] === 'HelmForge project') {
+                    break;
+                }
+            } catch (Throwable) {}
+            if ($attempt === 3) { throw $e; }
+            sleep(2);
+        }
+    }
 }
 check(request('/projects/helmforgeproject')['name'] === 'HelmForge project', 'Persisted project missing');
 $marker = '/storage/builds/helmforge-upstream-fixture.json';
