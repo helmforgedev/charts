@@ -250,10 +250,30 @@ app.kubernetes.io/instance: {{ .Release.Name }}
   {{- if not .Values.backup.s3.bucket -}}
     {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
   {{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.accessKey) -}}
-    {{- fail "backup.s3.accessKey or backup.s3.existingSecret is required when backup.enabled is true" -}}
+  {{- if and (not .Values.backup.s3.credentialsFromPodIdentity) (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.accessKey) -}}
+    {{- fail "backup.s3.accessKey or backup.s3.existingSecret is required when backup.enabled is true (or enable backup.s3.credentialsFromPodIdentity)" -}}
   {{- end -}}
 true
+{{- end -}}
+{{- end -}}
+
+{{/* Backup — ServiceAccount name */}}
+{{- define "wallabag.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create -}}
+{{- default (printf "%s-backup" (include "wallabag.fullname" .)) .Values.backup.serviceAccount.name -}}
+{{- else -}}
+{{- default "default" .Values.backup.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Common annotations helper */}}
+{{- define "wallabag.renderAnnotations" -}}
+{{- $root := .root -}}
+{{- $componentAnnotations := .annotations | default dict -}}
+{{- $allAnnotations := merge (dict) $componentAnnotations ($root.Values.commonAnnotations | default dict) -}}
+{{- if $allAnnotations -}}
+annotations:
+  {{- toYaml $allAnnotations | nindent 2 }}
 {{- end -}}
 {{- end -}}
 

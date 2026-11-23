@@ -13,6 +13,8 @@ nameOverride: ""
 fullnameOverride: ""
 # -- Labels added to every rendered resource
 commonLabels: {}
+# -- Annotations added to every rendered resource
+commonAnnotations: {}
 
 # =============================================================================
 # Image
@@ -22,7 +24,7 @@ image:
   # -- Wallabag container image
   repository: docker.io/wallabag/wallabag
   # -- Image tag
-  tag: "2.6.14"
+  tag: "2.6.17"
   # -- Image pull policy
   pullPolicy: IfNotPresent
 
@@ -128,6 +130,8 @@ persistence:
     - ReadWriteOnce
   # -- Use an existing PVC
   existingClaim: ""
+  # -- Annotations added to the PVC
+  annotations: {}
 
 # =============================================================================
 # Service Account
@@ -136,7 +140,7 @@ persistence:
 serviceAccount:
   # -- Create a ServiceAccount
   create: false
-  # -- ServiceAccount name
+  # -- Existing ServiceAccount name when create is false
   name: ""
   # -- Annotations for the ServiceAccount
   annotations: {}
@@ -293,6 +297,16 @@ backup:
     postgresql: docker.io/library/postgres:18-alpine
     # -- Image used for S3 upload (MinIO client)
     uploader: docker.io/helmforge/mc:1.0.0
+  # -- Dedicated ServiceAccount for backup jobs
+  serviceAccount:
+    # -- Create a dedicated ServiceAccount for workload identity backups
+    create: true
+    # -- Existing dedicated ServiceAccount name when create is false
+    name: ""
+    # -- Annotations for IRSA or another workload identity integration
+    annotations: {}
+    # -- Mount the Kubernetes API token into backup pods
+    automountServiceAccountToken: false
   # -- Resources for backup containers
   resources: {}
   s3:
@@ -304,6 +318,10 @@ backup:
     prefix: wallabag
     # -- Auto-create the bucket if it does not exist
     createBucketIfNotExists: true
+    # -- AWS region used by workload identity
+    region: ""
+    # -- Use EKS Pod Identity or IRSA instead of static S3 credentials
+    credentialsFromPodIdentity: false
     # -- Use an existing secret for S3 credentials
     existingSecret: ""
     # -- Key in the existing secret for the access key
