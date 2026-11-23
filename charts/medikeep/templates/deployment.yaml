@@ -5,6 +5,7 @@ metadata:
   name: {{ include "medikeep.fullname" . }}
   labels:
     {{- include "medikeep.labels" . | nindent 4 }}
+  {{- include "medikeep.renderAnnotations" (dict "root" . "specific" dict) | nindent 2 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
@@ -19,9 +20,10 @@ spec:
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
+      {{- $podAnnotations := mergeOverwrite (deepCopy (.Values.commonAnnotations | default dict)) (.Values.podAnnotations | default dict) }}
       annotations:
         checksum/secrets: {{ dict "appSecret" .Values.secrets "dbSecret" .Values.database.external "externalSecrets" .Values.externalSecrets "extraManifests" .Values.extraManifests | toJson | sha256sum }}
-        {{- with .Values.podAnnotations }}
+        {{- with $podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
