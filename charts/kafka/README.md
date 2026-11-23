@@ -40,7 +40,7 @@ helm install kafka oci://ghcr.io/helmforgedev/helm/kafka -f values.yaml
 ## What this chart covers
 
 - KRaft only
-- official Kafka `4.3.1` JVM or native runtime image
+- official Kafka `4.4.0` JVM or native runtime image
 - JVM-based setup init container when the native runtime is selected
 - persistent storage for single-broker, controllers, and brokers
 - automatic cleanup of `lost+found` directories in PVCs (ext4/xfs compatibility)
@@ -147,9 +147,9 @@ metrics:
 | `runtime` | Kafka runtime: `jvm` or `native` | `jvm` |
 | `architecture` | `single-broker` or `cluster` | `single-broker` |
 | `image.repository` | JVM runtime and native setup image repository | `apache/kafka` |
-| `image.tag` | JVM Kafka image tag | `4.3.1` |
+| `image.tag` | JVM Kafka image tag | `4.4.0` |
 | `native.image.repository` | Native runtime image repository | `apache/kafka-native` |
-| `native.image.tag` | Native Kafka image tag | `4.3.1` |
+| `native.image.tag` | Native Kafka image tag | `4.4.0` |
 | `service.type` | Client bootstrap service type | `ClusterIP` |
 | `service.ipFamilyPolicy` | Service IP family policy for client, headless, and metrics Services | `""` |
 | `service.ipFamilies` | Service IP families for client, headless, and metrics Services | `[]` |
