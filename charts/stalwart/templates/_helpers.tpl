@@ -1,4 +1,29 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{/* Merge common annotations with resource-specific annotations. */}}
+{{- define "stalwart.renderAnnotations" -}}
+{{- $annotations := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- with .specific -}}
+  {{- $annotations = mergeOverwrite $annotations . -}}
+{{- end -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end -}}
+{{- end -}}
+
+{{/* PVC retention policy for StatefulSets */}}
+{{- define "stalwart.pvcRetentionPolicy" -}}
+{{- if and . (or .whenDeleted .whenScaled) }}
+persistentVolumeClaimRetentionPolicy:
+  {{- with .whenDeleted }}
+  whenDeleted: {{ . }}
+  {{- end }}
+  {{- with .whenScaled }}
+  whenScaled: {{ . }}
+  {{- end }}
+{{- end }}
+{{- end -}}
+
 {{- define "stalwart.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
