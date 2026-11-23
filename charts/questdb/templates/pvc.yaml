@@ -6,13 +6,11 @@ metadata:
   name: {{ include "questdb.fullname" . }}
   labels:
     {{- include "questdb.labels" . | nindent 4 }}
-  annotations:
-    {{- if .Values.persistence.retain }}
-    helm.sh/resource-policy: keep
-    {{- end }}
-    {{- with .Values.persistence.annotations }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
+  {{- $pvcAnnotations := deepCopy (.Values.persistence.annotations | default dict) -}}
+  {{- if .Values.persistence.retain -}}
+  {{- $_ := set $pvcAnnotations "helm.sh/resource-policy" "keep" -}}
+  {{- end -}}
+  {{- include "questdb.renderAnnotations" (dict "root" . "specific" $pvcAnnotations) | nindent 2 }}
 spec:
   accessModes:
     {{- toYaml .Values.persistence.accessModes | nindent 4 }}
