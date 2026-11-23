@@ -60,7 +60,7 @@ With `sharedStore.enabled: true`, Bulwark keeps all state in an external Redis-p
 
 ## Image and security
 
-The chart uses `ghcr.io/bulwarkmail/webmail:1.21.2-always`. The `-always` tag is the deterministic upstream index for 1.21.2. The image supports linux/amd64 and linux/arm64.
+The chart uses `ghcr.io/bulwarkmail/webmail:1.21.3-always`. The `-always` tag is the deterministic upstream index for 1.21.3. The image supports linux/amd64 and linux/arm64.
 
 Defaults match the upstream image user:
 
