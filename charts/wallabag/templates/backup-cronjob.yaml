@@ -6,6 +6,7 @@ metadata:
   name: {{ include "wallabag.fullname" . }}-backup
   labels:
     {{- include "wallabag.labels" . | nindent 4 }}
+  {{- include "wallabag.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   schedule: {{ .Values.backup.schedule | quote }}
   suspend: {{ .Values.backup.suspend }}
@@ -20,6 +21,8 @@ spec:
           labels:
             {{- include "wallabag.selectorLabels" . | nindent 12 }}
         spec:
+          serviceAccountName: {{ include "wallabag.backupServiceAccountName" . }}
+          automountServiceAccountToken: {{ .Values.backup.serviceAccount.automountServiceAccountToken }}
           restartPolicy: Never
           {{- with .Values.imagePullSecrets }}
           imagePullSecrets:
@@ -40,6 +43,11 @@ spec:
           initContainers:
             - name: postgres-backup
               image: {{ .Values.backup.images.postgresql | quote }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
               command: ["/bin/sh", "/scripts/postgres-backup.sh"]
               env:
                 - name: BACKUP_ARCHIVE_PREFIX
@@ -69,6 +77,11 @@ spec:
           containers:
             - name: upload
               image: {{ .Values.backup.images.uploader | quote }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
               command: ["/bin/sh", "/scripts/upload-backup.sh"]
               env:
                 - name: S3_ENDPOINT
@@ -79,6 +92,7 @@ spec:
                   value: {{ .Values.backup.s3.prefix | quote }}
                 - name: S3_CREATE_BUCKET_IF_NOT_EXISTS
                   value: {{ ternary "true" "false" .Values.backup.s3.createBucketIfNotExists | quote }}
+                {{- if not .Values.backup.s3.credentialsFromPodIdentity }}
                 - name: S3_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
@@ -89,6 +103,11 @@ spec:
                     secretKeyRef:
                       name: {{ include "wallabag.backupSecretName" . }}
                       key: {{ .Values.backup.s3.existingSecretSecretKeyKey }}
+                {{- end }}
+                {{- if .Values.backup.s3.region }}
+                - name: AWS_REGION
+                  value: {{ .Values.backup.s3.region | quote }}
+                {{- end }}
               resources:
                 {{- toYaml .Values.backup.resources | nindent 16 }}
               volumeMounts:
