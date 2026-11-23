@@ -4,8 +4,8 @@
 
 Helm chart for deploying [Gitea](https://gitea.io/) self-hosted Git service on Kubernetes using the official [`gitea/gitea`](https://hub.docker.com/r/gitea/gitea) rootless Docker image.
 
-- **Current application version** `28.2.0`
-- **Default image** `docker.io/gitea/gitea:28.2.0-rootless`
+- **Current application version** `28.4.0`
+- **Default image** `docker.io/gitea/gitea:28.4.0-rootless`
 - **Chart lock policy** source chart does not commit `Chart.lock`; dependencies are resolved during packaging/validation
 - **Rootless storage** optional initContainer can prepare PVC paths for UID/GID 1000 when required
 
@@ -164,7 +164,7 @@ The chart sets `GITEA__server__HTTP_PORT=3100`, exposes that container port as
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `gitea/gitea` | Container image repository |
-| `image.tag` | `"28.2.0-rootless"` | Image tag |
+| `image.tag` | `"28.4.0-rootless"` | Image tag |
 | `replicaCount` | `1` | Number of replicas |
 | `strategy.type` | `Recreate` | Deployment strategy for single-writer local state |
 | `podAnnotations` | `{}` | Additional annotations for the Gitea pod |
@@ -232,22 +232,21 @@ state during an upgrade and avoids `ReadWriteOnce` multi-attach failures. Only
 override `strategy.type` after externalizing every shared-state dependency and
 validating the storage access mode.
 
-This update moves the default rootless image to `28.2.0-rootless`. Back up the
+This update moves the default rootless image to `28.4.0-rootless`. Back up the
 database, repositories, LFS objects, packages, attachments, and the retained
 configuration before upgrading; Gitea runs required database migrations during
 the first startup.
 
-Gitea 28 introduces an internal proxy for Git network operations. Existing
-`ALLOWED_HOST_LIST`, `BLOCKED_HOST_LIST`, `ALLOWED_DOMAINS`, and
-`BLOCKED_DOMAINS` overrides must be reviewed: wildcard and domain matching
-changed, the `external` preset was removed, and an exclusive allow list now
-requires `EGRESS_MODE = strict`. Configure replacements through
-`gitea.extraEnv` with `GITEA__security__...` variables.
-
-Completed Actions runs now default to 400 days of retention. Set
-`GITEA__actions__RUN_RETENTION_DAYS` to `0` before the upgrade if all historical
-runs must be retained. Review the [v28.0.0 migration notes](https://github.com/go-gitea/gitea/releases/tag/v28.0.0)
-and the [v28.2.0 fixes](https://github.com/go-gitea/gitea/releases/tag/v28.2.0)
+Gitea 28.4.0 is a critical security release that patches multiple CVEs:
+CVE-2026-125423 (remote code execution via repository initialization race),
+CVE-2026-123006 (information exposure in search responses),
+CVE-2026-123002 (TOTP brute-force bypass), CVE-2026-123638 (file protection
+control character bypass), CVE-2026-120729 (XSS in issue references), and
+CVE-2026-123065 (release attachment deletion). It also fixes deadlocks in
+language statistics and notification tasks, improves Actions API permission
+checks, and upgrades the Go runtime to 1.27.4. No breaking Helm configuration
+change is required. Review the
+[v28.4.0 release notes](https://github.com/go-gitea/gitea/releases/tag/v28.4.0)
 before production rollout. The rootless UID, ports, work directory, data path,
 and `GITEA_APP_INI` contract remain compatible with this chart.
 
