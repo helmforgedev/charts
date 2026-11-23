@@ -7,6 +7,7 @@ metadata:
   labels:
     {{- include "wordpress.labels" . | nindent 4 }}
     app.kubernetes.io/component: wp-cron
+  {{- include "wordpress.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   schedule: {{ .Values.wpCron.cronJob.schedule | quote }}
   suspend: {{ .Values.wpCron.cronJob.suspend }}
@@ -45,6 +46,11 @@ spec:
             - name: wp-cron
               image: "{{ .Values.wpCron.cronJob.image.repository }}:{{ .Values.wpCron.cronJob.image.tag }}"
               imagePullPolicy: {{ .Values.wpCron.cronJob.image.pullPolicy }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
               args:
                 - --fail
                 - --silent

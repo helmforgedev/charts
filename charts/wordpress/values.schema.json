@@ -22,6 +22,14 @@
       "type": "object",
       "description": "Labels added to every resource created by this chart"
     },
+    "commonAnnotations": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Annotations added to every rendered resource",
+      "default": {}
+    },
     "replicaCount": {
       "type": "integer",
       "minimum": 1,
@@ -332,7 +340,20 @@
       "type": "object",
       "description": "Container-level security context",
       "properties": {
-        "allowPrivilegeEscalation": { "type": "boolean" }
+        "allowPrivilegeEscalation": { "type": "boolean" },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "drop": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "add": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
       }
     },
     "startupProbe": {
@@ -793,6 +814,16 @@
             "uploader": { "type": "string", "description": "Image used for S3 upload (MinIO client)" }
           }
         },
+        "serviceAccount": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "create": { "type": "boolean", "description": "Create a dedicated ServiceAccount for workload identity backups", "default": true },
+            "name": { "type": "string", "description": "Existing dedicated ServiceAccount name when create is false", "default": "" },
+            "annotations": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Annotations for IRSA or another workload identity integration", "default": {} },
+            "automountServiceAccountToken": { "type": "boolean", "description": "Mount the Kubernetes API token into backup pods", "default": false }
+          }
+        },
         "resources": {
           "type": "object",
           "description": "Resources for backup containers"
@@ -810,6 +841,8 @@
             "bucket": { "type": "string", "description": "Target bucket name" },
             "prefix": { "type": "string", "description": "Key prefix within the bucket" },
             "createBucketIfNotExists": { "type": "boolean", "description": "Auto-create the bucket if it does not exist" },
+            "region": { "type": "string", "description": "AWS region used by workload identity" },
+            "credentialsFromPodIdentity": { "type": "boolean", "description": "Use EKS Pod Identity or IRSA instead of static S3 credentials" },
             "existingSecret": { "type": "string", "description": "Use an existing secret for S3 credentials" },
             "existingSecretAccessKeyKey": { "type": "string", "description": "Key in the existing secret for the access key" },
             "existingSecretSecretKeyKey": { "type": "string", "description": "Key in the existing secret for the secret key" },
