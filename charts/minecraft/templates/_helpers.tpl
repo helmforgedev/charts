@@ -115,11 +115,14 @@ Validate backup configuration. Fails if required fields are missing.
 {{- if not .Values.backup.s3.bucket }}
 {{- fail "backup.s3.bucket is required when backup is enabled" }}
 {{- end }}
-{{- if and (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.accessKey) }}
-{{- fail "backup.s3.accessKey or backup.s3.existingSecret is required when backup is enabled" }}
+{{- if and (not .Values.backup.s3.credentialsFromPodIdentity) (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.accessKey) }}
+{{- fail "backup.s3.accessKey or backup.s3.existingSecret is required when backup is enabled and credentialsFromPodIdentity is false" }}
 {{- end }}
-{{- if and (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.secretKey) }}
-{{- fail "backup.s3.secretKey or backup.s3.existingSecret is required when backup is enabled" }}
+{{- if and (not .Values.backup.s3.credentialsFromPodIdentity) (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.secretKey) }}
+{{- fail "backup.s3.secretKey or backup.s3.existingSecret is required when backup is enabled and credentialsFromPodIdentity is false" }}
+{{- end }}
+{{- if and .Values.backup.s3.credentialsFromPodIdentity (not .Values.backup.s3.region) }}
+{{- fail "backup.s3.region is required when backup.s3.credentialsFromPodIdentity is true" }}
 {{- end }}
 {{- if not .Values.persistence.enabled }}
 {{- fail "persistence.enabled must be true when backup is enabled" }}
@@ -182,5 +185,28 @@ Validate required runtime settings before rendering workloads.
 {{- define "minecraft.validate" -}}
 {{- if not .Values.server.eula -}}
 {{- fail "server.eula must be true to accept the Minecraft EULA" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Render merged annotations: root.Values.commonAnnotations and specific annotations.
+Usage: {{- include "minecraft.renderAnnotations" (dict "root" . "specific" .Values.service.annotations) | nindent 2 }}
+*/}}
+{{- define "minecraft.renderAnnotations" -}}
+{{- $root := .root | default . -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := merge (deepCopy $specific) (deepCopy ($root.Values.commonAnnotations | default dict)) -}}
+{{- with $annotations }}
+annotations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
+{{/* Backup — dedicated ServiceAccount name */}}
+{{- define "minecraft.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create -}}
+{{- default (printf "%s-backup" (include "minecraft.fullname" .)) .Values.backup.serviceAccount.name -}}
+{{- else -}}
+{{- required "minecraft: backup.serviceAccount.name is required when backup.serviceAccount.create is false" .Values.backup.serviceAccount.name -}}
 {{- end -}}
 {{- end -}}
