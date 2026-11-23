@@ -341,3 +341,36 @@ http here. server.publicUrl itself stays untouched for exposedAddress.
 {{- $u = regexReplaceAll "^(https://[^/?#]+):443([/?#]|$)" $u "${1}${2}" -}}
 {{- regexReplaceAll "^(http://[^/?#]+):80([/?#]|$)" $u "${1}${2}" -}}
 {{- end -}}
+
+{{/*
+Render annotations combining commonAnnotations with resource-specific annotations.
+Usage:
+  {{- include "netbird.renderAnnotations" (dict "root" . "context" "serverService") | nindent 2 }}
+*/}}
+{{- define "netbird.renderAnnotations" -}}
+{{- $root := . -}}
+{{- $context := "" -}}
+{{- $extra := dict -}}
+{{- if kindIs "map" . -}}
+  {{- if hasKey . "root" -}}
+    {{- $root = .root -}}
+    {{- $context = .context | default "" -}}
+    {{- $extra = .extra | default dict -}}
+  {{- end -}}
+{{- end -}}
+{{- $specific := $extra -}}
+{{- if eq $context "serverService" -}}
+  {{- $specific = merge (deepCopy $extra) ($root.Values.server.service.annotations | default dict) -}}
+{{- else if eq $context "dashboardService" -}}
+  {{- $specific = merge (deepCopy $extra) ($root.Values.dashboard.service.annotations | default dict) -}}
+{{- else if eq $context "serviceAccount" -}}
+  {{- $specific = merge (deepCopy $extra) ($root.Values.serviceAccount.annotations | default dict) -}}
+{{- else if eq $context "ingress" -}}
+  {{- $specific = merge (deepCopy $extra) ($root.Values.ingress.annotations | default dict) -}}
+{{- end -}}
+{{- $merged := merge (deepCopy $specific) ($root.Values.commonAnnotations | default dict) -}}
+{{- if $merged }}
+annotations:
+  {{- toYaml $merged | nindent 2 }}
+{{- end }}
+{{- end -}}
