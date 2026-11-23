@@ -65,7 +65,7 @@ When ingress is enabled, requests are routed by path:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/appwrite/appwrite` | Appwrite server image |
-| `image.tag` | `2.7.2` | Image tag |
+| `image.tag` | `2.7.4` | Image tag |
 | `console.image.repository` | `docker.io/appwrite/new` | Console image |
 | `console.image.tag` | `1.2.181-self-hosted` | Console image tag |
 | `appwrite.locale` | `en` | Application locale |
@@ -101,6 +101,11 @@ See the [security guide](docs/security.md) for the trust boundary and a
 production checklist.
 
 ## Upgrade Notes
+
+### Appwrite 2.7.4
+
+The [2.7.4 patch release](https://github.com/appwrite/appwrite/releases/tag/2.7.4)
+rebuilds on PHP 8.5.13 fixing OPcache DateTime worker crashes and upgrades the function executor to 1.3.7. Upgrading from 2.7.x requires no data schema changes. Run `migrate` after upgrading.
 
 ### Appwrite 2.7.2
 
