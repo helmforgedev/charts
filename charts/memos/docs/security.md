@@ -56,7 +56,7 @@ ranges. Only use it when the targets are trusted internal services and egress is
 ## Deployment Configuration Secrets
 
 Use `provisioning.existingSecret` for OAuth2 client secrets, SMTP credentials, S3 credentials, and AI provider keys that
-Memos 0.31 loads from `/etc/secrets`. The chart mounts the Secret read-only with group-readable mode `0440` for the
+Memos 26.11 loads from `/etc/memos/config`. The chart mounts the Secret read-only with group-readable mode `0440` for the
 non-root container.
 
 Treat every matching JSON file as sensitive plaintext. Do not place provisioning JSON directly in Helm values, logs, or

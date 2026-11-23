@@ -22,20 +22,20 @@ const fixtureFilename=`fixture-${randomUUID()}.txt`;
 const marker='HelmForge persistent memo: ação 日本語';const content=Buffer.from('HelmForge attachment: ação 日本語\n');
 function client(base){return async(path,{method='GET',body,auth=true,status=200,headers={}}={})=>{const response=await fetch(base+path,{method,headers:{'Content-Type':'application/json',...(auth?{Authorization:'Bearer '+accessToken}:{}),...headers},...(body?{body:JSON.stringify(body)}:{}),redirect:'manual',signal:AbortSignal.timeout(15000)});assert.equal(response.status,status,method+' '+path);return response;};}
 await forward(async base=>{
- const api=client(base);const profile=await(await api('/api/v1/instance/profile',{auth:false})).json();assert.notEqual(profile.needsSetup,true);
- const login=await api('/memos.api.v1.AuthService/SignIn',{auth:false,method:'POST',body:{passwordCredentials:{username:values.bootstrap.username,password}}});const data=await login.json();assert.equal(data.user.role,'ADMIN');accessToken=data.accessToken;assert.ok(accessToken);
+ const api=client(base);const profile=await(await api('/api/instance/profile',{auth:false})).json();assert.notEqual(profile.needsSetup,true);
+ const login=await api('/memos.api.AuthService/SignIn',{auth:false,method:'POST',body:{passwordCredentials:{username:values.bootstrap.username,password}}});const data=await login.json();assert.equal(data.user.role,'ADMIN');accessToken=data.accessToken;assert.ok(accessToken);
  const cookies=login.headers.getSetCookie();assert.ok(cookies.some(c=>/HttpOnly/i.test(c)&&/SameSite=Lax/i.test(c)));refreshCookie=cookies.map(c=>c.split(';')[0]).join('; ');
- if(values.provisioning.manageGeneralSettings&&!values.provisioning.existingSecret&&values.provisioning.disallowUserRegistration){const response=await fetch(base+'/api/v1/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:'unapproved',password:'fixture-only-password'})});assert.ok(response.status===401||response.status===403,'New registration must be denied');}
- const memo=await(await api('/api/v1/memos',{method:'POST',body:{content:'Initial fixture',visibility:'PRIVATE'}})).json();memoName=memo.name;assert.match(memoName,/^memos\//);
- await api('/api/v1/'+memoName+'?updateMask=content',{method:'PATCH',body:{content:marker}});assert.equal((await(await api('/api/v1/'+memoName)).json()).content,marker);
+ if(values.provisioning.manageGeneralSettings&&!values.provisioning.existingSecret&&values.provisioning.disallowUserRegistration){const response=await fetch(base+'/api/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:'unapproved',password:'fixture-only-password'})});assert.ok(response.status===401||response.status===403,'New registration must be denied');}
+ const memo=await(await api('/api/memos',{method:'POST',body:{content:'Initial fixture',visibility:'PRIVATE'}})).json();memoName=memo.name;assert.match(memoName,/^memos\//);
+ await api('/api/'+memoName+'?updateMask=content',{method:'PATCH',body:{content:marker}});assert.equal((await(await api('/api/'+memoName)).json()).content,marker);
  if(workload.metadata.name==='memos-provisioning'){
   assert.ok(values.memos.instanceUrl,'Provisioning fixture must prove ACCESS is independent from a nonempty instance URL');
-  const publicMemo=await(await api('/api/v1/memos',{method:'POST',body:{content:'ACCESS policy fixture',visibility:'PUBLIC'}})).json();
-  const anonymous=await fetch(base+'/api/v1/'+publicMemo.name,{redirect:'manual',signal:AbortSignal.timeout(15000)});assert.equal(anonymous.status,401,'Provisioned PRIVATE access must return an authentication denial for a PUBLIC memo');
-  await api('/api/v1/'+publicMemo.name,{method:'DELETE'});
+  const publicMemo=await(await api('/api/memos',{method:'POST',body:{content:'ACCESS policy fixture',visibility:'PUBLIC'}})).json();
+  const anonymous=await fetch(base+'/api/'+publicMemo.name,{redirect:'manual',signal:AbortSignal.timeout(15000)});assert.equal(anonymous.status,401,'Provisioned PRIVATE access must return an authentication denial for a PUBLIC memo');
+  await api('/api/'+publicMemo.name,{method:'DELETE'});
   console.log('PASS file-backed ACCESS=PRIVATE overrides legacy nonempty instance URL behavior');
  }
- const attachment=await(await api('/api/v1/attachments',{method:'POST',body:{filename:fixtureFilename,type:'text/plain',content:content.toString('base64'),memo:memoName}})).json();attachmentName=attachment.name;assert.match(attachmentName,/^attachments\//);
+ const attachment=await(await api('/api/attachments',{method:'POST',body:{filename:fixtureFilename,type:'text/plain',content:content.toString('base64'),memo:memoName}})).json();attachmentName=attachment.name;assert.match(attachmentName,/^attachments\//);
  if(workload.metadata.name==='memos-s3'){
   assert.equal(attachment.externalLink,'','Managed S3 storage must not expose a presigned URL in attachment metadata');
   const fixtureSecret=JSON.parse(k(['get','secret','fixture-s3','-o','json'])).data;
@@ -47,31 +47,31 @@ await forward(async base=>{
   const checksum=k(['exec',pod(),'-c','memos','--','sha256sum',file]).split(/\s/)[0];assert.equal(checksum,createHash('sha256').update(content).digest('hex'));
  }
  const filePath='/file/'+attachmentName+'/'+encodeURIComponent(fixtureFilename);const download=await api(filePath);assert.deepEqual(Buffer.from(await download.arrayBuffer()),content);
- for(const path of ['/api/v1/'+memoName,filePath]){const denied=await fetch(base+path,{redirect:'manual'});assert.notEqual(denied.status,200,'Private content must reject anonymous access');}
- const patResponse=await(await api('/api/v1/users/'+values.bootstrap.username+'/personalAccessTokens',{method:'POST',body:{description:'HelmForge MCP fixture',expiresInDays:1}})).json();assert.ok(patResponse.token);
+ for(const path of ['/api/'+memoName,filePath]){const denied=await fetch(base+path,{redirect:'manual'});assert.notEqual(denied.status,200,'Private content must reject anonymous access');}
+ const patResponse=await(await api('/api/users/'+values.bootstrap.username+'/personalAccessTokens',{method:'POST',body:{description:'HelmForge MCP fixture',expiresInDays:1}})).json();assert.ok(patResponse.token);
  let rpcId=0;
  const rpc=async(method,params,token=patResponse.token)=>{const response=await fetch(base+'/mcp',{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json, text/event-stream',...(token?{Authorization:'Bearer '+token}:{})},body:JSON.stringify({jsonrpc:'2.0',id:++rpcId,method,params}),signal:AbortSignal.timeout(15000)});assert.equal(response.status,200);return response.json();};
  const initialized=await rpc('initialize',{protocolVersion:'2025-06-18',capabilities:{},clientInfo:{name:'helmforge-runtime',version:'1.0.0'}});assert.equal(initialized.result.serverInfo.name,'memos');
  const list=await rpc('tools/list',{});assert.ok(list.result.tools.some(t=>t.name==='memo_create_memo'));
- const created=await rpc('tools/call',{name:'memo_create_memo',arguments:{body:{content:'HelmForge MCP persistent operation',visibility:'PRIVATE'}}});assert.notEqual(created.result.isError,true);const mcpMemo=created.result.structuredContent.name;assert.match(mcpMemo,/^memos\//);assert.equal((await(await api('/api/v1/'+mcpMemo)).json()).content,'HelmForge MCP persistent operation');
+ const created=await rpc('tools/call',{name:'memo_create_memo',arguments:{body:{content:'HelmForge MCP persistent operation',visibility:'PRIVATE'}}});assert.notEqual(created.result.isError,true);const mcpMemo=created.result.structuredContent.name;assert.match(mcpMemo,/^memos\//);assert.equal((await(await api('/api/'+mcpMemo)).json()).content,'HelmForge MCP persistent operation');
  const read=await rpc('tools/call',{name:'memo_get_memo',arguments:{memo:mcpMemo}});assert.equal(read.result.structuredContent.content,'HelmForge MCP persistent operation');
  const denied=await rpc('tools/call',{name:'memo_get_memo',arguments:{memo:mcpMemo}},'');assert.equal(denied.result.isError,true);assert.equal(denied.result.structuredContent,undefined);
- const removed=await rpc('tools/call',{name:'memo_delete_memo',arguments:{memo:mcpMemo}});assert.notEqual(removed.result.isError,true);await api('/api/v1/'+mcpMemo,{status:404});
- await api('/api/v1/'+patResponse.personalAccessToken.name,{method:'DELETE'});const revoked=await rpc('tools/call',{name:'auth_get_current_user',arguments:{}});assert.equal(revoked.result.isError,true);
+ const removed=await rpc('tools/call',{name:'memo_delete_memo',arguments:{memo:mcpMemo}});assert.notEqual(removed.result.isError,true);await api('/api/'+mcpMemo,{status:404});
+ await api('/api/'+patResponse.personalAccessToken.name,{method:'DELETE'});const revoked=await rpc('tools/call',{name:'auth_get_current_user',arguments:{}});assert.equal(revoked.result.isError,true);
  console.log('PASS native PAT-authenticated MCP initialization, tool discovery, actual private memo CRUD, anonymous denial and revocation');
  if(workload.metadata.name==='memos-oauth'){const {oauthSmoke}=await import('./oauth-smoke.mjs');await oauthSmoke({context,namespace,base,api,username:values.bootstrap.username,memoName});}
 });
 if(values.replicaCount>1){
  const replicas=JSON.parse(k(['get','pods','-l',selector,'-o','json'])).items.filter(p=>!p.metadata.deletionTimestamp);assert.equal(replicas.length,values.replicaCount);
- for(const replica of replicas)await forward(async base=>{const api=client(base);assert.equal((await(await api('/api/v1/'+memoName)).json()).content,marker);assert.deepEqual(Buffer.from(await(await api('/file/'+attachmentName+'/'+encodeURIComponent(fixtureFilename))).arrayBuffer()),content);},replica.metadata.name);
+ for(const replica of replicas)await forward(async base=>{const api=client(base);assert.equal((await(await api('/api/'+memoName)).json()).content,marker);assert.deepEqual(Buffer.from(await(await api('/file/'+attachmentName+'/'+encodeURIComponent(fixtureFilename))).arrayBuffer()),content);},replica.metadata.name);
  console.log('PASS identical private memo, attachment and native identity through every SQL-backed replica sharing the data claim');
 }
 if(values.persistence.enabled||values.persistence.existingClaim){
  k(['rollout','restart','statefulset/'+workload.metadata.name]);k(['rollout','status','statefulset/'+workload.metadata.name,'--timeout=90s']);
- await forward(async base=>{const api=client(base);assert.equal((await(await api('/api/v1/'+memoName)).json()).content,marker);assert.deepEqual(Buffer.from(await(await api('/file/'+attachmentName+'/'+encodeURIComponent(fixtureFilename))).arrayBuffer()),content);const refreshResponse=await api('/memos.api.v1.AuthService/RefreshToken',{method:'POST',auth:false,body:{},headers:{Cookie:refreshCookie}});const refreshed=await refreshResponse.json();assert.ok(refreshed.accessToken);accessToken=refreshed.accessToken;const rotated=refreshResponse.headers.getSetCookie();if(rotated.length)refreshCookie=rotated.map(c=>c.split(';')[0]).join('; ');});
+ await forward(async base=>{const api=client(base);assert.equal((await(await api('/api/'+memoName)).json()).content,marker);assert.deepEqual(Buffer.from(await(await api('/file/'+attachmentName+'/'+encodeURIComponent(fixtureFilename))).arrayBuffer()),content);const refreshResponse=await api('/memos.api.AuthService/RefreshToken',{method:'POST',auth:false,body:{},headers:{Cookie:refreshCookie}});const refreshed=await refreshResponse.json();assert.ok(refreshed.accessToken);accessToken=refreshed.accessToken;const rotated=refreshResponse.headers.getSetCookie();if(rotated.length)refreshCookie=rotated.map(c=>c.split(';')[0]).join('; ');});
 }
 execFileSync('helm',['upgrade',release,fileURLToPath(new URL('..',import.meta.url)),'--kube-context',context,'-n',namespace,'--reuse-values','--wait','--timeout','60s'],{encoding:'utf8',timeout:75000});assert.deepEqual(JSON.parse(k(['get','secret',secretName,'-o','json'])).data,secret);
-if(workload.metadata.name==='memos-oauth')await forward(async base=>{const {oauthSmoke}=await import('./oauth-smoke.mjs');await oauthSmoke({context,namespace,base,api:client(base),username:values.bootstrap.username,memoName});});
+if(workload.metadata.name==='memos-oauth')await forward(async base=>{const api=client(base);const {oauthSmoke}=await import('./oauth-smoke.mjs');await oauthSmoke({context,namespace,base,api,username:values.bootstrap.username,memoName});});
 if(workload.metadata.name==='memos-restore'){
  assert.equal(values.database.driver,'sqlite');
  const originalPod=pod();const podObject=JSON.parse(k(['get','pod',originalPod,'-o','json']));
@@ -86,8 +86,8 @@ if(workload.metadata.name==='memos-restore'){
  // The claim template is immutable; recreate only the quiesced controller, preserving both PVCs.
  k(['delete','statefulset/'+workload.metadata.name,'--cascade=orphan','--wait=true','--timeout=30s']);
  execFileSync('helm',['upgrade',release,fileURLToPath(new URL('..',import.meta.url)),'--kube-context',context,'-n',namespace,'--reuse-values','--set','persistence.existingClaim='+restoreName,'--wait','--timeout','60s'],{encoding:'utf8',timeout:75000});
- await forward(async base=>{const api=client(base);assert.equal((await(await api('/api/v1/'+memoName)).json()).content,marker);assert.deepEqual(Buffer.from(await(await api('/file/'+attachmentName+'/'+encodeURIComponent(fixtureFilename))).arrayBuffer()),content);const refreshResponse=await api('/memos.api.v1.AuthService/RefreshToken',{method:'POST',auth:false,body:{},headers:{Cookie:refreshCookie}});const refreshed=await refreshResponse.json();assert.ok(refreshed.accessToken);accessToken=refreshed.accessToken;const rotated=refreshResponse.headers.getSetCookie();if(rotated.length)refreshCookie=rotated.map(c=>c.split(';')[0]).join('; ');});
+ await forward(async base=>{const api=client(base);assert.equal((await(await api('/api/'+memoName)).json()).content,marker);assert.deepEqual(Buffer.from(await(await api('/file/'+attachmentName+'/'+encodeURIComponent(fixtureFilename))).arrayBuffer()),content);const refreshResponse=await api('/memos.api.AuthService/RefreshToken',{method:'POST',auth:false,body:{},headers:{Cookie:refreshCookie}});const refreshed=await refreshResponse.json();assert.ok(refreshed.accessToken);accessToken=refreshed.accessToken;const rotated=refreshResponse.headers.getSetCookie();if(rotated.length)refreshCookie=rotated.map(c=>c.split(';')[0]).join('; ');});
  console.log('PASS quiesced complete SQLite and assets archive restored into a fresh PVC, retained native token/refresh identity and exact memo/attachment');
 }
-await forward(async base=>{const api=client(base);await api('/api/v1/'+attachmentName,{method:'DELETE'});await api('/api/v1/'+memoName,{method:'DELETE'});await api('/api/v1/'+memoName,{status:404});});
+await forward(async base=>{const api=client(base);await api('/api/'+attachmentName,{method:'DELETE'});await api('/api/'+memoName,{method:'DELETE'});await api('/api/'+memoName,{status:404});});
 console.log('PASS protected loopback bootstrap, native administrator login, registration policy, private memo and exact attachment CRUD, retained initial password'+((values.persistence.enabled||values.persistence.existingClaim)?', persisted data and refresh session after pod replacement':''));

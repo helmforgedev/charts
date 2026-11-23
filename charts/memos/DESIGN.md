@@ -5,7 +5,7 @@
 ## Scope
 
 This chart deploys Memos 0.31 as a stateful web application using the official
-`docker.io/neosmemo/memos:0.31.0` image. It owns the Kubernetes workload, durable data mount, networking, bootstrap,
+`docker.io/neosmemo/memos:26.11.1` image. It owns the Kubernetes workload, durable data mount, networking, bootstrap,
 deployment-configuration mount, and optional HelmForge database dependencies. It does not own application users,
 memos, attachments, or settings stored through the Memos API.
 
@@ -55,7 +55,7 @@ The protected bootstrap runs the unchanged Memos binary on loopback before the p
 first administrator only while the native profile reports `needsSetup`; adoption preserves existing users and
 passwords.
 
-`provisioning.existingSecret` is mounted read-only at `/etc/secrets`, the upstream scan path. Secret keys become native
+`provisioning.existingSecret` is mounted read-only at `/etc/memos/config`, the upstream scan path. Secret keys become native
 Memos provisioning filenames. Supported instance groups include `ACCESS`, `GENERAL`, `STORAGE`, `MEMO_RELATED`,
 `NOTIFICATION`, and `AI`; OAuth2 identity-provider files are also supported. Memos validates the complete set before
 serving traffic and treats file-backed resources as authoritative for the process lifetime. A Secret update requires a
