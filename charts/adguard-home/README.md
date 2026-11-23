@@ -35,9 +35,8 @@ To skip the wizard and deploy a pre-configured instance, provide `config.adGuard
 
 ## Upstream Version Notes
 
-AdGuard Home `0.107.79` is an upstream security and stability release. It
-updates Go to address upstream vulnerabilities and improves resistance to
-resource exhaustion attacks when DNS-over-QUIC is enabled.
+AdGuard Home `0.107.80` is an upstream security and stability release. It
+updates Go to 1.27.3 and disables Multipath TCP to mitigate CVE-2026-98432.
 
 The `0.107.76` release notes also state that YAML duration values now support
 `d` day units. If you roll back to a version below `v0.107.76`, convert any `d`
@@ -187,7 +186,7 @@ backup:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/adguard/adguardhome` | Container image |
-| `image.tag` | `v0.107.79` | Image tag |
+| `image.tag` | `v0.107.80` | Image tag |
 | `image.pullPolicy` | `IfNotPresent` | Pull policy |
 
 ### General Configuration
