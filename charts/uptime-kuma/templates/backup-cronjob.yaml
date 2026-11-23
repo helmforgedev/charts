@@ -6,6 +6,7 @@ metadata:
   name: {{ include "uptime-kuma.fullname" . }}-backup
   labels:
     {{- include "uptime-kuma.labels" . | nindent 4 }}
+  {{- include "uptime-kuma.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   schedule: {{ .Values.backup.schedule | quote }}
   suspend: {{ .Values.backup.suspend }}
@@ -22,8 +23,8 @@ spec:
             app.kubernetes.io/instance: {{ .Release.Name }}
             app.kubernetes.io/component: backup
         spec:
-          serviceAccountName: {{ include "uptime-kuma.serviceAccountName" . }}
-          automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+          serviceAccountName: {{ include "uptime-kuma.backupServiceAccountName" . }}
+          automountServiceAccountToken: {{ .Values.backup.serviceAccount.automountServiceAccountToken }}
           securityContext:
             {{- toYaml .Values.backup.podSecurityContext | nindent 12 }}
           restartPolicy: OnFailure
@@ -97,6 +98,7 @@ spec:
                   value: {{ .Values.backup.s3.prefix | quote }}
                 - name: MC_CONFIG_DIR
                   value: /tmp/mc
+                {{- if not .Values.backup.s3.credentialsFromPodIdentity }}
                 - name: S3_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
@@ -107,6 +109,11 @@ spec:
                     secretKeyRef:
                       name: {{ include "uptime-kuma.backupSecretName" . }}
                       key: {{ include "uptime-kuma.backupSecretSecretKeyKey" . }}
+                {{- end }}
+                {{- if .Values.backup.s3.region }}
+                - name: AWS_REGION
+                  value: {{ .Values.backup.s3.region | quote }}
+                {{- end }}
               {{- with .Values.backup.resources }}
               resources:
                 {{- toYaml . | nindent 16 }}

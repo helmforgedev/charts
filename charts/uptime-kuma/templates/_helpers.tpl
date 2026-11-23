@@ -39,6 +39,25 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
+{{- define "uptime-kuma.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create -}}
+{{- default (printf "%s-backup" (include "uptime-kuma.fullname" .)) .Values.backup.serviceAccount.name -}}
+{{- else -}}
+{{- default "default" .Values.backup.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "uptime-kuma.renderAnnotations" -}}
+{{- $root := .root | default . -}}
+{{- $specific := .specific -}}
+{{- $common := $root.Values.commonAnnotations | default dict -}}
+{{- $merged := merge (dict) ($specific | default dict) $common -}}
+{{- if $merged }}
+annotations:
+{{- toYaml $merged | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "uptime-kuma.image" -}}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
@@ -178,7 +197,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if and .Values.backup.enabled (empty .Values.backup.s3.bucket) -}}
 {{- fail "backup.s3.bucket is required when backup.enabled=true" -}}
 {{- end -}}
-{{- if and .Values.backup.enabled (empty .Values.backup.s3.existingSecret) (or (empty .Values.backup.s3.accessKey) (empty .Values.backup.s3.secretKey)) -}}
+{{- if and .Values.backup.enabled (not .Values.backup.s3.credentialsFromPodIdentity) (empty .Values.backup.s3.existingSecret) (or (empty .Values.backup.s3.accessKey) (empty .Values.backup.s3.secretKey)) -}}
 {{- fail "backup.s3.accessKey and backup.s3.secretKey are both required when backup.s3.existingSecret is empty" -}}
 {{- end -}}
 {{- if and .Values.ingress.enabled (empty .Values.ingress.hosts) -}}
