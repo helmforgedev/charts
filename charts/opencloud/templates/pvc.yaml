@@ -5,11 +5,11 @@ kind: PersistentVolumeClaim
 metadata:
   name: {{ include "opencloud.claimName" . }}
   labels: {{ include "opencloud.labels" . | nindent 4 }}
-  annotations:
-    {{- if .Values.persistence.retain }}
-    helm.sh/resource-policy: keep
-    {{- end }}
-    {{- with .Values.persistence.annotations }}{{ toYaml . | nindent 4 }}{{- end }}
+  {{- $pvcExtra := dict }}
+  {{- if .Values.persistence.retain }}
+  {{- $pvcExtra = dict "helm.sh/resource-policy" "keep" }}
+  {{- end }}
+  {{- include "opencloud.renderAnnotations" (dict "root" . "context" "persistence" "extra" $pvcExtra) | nindent 2 }}
 spec:
   accessModes: {{ toYaml .Values.persistence.accessModes | nindent 4 }}
   {{- if eq .Values.persistence.storageClass "-" }}
