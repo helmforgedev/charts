@@ -15,7 +15,7 @@ helm install clickhouse oci://ghcr.io/helmforgedev/helm/clickhouse
 
 ## Features
 
-- Official ClickHouse image pinned to `26.10.4` from the stable channel.
+- Official ClickHouse image pinned to `26.10.11` from the stable channel.
 - StatefulSet with persistent data volume.
 - Client Service exposing HTTP `8123` and native TCP `9000` by default.
 - Headless Service for stable pod DNS.
@@ -56,7 +56,7 @@ networkPolicy:
 | `commonAnnotations` | Annotations added to mutable resource metadata except pod and PVC templates | `{}` |
 | `replicaCount` | ClickHouse pod count. Must remain `1` | `1` |
 | `image.repository` | Official image repository | `docker.io/clickhouse/clickhouse-server` |
-| `image.tag` | Official full-version tag | `26.10.4` |
+| `image.tag` | Official full-version tag | `26.10.11` |
 | `clickhouse.database` | Initial database | `default` |
 | `clickhouse.user` | User managed by the image entrypoint | `default` |
 | `clickhouse.password` | Password managed by the image entrypoint | `""` |
@@ -117,11 +117,11 @@ one-time checksum migration; later changes to `commonAnnotations` or other
 resource metadata annotations do not trigger a rollout. Changes to
 `podAnnotations` still update the pod template and trigger a rollout.
 
-The 26.10.4 update transitions to the stable 26.10 channel and preserves the
+The 26.10.11 update continues on the stable 26.10 channel and preserves the
 chart's credentials and standalone storage contract. Take a verified backup,
 test application queries and restore procedures, and plan rollback before
 allowing the new patch to write production data. Review the
-[26.10 release notes](https://github.com/ClickHouse/ClickHouse/releases/tag/v26.10.4.1-stable).
+[26.10 release notes](https://clickhouse.com/docs/resources/changelogs/oss/2026).
 
 ClickHouse 26.8.2 follows the monthly 26.7 release and carries the August LTS
 designation. It changes the default text-index disk format to v2 and updates
