@@ -9,11 +9,8 @@ metadata:
   name: {{ include "paperless-ngx.fullname" $ }}-{{ $name }}
   labels:
     {{- include "paperless-ngx.labels" $ | nindent 4 }}
-  annotations:
-    helm.sh/resource-policy: keep
-    {{- with $p.annotations }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
+  {{- $pvcAnnotations := merge (deepCopy ($p.annotations | default dict)) (dict "helm.sh/resource-policy" "keep") }}
+  {{- include "paperless-ngx.renderAnnotations" (dict "root" $ "context" "persistence" "extra" $pvcAnnotations) | nindent 2 }}
 spec:
   accessModes:
     - {{ $p.accessMode }}
