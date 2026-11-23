@@ -50,9 +50,9 @@ The full component and trust-boundary topology is documented in
 ## Image provenance
 
 The default image is
-`ghcr.io/documenso/documenso@sha256:d9985f66c19c59128f64b1439f057683da0110deb0e518655b97f06e3141f173`,
-the official v2.21.0 Linux amd64/arm64 manifest verified on 2026-10-21. Review
-the [upstream release](https://github.com/documenso/documenso/releases/tag/v2.21.0)
+`ghcr.io/documenso/documenso@sha256:f9976d2142d34ee89506e161b0a5ec859a0c327f3fe0a398b46d3941fc8dd35e`,
+the official v2.22.0 Linux amd64/arm64 manifest verified on 2026-11-19. Review
+the [upstream release](https://github.com/documenso/documenso/releases/tag/v2.22.0)
 before production rollout.
 
 ## Health contract
@@ -139,7 +139,7 @@ complete, commented contract, including resource and scheduling subfields.
 | Value | Default | Purpose |
 |---|---:|---|
 | `global` | `{}` | Values shared with dependency charts |
-| `image.tag` | `v2.21.0` | Human-readable upstream release |
+| `image.tag` | `v2.22.0` | Human-readable upstream release |
 | `image.digest` | pinned | Immutable official multi-platform manifest |
 | `commonAnnotations` | `{}` | Annotations applied to chart-owned resources |
 | `replicaCount` | `1` | Application replicas |
