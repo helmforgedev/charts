@@ -21,10 +21,10 @@ provide safe high availability.
 
 ## Upstream version and supply chain
 
-- Selected channel: `10.51`.
-- Image: `ghcr.io/gnzsnz/ib-gateway:10.51`, always selected by the immutable
+- Selected channel: `10.52`.
+- Image: `ghcr.io/gnzsnz/ib-gateway:10.52`, always selected by the immutable
   digest below rather than the mutable channel tag alone.
-- Manifest index: `sha256:85975f493bcacc8341cb42e6946c460868d165e5f64d9924b1958c8f03e7bee4`.
+- Manifest index: `sha256:b72591b3b0965d4d29cec25163ff8d5f08e6b549c2fe0ce84944b4d173c9b652`.
 - Platforms: linux/amd64 and linux/arm64.
 - `make image-verify` and a direct manifest inspection passed for both platforms.
 - The repository is MIT licensed, but the image contains proprietary IB
