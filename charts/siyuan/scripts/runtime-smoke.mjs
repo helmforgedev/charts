@@ -20,7 +20,7 @@ let notebook,document,originalContent;
 async function authenticated(base,action){
  const raw=(path,data,cookie)=>fetch(base+path,{method:'POST',headers:{'Content-Type':'application/json',...(cookie?{Cookie:cookie}:{})},body:JSON.stringify(data),redirect:'manual',signal:AbortSignal.timeout(20000)});
  const login=await raw('/api/system/loginAuth',{authCode:accessCode,rememberMe:false,captcha:''});assert.equal(login.status,200);const body=await login.json();assert.equal(body.code,0,JSON.stringify(body));const cookie=login.headers.getSetCookie().map(c=>c.split(';')[0]).join('; ');assert.ok(cookie);
- const api=async(path,data={})=>{const response=await raw(path,data,cookie);assert.equal(response.status,200);const json=await response.json();assert.equal(json.code,0,JSON.stringify(json));return json.data;};
+ const api=async(path,data={})=>{const deadline=Date.now()+15000;while(true){const response=await raw(path,data,cookie);assert.equal(response.status,200);const json=await response.json();if(json.code===-1&&json.data?.reason==='indexUnavailable'&&Date.now()<deadline){await new Promise(r=>setTimeout(r,500));continue;}assert.equal(json.code,0,JSON.stringify(json));return json.data;}};
  await action(api,raw,cookie);
 }
 await forward(async base=>{
