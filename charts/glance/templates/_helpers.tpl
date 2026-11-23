@@ -17,6 +17,16 @@ app.kubernetes.io/part-of: helmforge
 {{- define "glance.serviceAccountName" -}}{{- if .Values.serviceAccount.create -}}{{- default (include "glance.fullname" .) .Values.serviceAccount.name -}}{{- else -}}{{- default "default" .Values.serviceAccount.name -}}{{- end -}}{{- end -}}
 {{- define "glance.image" -}}{{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}{{- end -}}
 
+{{- define "glance.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "glance.authSecretName" -}}{{- default (printf "%s-auth" (include "glance.fullname" . | trunc 58 | trimSuffix "-")) .Values.auth.existingSecret -}}{{- end -}}
 {{- define "glance.externalSecretName" -}}
 {{- if .item.fullnameOverride -}}{{ .item.fullnameOverride | trunc 63 | trimSuffix "-" }}
