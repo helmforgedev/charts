@@ -55,7 +55,7 @@ Only use it on a trusted node and protect the administrative frontend.
 ## Features
 
 - Official, pinned multi-architecture Matterbridge image
-- Stable chart with upstream Matterbridge `3.10.14`
+- Stable chart with upstream Matterbridge `3.11.3`
 - StatefulSet singleton with explicit validation against unsafe scaling
 - One retained PVC for plugins, fabrics, certificates and configuration
 - Non-root UID/GID 1000, read-only root filesystem and all capabilities dropped
