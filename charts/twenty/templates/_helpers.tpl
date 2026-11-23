@@ -1,4 +1,62 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- define "twenty.renderAnnotations" -}}
+{{- $root := index . 0 -}}
+{{- $specific := dict -}}
+{{- if gt (len .) 1 -}}
+  {{- $specific = index . 1 | default dict -}}
+{{- end -}}
+{{- $extra := dict -}}
+{{- if gt (len .) 2 -}}
+  {{- $extra = index . 2 | default dict -}}
+{{- end -}}
+{{- $merged := merge (dict) $extra $specific ($root.Values.commonAnnotations | default dict) -}}
+{{- with $merged }}
+annotations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+{{- define "twenty.runtimePayload" -}}
+{{- range $path, $_ := .Files.Glob "files/*.mjs" }}
+{{ base $path }}: |
+{{ $.Files.Get $path | indent 2 }}
+{{- end }}
+nginx.conf: |
+  worker_processes auto;
+  pid /tmp/nginx.pid;
+  error_log /dev/stderr warn;
+  events { worker_connections 1024; }
+  http {
+    include /etc/nginx/mime.types;
+    access_log off;
+    client_body_temp_path /tmp/client_body;
+    proxy_temp_path /tmp/proxy;
+    fastcgi_temp_path /tmp/fastcgi;
+    uwsgi_temp_path /tmp/uwsgi;
+    scgi_temp_path /tmp/scgi;
+    map $http_upgrade $connection_upgrade { default upgrade; '' close; }
+    map $http_x_forwarded_proto $forwarded_scheme { default $scheme; https https; http http; }
+    server {
+      listen 3000;
+      listen [::]:3000;
+      server_name _;
+      client_max_body_size {{ .Values.proxy.bodySize }};
+      location = /_proxyhealth { return 200 'ok'; }
+      location / {
+        proxy_pass http://127.0.0.1:3010;
+        proxy_http_version 1.1;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Forwarded-Host $http_host;
+        proxy_set_header X-Forwarded-Proto $forwarded_scheme;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_read_timeout 300s;
+        proxy_buffering off;
+        proxy_request_buffering off;
+      }
+    }
+  }
+{{- end -}}
 {{- define "twenty.cacheHost" -}}{{- if .Values.redis.enabled -}}{{ include "redis.clientServiceName" .Subcharts.redis }}{{- else -}}{{ .Values.cache.host }}{{- end -}}{{- end -}}
 {{- define "twenty.cachePasswordSecret" -}}{{- if .Values.redis.enabled -}}{{ include "redis.secretName" .Subcharts.redis }}{{- else -}}{{ .Values.cache.passwordSecret }}{{- end -}}{{- end -}}
 {{- define "twenty.environment" -}}

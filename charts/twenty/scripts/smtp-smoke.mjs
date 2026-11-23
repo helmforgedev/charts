@@ -41,11 +41,13 @@ async function mailbox(context, namespace, action) {
     });
   } finally {
     if (pf.exitCode === null && pf.signalCode === null) {
-      if (process.platform === "win32")
-        execFileSync("taskkill", ["/PID", String(pf.pid), "/T", "/F"], {
-          stdio: "ignore",
-        });
-      else pf.kill();
+      if (process.platform === "win32") {
+        try {
+          execFileSync("taskkill", ["/PID", String(pf.pid), "/T", "/F"], {
+            stdio: "ignore",
+          });
+        } catch {}
+      } else pf.kill();
     }
   }
 }

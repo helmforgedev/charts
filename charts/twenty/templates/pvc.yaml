@@ -5,11 +5,11 @@ kind: PersistentVolumeClaim
 metadata:
   name: {{ include "twenty.claimName" . }}
   labels: {{ include "twenty.labels" . | nindent 4 }}
-  annotations:
-    {{- if .Values.persistence.retain }}
-    helm.sh/resource-policy: keep
-    {{- end }}
-    {{- with .Values.persistence.annotations }}{{ toYaml . | nindent 4 }}{{- end }}
+{{- $extra := dict }}
+{{- if .Values.persistence.retain }}
+{{- $extra = dict "helm.sh/resource-policy" "keep" }}
+{{- end }}
+{{- include "twenty.renderAnnotations" (list . .Values.persistence.annotations $extra) | nindent 2 }}
 spec:
   accessModes: {{ toYaml .Values.persistence.accessModes | nindent 4 }}
   {{- if eq .Values.persistence.storageClass "-" }}

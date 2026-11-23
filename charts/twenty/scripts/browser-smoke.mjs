@@ -123,16 +123,15 @@ export async function browserSmoke({
       }
       if (await first.isVisible()) {
         await first.fill("HelmForge");
-        await page
-          .getByLabel("Last name", { exact: true })
-          .fill("Administrator");
-        try {
-          await page
-            .getByRole("button", { name: "Continue", exact: true })
-            .click();
-        } catch (error) {
-          if (new URL(page.url()).pathname === currentPath) throw error;
-          continue;
+        const last = page.getByLabel("Last name", { exact: true });
+        if (await last.isVisible()) await last.fill("Administrator");
+        const job = page.getByLabel("Job Title", { exact: true });
+        if (await job.isVisible()) await job.fill("DevOps");
+        const continueBtn = page.getByRole("button", { name: "Continue", exact: true });
+        if (await continueBtn.isEnabled({ timeout: 5000 }).catch(() => false)) {
+          await continueBtn.click();
+        } else {
+          await page.keyboard.press("Enter");
         }
       } else if (await noSync.isVisible()) await noSync.click();
       else if (await finish.isVisible()) await finish.click();
