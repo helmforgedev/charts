@@ -358,19 +358,15 @@ Usage:
     {{- $extra = .extra | default dict -}}
   {{- end -}}
 {{- end -}}
-{{- $specific := dict -}}
+{{- $specific := $extra -}}
 {{- if eq $context "serverService" -}}
-  {{- $specific = $root.Values.server.service.annotations | default dict -}}
+  {{- $specific = merge (deepCopy $extra) ($root.Values.server.service.annotations | default dict) -}}
 {{- else if eq $context "dashboardService" -}}
-  {{- $specific = $root.Values.dashboard.service.annotations | default dict -}}
+  {{- $specific = merge (deepCopy $extra) ($root.Values.dashboard.service.annotations | default dict) -}}
 {{- else if eq $context "serviceAccount" -}}
-  {{- $specific = $root.Values.serviceAccount.annotations | default dict -}}
+  {{- $specific = merge (deepCopy $extra) ($root.Values.serviceAccount.annotations | default dict) -}}
 {{- else if eq $context "ingress" -}}
-  {{- $specific = $root.Values.ingress.annotations | default dict -}}
-{{- else if eq $context "httpRoute" -}}
-  {{- $specific = $extra | default dict -}}
-{{- else if eq $context "externalSecret" -}}
-  {{- $specific = $extra | default dict -}}
+  {{- $specific = merge (deepCopy $extra) ($root.Values.ingress.annotations | default dict) -}}
 {{- end -}}
 {{- $merged := merge (deepCopy $specific) ($root.Values.commonAnnotations | default dict) -}}
 {{- if $merged }}
