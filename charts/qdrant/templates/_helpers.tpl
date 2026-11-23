@@ -6,6 +6,15 @@
 app.kubernetes.io/name: {{ include "qdrant.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
+{{/* Merge common annotations with resource-specific annotations. */}}
+{{- define "qdrant.renderAnnotations" -}}
+{{- $specific := default dict .specific -}}
+{{- $annotations := mergeOverwrite (deepCopy (default dict .root.Values.commonAnnotations)) $specific -}}
+{{- with $annotations }}
+annotations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
 {{- define "qdrant.labels" -}}
 helm.sh/chart: {{ include "qdrant.chart" . }}
 {{ include "qdrant.selectorLabels" . }}
