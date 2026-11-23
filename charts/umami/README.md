@@ -382,6 +382,7 @@ For production, test restore procedures outside Helm. Backups without restore va
 
 Umami 3.x includes database migrations for newer analytics features such as Boards, Shares, Session Replay, and Web Vitals.
 Back up PostgreSQL before upgrading live deployments, especially when migrating from Umami 2.x.
+Umami 3.5.0 adds native browser error tracking, upgraded session replays, centralized tracker configuration, salt rotation options, trusted proxies support, and schema migrations (`27_add_error_tracking`).
 Umami 3.4.0 adds annotations, API keys and opt-in MCP support, includes schema
 migrations for annotations and API keys, and strengthens authenticated sessions.
 Umami 3.3.1 added a username-normalization migration and fixed two-factor authentication configuration, tracking session
