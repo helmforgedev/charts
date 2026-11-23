@@ -31,6 +31,16 @@ app.kubernetes.io/name: {{ include "castopod.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
+{{- define "castopod.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "castopod.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
 {{- default (include "castopod.fullname" .) .Values.serviceAccount.name -}}
@@ -102,11 +112,13 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if not .Values.backup.s3.bucket -}}
 {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
 {{- end -}}
+{{- if not .Values.backup.s3.credentialsFromPodIdentity -}}
 {{- if and (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.accessKey) -}}
 {{- fail "backup.s3.accessKey or backup.s3.existingSecret is required when backup.enabled is true" -}}
 {{- end -}}
 {{- if and (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.secretKey) -}}
 {{- fail "backup.s3.secretKey or backup.s3.existingSecret is required when backup.enabled is true" -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 {{- range $key, $_ := .Values.podLabels -}}
@@ -312,5 +324,13 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "castopod.backupEnabled" -}}
 {{- if .Values.backup.enabled -}}
 true
+{{- end -}}
+{{- end -}}
+
+{{- define "castopod.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create -}}
+{{- default (printf "%s-backup" (include "castopod.fullname" .)) .Values.backup.serviceAccount.name -}}
+{{- else -}}
+{{- default "default" .Values.backup.serviceAccount.name -}}
 {{- end -}}
 {{- end -}}
