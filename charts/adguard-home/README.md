@@ -35,12 +35,10 @@ To skip the wizard and deploy a pre-configured instance, provide `config.adGuard
 
 ## Upstream Version Notes
 
-AdGuard Home `0.107.80` is an upstream security and stability release. It
-updates Go to 1.27.3 and disables Multipath TCP to mitigate CVE-2026-98432.
-
-The `0.107.76` release notes also state that YAML duration values now support
-`d` day units. If you roll back to a version below `v0.107.76`, convert any `d`
-duration values in `config.adGuardHome` back to hours first.
+AdGuard Home `1.0.0` introduces a completely modernized and responsive web interface,
+lighter memory footprint, and updated default upstream resolvers (Cloudflare DNS instead
+of Quad9 for new installs). The configuration schema remains backward-compatible with
+`0.107.x` without requiring manual schema migration.
 
 ## Features
 
@@ -186,7 +184,7 @@ backup:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/adguard/adguardhome` | Container image |
-| `image.tag` | `v0.107.80` | Image tag |
+| `image.tag` | `v1.0.0` | Image tag |
 | `image.pullPolicy` | `IfNotPresent` | Pull policy |
 
 ### General Configuration
