@@ -3,7 +3,7 @@
 # Kubernetes MCP Server Helm Chart
 
 Kubernetes MCP Server exposes Kubernetes cluster inspection and automation through the Model Context Protocol.
-This chart deploys the official `ghcr.io/containers/kubernetes-mcp-server:v0.0.67` image in HTTP mode with in-cluster authentication,
+This chart deploys the official `ghcr.io/containers/kubernetes-mcp-server:v0.1.3` image in HTTP mode with in-cluster authentication,
 read-only safety flags, and least-privilege RBAC by default.
 
 ## Features
