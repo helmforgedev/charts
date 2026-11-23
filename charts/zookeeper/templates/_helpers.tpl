@@ -219,3 +219,44 @@ app.kubernetes.io/part-of: helmforge
 {{- fail "externalSecrets.apiVersion must be external-secrets.io/v1" -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Render annotations combining commonAnnotations and resource-specific annotations.
+*/}}
+{{- define "zookeeper.renderAnnotations" -}}
+{{- $root := .root | default . -}}
+{{- $extra := .annotations | default dict -}}
+{{- $common := $root.Values.commonAnnotations | default dict -}}
+{{- $merged := merge (deepCopy $extra) $common -}}
+{{- if $merged }}
+annotations:
+  {{- toYaml $merged | nindent 2 }}
+{{- end }}
+{{- end -}}
+
+{{/*
+Render persistentVolumeClaimRetentionPolicy for StatefulSet.
+*/}}
+{{- define "zookeeper.pvcRetentionPolicy" -}}
+{{- if or .whenDeleted .whenScaled }}
+persistentVolumeClaimRetentionPolicy:
+  {{- with .whenDeleted }}
+  whenDeleted: {{ . }}
+  {{- end }}
+  {{- with .whenScaled }}
+  whenScaled: {{ . }}
+  {{- end }}
+{{- end }}
+{{- end -}}
+
+{{/*
+Render checksum payload for chart-managed sensitive credentials.
+*/}}
+{{- define "zookeeper.credentialsPayload" -}}
+{{- if and .Values.auth.client.enabled (not .Values.auth.client.existingSecret) (not (include "zookeeper.authSecretManagedByExternalSecret" .)) -}}
+{{ .Values.auth.client.username }}|{{ include "zookeeper.authPassword" . }}|
+{{- end -}}
+{{- if and .Values.tls.client.enabled (not .Values.tls.client.existingPasswordsSecret) (not (include "zookeeper.tlsPasswordsSecretManagedByExternalSecret" .)) -}}
+{{ .Values.tls.client.keystorePassword }}|{{ .Values.tls.client.truststorePassword }}|
+{{- end -}}
+{{- end -}}
