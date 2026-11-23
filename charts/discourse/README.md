@@ -12,7 +12,7 @@ chart deliberately does not claim production readiness or upstream support.
 
 ## Features
 
-- Official `discourse/discourse:2026.7.4` image pinned by OCI index digest.
+- Official `discourse/discourse:2026.7.5` image pinned by OCI index digest.
 - One enforced replica with `Recreate` updates and persistent `/shared` state.
 - HelmForge PostgreSQL and Redis subcharts enabled by default.
 - Official pgvector image for the extensions required by bundled Discourse plugins.
@@ -28,6 +28,13 @@ on port 80. The upstream Nginx runtime does not support changing that listener.
 PostgreSQL stores relational data, Redis provides cache/coordination, and the
 `/shared` PVC stores uploads, backups, logs, and runtime state. See
 [DESIGN.md](DESIGN.md) for the complete trust and production boundaries.
+
+## Upgrade to 2026.7.5
+
+This release upgrades Discourse to ESR 2026.7.5 with upstream bug fixes and
+security patches. HelmForge Redis subchart is updated to `3.2.1` per GR-074.
+Preserve PostgreSQL data, `/shared` PVC volume, and `secret-key-base` before
+upgrading.
 
 ## Installation
 
@@ -51,7 +58,7 @@ minutes even after the 5.2 GB upstream image is available on the node.
 | Key | Default | Description |
 | --- | --- | --- |
 | `replicaCount` | `1` | Enforced singleton application replica. |
-| `image.tag` | `2026.7.4` | Official Discourse ESR tag. |
+| `image.tag` | `2026.7.5` | Official Discourse ESR tag. |
 | `image.digest` | pinned | Required immutable multi-architecture digest. |
 | `discourse.hostname` | `discourse.localhost` | Public forum hostname. |
 | `discourse.developerEmails` | `admin@example.com` | Initial developer email list. |
@@ -185,10 +192,10 @@ rollback in an isolated namespace. See [docs/operations.md](docs/operations.md),
 - [Upstream Discourse](https://github.com/discourse/discourse)
 - [Upstream container project](https://github.com/discourse/discourse_docker)
 
-🟢 Security Scan: discourse
+## Security Scan: discourse
 
 | Framework | Score |
 | --- | --- |
 | MITRE + NSA + SOC2 | **90.404045%** |
 
-✅ Security posture acceptable.
+Security posture acceptable.
