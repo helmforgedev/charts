@@ -228,3 +228,14 @@ app.kubernetes.io/part-of: helmforge
 {{- if hasKey .Values.podLabels "app.kubernetes.io/component" -}}{{ fail "podLabels must not override app.kubernetes.io/component" }}{{- end -}}
 {{- end -}}
 {{- end -}}
+
+{{/* Common annotations helper */}}
+{{- define "webodm.renderAnnotations" -}}
+{{- $root := .root -}}
+{{- $componentAnnotations := .annotations | default dict -}}
+{{- $allAnnotations := merge (dict) $componentAnnotations ($root.Values.commonAnnotations | default dict) -}}
+{{- if $allAnnotations -}}
+annotations:
+  {{- toYaml $allAnnotations | nindent 2 }}
+{{- end -}}
+{{- end -}}
