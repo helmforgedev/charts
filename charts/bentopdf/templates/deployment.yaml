@@ -5,6 +5,7 @@ metadata:
   name: {{ include "bentopdf.fullname" . }}
   labels:
     {{- include "bentopdf.labels" . | nindent 4 }}
+  {{- include "bentopdf.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
@@ -21,7 +22,7 @@ spec:
         {{- include "bentopdf.selectorLabels" . | nindent 8 }}
         {{- with .Values.podLabels }}{{ toYaml . | nindent 8 }}{{- end }}
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/config: {{ (include (print $.Template.BasePath "/configmap.yaml") . | fromYaml).data | toYaml | sha256sum }}
         {{- with .Values.podAnnotations }}{{ toYaml . | nindent 8 }}{{- end }}
     spec:
       serviceAccountName: {{ include "bentopdf.serviceAccountName" . }}
