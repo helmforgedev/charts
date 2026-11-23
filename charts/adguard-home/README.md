@@ -40,6 +40,10 @@ lighter memory footprint, and updated default upstream resolvers (Cloudflare DNS
 of Quad9 for new installs). The configuration schema remains backward-compatible with
 `0.107.x` without requiring manual schema migration.
 
+The `0.107.76` release notes also state that YAML duration values now support
+`d` day units. If you roll back to a version below `v0.107.76`, convert any `d`
+duration values in `config.adGuardHome` back to hours first.
+
 ## Features
 
 - **Network-Wide Ad Blocking** - DNS-level filtering for all devices on the network
