@@ -12,11 +12,14 @@ fullnameOverride: ""
 # -- Labels added to every resource created by this chart
 commonLabels: {}
 
+# -- Annotations added to every resource created by this chart
+commonAnnotations: {}
+
 image:
   # -- CKAN container image repository
   repository: docker.io/ckan/ckan-base
   # -- CKAN image tag. Defaults to appVersion.
-  tag: "2.12.0"
+  tag: "2.12.1"
   # -- Image pull policy
   pullPolicy: IfNotPresent
 
@@ -123,6 +126,10 @@ solr:
     storageClass: ""
     accessModes:
       - ReadWriteOnce
+    # -- Retention policy for volumeClaimTemplates
+    retentionPolicy:
+      whenDeleted: Retain
+      whenScaled: Retain
   # -- Resource requests and limits
   resources: {}
   # -- Solr pod security context
@@ -348,6 +355,16 @@ backup:
     postgresql: docker.io/library/postgres:18.0-alpine3.22
     # -- Image used for S3 upload (MinIO client)
     uploader: docker.io/helmforge/mc:1.0.0
+  # -- Dedicated ServiceAccount for backup jobs
+  serviceAccount:
+    # -- Create a dedicated ServiceAccount for backup jobs
+    create: true
+    # -- Existing dedicated ServiceAccount name when create is false
+    name: ""
+    # -- Annotations for IRSA or another workload identity integration
+    annotations: {}
+    # -- Mount the Kubernetes API token into backup pods
+    automountServiceAccountToken: false
   # -- Resources for backup containers
   resources: {}
   # -- Backup pod security context
@@ -385,6 +402,10 @@ backup:
     accessKey: ""
     # -- Inline S3 secret key (ignored when existingSecret is set)
     secretKey: ""
+    # -- AWS region used by workload identity and regional bucket creation
+    region: ""
+    # -- Use EKS Pod Identity or IRSA instead of static S3 credentials
+    credentialsFromPodIdentity: false
   # -- Override database credentials for backup (uses app credentials if empty)
   database:
     host: ""

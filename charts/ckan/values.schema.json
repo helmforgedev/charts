@@ -9,6 +9,7 @@
     "nameOverride": { "type": "string" },
     "fullnameOverride": { "type": "string" },
     "commonLabels": { "type": "object", "additionalProperties": { "type": "string" } },
+    "commonAnnotations": { "type": "object", "additionalProperties": { "type": "string" } },
     "image": {
       "type": "object",
       "additionalProperties": false,
@@ -86,12 +87,21 @@
         "persistence": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["enabled", "size", "storageClass", "accessModes"],
+          "required": ["enabled", "size", "storageClass", "accessModes", "retentionPolicy"],
           "properties": {
             "enabled": { "type": "boolean" },
             "size": { "type": "string", "minLength": 1 },
             "storageClass": { "type": "string" },
-            "accessModes": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+            "accessModes": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+            "retentionPolicy": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["whenDeleted", "whenScaled"],
+              "properties": {
+                "whenDeleted": { "type": "string", "enum": ["Retain", "Delete"] },
+                "whenScaled": { "type": "string", "enum": ["Retain", "Delete"] }
+              }
+            }
           }
         },
         "resources": { "type": "object" },
@@ -237,7 +247,7 @@
     "backup": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled", "schedule", "suspend", "concurrencyPolicy", "successfulJobsHistoryLimit", "failedJobsHistoryLimit", "backoffLimit", "archivePrefix", "images", "resources", "podSecurityContext", "securityContext", "s3", "database"],
+      "required": ["enabled", "schedule", "suspend", "concurrencyPolicy", "successfulJobsHistoryLimit", "failedJobsHistoryLimit", "backoffLimit", "archivePrefix", "images", "serviceAccount", "resources", "podSecurityContext", "securityContext", "s3", "database"],
       "properties": {
         "enabled": { "type": "boolean" },
         "schedule": { "type": "string", "minLength": 1 },
@@ -256,13 +266,24 @@
             "uploader": { "type": "string", "minLength": 1 }
           }
         },
+        "serviceAccount": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["create", "name", "annotations", "automountServiceAccountToken"],
+          "properties": {
+            "create": { "type": "boolean" },
+            "name": { "type": "string" },
+            "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
+            "automountServiceAccountToken": { "type": "boolean" }
+          }
+        },
         "resources": { "type": "object" },
         "podSecurityContext": { "type": "object", "properties": { "fsGroup": { "type": "integer" }, "fsGroupChangePolicy": { "type": "string" }, "seccompProfile": { "type": "object", "properties": { "type": { "type": "string" } } } } },
         "securityContext": { "type": "object", "properties": { "allowPrivilegeEscalation": { "type": "boolean" }, "capabilities": { "type": "object", "properties": { "drop": { "type": "array", "items": { "type": "string" } } } }, "readOnlyRootFilesystem": { "type": "boolean" }, "runAsNonRoot": { "type": "boolean" }, "runAsUser": { "type": "integer" }, "runAsGroup": { "type": "integer" } } },
         "s3": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["endpoint", "bucket", "prefix", "createBucketIfNotExists", "existingSecret", "existingSecretAccessKeyKey", "existingSecretSecretKeyKey", "accessKey", "secretKey"],
+          "required": ["endpoint", "bucket", "prefix", "createBucketIfNotExists", "existingSecret", "existingSecretAccessKeyKey", "existingSecretSecretKeyKey", "accessKey", "secretKey", "region", "credentialsFromPodIdentity"],
           "properties": {
             "endpoint": { "type": "string" },
             "bucket": { "type": "string" },
@@ -272,7 +293,9 @@
             "existingSecretAccessKeyKey": { "type": "string", "minLength": 1 },
             "existingSecretSecretKeyKey": { "type": "string", "minLength": 1 },
             "accessKey": { "type": "string" },
-            "secretKey": { "type": "string" }
+            "secretKey": { "type": "string" },
+            "region": { "type": "string" },
+            "credentialsFromPodIdentity": { "type": "boolean" }
           }
         },
         "database": {

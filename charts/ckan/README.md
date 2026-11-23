@@ -53,7 +53,7 @@ StatefulSet: solr (port 8983)
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `ckan/ckan-base` | CKAN container image |
-| `image.tag` | `2.12.0` | Image tag |
+| `image.tag` | `2.12.1` | Image tag |
 | `ckan.containerPort` | `5000` | CKAN uWSGI listener port |
 | `ckan.uwsgiProcesses` | `2` | uWSGI worker processes |
 | `ckan.siteUrl` | `http://localhost:5000` | Public site URL |
@@ -77,7 +77,7 @@ StatefulSet: solr (port 8983)
 | `postgresql.enabled` | `true` | Enable PostgreSQL subchart |
 | `redis.enabled` | `true` | Enable Redis subchart |
 
-This chart deploys CKAN `2.12.0` with HelmForge PostgreSQL `2.1.1` and Redis `3.1.0`.
+This chart deploys CKAN `2.12.1` with HelmForge PostgreSQL `2.2.0` and Redis `3.2.1`.
 It intentionally does not keep `Chart.lock`; dependencies are resolved by the release workflow.
 
 ## Upgrade Notes
