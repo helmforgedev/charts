@@ -189,8 +189,11 @@ Return true if keyFile is needed (replicaset or sharded with auth).
   {{- if not .Values.backup.s3.bucket -}}
     {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
   {{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
-    {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
+  {{- if and (not .Values.backup.s3.credentialsFromPodIdentity) (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+    {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey when credentialsFromPodIdentity is false" -}}
+  {{- end -}}
+  {{- if and .Values.backup.s3.credentialsFromPodIdentity (not .Values.backup.s3.region) -}}
+    {{- fail "backup.s3.region is required when backup.s3.credentialsFromPodIdentity is true" -}}
   {{- end -}}
 true
 {{- end -}}
@@ -307,10 +310,7 @@ metadata:
   {{- with .root.Values.podLabels }}
     {{- toYaml . | nindent 4 }}
   {{- end }}
-  {{- with .root.Values.podAnnotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+  {{- include "mongodb.renderAnnotations" (dict "root" .root "specific" .root.Values.podAnnotations) | nindent 2 }}
 spec:
   {{- with .root.Values.imagePullSecrets }}
   imagePullSecrets:
@@ -512,4 +512,27 @@ spec:
     {{- with .root.Values.extraVolumes }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
+{{- end -}}
+
+{{/*
+Render merged annotations: root.Values.commonAnnotations and specific annotations.
+Usage: {{- include "mongodb.renderAnnotations" (dict "root" . "specific" .Values.service.annotations) | nindent 2 }}
+*/}}
+{{- define "mongodb.renderAnnotations" -}}
+{{- $root := .root | default . -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := merge (deepCopy $specific) (deepCopy ($root.Values.commonAnnotations | default dict)) -}}
+{{- with $annotations }}
+annotations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
+{{/* Backup — dedicated ServiceAccount name */}}
+{{- define "mongodb.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create -}}
+{{- default (printf "%s-backup" (include "mongodb.fullname" .)) .Values.backup.serviceAccount.name -}}
+{{- else -}}
+{{- required "mongodb: backup.serviceAccount.name is required when backup.serviceAccount.create is false" .Values.backup.serviceAccount.name -}}
+{{- end -}}
 {{- end -}}
