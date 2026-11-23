@@ -7,6 +7,7 @@
 nameOverride: ""
 fullnameOverride: ""
 commonLabels: {}
+commonAnnotations: {}
 clusterDomain: cluster.local
 
 # =============================================================================
@@ -17,7 +18,7 @@ image:
   # -- Vaultwarden image repository
   repository: docker.io/vaultwarden/server
   # -- Vaultwarden image tag
-  tag: "1.37.4"
+  tag: "1.37.5"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -325,6 +326,8 @@ annotations: {}
 networkPolicy:
   # -- Enable a NetworkPolicy for Vaultwarden
   enabled: false
+  # -- Annotations for the NetworkPolicy
+  annotations: {}
   # -- Additional native egress rules, applied when egress.enabled is true
   extraEgress: []
   ingress:
@@ -392,6 +395,15 @@ backup:
       repository: docker.io/library/mysql
       tag: "8.4"
       pullPolicy: IfNotPresent
+  serviceAccount:
+    # -- Create a dedicated ServiceAccount for workload identity backups
+    create: true
+    # -- Existing dedicated ServiceAccount name when create is false
+    name: ""
+    # -- Annotations for IRSA or another workload identity integration
+    annotations: {}
+    # -- Mount the Kubernetes API token into backup pods
+    automountServiceAccountToken: false
   s3:
     # -- S3-compatible endpoint URL, for example: https://s3.amazonaws.com or https://minio.example.com
     endpoint: ""
@@ -417,6 +429,10 @@ backup:
     accessKey: ""
     # -- Inline secret key used when backup.s3.existingSecret is not set
     secretKey: ""
+    # -- AWS region used by workload identity
+    region: ""
+    # -- Use EKS Pod Identity or IRSA instead of static S3 credentials
+    credentialsFromPodIdentity: false
   database:
     # -- Optional override for dump connectivity, mainly useful when app connection is provided only as an opaque secret.
     host: ""
@@ -476,6 +492,8 @@ mysql:
 ## Gateway API configuration (GR-060)
 gateway:
   enabled: false
+  # -- Annotations for the HTTPRoute
+  annotations: {}
   hostnames: []
   parentRefs: []
   #   - name: my-gateway
