@@ -36,6 +36,17 @@ app.kubernetes.io/name: {{ include "poznote.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
+{{- define "poznote.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $required := .required | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific $required -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | indent 2 }}
+{{- end -}}
+{{- end -}}
+
 {{- define "poznote.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
 {{- default (include "poznote.fullname" .) .Values.serviceAccount.name -}}

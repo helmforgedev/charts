@@ -29,7 +29,7 @@ assert.ok(service, 'Poznote Service required');
 const servicePort = service.spec.ports.find(port => port.name === 'http');
 assert.equal(servicePort?.targetPort, 'http', 'Service must target the named HTTP port');
 const exec = args => kubectl(['exec', pod.metadata.name, '-c', 'poznote', '--', ...args]);
-assert.equal(exec(['cat', '/var/www/html/version.txt']).trim(), '6.121.0');
+assert.equal(exec(['cat', '/var/www/html/version.txt']).trim(), '6.149.0');
 const health = exec(['php', '-r', `
 $context = stream_context_create(['http' => ['timeout' => 10]]);
 $body = file_get_contents('http://127.0.0.1:${listenerPort}/api/health', false, $context);
@@ -39,4 +39,4 @@ if ($body === false || !preg_match('/^HTTP\\/\\S+ 200\\b/', $http_response_heade
 echo "health status 200\\n";
 `]);
 assert.match(health, /health status 200/);
-console.log(`PASS: Poznote 6.121.0 listener=${listenerPort} service=${servicePort.port} and live PHP/API health`);
+console.log(`PASS: Poznote 6.149.0 listener=${listenerPort} service=${servicePort.port} and live PHP/API health`);
