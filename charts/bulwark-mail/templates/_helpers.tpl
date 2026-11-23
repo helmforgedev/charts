@@ -238,3 +238,17 @@ true
 {{- end -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Render annotations block merging commonAnnotations with resource-specific annotations.
+Usage: {{ include "bulwark-mail.renderAnnotations" (dict "root" . "specific" .Values.xxx.annotations) }}
+*/}}
+{{- define "bulwark-mail.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
