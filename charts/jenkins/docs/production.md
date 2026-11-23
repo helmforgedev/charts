@@ -38,7 +38,7 @@ This avoids chart-generated credentials changing during GitOps reconciliation.
 Pin plugin versions in `plugins.install.list`. Avoid `latest=true` in
 production unless upgrades are intentionally tested in a staging environment.
 
-## Upgrading to Jenkins 2.580.1
+## Upgrading to Jenkins 2.580.2
 
 Back up `JENKINS_HOME` and validate the upgrade against the backup before
 changing a production controller. Upgrade installed plugins before the core

@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Jenkins StatefulSet PVC retention contract
+templates:
+  - statefulset.yaml
+  - configmap.yaml
+  - secret.yaml
+values:
+  - ../values.yaml
+tests:
+  - it: does not render retention policy by default
+    template: statefulset.yaml
+    asserts:
+      - notExists:
+          path: spec.persistentVolumeClaimRetentionPolicy
+
+  - it: renders configured retention policy
+    template: statefulset.yaml
+    set:
+      persistence:
+        enabled: true
+        retentionPolicy:
+          whenDeleted: Delete
+          whenScaled: Retain
+    asserts:
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenDeleted
+          value: Delete
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenScaled
+          value: Retain
