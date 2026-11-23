@@ -26,6 +26,19 @@ app.kubernetes.io/part-of: helmforge
 {{- end }}
 {{- end -}}
 
+{{/*
+Render merged annotations.
+*/}}
+{{- define "changedetection.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "changedetection.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "changedetection.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
