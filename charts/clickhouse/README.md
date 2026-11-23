@@ -121,7 +121,7 @@ The 26.10.11 update continues on the stable 26.10 channel and preserves the
 chart's credentials and standalone storage contract. Take a verified backup,
 test application queries and restore procedures, and plan rollback before
 allowing the new patch to write production data. Review the
-[26.10 release notes](https://github.com/ClickHouse/ClickHouse/releases/tag/v26.10.11.12-stable).
+[26.10 release notes](https://clickhouse.com/docs/resources/changelogs/oss/2026).
 
 ClickHouse 26.8.2 follows the monthly 26.7 release and carries the August LTS
 designation. It changes the default text-index disk format to v2 and updates
