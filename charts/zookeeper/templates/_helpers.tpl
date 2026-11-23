@@ -248,3 +248,15 @@ persistentVolumeClaimRetentionPolicy:
   {{- end }}
 {{- end }}
 {{- end -}}
+
+{{/*
+Render checksum payload for chart-managed sensitive credentials.
+*/}}
+{{- define "zookeeper.credentialsPayload" -}}
+{{- if and .Values.auth.client.enabled (not .Values.auth.client.existingSecret) (not (include "zookeeper.authSecretManagedByExternalSecret" .)) -}}
+{{ .Values.auth.client.username }}|{{ include "zookeeper.authPassword" . }}|
+{{- end -}}
+{{- if and .Values.tls.client.enabled (not .Values.tls.client.existingPasswordsSecret) (not (include "zookeeper.tlsPasswordsSecretManagedByExternalSecret" .)) -}}
+{{ .Values.tls.client.keystorePassword }}|{{ .Values.tls.client.truststorePassword }}|
+{{- end -}}
+{{- end -}}
