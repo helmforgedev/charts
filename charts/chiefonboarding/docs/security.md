@@ -4,7 +4,7 @@
 
 ## Default controls
 
-The chart pins the official ChiefOnboarding 2.5.0 image by manifest digest,
+The chart pins the official ChiefOnboarding 2.5.2 image by manifest digest,
 disables Kubernetes API token mounting, selects `RuntimeDefault` seccomp,
 forbids privilege escalation, and drops every Linux capability. HTTP probes use
 the real application listener and the NetworkPolicy isolates application
