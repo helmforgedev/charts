@@ -144,7 +144,7 @@ metrics:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/pihole/pihole` | Pi-hole container image repository |
-| `image.tag` | `2026.10.0` | Pi-hole container image tag (official upstream release 2026.10.0) |
+| `image.tag` | `2026.11.0` | Pi-hole container image tag (official upstream release 2026.11.0) |
 | `image.digest` | pinned SHA-256 | Immutable Pi-hole image digest |
 | `image.pullPolicy` | `IfNotPresent` | Pi-hole image pull policy |
 | `containerPorts.dns` | `53` | Pi-hole FTL DNS listener port (TCP and UDP) |
@@ -350,9 +350,9 @@ when the Pi-hole listeners must be restricted.
 
 ## Upgrade Notes
 
-### Upgrading to 2026.10.0
+### Upgrading to 2026.11.0
 
-Pi-hole 2026.10.0 includes FTL 6.8, Web 6.6.1, Core 6.5, and fixes for
+Pi-hole 2026.11.0 includes fixes for
 17 published security advisories. The Docker release also prevents Secret-backed
 web passwords from appearing in shell traces and makes FTL and release downloads
 fail closed. Back up the persistent data and verify DNS, admin login, gravity
@@ -369,7 +369,7 @@ Pi-hole from starting. Inspect stored overrides with `helm get values <release>
 retain the stored capability override. When `dhcp.enabled` is true, the chart
 now adds `NET_ADMIN` automatically.
 
-Upstream release notes: [Pi-hole 2026.10.0](https://github.com/pi-hole/docker-pi-hole/releases/tag/2026.10.0).
+Upstream release notes: [Pi-hole 2026.11.0](https://github.com/pi-hole/docker-pi-hole/releases/tag/2026.11.0).
 
 ### Upgrading to 2026.09.0
 
