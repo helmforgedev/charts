@@ -1,0 +1,73 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: common annotations and retention policy contract
+templates:
+  - configmap.yaml
+  - statefulset.yaml
+  - service.yaml
+tests:
+  - it: should render commonAnnotations across all resources
+    set:
+      commonAnnotations:
+        helmforge.dev/test: "true"
+        team: "platform"
+    asserts:
+      - equal:
+          path: metadata.annotations["helmforge.dev/test"]
+          value: "true"
+        template: configmap.yaml
+      - equal:
+          path: metadata.annotations["team"]
+          value: "platform"
+        template: configmap.yaml
+      - equal:
+          path: metadata.annotations["helmforge.dev/test"]
+          value: "true"
+        template: statefulset.yaml
+      - equal:
+          path: metadata.annotations["team"]
+          value: "platform"
+        template: statefulset.yaml
+      - equal:
+          path: metadata.annotations["helmforge.dev/test"]
+          value: "true"
+        template: service.yaml
+        documentIndex: 0
+
+  - it: should merge resource-specific annotations with commonAnnotations
+    set:
+      commonAnnotations:
+        team: "platform"
+        shared: "base"
+      annotations:
+        shared: "override"
+        custom: "val"
+    asserts:
+      - equal:
+          path: metadata.annotations["team"]
+          value: "platform"
+        template: statefulset.yaml
+      - equal:
+          path: metadata.annotations["shared"]
+          value: "override"
+        template: statefulset.yaml
+      - equal:
+          path: metadata.annotations["custom"]
+          value: "val"
+        template: statefulset.yaml
+
+  - it: should render persistentVolumeClaimRetentionPolicy when configured
+    set:
+      persistence:
+        enabled: true
+        retentionPolicy:
+          whenDeleted: Retain
+          whenScaled: Delete
+    asserts:
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenDeleted
+          value: Retain
+        template: statefulset.yaml
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenScaled
+          value: Delete
+        template: statefulset.yaml
