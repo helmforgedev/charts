@@ -5,7 +5,7 @@
 Deploy [Memos](https://github.com/usememos/memos), a lightweight self-hosted note-taking service, with
 production-oriented Kubernetes defaults.
 
-This chart packages the official `docker.io/neosmemo/memos:26.11.1` image and exposes the runtime settings that matter
+This chart packages the official `docker.io/neosmemo/memos:26.11.2` image and exposes the runtime settings that matter
 for Kubernetes: persistent data, SQLite or external database configuration, canonical instance URL, ingress/Gateway API
 exposure, network policy, pod disruption budgets, file-backed deployment configuration, and non-root security context.
 
@@ -191,7 +191,7 @@ unknown fields, duplicate stable keys, and invalid cross-resource authentication
 | Parameter | Description | Default |
 | --- | --- | --- |
 | `image.repository` | Official Memos image repository | `docker.io/neosmemo/memos` |
-| `image.tag` | Pinned Memos release | `26.11.1` |
+| `image.tag` | Pinned Memos release | `26.11.2` |
 | `app.port` | Native Memos HTTP listener port | `5230` |
 | `memos.instanceUrl` | Canonical external HTTP(S) URL, independent from access policy | `""` |
 | `database.driver` | Database backend: `sqlite`, `mysql`, or `postgres` | `sqlite` |
