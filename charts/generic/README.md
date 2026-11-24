@@ -3,11 +3,12 @@
 A single chart that handles **Deployments**, **StatefulSets**, **DaemonSets**, **Jobs**, and **CronJobs** with a unified values
 interface. Designed for teams that deploy many services and want one chart to rule them all.
 
-The default `nginx:1.31.8` image fixes HTTP/3 SIGBUS on strict-alignment
-platforms, an SSL kTLS teardown warning with OpenSSL 3.2+, and a
-`working_directory` startup crash. The JSON parser now reports escape-sequence
-strings separately. Existing Generic chart configuration remains compatible
-with this image update.
+The default `nginx:1.31.10` image addresses security advisory CVE-2026-132779
+for `ssl_early_data` and resolves high CPU utilization when SSL backend connections
+are utilized. Note that nginx 1.31.9+ introduces stricter upstream header parsing
+(header lines lacking colons result in 502 Bad Gateway) and halts worker startup if
+`initgroups()` fails. When supplying a custom `image.repository`, always explicitly
+pin `image.tag` rather than inheriting the chart default.
 
 ## Install
 
@@ -307,7 +308,7 @@ templated (e.g. `{{ .Release.Namespace }}`) to derive per-environment paths from
 
 ### Breaking-change migration notes
 
-- The default image is pinned (currently `docker.io/library/nginx:1.31.8`) with `IfNotPresent` instead of relying on `latest`.
+- The default image is pinned (currently `docker.io/library/nginx:1.31.10`) with `IfNotPresent` instead of relying on `latest`.
 - Pod templates are deterministic; use `rollout.restartAt` or checksum-enabled ConfigMaps/Secrets for intentional rollouts.
 - HPA now fails validation when used with `DaemonSet` or when `hpa.maxReplicas` is missing.
 - HPA-enabled Deployments and StatefulSets omit `spec.replicas`. The first upgrade from a chart that set it explicitly,
@@ -390,7 +391,7 @@ See the [examples/](examples/) directory for complete, ready-to-use values files
 | **Image** | | |
 | `global.imageRegistry` | Optional registry prefix for unqualified repositories | `""` |
 | `image.repository` | Container image repository | `docker.io/library/nginx` |
-| `image.tag` | Image tag | `1.31.8` |
+| `image.tag` | Image tag | `1.31.10` |
 | `image.digest` | Image digest, takes precedence over tag | `""` |
 | `image.pullPolicy` | Pull policy | `IfNotPresent` |
 | `imagePullSecrets` | Registry pull secrets | `[]` |
