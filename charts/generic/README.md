@@ -5,7 +5,10 @@ interface. Designed for teams that deploy many services and want one chart to ru
 
 The default `nginx:1.31.10` image addresses security advisory CVE-2026-132779
 for `ssl_early_data` and resolves high CPU utilization when SSL backend connections
-are utilized. Existing Generic chart configuration remains compatible with this image update.
+are utilized. Note that nginx 1.31.9+ introduces stricter upstream header parsing
+(header lines lacking colons result in 502 Bad Gateway) and halts worker startup if
+`initgroups()` fails. When supplying a custom `image.repository`, always explicitly
+pin `image.tag` rather than inheriting the chart default.
 
 ## Install
 
