@@ -21,6 +21,19 @@ app.kubernetes.io/part-of: helmforge
 {{ toYaml . }}
 {{- end }}
 {{- end -}}
+{{/*
+Render annotations block merging commonAnnotations and resource-specific annotations.
+Usage: {{- include "moodle.renderAnnotations" (dict "root" . "specific" .Values.service.annotations) | nindent 2 }}
+*/}}
+{{- define "moodle.renderAnnotations" -}}
+{{- $root := .root | default . -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := merge (deepCopy $specific) (deepCopy ($root.Values.commonAnnotations | default dict)) -}}
+{{- with $annotations }}
+annotations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
 {{- define "moodle.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}{{ default (include "moodle.fullname" .) .Values.serviceAccount.name }}
 {{- else -}}{{ default "default" .Values.serviceAccount.name }}{{- end -}}
