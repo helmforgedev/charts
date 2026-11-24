@@ -21,11 +21,30 @@ app.kubernetes.io/part-of: helmforge
 {{ toYaml . }}
 {{- end }}
 {{- end -}}
+{{/*
+Render annotations block merging commonAnnotations and resource-specific annotations.
+Usage: {{- include "moodle.renderAnnotations" (dict "root" . "specific" .Values.service.annotations) | nindent 2 }}
+*/}}
+{{- define "moodle.renderAnnotations" -}}
+{{- $root := .root | default . -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite (deepCopy ($root.Values.commonAnnotations | default dict)) $specific -}}
+{{- with $annotations }}
+annotations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
 {{- define "moodle.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}{{ default (include "moodle.fullname" .) .Values.serviceAccount.name }}
 {{- else -}}{{ default "default" .Values.serviceAccount.name }}{{- end -}}
 {{- end -}}
-{{- define "moodle.image" -}}{{ printf "%s:%s@%s" .Values.image.repository .Values.image.tag .Values.image.digest }}{{- end -}}
+{{- define "moodle.image" -}}
+{{- if .Values.image.digest -}}
+{{ printf "%s:%s@%s" .Values.image.repository .Values.image.tag .Values.image.digest }}
+{{- else -}}
+{{ printf "%s:%s" .Values.image.repository .Values.image.tag }}
+{{- end -}}
+{{- end -}}
 {{- define "moodle.metricsSecret" -}}{{ default (include "moodle.nameWithSuffix" (dict "base" (include "moodle.fullname" .) "suffix" "-metrics")) .Values.metrics.existingSecret }}{{- end -}}
 {{- define "moodle.secretName" -}}{{ default (include "moodle.nameWithSuffix" (dict "base" (include "moodle.fullname" .) "suffix" "-admin")) .Values.moodle.existingSecret }}{{- end -}}
 {{- define "moodle.dataClaim" -}}{{ default (include "moodle.nameWithSuffix" (dict "base" (include "moodle.fullname" .) "suffix" "-data")) .Values.persistence.existingClaim }}{{- end -}}

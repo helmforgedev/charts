@@ -160,6 +160,14 @@ Additional resource labels; selector labels are reserved.
 | --- | --- | --- |
 | `commonLabels` | `{}` | Additional resource labels; selector labels are reserved. |
 
+### commonAnnotations
+
+Annotations added to all resources created by this chart; resource-specific annotations take precedence.
+
+| Parameter | Default | Meaning |
+| --- | --- | --- |
+| `commonAnnotations` | `{}` | Annotations added to all resources created by this chart. |
+
 ### replicaCount
 
 Number of web pods; multiple replicas require RWX and Redis sessions.
