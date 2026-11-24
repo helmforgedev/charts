@@ -5,13 +5,13 @@
 Helm chart for deploying [Homarr](https://homarr.dev/) modern application dashboard on Kubernetes using the official
 [`ghcr.io/homarr-labs/homarr`](https://github.com/homarr-labs/homarr/pkgs/container/homarr) container image.
 
-Current application version: `v2.13.1`.
+Current application version: `v2.14.0`.
 
 ## Features
 
 - **Official Homarr image** from `ghcr.io/homarr-labs/homarr`
 - **Database backends** SQLite3 (default) or PostgreSQL with deterministic auto-detection
-- **PostgreSQL subchart** optional bundled database deployment using HelmForge PostgreSQL `2.2.0`
+- **PostgreSQL subchart** optional bundled database deployment using HelmForge PostgreSQL `2.2.1`
 - **Encryption key management** auto-generated or existing secret for `SECRET_ENCRYPTION_KEY`
 - **Kubernetes integration** optional workload discovery via `ENABLE_KUBERNETES`
 - **External Redis** optional external Redis for multi-instance setups
@@ -188,7 +188,7 @@ backup:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `ghcr.io/homarr-labs/homarr` | Container image repository |
-| `image.tag` | `"v2.13.1"` | Homarr image tag |
+| `image.tag` | `"v2.14.0"` | Homarr image tag |
 | `replicaCount` | `1` | Number of replicas |
 | `commonAnnotations` | `{}` | Annotations applied to all chart-owned resources |
 | `homarr.logLevel` | `info` | Log level |
@@ -285,8 +285,8 @@ image.
 
 ## Upgrade Notes
 
-This update aligns the chart with the default `v2.13.1` image. Review the
-[upstream v2.13.1 release](https://github.com/homarr-labs/homarr/releases/tag/v2.13.1)
+This update aligns the chart with the default `v2.14.0` image. Review the
+[upstream v2.14.0 release](https://github.com/homarr-labs/homarr/releases/tag/v2.14.0)
 before upgrading production environments and back up `/appdata` plus any
 external database first. Homarr v2 no longer supports MySQL, so historical
 MySQL installations require the migration described below.
@@ -311,7 +311,7 @@ overrides to `postgresql.standalone.*`. The chart fails fast when that legacy
 block remains with the subchart enabled so persistence settings are not silently
 ignored.
 
-Homarr v2.13.1 supports SQLite and PostgreSQL, but not MySQL. Before upgrading a
+Homarr v2.14.0 supports SQLite and PostgreSQL, but not MySQL. Before upgrading a
 release that used the removed `mysql.*` chart values or an external MySQL
 database, follow Homarr's official
 [MySQL-to-SQLite conversion procedure](https://homarr.dev/docs/advanced/mysql-to-sqlite/).

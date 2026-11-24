@@ -84,7 +84,7 @@ Test restore procedures before relying on backups for production recovery.
 
 ## Migrating Historical MySQL Installations
 
-Homarr v2.13.1 supports SQLite and PostgreSQL only. Before upgrading an older
+Homarr v2.14.0 supports SQLite and PostgreSQL only. Before upgrading an older
 release that used bundled or external MySQL, use Homarr's official
 [MySQL-to-SQLite converter](https://homarr.dev/docs/advanced/mysql-to-sqlite/),
 deploy the converted SQLite database, and validate it with the target Homarr
