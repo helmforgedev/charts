@@ -13,7 +13,7 @@ const pods = JSON.parse(run(['get', 'pods', '-l', `app.kubernetes.io/instance=${
 assert.ok(pods.length);
 for (const pod of pods) {
   const container = pod.spec.containers.find(c => c.name === 'docmost');
-  assert.match(container.image, /:0\.97\.0$/);
+  assert.match(container.image, /:0\.98\.0$/);
   const httpPort = container.ports?.find(port => port.name === 'http')?.containerPort;
   assert.ok(Number.isInteger(httpPort) && httpPort > 0, 'Docmost HTTP listener port is required');
   assert.equal(container.env?.find(variable => variable.name === 'PORT')?.value, String(httpPort));

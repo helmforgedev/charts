@@ -40,7 +40,7 @@ helm install docmost oci://ghcr.io/helmforgedev/helm/docmost
 - Docmost requires PostgreSQL and Redis
 - local storage uses `/app/data/storage`
 - S3 mode uses the official `AWS_S3_*` environment variables documented by Docmost
-- the default image tag is `0.97.0`, validated against the published `docmost/docmost:0.97.0` container image
+- the default image tag is `0.98.0`, validated against the published `docmost/docmost:0.98.0` container image
 - upstream telemetry can be disabled with `docmost.disableTelemetry=true`
 - this chart intentionally does not keep `Chart.lock`; dependencies are resolved by the repository release workflow
 
@@ -57,7 +57,7 @@ The pod does not mount a Kubernetes API token by default. Set
 `serviceAccount.automountServiceAccountToken=true` only when a concrete
 integration requires Kubernetes API credentials.
 
-## Upgrade to 0.97.0
+## Upgrade to 0.98.0
 
 Keep `APP_SECRET` stable: the AES-256-GCM encryption service derives its
 key from this existing secret. Back up PostgreSQL and uploaded files before
@@ -66,10 +66,10 @@ upgrades; explicitly manage `docmost.appSecret` when rendering offline, or point
 `docmost.existingSecret` at a secret you own so the chart neither creates nor
 rotates one.
 
-This release brings upstream fixes and optimizations. Review the
-[official release notes](https://github.com/docmost/docmost/releases/tag/v0.97.0).
-The bundled PostgreSQL `2.2.0` and Redis `3.2.1` subcharts retain the documented
-contracts.
+This release switches to a hardened Docker image base (DHI) without shell or curl,
+and brings page covers, user profiles, and upstream fixes. Review the
+[official release notes](https://github.com/docmost/docmost/releases/tag/v0.98.0).
+The bundled PostgreSQL `2.2.1` and Redis `3.2.2` subcharts are updated per GR-074.
 
 ## Quick Start
 
