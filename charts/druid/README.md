@@ -75,7 +75,7 @@ flowchart LR
 | `global` | `{}` | Helm ecosystem compatibility values |
 | `commonAnnotations` | `{}` | Annotations added to chart-owned resources; resource annotations take precedence |
 | `image.repository` | `apache/druid` | Druid container image |
-| `image.tag` | `"38.0.0"` | Image tag |
+| `image.tag` | `"39.0.0"` | Image tag |
 | `coordinator.enabled` | `true` | Enable coordinator |
 | `coordinator.replicaCount` | `1` | Coordinator replicas |
 | `coordinator.port` | `8081` | Coordinator port |
@@ -122,22 +122,20 @@ PVC retention policies require Kubernetes 1.27 or later. On Kubernetes 1.26,
 enable the `StatefulSetAutoDeletePVC` feature gate on both the API server and
 controller manager.
 
-## Druid 38.0.0 upgrade notes
+## Druid 39.0.0 upgrade notes
 
-This chart tracks Apache Druid `38.0.0`. Before upgrading persistent clusters,
+This chart tracks Apache Druid `39.0.0`. Before upgrading persistent clusters,
 review the upstream [release notes](https://druid.apache.org/docs/latest/release-info/release-notes/)
 and [upgrade notes](https://druid.apache.org/docs/latest/release-info/upgrade-notes/).
 
 Important upstream changes include:
 
-- Java 17 support was removed; the official image supplies a supported runtime.
-- The ZooKeeper-based `remote` task runner was removed. Existing overrides must
-  use `httpRemote` or omit `druid.indexer.runner.type` to use its default.
-- ZooKeeper-based segment announcement and discovery were removed. Existing
-  overrides must use `druid.serverview.type=http` or omit the property.
-- Druid 38 is the final release able to read legacy v0.4-v0.7 ZSTD frames.
-- Kafka streaming shard specs using the new `dim_value_set` type prevent a
-  downgrade until those segments are compacted or the feature is removed.
+- The official image supplies Java 25 as the required container runtime.
+- The ZooKeeper-based `remote` task runner was removed in Druid 38. Existing overrides
+  must use `httpRemote` or omit `druid.indexer.runner.type` to use its default.
+- Experimental Catalog DDL statements (`CREATE` / `ALTER`) can be enabled via `druid.sql.planner.enableCatalogDdl`.
+- Kafka supervisor header-based filtering (`headerBasedFilterConfig`) is supported to reduce ingestion overhead.
+- Native batch ingestion emits warnings and metrics (`ingest/segments/oversized`) for oversized segment partitions.
 
 ## External Metadata Storage
 
