@@ -17,13 +17,10 @@ permissions:
   id-token: write
 
 jobs:
-  deploy:
-    name: Deploy Helm repository
+  upload:
+    name: Upload Helm repository
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout Helm repository
         uses: actions/checkout@v7
@@ -39,8 +36,16 @@ jobs:
         with:
           path: .
 
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: upload
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
         with:
-          timeout: 1800000
+          timeout: 600000
