@@ -23,7 +23,7 @@ helm install mosquitto oci://ghcr.io/helmforgedev/helm/mosquitto
 ## Features
 
 - **Official Mosquitto Image** — the default uses the verified multi-architecture
-  `eclipse-mosquitto:2.1.2-alpine` image.
+  `eclipse-mosquitto:2.1.4-alpine` image.
 - **Standalone or Federated Topology** — run a single broker or a bridged `StatefulSet` of brokers
 - **Kubernetes Placement Defaults** — optional anti-affinity and topology spread defaults for multi-replica broker pods
 - **WebSocket Listener** — browser-ready MQTT access through a dedicated listener
@@ -62,7 +62,7 @@ helm install mosquitto oci://ghcr.io/helmforgedev/helm/mosquitto
 - when `broker.tls.enabled=true`, the chart disables the plain MQTT `1883` listener and Service port, serving MQTT only on `broker.tls.port` (default `8883`)
 - MQTTX Web is pinned to `emqx/mqttx-web:v1.13.1`, and its process listener is
   controlled by `mqttxWeb.containerPort` independently from `mqttxWeb.service.port`
-- the official Mosquitto image tag validated for this chart is `eclipse-mosquitto:2.1.2-alpine`
+- the official Mosquitto image tag validated for this chart is `eclipse-mosquitto:2.1.4-alpine`
 - Mosquitto 2.1 defaults `max_packet_size` to 2,000,000 bytes; set
   `broker.limits.maxPacketSize` explicitly when clients require larger packets
 
