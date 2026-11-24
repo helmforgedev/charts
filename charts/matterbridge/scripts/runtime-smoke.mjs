@@ -39,7 +39,7 @@ fetch('http://127.0.0.1:${port}/health').then(async r=>{
 }).catch(e=>{console.error(e.message);process.exitCode=1;});`;
 const result = JSON.parse(kubectl(['exec', pod.metadata.name, '-c', 'matterbridge', '--', 'node', '-e', code]));
 const chartYaml = readFileSync(new URL('../Chart.yaml', import.meta.url), 'utf8');
-const expectedVersion = chartYaml.match(/^appVersion:\s*["']?([^"'\s]+)["']?/m)?.[1] ?? '3.11.3';
+const expectedVersion = chartYaml.match(/^appVersion:\s*["']?([^"'\s]+)["']?/m)?.[1] ?? '3.11.4';
 assert.equal(result.version, expectedVersion);
 
 console.log(`Matterbridge standalone ${expectedVersion}: listener=${listenerPort} service=${servicePort.port} and live HTTP health verified.`);
