@@ -5,7 +5,7 @@
 ## Scope
 
 This chart deploys Memos 0.31 as a stateful web application using the official
-`docker.io/neosmemo/memos:26.11.1` image. It owns the Kubernetes workload, durable data mount, networking, bootstrap,
+`docker.io/neosmemo/memos:26.11.2` image. It owns the Kubernetes workload, durable data mount, networking, bootstrap,
 deployment-configuration mount, and optional HelmForge database dependencies. It does not own application users,
 memos, attachments, or settings stored through the Memos API.
 
