@@ -316,6 +316,17 @@ when the deployment must guarantee closed registration, preserving `disallowPass
 policy values. Drain older replicas before changing the policy during a mixed-version rollout because 0.30 still uses
 the legacy instance-URL rule.
 
+### Upgrading to Memos 26.11
+
+Memos 26.11 changes client and MCP APIs. Review the full list in the
+[official 26.11.2 release notes](https://github.com/usememos/memos/releases/tag/26.11.2):
+
+- Top-level listing: add `parent == null` to the `ListMemos` filter. Apply the same filter to `GetUserStats` and `ListUserStats` to keep counts unchanged.
+- Read replies: replace `ListMemoComments` with `ListMemos`, filtered by `parent == "memos/{memo}"`.
+- Create replies: replace `CreateMemoComment` with `CreateMemo` and set `memo.parent` (immutable after creation).
+- Relations: `MemoRelation.Type.COMMENT` is removed. Read `Memo.parent` and `Memo.comment_count` instead.
+- MCP: replace `memo_list_memo_comments` with `memo_list_memos` and `memo_create_memo_comment` with `memo_create_memo`.
+
 ## Backups
 
 Back up the PersistentVolumeClaim even when using an external database. With SQLite, it contains the database and local
