@@ -40,6 +40,19 @@ app.kubernetes.io/part-of: helmforge
 {{- end }}
 {{- end -}}
 
+{{/*
+Common annotations renderer (GR-088).
+*/}}
+{{- define "matomo.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "matomo.image" -}}
 {{- printf "%s:%s" .Values.image.repository (.Values.image.tag | default (printf "%s-apache" .Chart.AppVersion)) -}}
 {{- end -}}

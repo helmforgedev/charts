@@ -30,7 +30,7 @@ const pod = pods.find((item) => !item.metadata.deletionTimestamp
 assert.ok(pod, 'Ready Matomo web Pod required');
 
 const matomoContainer = pod.spec.containers.find((container) => container.name === 'matomo');
-assert.match(matomoContainer.image, /:5\.14\.2-/, 'Matomo 5.14.2 image must be running');
+assert.match(matomoContainer.image, /:5\.14\.3-/, 'Matomo 5.14.3 image must be running');
 const httpPort = matomoContainer.ports?.find((port) => port.name === 'http')?.containerPort;
 assert.ok(Number.isInteger(httpPort), 'Named Matomo HTTP container port required');
 
@@ -51,7 +51,7 @@ const appVersion = execMatomo(
   'php', '-r',
   'require "/var/www/html/core/Version.php"; echo Piwik\\Version::VERSION;',
 );
-assert.equal(appVersion, '5.14.2', 'Persisted application code must match the image version');
+assert.equal(appVersion, '5.14.3', 'Persisted application code must match the image version');
 
 const phpVersion = execMatomo('php', '-r', 'echo PHP_VERSION;');
 const phpVersionId = Number(execMatomo('php', '-r', 'echo PHP_VERSION_ID;'));

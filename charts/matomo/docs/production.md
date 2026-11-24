@@ -31,7 +31,7 @@ trusted environment and out of logs. Use an equivalent owner-only creation
 method on non-POSIX systems and remove `retained-values.yaml` immediately after
 the upgrade.
 
-The default `5.14.2-apache` image contains PHP 8.4.27, including the fixes for
+The default `5.14.3-apache` image contains PHP 8.4.27, including the fixes for
 the critical PHP vulnerabilities referenced by the Matomo 5.14.2 security
 notice. Use the new immutable Matomo tag rather than relying on a rebuilt older
 tag that may remain stale in a node image cache. Verify both the Matomo and PHP

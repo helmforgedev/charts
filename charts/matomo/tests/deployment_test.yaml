@@ -15,7 +15,7 @@ tests:
           value: Recreate
       - equal:
           path: spec.template.spec.containers[0].image
-          value: docker.io/library/matomo:5.14.2-apache
+          value: docker.io/library/matomo:5.14.3-apache
   - it: wires Matomo database environment variables
     template: deployment.yaml
     asserts:
@@ -45,7 +45,7 @@ tests:
           value: sync-matomo-code
       - equal:
           path: spec.template.spec.initContainers[1].image
-          value: docker.io/library/matomo:5.14.2-apache
+          value: docker.io/library/matomo:5.14.3-apache
       - equal:
           path: spec.template.spec.initContainers[1].volumeMounts[0].mountPath
           value: /var/www/html
@@ -114,7 +114,7 @@ tests:
     template: deployment.yaml
     set:
       image:
-        tag: 5.14.2-fpm-alpine
+        tag: 5.14.3-fpm-alpine
       webServer:
         mode: external
       containerPorts:
@@ -122,14 +122,15 @@ tests:
     asserts:
       - notExists:
           path: spec.template.spec.containers[0].command
-  - it: sets no wait-for-db securityContext by default
+  - it: sets wait-for-db securityContext by default
     template: deployment.yaml
     asserts:
       - equal:
           path: spec.template.spec.initContainers[0].name
           value: wait-for-db
-      - notExists:
-          path: spec.template.spec.initContainers[0].securityContext
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.allowPrivilegeEscalation
+          value: false
   - it: renders the wait-for-db securityContext when set
     template: deployment.yaml
     set:
@@ -149,11 +150,15 @@ tests:
           path: spec.template.spec.initContainers[0].securityContext
           value:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
-      - notExists:
-          path: spec.template.spec.initContainers[1].securityContext
-      - notExists:
-          path: spec.template.spec.containers[0].securityContext
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+      - equal:
+          path: spec.template.spec.initContainers[1].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
