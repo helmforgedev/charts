@@ -2,7 +2,7 @@
 
 Deploy [MediKeep](https://github.com/afairgiant/MediKeep), a self-hosted personal medical records application built with React and FastAPI.
 
-This chart packages the official `ghcr.io/afairgiant/medikeep:v0.74.0` image with PostgreSQL, persistent uploads and backups,
+This chart packages the official `ghcr.io/afairgiant/medikeep:v0.75.0` image with PostgreSQL, persistent uploads and backups,
 Kubernetes Ingress, Gateway API, NetworkPolicy, and External Secrets Operator integration.
 
 ## Upgrade Notes

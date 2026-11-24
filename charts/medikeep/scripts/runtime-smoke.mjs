@@ -15,7 +15,7 @@ const pod = pods.find(p => !p.metadata.deletionTimestamp
 assert.ok(pod, 'Ready MediKeep pod required');
 const container = pod.spec.containers.find(c => c.name === 'medikeep');
 const chartYaml = readFileSync(new URL('../Chart.yaml', import.meta.url), 'utf8');
-const expectedVersion = chartYaml.match(/^appVersion:\s*["']?([^"'\s]+)["']?/m)?.[1] ?? '0.74.0';
+const expectedVersion = chartYaml.match(/^appVersion:\s*["']?([^"'\s]+)["']?/m)?.[1] ?? '0.75.0';
 assert.match(container.image, new RegExp(`:v?${expectedVersion.replace(/\\./g, '\\.')}$`));
 const ssoOnly = ['true', '1', 'yes', 'on'].includes(
   container.env.find(e => e.name === 'SSO_ONLY_MODE')?.value?.toLowerCase());
