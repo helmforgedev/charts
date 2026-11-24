@@ -19,10 +19,10 @@ const httpPort = drupalContainer.ports?.find(port => port.name === 'http')?.cont
 assert.ok(Number.isInteger(httpPort), 'Named Drupal HTTP container port required');
 const php = code => kubectl(['exec', pod.metadata.name, '-c', 'drupal', '--', 'php', '-r', code]);
 const runtime = JSON.parse(php('require "/var/www/html/core/lib/Drupal.php"; echo json_encode(["drupal" => Drupal::VERSION, "php" => PHP_VERSION, "drivers" => PDO::getAvailableDrivers()]);'));
-assert.equal(runtime.drupal, '11.4.12');
+assert.equal(runtime.drupal, '11.4.13');
 assert.match(runtime.php, /^8\.5\./);
 assert.ok(runtime.drivers.includes('mysql'), 'MySQL PDO driver required');
 assert.ok(runtime.drivers.includes('sqlite'), 'SQLite PDO driver required');
 const installer = php(`echo file_get_contents("http://127.0.0.1:${httpPort}/core/install.php");`);
 assert.match(installer, /Choose language|Select a language/);
-console.log('Drupal 11.4.12 / PHP 8.5: MySQL and SQLite PDO drivers available; Apache served the fresh-site installer.');
+console.log('Drupal 11.4.13 / PHP 8.5: MySQL and SQLite PDO drivers available; Apache served the fresh-site installer.');
