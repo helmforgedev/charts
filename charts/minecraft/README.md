@@ -257,7 +257,7 @@ Spigot servers, provide the platform-specific Floodgate plugin through
 
 ## Upgrade Notes
 
-The 2026.11.0 image updates the bundled helper and monitor components, improves
+The 2026.11.1 image updates the bundled helper and monitor components, improves
 archive extraction, and fixes GTNH handling. Existing defaults remain unchanged. It retains the behavior
 that stops startup after failed custom-server, BuildTools, Sponge, modpack or
 FTB installer downloads instead of continuing with incomplete artifacts.
@@ -270,7 +270,7 @@ server-side mods, corrected `STOP_SERVER_DELAY_COMMAND`, and updated the bundled
 Minecraft helper tools. It retains native `PREFER_IPv6` and custom
 `SERVER_RUNNER` support. Configure the
 first two features with `server.preferIPv6` and `server.runner`. Review the
-[2026.11.0 release](https://github.com/itzg/docker-minecraft-server/releases/tag/2026.11.0).
+[2026.11.1 release](https://github.com/itzg/docker-minecraft-server/releases/tag/2026.11.1).
 Review the upstream release notes before upgrading production servers, take a
 world backup, and verify plugins, mods, datapacks, proxy settings, and pinned
 `server.version` values in a staging environment before reusing existing PVCs.
