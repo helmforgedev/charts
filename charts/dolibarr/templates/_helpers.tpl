@@ -46,6 +46,26 @@ app.kubernetes.io/part-of: dolibarr
 {{- end }}
 
 {{/*
+Common annotations renderer (GR-088).
+*/}}
+{{- define "dolibarr.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
+{{/*
+Backup ServiceAccount name (GR-090).
+*/}}
+{{- define "dolibarr.backupServiceAccountName" -}}
+{{- default (printf "%s-backup" (include "dolibarr.fullname" .)) .Values.backup.serviceAccount.name -}}
+{{- end -}}
+
+{{/*
 Selector labels used for pod matching.
 */}}
 {{- define "dolibarr.selectorLabels" -}}

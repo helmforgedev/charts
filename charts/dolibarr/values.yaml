@@ -10,10 +10,12 @@
 nameOverride: ""
 fullnameOverride: ""
 commonLabels: {}
+# -- Annotations applied to every chart-owned resource (GR-088).
+commonAnnotations: {}
 
 image:
   repository: docker.io/dolibarr/dolibarr
-  tag: "24.0.2"
+  tag: "24.0.3"
   pullPolicy: IfNotPresent
   # Keep tag empty to default to Chart.appVersion.
 
@@ -123,10 +125,22 @@ podSecurityContext:
   seccompProfile:
     type: RuntimeDefault
 
-# The official Dolibarr image performs first-run file ownership and Apache setup
-# as root. Keep the default empty; operators can harden this after validating
-# their image/runtime combination.
-securityContext: {}
+# -- Container-level security context (GR-090).
+# The official Dolibarr image starts Apache as root and needs specific capabilities
+# to adjust ports, file ownership, and switch workers to www-data.
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+    add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - KILL
+      - NET_BIND_SERVICE
+      - SETGID
+      - SETUID
 
 waitForDatabase:
   resources:
@@ -237,6 +251,22 @@ backup:
     uploader: "docker.io/helmforge/mc:1.0.0"
   # -- Resource requests/limits for backup containers.
   resources: {}
+  # -- Container-level security context for backup containers (GR-090).
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+  # -- Dedicated ServiceAccount configuration for backup jobs (GR-090).
+  serviceAccount:
+    # -- Create a dedicated ServiceAccount for workload identity backups
+    create: true
+    # -- Name of the backup ServiceAccount; generated when empty
+    name: ""
+    # -- Annotations for workload identity, such as an AWS IAM role ARN
+    annotations: {}
+    # -- Mount the projected ServiceAccount token required by workload identity
+    automountServiceAccountToken: true
   # -- Database-specific backup settings.
   database:
     # -- Extra arguments passed to mysqldump.
@@ -249,6 +279,10 @@ backup:
     bucket: ""
     # -- Object prefix inside the bucket.
     prefix: dolibarr
+    # -- AWS region used by ambient workload identity credentials
+    region: ""
+    # -- Use ambient workload identity instead of static S3 credentials
+    credentialsFromPodIdentity: false
     # -- Create the bucket if it does not exist.
     createBucketIfNotExists: true
     # -- Use an existing secret for S3 credentials.
