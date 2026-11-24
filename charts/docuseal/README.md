@@ -38,8 +38,8 @@ requirements prevent unsafe local-state scale-out.
 ## Image provenance
 
 The default image is
-`docker.io/docuseal/docuseal@sha256:d2e998dd1fbf9c462a1749df38e4b93f03f8bc552865aad6350d01511d450a65`,
-the official DocuSeal 3.3.7 image verified on 2026-11-19. The human-readable
+`docker.io/docuseal/docuseal@sha256:b664cc84014f607f090140973f2e082cc551954d42f6f17e07fdd54dee6fdc08`,
+the official DocuSeal 3.4.0 image verified on 2026-11-23. The human-readable
 `image.tag` is informational; Kubernetes always receives the immutable digest.
 
 ## Secrets
@@ -71,7 +71,7 @@ upload, signing, and email before upgrading.
 
 | Value | Default | Purpose |
 |---|---:|---|
-| `image.tag` | `3.3.7` | Human-readable upstream release |
+| `image.tag` | `3.4.0` | Human-readable upstream release |
 | `image.digest` | pinned | Immutable official image |
 | `commonAnnotations` | `{}` | Annotations applied to every chart-owned resource |
 | `replicaCount` | `1` | Application replicas |
