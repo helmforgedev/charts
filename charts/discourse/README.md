@@ -12,7 +12,7 @@ chart deliberately does not claim production readiness or upstream support.
 
 ## Features
 
-- Official `discourse/discourse:2026.7.5` image pinned by OCI index digest.
+- Official `discourse/discourse:2026.7.6` image pinned by OCI index digest.
 - One enforced replica with `Recreate` updates and persistent `/shared` state.
 - HelmForge PostgreSQL and Redis subcharts enabled by default.
 - Official pgvector image for the extensions required by bundled Discourse plugins.
@@ -29,12 +29,12 @@ PostgreSQL stores relational data, Redis provides cache/coordination, and the
 `/shared` PVC stores uploads, backups, logs, and runtime state. See
 [DESIGN.md](DESIGN.md) for the complete trust and production boundaries.
 
-## Upgrade to 2026.7.5
+## Upgrade to 2026.7.6
 
-This release upgrades Discourse to ESR 2026.7.5 with upstream bug fixes and
-security patches. HelmForge Redis subchart is updated to `3.2.1` per GR-074.
-Preserve PostgreSQL data, `/shared` PVC volume, and `secret-key-base` before
-upgrading.
+This release upgrades Discourse to ESR 2026.7.6 with upstream bug fixes and
+security patches. HelmForge PostgreSQL subchart is updated to `2.2.1` and Redis
+to `3.2.2` per GR-074. Preserve PostgreSQL data, `/shared` PVC volume, and
+`secret-key-base` before upgrading.
 
 ## Installation
 
@@ -58,7 +58,7 @@ minutes even after the 5.2 GB upstream image is available on the node.
 | Key | Default | Description |
 | --- | --- | --- |
 | `replicaCount` | `1` | Enforced singleton application replica. |
-| `image.tag` | `2026.7.5` | Official Discourse ESR tag. |
+| `image.tag` | `2026.7.6` | Official Discourse ESR tag. |
 | `image.digest` | pinned | Required immutable multi-architecture digest. |
 | `discourse.hostname` | `discourse.localhost` | Public forum hostname. |
 | `discourse.developerEmails` | `admin@example.com` | Initial developer email list. |
