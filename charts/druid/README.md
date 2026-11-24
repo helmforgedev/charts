@@ -131,6 +131,8 @@ and [upgrade notes](https://druid.apache.org/docs/latest/release-info/upgrade-no
 Important upstream changes include:
 
 - The official image supplies Java 25 as the required container runtime.
+- The ZooKeeper-based `remote` task runner was removed in Druid 38. Existing overrides
+  must use `httpRemote` or omit `druid.indexer.runner.type` to use its default.
 - Experimental Catalog DDL statements (`CREATE` / `ALTER`) can be enabled via `druid.sql.planner.enableCatalogDdl`.
 - Kafka supervisor header-based filtering (`headerBasedFilterConfig`) is supported to reduce ingestion overhead.
 - Native batch ingestion emits warnings and metrics (`ingest/segments/oversized`) for oversized segment partitions.
