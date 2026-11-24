@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: common annotations
+templates:
+  - configmap.yaml
+  - secret.yaml
+  - deployment.yaml
+  - service.yaml
+tests:
+  - it: applies common annotations to workloads and services
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+        template: deployment.yaml
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: platform
+        template: service.yaml
+
+  - it: lets service annotations override common annotations
+    template: service.yaml
+    set:
+      commonAnnotations:
+        example.com/owner: platform
+        example.com/environment: production
+      service.annotations:
+        example.com/owner: networking
+    asserts:
+      - equal:
+          path: metadata.annotations["example.com/owner"]
+          value: networking
+      - equal:
+          path: metadata.annotations["example.com/environment"]
+          value: production

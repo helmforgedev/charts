@@ -16,8 +16,8 @@ helm install matomo oci://ghcr.io/helmforgedev/helm/matomo
 
 ## Features
 
-- Official Matomo Apache image pinned to `5.14.2-apache`.
-- Bundled HelmForge MySQL `2.1.1` subchart for simple deployments.
+- Official Matomo Apache image pinned to `5.14.3-apache`.
+- Bundled HelmForge MySQL `2.4.2` subchart for simple deployments.
 - External MySQL/MariaDB mode for production.
 - CronJob-based `core:archive` execution.
 - Persistent Matomo application volume.
@@ -26,12 +26,11 @@ helm install matomo oci://ghcr.io/helmforgedev/helm/matomo
 - NetworkPolicy, ServiceMonitor, dual-stack Service fields.
 - External Secrets integration for database passwords.
 
-Matomo 5.14.2 is the current stable production release. Review the
-[5.14.1](https://matomo.org/changelog/matomo-5-14-1/) and
-[5.14.2](https://matomo.org/changelog/matomo-5-14-2/) changelogs, and back up
+Matomo 5.14.3 is the current stable production release. Review the
+[5.14.3](https://matomo.org/changelog/matomo-5-14-3/) changelog, and back up
 the database and persistent application volume before production rollout so
-the native updater can be rolled back together with its data. Neither patch
-contains a major database upgrade.
+the native updater can be rolled back together with its data. The release
+contains no major database upgrade.
 
 Matomo 5.14.2 also carries an upstream security notice for two critical PHP
 vulnerabilities. The pinned image contains PHP 8.4.27, which includes the
@@ -142,10 +141,10 @@ port. See `ci/fpm-sidecar-values.yaml` for the maintained nginx example.
 | --- | --- | --- |
 | `replicaCount` | Matomo web replicas | `1` |
 | `image.repository` | Official Matomo image repository | `docker.io/library/matomo` |
-| `image.tag` | Official Matomo image tag | `5.14.2-apache` |
+| `image.tag` | Official Matomo image tag | `5.14.3-apache` |
 | `webServer.mode` | HTTP runtime owner: `apache` or `external` | `apache` |
 | `database.mode` | `auto`, `external`, or `mysql` | `auto` |
-| `database.waitForConnection.securityContext` | Container security context for the `wait-for-db` init container | `{}` |
+| `database.waitForConnection.securityContext` | Container security context for the `wait-for-db` init container | Non-root drop ALL |
 | `mysql.enabled` | Deploy HelmForge MySQL subchart | `true` |
 | `persistence.enabled` | Persist `/var/www/html` | `true` |
 | `persistence.codeSync.enabled` | Synchronize image code into `/var/www/html` on pod start | `true` |
