@@ -277,7 +277,7 @@ probes:
 | `browser.image.repository` | `docker.io/dgtlmoon/sockpuppetbrowser` | Browser sidecar image repository |
 | `browser.image.tag` | `0.0.5` | Browser sidecar image tag |
 | `browser.image.digest` | `sha256:71fed9b1de8de865a8f30c61e6d8d129de183bf34f8cc545dc7ae499198ec935` | Immutable browser sidecar image index digest |
-| `browser.extraEnv` | `[]` | Extra environment variables for the browser container |
+| `browser.extraEnv` | `[]` | Extra environment variables for the browser sidecar; overrides built-in defaults without duplicate keys |
 | `persistence.enabled` | `true` | Enable persistence for /datastore |
 | `persistence.size` | `10Gi` | PVC size |
 | `persistence.storageClass` | `""` | PVC storage class |
