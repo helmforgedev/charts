@@ -6,7 +6,7 @@ import {readFileSync, writeFileSync} from 'node:fs';
 import {setTimeout as delay} from 'node:timers/promises';
 
 const chartYamlPath = new URL('../Chart.yaml', import.meta.url);
-const chartAppVersion = readFileSync(chartYamlPath, 'utf8').match(/appVersion:\s*["']?([^"'\s]+)/)?.[1] || '3.2.2';
+const chartAppVersion = readFileSync(chartYamlPath, 'utf8').match(/appVersion:\s*["']?([^"'\s]+)/)?.[1] || '3.3.0';
 const [context, namespace, release, version = chartAppVersion, action = 'smoke'] = process.argv.slice(2);
 assert.ok(['smoke', 'create', 'verify'].includes(action));
 const statePath = process.env.HF_N8N_UPGRADE_STATE;
