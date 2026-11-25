@@ -334,7 +334,7 @@ Operational documents:
 |-----------|-------------|---------|
 | `architecture` | `standalone` or `replication` | `standalone` |
 | `image.repository` | PostgreSQL image repository | `docker.io/library/postgres` |
-| `image.tag` | PostgreSQL image tag | `18.7-trixie` |
+| `image.tag` | PostgreSQL image tag | `19.0-trixie` |
 | `commonAnnotations` | Annotations added to every chart-owned resource | `{}` |
 | `auth.database` | App database created at bootstrap | `app` |
 | `auth.username` | App user created at bootstrap | `app` |
@@ -407,13 +407,12 @@ Verify the feature gate before relying on automatic PVC deletion.
 
 ## Upgrade Notes
 
-PostgreSQL `18.7` is the security and bug-fix release; upstream did
-not publish 18.5 because of a post-wrap regression. Back up the cluster and
-review the [official PostgreSQL 18.7 release notes](https://www.postgresql.org/docs/release/18.7/)
-before upgrading. A dump and restore is not required when upgrading from an
-earlier PostgreSQL 18 release, but test extensions, authentication, replication,
-and application queries in staging. The backup CronJob client image is upgraded
-to the same `18.7-trixie` tag as the server.
+PostgreSQL `19.0` is the major release with REPACK and replication improvements. Back up the cluster and
+review the [official PostgreSQL 19.0 release notes](https://www.postgresql.org/docs/release/19.0/)
+before upgrading. When upgrading an existing cluster with persistent data across major PostgreSQL
+releases, migration requires `pg_upgrade`, logical replication, or a logical dump and restore.
+Test extensions, authentication, replication, and application queries in staging. The backup
+CronJob client image is upgraded to the same `19.0-trixie` tag as the server.
 
 ## CI scenarios
 
