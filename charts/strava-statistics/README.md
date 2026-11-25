@@ -57,7 +57,7 @@ helm install dreeve oci://ghcr.io/helmforgedev/helm/strava-statistics -f values.
 Create an admin password hash with the same image version before production installation:
 
 ```bash
-docker run --rm -it --entrypoint bin/console robiningelbrecht/dreeve:v5.9.0 security:hash-password
+docker run --rm -it --entrypoint bin/console robiningelbrecht/dreeve:v5.9.1 security:hash-password
 ```
 
 Then provide unique application secrets and, when using `stravaApi`, Strava credentials:
@@ -160,7 +160,7 @@ For production:
 | Key | Default | Description |
 | --- | --- | --- |
 | `image.repository` | `docker.io/robiningelbrecht/dreeve` | Official Dreeve image |
-| `image.tag` | `v5.9.0` | Pinned Dreeve release |
+| `image.tag` | `v5.9.1` | Pinned Dreeve release |
 | `dreeve.appUrl` | `http://localhost:8080` | Public root URL |
 | `dreeve.importMode` | `stravaApi` | `stravaApi` or `files` |
 | `dreeve.appSecret` | `""` | Admin-session signing secret; generated and preserved when empty |
