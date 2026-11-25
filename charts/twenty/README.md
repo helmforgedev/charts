@@ -20,7 +20,7 @@ topology, trust boundaries and intentional non-goals.
 
 ## Operating contract
 
-- Official `twentycrm/twenty:v2.59.1` image pinned by immutable release tag.
+- Official `twentycrm/twenty:v2.62.2` image pinned by immutable release tag.
 - One Recreate Pod serializes migrations and shares local files between server and worker. This chart does not claim
   application HA or horizontal scaling.
 - Native first-administrator and workspace activation before public startup, followed by explicit closure of public
@@ -75,7 +75,7 @@ Secrets or External Secrets and inspect the full contract with `helm show values
 | Parameter | Default | Purpose |
 |---|---:|---|
 | `replicaCount` | `1` | Fixed single-Pod application topology. |
-| `image.tag` | `v2.59.1` | Official Twenty image pinned by release tag. |
+| `image.tag` | `v2.62.2` | Official Twenty image pinned by release tag. |
 | `server.publicUrl` | `""` | Required stable HTTPS origin used by authentication and links. |
 | `bootstrap.email` | `owner@example.test` | Initial administrator email. |
 | `bootstrap.workspaceName` | `HelmForge CRM` | Initial workspace display name. |
@@ -133,12 +133,12 @@ AI providers and hosted function execution are outside the tested integration se
 See [dependencies](docs/dependencies.md), [storage](docs/storage.md), [SMTP](docs/smtp.md) and
 [observability](docs/observability.md).
 
-## Upgrading to 2.59.1
+## Upgrading to 2.62.2
 
-Twenty 2.59.1 includes upstream performance improvements, bug fixes and updated workspace drivers. Database
+Twenty 2.62.2 includes upstream performance improvements, bug fixes and updated workspace drivers. Database
 migrations run automatically on server Pod startup. No manual migration or breaking values changes are required.
 
-Upstream release notes: [v2.59.1](https://github.com/twentyhq/twenty/releases/tag/twenty%2Fv2.59.1).
+Upstream release notes: [v2.62.2](https://github.com/twentyhq/twenty/releases/tag/twenty%2Fv2.62.2).
 
 ## Upgrading to 2.49.0
 
