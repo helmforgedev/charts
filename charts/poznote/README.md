@@ -72,7 +72,7 @@ ingress:
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `image.repository` | Image repository | `ghcr.io/timothepoznanski/poznote` |
-| `image.tag` | Image tag | `6.149.0` |
+| `image.tag` | Image tag | `6.156.2` |
 | `image.pullPolicy` | Pull policy | `IfNotPresent` |
 
 #### Application Parameters
@@ -158,12 +158,12 @@ This chart intentionally does NOT:
 
 ## Upgrade Notes
 
-### Upgrading to 6.149.0
+### Upgrading to 6.156.2
 
-Poznote 6.149.0 includes bug fixes, stability, and performance improvements.
+Poznote 6.156.2 includes mobile performance improvements and bug fixes.
 No breaking configuration or values changes are introduced in this release.
 
-Review the [official 6.149.0 release](https://github.com/timothepoznanski/poznote/releases/tag/6.149.0).
+Review the [official 6.156.2 release](https://github.com/timothepoznanski/poznote/releases/tag/6.156.2).
 
 ### Upgrading to 6.121.0
 
