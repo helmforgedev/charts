@@ -1,0 +1,173 @@
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-ci-database
+  labels:
+    helmforge.dev/runtime-fixture: "true"
+type: Opaque
+stringData:
+  password: helmforge-database-test
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana-ci-postgresql
+  labels:
+    helmforge.dev/runtime-fixture: "true"
+spec:
+  selector:
+    app.kubernetes.io/name: grafana-ci-postgresql
+  ports:
+    - name: postgresql
+      port: 5432
+      targetPort: postgresql
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana-ci-postgresql
+  labels:
+    helmforge.dev/runtime-fixture: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: grafana-ci-postgresql
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: grafana-ci-postgresql
+        helmforge.dev/runtime-fixture: "true"
+    spec:
+      containers:
+        - name: postgresql
+          image: docker.io/library/postgres:18.6-alpine
+          ports:
+            - name: postgresql
+              containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: grafana
+            - name: POSTGRES_USER
+              value: grafana
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-ci-database
+                  key: password
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "grafana", "-d", "grafana"]
+            periodSeconds: 5
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: grafana-ci-database-bootstrap
+  labels:
+    helmforge.dev/runtime-fixture: "true"
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        helmforge.dev/runtime-fixture: "true"
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 472
+        runAsGroup: 472
+        fsGroup: 472
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: bootstrap
+          image: docker.io/grafana/grafana:13.3.2
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -ec
+          args:
+            - |
+              until nc -z grafana-ci-postgresql 5432; do sleep 2; done
+              /run.sh &
+              grafana_pid=$!
+              for attempt in $(seq 1 60); do
+                if wget -qO- http://127.0.0.1:3000/api/health | grep -q '"database": *"ok"'; then
+                  kill "$grafana_pid"
+                  wait "$grafana_pid" || true
+                  exit 0
+                fi
+                if ! kill -0 "$grafana_pid" 2>/dev/null; then
+                  wait "$grafana_pid"
+                  exit 1
+                fi
+                sleep 2
+              done
+              kill "$grafana_pid" || true
+              wait "$grafana_pid" || true
+              exit 1
+          env:
+            - name: GF_DATABASE_TYPE
+              value: postgres
+            - name: GF_DATABASE_HOST
+              value: grafana-ci-postgresql:5432
+            - name: GF_DATABASE_NAME
+              value: grafana
+            - name: GF_DATABASE_USER
+              value: grafana
+            - name: GF_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-ci-database
+                  key: password
+            - name: GF_DATABASE_SSL_MODE
+              value: disable
+            - name: GF_SECURITY_ADMIN_USER
+              value: admin
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: helmforge-grafana-test
+            - name: GF_ANALYTICS_CHECK_FOR_UPDATES
+              value: "false"
+            - name: GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES
+              value: "false"
+            - name: GF_ANALYTICS_REPORTING_ENABLED
+              value: "false"
+            - name: GF_PLUGINS_PREINSTALL_AUTO_UPDATE
+              value: "false"
+            - name: GF_PLUGINS_PREINSTALL
+              value: ""
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/grafana
+            - name: logs
+              mountPath: /var/log/grafana
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: logs
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

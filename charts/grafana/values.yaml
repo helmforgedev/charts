@@ -1,0 +1,274 @@
+# SPDX-License-Identifier: Apache-2.0
+# Grafana defaults favor a durable single instance. Multiple replicas require an external database.
+
+# -- Global values accepted for parent-chart compatibility.
+global: {}
+# -- Override the chart name.
+nameOverride: ""
+# -- Override the release-derived full name.
+fullnameOverride: ""
+# -- Labels added to every chart-owned resource.
+commonLabels: {}
+# -- Annotations added to every chart-owned resource.
+commonAnnotations: {}
+# -- Number of Grafana replicas. Values above one require database.type postgres or mysql.
+replicaCount: 1
+
+image:
+  # -- Official Grafana OSS image repository.
+  repository: docker.io/grafana/grafana
+  # -- Pinned Grafana OSS image tag.
+  tag: "13.3.2"
+  # -- Image pull policy.
+  pullPolicy: IfNotPresent
+# -- Image pull secrets.
+imagePullSecrets: []
+
+serviceAccount:
+  # -- Create a release-scoped ServiceAccount without RBAC grants.
+  create: true
+  # -- Existing ServiceAccount name when create is false.
+  name: ""
+  # -- ServiceAccount annotations for workload identity integrations.
+  annotations: {}
+  # -- Mount the Kubernetes API token into Grafana pods.
+  automountServiceAccountToken: false
+
+service:
+  # -- Kubernetes Service type.
+  type: ClusterIP
+  # -- Client-facing Service port, independent from grafana.port.
+  port: 80
+  # -- Service annotations.
+  annotations: {}
+  # -- Service IP family policy. Empty uses the cluster default.
+  ipFamilyPolicy: ""
+  # -- Service IP families. Empty uses the cluster default.
+  ipFamilies: []
+
+grafana:
+  # -- Real Grafana HTTP listener port.
+  port: 3000
+  # -- Browser-visible root URL. Empty lets Grafana infer it from requests.
+  rootUrl: ""
+  # -- Serve Grafana from the subpath in rootUrl.
+  serveFromSubPath: false
+  # -- Grafana log level.
+  logLevel: info
+  # -- Additional grafana.ini sections and keys merged with chart-managed paths and server settings.
+  ini: {}
+  # -- Additional environment variables. Managed GF_PATHS, GF_SERVER, GF_DATABASE, GF_SECURITY_ADMIN and GF_PLUGINS variables are reserved.
+  extraEnv: []
+
+admin:
+  # -- Initial administrator username.
+  user: admin
+  # -- Initial administrator password. Empty generates and retains a random password.
+  password: ""
+  # -- Existing Secret containing administrator credentials.
+  existingSecret: ""
+  # -- Username key in the administrator Secret.
+  userKey: admin-user
+  # -- Password key in the administrator Secret.
+  passwordKey: admin-password
+
+database:
+  # -- Metadata database type: sqlite3, postgres, or mysql.
+  type: sqlite3
+  # -- External database hostname. Required for postgres/mysql.
+  host: ""
+  # -- External database port. Defaults by database type when zero.
+  port: 0
+  # -- External database name.
+  name: grafana
+  # -- External database username.
+  user: grafana
+  # -- Inline external database password. Prefer existingSecret in production.
+  password: ""
+  # -- Existing Secret containing the external database password.
+  existingSecret: ""
+  # -- Password key in the external database Secret.
+  passwordKey: password
+  # -- Grafana database ssl_mode value. Common PostgreSQL values are require and verify-full; MySQL uses true, false, or skip-verify.
+  sslMode: ""
+  # -- Additional query string appended to the database connection.
+  urlQueryParams: ""
+  # -- NetworkPolicy peers for an external database when egress isolation is enabled.
+  networkPolicyPeers: []
+
+persistence:
+  # -- Persist Grafana data, SQLite metadata, installed plugins, and local state.
+  enabled: true
+  # -- Existing PVC name. Empty creates a release-owned claim.
+  existingClaim: ""
+  # -- StorageClass. Empty uses the cluster default.
+  storageClass: ""
+  # -- PVC access modes.
+  accessModes:
+    - ReadWriteOnce
+  # -- PVC requested capacity.
+  size: 10Gi
+  # -- Keep the generated PVC after Helm uninstall.
+  retain: true
+  # -- PVC annotations.
+  annotations: {}
+
+provisioning:
+  # -- Grafana datasource provisioning document keyed by apiVersion and datasources.
+  datasources: {}
+  # -- Grafana dashboard-provider provisioning document keyed by apiVersion and providers.
+  dashboardProviders:
+    apiVersion: 1
+    providers:
+      - name: helmforge
+        orgId: 1
+        folder: ""
+        type: file
+        disableDeletion: false
+        editable: true
+        updateIntervalSeconds: 30
+        options:
+          path: /var/lib/grafana/dashboards/helmforge
+  # -- Dashboard JSON objects keyed by filename without the .json suffix.
+  dashboards: {}
+  # -- Grafana unified-alerting provisioning files keyed by filename without the .yaml suffix.
+  alerting: {}
+
+plugins:
+  # -- Plugins installed before Grafana starts. Pin each entry as plugin-id@version.
+  preinstall: []
+
+externalSecrets:
+  # -- Render native ExternalSecret resources.
+  enabled: false
+  # -- Default refresh interval for ExternalSecret items.
+  refreshInterval: 1h
+  # -- Native ExternalSecret items. Each item requires name and spec with a store reference.
+  items: []
+
+ingress:
+  # -- Create an Ingress.
+  enabled: false
+  # -- Ingress class name.
+  ingressClassName: ""
+  # -- Ingress annotations.
+  annotations: {}
+  # -- Ingress hosts and paths.
+  hosts: []
+  # -- Ingress TLS entries.
+  tls: []
+
+gatewayAPI:
+  # -- Create canonical Gateway API HTTPRoutes.
+  enabled: false
+  # -- HTTPRoutes with parentRefs and optional hostnames, labels, annotations, rules, filters, and backendRefs.
+  httpRoutes: []
+
+metrics:
+  # -- Create a Prometheus Operator ServiceMonitor for Grafana's /metrics endpoint.
+  serviceMonitor:
+    enabled: false
+    labels: {}
+    interval: 30s
+    scrapeTimeout: 10s
+    metricRelabelings: []
+
+probes:
+  startup:
+    enabled: true
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 5
+    failureThreshold: 60
+  liveness:
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 5
+  readiness:
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 472
+  runAsGroup: 472
+  fsGroup: 472
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+runtimeStorage:
+  # -- Size limit for /tmp.
+  tmpSizeLimit: 256Mi
+  # -- Size limit for /var/log/grafana.
+  logsSizeLimit: 256Mi
+
+pdb:
+  # -- Create a PodDisruptionBudget. Useful only with multiple replicas.
+  enabled: false
+  # -- Minimum available pods. Mutually exclusive with maxUnavailable when non-empty.
+  minAvailable: ""
+  # -- Maximum unavailable pods.
+  maxUnavailable: 1
+  # -- Optional unhealthy pod eviction policy.
+  unhealthyPodEvictionPolicy: ""
+
+networkPolicy:
+  # -- Create a NetworkPolicy for Grafana.
+  enabled: true
+  ingress:
+    # -- Allow application traffic from pods in the release namespace.
+    allowSameNamespace: true
+    # -- Additional ingress peers, such as an ingress controller or monitoring namespace.
+    extraFrom: []
+  egress:
+    # -- Enforce egress isolation. Keep false until datasource, SMTP, auth, plugin, and database destinations are modeled.
+    enabled: false
+    # -- Allow DNS when egress isolation is enabled.
+    allowDNS: true
+    # -- Additional complete egress rules.
+    extraEgress: []
+
+# -- Labels added to the Grafana pod template.
+podLabels: {}
+# -- Annotations added to the Grafana pod template.
+podAnnotations: {}
+# -- Node selector.
+nodeSelector: {}
+# -- Tolerations.
+tolerations: []
+# -- Affinity rules.
+affinity: {}
+# -- Topology spread constraints.
+topologySpreadConstraints: []
+# -- Priority class name.
+priorityClassName: ""
+# -- Pod termination grace period.
+terminationGracePeriodSeconds: 30
+# -- Extra volumes.
+extraVolumes: []
+# -- Extra Grafana container volume mounts.
+extraVolumeMounts: []
+# -- Extra init containers.
+extraInitContainers: []
+# -- Extra Kubernetes manifests rendered with tpl.
+extraManifests: []

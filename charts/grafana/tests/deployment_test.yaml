@@ -1,0 +1,147 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Grafana workload contract
+templates:
+  - templates/deployment.yaml
+release:
+  name: test
+  namespace: observability
+tests:
+  - it: renders a Deployment
+    asserts:
+      - isKind:
+          of: Deployment
+  - it: uses the pinned official image
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "docker.io/grafana/grafana:13.3.2"
+  - it: wires the real application listener
+    set:
+      grafana.port: 3300
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 3300
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GF_SERVER_HTTP_PORT
+            value: "3300"
+  - it: drops all Linux capabilities
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+  - it: runs with a read-only root filesystem
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+  - it: disables service account token automount
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+  - it: configures all probes on the native health endpoint
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /api/health
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /api/health
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /api/health
+  - it: uses Recreate for the stateful single replica
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+  - it: uses RollingUpdate for external database replicas
+    set:
+      replicaCount: 2
+      database.type: postgres
+      database.host: postgres.example.test
+      database.password: test-password
+      persistence.enabled: false
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: RollingUpdate
+      - equal:
+          path: spec.replicas
+          value: 2
+  - it: mounts persistent Grafana data
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[1].persistentVolumeClaim.claimName
+          value: test-grafana
+  - it: uses ephemeral data only when persistence is disabled
+    set:
+      persistence.enabled: false
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.volumes[1].emptyDir
+  - it: references an existing administrator Secret
+    set:
+      admin.existingSecret: operator-grafana
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[7].valueFrom.secretKeyRef.name
+          value: operator-grafana
+  - it: configures the external database without exposing its password
+    set:
+      database.type: postgres
+      database.host: postgres.example.test
+      database.existingSecret: grafana-db
+      database.sslMode: verify-full
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GF_DATABASE_HOST
+            value: "postgres.example.test:5432"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GF_DATABASE_SSL_MODE
+            value: verify-full
+  - it: retries only known transient Grafana database locks in HA mode
+    set:
+      replicaCount: 2
+      persistence.enabled: false
+      database.type: postgres
+      database.host: postgres.example.test
+      database.password: test-password
+      pdb.enabled: true
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "failed to obtain lock"
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "there is already a lock for this actionName"
+  - it: merges safe extra environment variables
+    set:
+      grafana.extraEnv:
+        - {name: GF_USERS_ALLOW_SIGN_UP, value: "false"}
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GF_USERS_ALLOW_SIGN_UP
+            value: "false"
+  - it: renders topology spread constraints
+    set:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: grafana
+    asserts:
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].maxSkew
+          value: 1

@@ -1,0 +1,96 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Grafana routing contracts
+release:
+  name: test
+  namespace: observability
+tests:
+  - it: renders an Ingress with ingressClassName
+    template: templates/ingress.yaml
+    set:
+      ingress.enabled: true
+      ingress.ingressClassName: nginx
+      ingress.hosts:
+        - host: grafana.example.test
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+      - equal:
+          path: spec.rules[0].host
+          value: grafana.example.test
+  - it: routes Ingress traffic to the named service port
+    template: templates/ingress.yaml
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: grafana.example.test
+    asserts:
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.port.name
+          value: http
+  - it: renders Ingress TLS
+    template: templates/ingress.yaml
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: grafana.example.test
+      ingress.tls:
+        - secretName: grafana-tls
+          hosts:
+            - grafana.example.test
+    asserts:
+      - equal:
+          path: spec.tls[0].secretName
+          value: grafana-tls
+  - it: renders a canonical HTTPRoute
+    template: templates/httproute.yaml
+    capabilities:
+      apiVersions:
+        - gateway.networking.k8s.io/v1/HTTPRoute
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - parentRefs:
+            - name: public
+          hostnames:
+            - grafana.example.test
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: spec.parentRefs[0].name
+          value: public
+  - it: defaults HTTPRoute backend to the Grafana service
+    template: templates/httproute.yaml
+    capabilities:
+      apiVersions:
+        - gateway.networking.k8s.io/v1/HTTPRoute
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - parentRefs:
+            - name: public
+    asserts:
+      - equal:
+          path: spec.rules[0].backendRefs[0].name
+          value: test-grafana
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 80
+  - it: supports multiple uniquely named HTTPRoutes
+    template: templates/httproute.yaml
+    capabilities:
+      apiVersions:
+        - gateway.networking.k8s.io/v1/HTTPRoute
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - name: internal
+          parentRefs:
+            - name: private
+        - name: public
+          parentRefs:
+            - name: edge
+    asserts:
+      - hasDocuments:
+          count: 2

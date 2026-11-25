@@ -1,0 +1,155 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+1. Grafana has been installed
+=============================
+
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Image: {{ include "grafana.image" . }}
+Replicas: {{ .Values.replicaCount }}
+Database: {{ .Values.database.type }}
+Persistence: {{ ternary "enabled" "disabled" .Values.persistence.enabled }}
+
+2. Access Grafana
+=================
+
+{{- if .Values.ingress.enabled }}
+Ingress endpoints:
+{{- range .Values.ingress.hosts }}
+  - https://{{ .host }}
+{{- end }}
+{{- else if .Values.gatewayAPI.enabled }}
+Gateway API hostnames:
+{{- range .Values.gatewayAPI.httpRoutes }}
+{{- range .hostnames }}
+  - https://{{ . }}
+{{- end }}
+{{- end }}
+{{- else if eq .Values.service.type "LoadBalancer" }}
+Wait for an external address:
+  kubectl get svc -n {{ .Release.Namespace }} {{ include "grafana.fullname" . }} --watch
+{{- else if eq .Values.service.type "NodePort" }}
+Inspect the allocated node port:
+  kubectl get svc -n {{ .Release.Namespace }} {{ include "grafana.fullname" . }}
+{{- else }}
+Use local port forwarding:
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "grafana.fullname" . }} 3000:{{ .Values.service.port }}
+
+Then open:
+  http://127.0.0.1:3000
+{{- end }}
+
+3. Administrator credentials
+============================
+
+The administrator username and password are stored in Secret:
+  {{ include "grafana.adminSecretName" . }}
+
+Read the username:
+  kubectl get secret -n {{ .Release.Namespace }} {{ include "grafana.adminSecretName" . }} -o jsonpath="{.data.{{ .Values.admin.userKey }}}" | base64 --decode
+
+Read the password:
+  kubectl get secret -n {{ .Release.Namespace }} {{ include "grafana.adminSecretName" . }} -o jsonpath="{.data.{{ .Values.admin.passwordKey }}}" | base64 --decode
+
+Rotate credentials by updating the referenced Secret and restarting Grafana.
+Grafana only consumes the initial administrator values when its database is new.
+
+4. Configuration summary
+========================
+
+HTTP listener: {{ .Values.grafana.port }}
+Service port: {{ .Values.service.port }}
+Root URL: {{ default "inferred from requests" .Values.grafana.rootUrl }}
+Datasources provisioned: {{ len .Values.provisioning.datasources }}
+Dashboards provisioned: {{ len .Values.provisioning.dashboards }}
+Plugins requested: {{ len .Values.plugins.preinstall }}
+ServiceMonitor: {{ ternary "enabled" "disabled" .Values.metrics.serviceMonitor.enabled }}
+NetworkPolicy: {{ ternary "enabled" "disabled" .Values.networkPolicy.enabled }}
+Egress isolation: {{ ternary "enabled" "disabled" .Values.networkPolicy.egress.enabled }}
+
+{{- if eq .Values.database.type "sqlite3" }}
+This release uses SQLite. Keep replicaCount at one and protect the data PVC.
+For active-active Grafana, migrate metadata to PostgreSQL or MySQL first.
+{{- else }}
+This release uses external {{ .Values.database.type }} at {{ include "grafana.databaseHost" . }}.
+Verify external database backup, TLS, capacity, and availability separately.
+{{- end }}
+
+5. Validate the deployment
+==========================
+
+Check rollout completion:
+  kubectl rollout status -n {{ .Release.Namespace }} deployment/{{ include "grafana.fullname" . }}
+
+Inspect pods and restart counts:
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Call the native health endpoint through the Service:
+  kubectl run grafana-health --rm -i --restart=Never -n {{ .Release.Namespace }} --image=curlimages/curl:8.17.0 -- \
+    curl --fail --silent http://{{ include "grafana.fullname" . }}:{{ .Values.service.port }}/api/health
+
+The response should report database status "ok".
+
+6. Provisioning and operations
+==============================
+
+Datasources, dashboard providers, dashboards, and alerting rules are rendered
+from provisioning.* values. Changes update the ConfigMaps and trigger a rollout.
+
+List chart-owned ConfigMaps:
+  kubectl get configmap -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Inspect Grafana logs:
+  kubectl logs -n {{ .Release.Namespace }} deployment/{{ include "grafana.fullname" . }} --tail=200
+
+Inspect recent events:
+  kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
+
+{{- if .Values.persistence.enabled }}
+The data claim is {{ include "grafana.claimName" . }}.
+Before SQLite file-level backup, stop Grafana cleanly or use a storage snapshot
+with application-consistent procedures. Back up the database, configuration,
+plugins, and provisioning source values together.
+{{- else }}
+Warning: persistence is disabled. SQLite metadata and installed plugins are
+lost when the pod is replaced. Use only for disposable environments or with an
+external database and declarative provisioning.
+{{- end }}
+
+7. Troubleshooting
+==================
+
+Describe the Grafana pod:
+  kubectl describe pod -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Check the generated configuration:
+  kubectl get configmap -n {{ .Release.Namespace }} {{ include "grafana.fullname" . }}-config -o yaml
+
+Check PVC status:
+  kubectl get pvc -n {{ .Release.Namespace }} {{ include "grafana.claimName" . }}
+
+If readiness fails, inspect /api/health and database connectivity first.
+If plugin startup fails, verify every plugins.preinstall entry is pinned and
+that NetworkPolicy egress permits the plugin source.
+If an externally exposed URL redirects incorrectly, set grafana.rootUrl and
+grafana.serveFromSubPath consistently with the proxy path.
+If multiple replicas fail validation, configure an external database and a
+storage topology that does not share a ReadWriteOnce volume.
+
+8. Documentation and next steps
+================================
+
+Chart guide:
+  https://helmforge.dev/docs/charts/grafana
+
+Grafana documentation:
+  https://grafana.com/docs/grafana/latest/
+
+Recommended next steps:
+  - replace generated administrator credentials with a managed Secret
+  - provision datasources and dashboards as code
+  - expose Grafana through TLS-enabled Ingress or Gateway API
+  - enable ServiceMonitor and permit the monitoring namespace in NetworkPolicy
+  - configure database and storage backups before production use
+  - test restore and upgrade procedures in a non-production namespace
+
+Happy Helmforging :)

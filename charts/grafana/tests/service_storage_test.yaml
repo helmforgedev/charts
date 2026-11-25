@@ -1,0 +1,82 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Grafana service and storage
+release:
+  name: test
+  namespace: observability
+tests:
+  - it: exposes the independent service port
+    template: templates/service.yaml
+    set:
+      service.port: 8080
+      grafana.port: 3300
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 8080
+      - equal:
+          path: spec.ports[0].targetPort
+          value: http
+  - it: selects the release workload
+    template: templates/service.yaml
+    asserts:
+      - equal:
+          path: spec.selector["app.kubernetes.io/instance"]
+          value: test
+  - it: renders dual-stack service settings
+    template: templates/service.yaml
+    set:
+      service.ipFamilyPolicy: PreferDualStack
+      service.ipFamilies:
+        - IPv4
+        - IPv6
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+      - equal:
+          path: spec.ipFamilies[1]
+          value: IPv6
+  - it: applies service annotations
+    template: templates/service.yaml
+    set:
+      service.annotations:
+        service.beta.kubernetes.io/aws-load-balancer-scheme: internal
+    asserts:
+      - equal:
+          path: metadata.annotations["service.beta.kubernetes.io/aws-load-balancer-scheme"]
+          value: internal
+  - it: creates a retained PVC by default
+    template: templates/pvc.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+      - equal:
+          path: spec.resources.requests.storage
+          value: 10Gi
+  - it: supports a selected storage class
+    template: templates/pvc.yaml
+    set:
+      persistence.storageClass: fast
+      persistence.size: 50Gi
+    asserts:
+      - equal:
+          path: spec.storageClassName
+          value: fast
+      - equal:
+          path: spec.resources.requests.storage
+          value: 50Gi
+  - it: skips PVC creation for an existing claim
+    template: templates/pvc.yaml
+    set:
+      persistence.existingClaim: restored-grafana
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: skips PVC creation when persistence is disabled
+    template: templates/pvc.yaml
+    set:
+      persistence.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
