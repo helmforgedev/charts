@@ -275,8 +275,9 @@ probes:
 | `browser.enabled` | `false` | Enable Playwright browser sidecar |
 | `browser.port` | `3000` | Loopback Sockpuppet WebSocket listener; when enabled it must differ from `changedetection.port` and Sockpuppet statistics port `8080` |
 | `browser.image.repository` | `docker.io/dgtlmoon/sockpuppetbrowser` | Browser sidecar image repository |
-| `browser.image.tag` | `0.0.3` | Browser sidecar image tag |
-| `browser.image.digest` | `sha256:1d8f72d2ce2085faed4232e5ae1e65c02efe5b831a18e127829b267c260b4fb2` | Immutable browser sidecar image index digest |
+| `browser.image.tag` | `0.0.5` | Browser sidecar image tag |
+| `browser.image.digest` | `sha256:71fed9b1de8de865a8f30c61e6d8d129de183bf34f8cc545dc7ae499198ec935` | Immutable browser sidecar image index digest |
+| `browser.extraEnv` | `[]` | Extra environment variables for the browser container |
 | `persistence.enabled` | `true` | Enable persistence for /datastore |
 | `persistence.size` | `10Gi` | PVC size |
 | `persistence.storageClass` | `""` | PVC storage class |
