@@ -1,0 +1,234 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "grafana.fullname" . }}
+  labels:
+    {{- include "grafana.labels" . | nindent 4 }}
+  {{- include "grafana.renderAnnotations" (dict "root" .) | nindent 2 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: {{ ternary "RollingUpdate" "Recreate" (gt (int .Values.replicaCount) 1) }}
+  selector:
+    matchLabels:
+      {{- include "grafana.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "grafana.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}{{ toYaml . | nindent 8 }}{{- end }}
+      annotations:
+        checksum/config: {{ include "grafana.ini" . | sha256sum }}
+        checksum/provisioning: {{ toJson .Values.provisioning | sha256sum }}
+        {{- if and (ne .Values.database.type "sqlite3") (not .Values.database.existingSecret) }}
+        checksum/database-credentials: {{ printf "%s:%s" .Values.database.passwordKey .Values.database.password | sha256sum }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}{{ toYaml . | nindent 8 }}{{- end }}
+    spec:
+      serviceAccountName: {{ include "grafana.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.extraInitContainers }}
+      initContainers:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: grafana
+          image: {{ include "grafana.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if and (gt (int .Values.replicaCount) 1) (ne .Values.database.type "sqlite3") }}
+          command:
+            - sh
+            - -ec
+            - |
+              attempt=1
+              while [ "$attempt" -le 5 ]; do
+                lock_flag="/tmp/grafana-startup-${attempt}.lock"
+                log_pipe="/tmp/grafana-startup-${attempt}.pipe"
+                rm -f "$lock_flag" "$log_pipe"
+                mkfifo "$log_pipe"
+                awk -v flag="$lock_flag" '{ print; fflush(); if ($0 ~ /failed to obtain lock|there is already a lock for this actionName/) { print "1" > flag; close(flag) } }' < "$log_pipe" &
+                logger_pid=$!
+                /run.sh > "$log_pipe" 2>&1 &
+                grafana_pid=$!
+                trap 'kill -TERM "$grafana_pid" 2>/dev/null || true; wait "$grafana_pid" 2>/dev/null || true; kill "$logger_pid" 2>/dev/null || true; wait "$logger_pid" 2>/dev/null || true; exit 0' TERM INT
+                set +e
+                wait "$grafana_pid"
+                status=$?
+                wait "$logger_pid"
+                set -e
+                trap - TERM INT
+                rm -f "$log_pipe"
+                if [ "$status" -eq 0 ]; then
+                  exit 0
+                fi
+                if [ "$attempt" -lt 5 ] && [ -s "$lock_flag" ]; then
+                  echo "Grafana startup encountered a transient database lock; retrying (${attempt}/5)."
+                  attempt=$((attempt + 1))
+                  sleep 2
+                  continue
+                fi
+                exit "$status"
+              done
+          {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.grafana.port }}
+              protocol: TCP
+          env:
+            - name: GF_PATHS_CONFIG
+              value: /etc/grafana/grafana.ini
+            - name: GF_PATHS_DATA
+              value: /var/lib/grafana
+            - name: GF_PATHS_LOGS
+              value: /var/log/grafana
+            - name: GF_PATHS_PLUGINS
+              value: /var/lib/grafana/plugins
+            - name: GF_PATHS_PROVISIONING
+              value: /etc/grafana/provisioning
+            - name: GF_SERVER_HTTP_PORT
+              value: {{ .Values.grafana.port | quote }}
+            {{- with .Values.grafana.rootUrl }}
+            - name: GF_SERVER_ROOT_URL
+              value: {{ . | quote }}
+            {{- end }}
+            - name: GF_SERVER_SERVE_FROM_SUB_PATH
+              value: {{ .Values.grafana.serveFromSubPath | quote }}
+            - name: GF_SECURITY_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "grafana.adminSecretName" . }}
+                  key: {{ .Values.admin.userKey }}
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "grafana.adminSecretName" . }}
+                  key: {{ .Values.admin.passwordKey }}
+            - name: GF_DATABASE_TYPE
+              value: {{ .Values.database.type | quote }}
+            {{- if ne .Values.database.type "sqlite3" }}
+            - name: GF_DATABASE_HOST
+              value: {{ include "grafana.databaseHost" . | quote }}
+            - name: GF_DATABASE_NAME
+              value: {{ .Values.database.name | quote }}
+            - name: GF_DATABASE_USER
+              value: {{ .Values.database.user | quote }}
+            - name: GF_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "grafana.databaseSecretName" . }}
+                  key: {{ .Values.database.passwordKey }}
+            {{- with .Values.database.sslMode }}
+            - name: GF_DATABASE_SSL_MODE
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.database.urlQueryParams }}
+            - name: GF_DATABASE_URL_QUERY_PARAMS
+              value: {{ . | quote }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.plugins.preinstall }}
+            - name: GF_PLUGINS_PREINSTALL_SYNC
+              value: {{ join "," .Values.plugins.preinstall | quote }}
+            {{- end }}
+            {{- with .Values.grafana.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- range $name, $probe := .Values.probes }}
+          {{- if $probe.enabled }}
+          {{ $name }}Probe:
+            httpGet:
+              path: /api/health
+              port: http
+            {{- omit $probe "enabled" | toYaml | nindent 12 }}
+          {{- end }}
+          {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/grafana/grafana.ini
+              subPath: grafana.ini
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/grafana
+            - name: logs
+              mountPath: /var/log/grafana
+            - name: tmp
+              mountPath: /tmp
+            {{- if .Values.provisioning.datasources }}
+            - name: provisioning
+              mountPath: /etc/grafana/provisioning/datasources/helmforge.yaml
+              subPath: datasources.yaml
+              readOnly: true
+            {{- end }}
+            {{- if .Values.provisioning.dashboardProviders }}
+            - name: provisioning
+              mountPath: /etc/grafana/provisioning/dashboards/helmforge.yaml
+              subPath: dashboards.yaml
+              readOnly: true
+            {{- end }}
+            {{- range $name, $_ := .Values.provisioning.alerting }}
+            - name: provisioning
+              mountPath: /etc/grafana/provisioning/alerting/{{ $name }}.yaml
+              subPath: {{ $name }}.yaml
+              readOnly: true
+            {{- end }}
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards/helmforge
+              readOnly: true
+            {{- with .Values.extraVolumeMounts }}{{ toYaml . | nindent 12 }}{{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "grafana.fullname" . }}-config
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "grafana.claimName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: logs
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeStorage.logsSizeLimit }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeStorage.tmpSizeLimit }}
+        {{- if or .Values.provisioning.datasources .Values.provisioning.dashboardProviders .Values.provisioning.alerting }}
+        - name: provisioning
+          configMap:
+            name: {{ include "grafana.fullname" . }}-provisioning
+        {{- end }}
+        - name: dashboards
+          configMap:
+            name: {{ include "grafana.fullname" . }}-dashboards
+        {{- with .Values.extraVolumes }}{{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

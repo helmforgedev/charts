@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Grafana fail-fast validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: rejects SQLite with multiple replicas
+    set: {replicaCount: 2}
+    asserts:
+      - failedTemplate: {errorMessage: "replicaCount greater than one requires database.type postgres or mysql; SQLite is not an HA database"}
+  - it: rejects ReadWriteOnce storage shared by replicas
+    set:
+      replicaCount: 2
+      database.type: postgres
+      database.host: postgres
+      database.password: test-password
+    asserts:
+      - failedTemplate: {errorMessage: "multiple replicas cannot share a ReadWriteOnce or ReadWriteOncePod data volume; disable persistence for externally stored HA metadata or use a shared ReadWriteMany volume"}
+  - it: rejects ReadWriteOncePod storage shared by replicas
+    set:
+      replicaCount: 2
+      database.type: postgres
+      database.host: postgres
+      database.password: test-password
+      persistence.accessModes: [ReadWriteOncePod]
+    asserts:
+      - failedTemplate: {errorMessage: "multiple replicas cannot share a ReadWriteOnce or ReadWriteOncePod data volume; disable persistence for externally stored HA metadata or use a shared ReadWriteMany volume"}
+  - it: requires an external database host
+    set: {database.type: postgres, database.password: test-password}
+    asserts:
+      - failedTemplate: {errorMessage: "database.host is required when database.type is postgres or mysql"}
+  - it: requires external database credentials
+    set: {database.type: postgres, database.host: postgres}
+    asserts:
+      - failedTemplate: {errorMessage: "database.password or database.existingSecret is required for an external database"}
+  - it: rejects competing database credential owners
+    set: {database.type: postgres, database.host: postgres, database.password: one, database.existingSecret: two}
+    asserts:
+      - failedTemplate: {errorMessage: "database.password and database.existingSecret are mutually exclusive"}
+  - it: rejects competing administrator credential owners
+    set: {admin.password: one, admin.existingSecret: two}
+    asserts:
+      - failedTemplate: {errorMessage: "admin.password and admin.existingSecret are mutually exclusive"}
+  - it: rejects a PDB for one replica
+    set: {pdb.enabled: true}
+    asserts:
+      - failedTemplate: {errorMessage: "pdb.enabled requires replicaCount greater than one"}
+  - it: protects managed environment variables
+    set:
+      grafana.extraEnv: [{name: GF_DATABASE_TYPE, value: mysql}]
+    asserts:
+      - failedTemplate: {errorMessage: "grafana.extraEnv cannot override chart-managed setting GF_DATABASE_TYPE"}
+  - it: protects workload selectors
+    set: {podLabels: {app.kubernetes.io/name: other}}
+    asserts:
+      - failedTemplate: {errorMessage: "podLabels cannot override workload selector labels"}
+  - it: requires ExternalSecret items
+    set: {externalSecrets.enabled: true}
+    asserts:
+      - failedTemplate: {errorMessage: "externalSecrets.items must not be empty when externalSecrets.enabled is true"}
+  - it: rejects alerting filenames reserved by other provisioning types
+    set:
+      provisioning.alerting.dashboards: {apiVersion: 1}
+    asserts:
+      - failedTemplate: {errorMessage: 'provisioning.alerting key "dashboards" is reserved by Grafana provisioning'}

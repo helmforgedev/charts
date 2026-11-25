@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: Apache-2.0
+# Active-active Grafana with externally managed PostgreSQL and TLS ingress.
+replicaCount: 3
+admin:
+  existingSecret: grafana-admin
+database:
+  type: postgres
+  host: grafana-postgresql.database.svc.cluster.local
+  port: 5432
+  name: grafana
+  user: grafana
+  existingSecret: grafana-database
+  sslMode: verify-full
+persistence:
+  enabled: false
+pdb:
+  enabled: true
+networkPolicy:
+  enabled: true
+  ingress:
+    allowSameNamespace: false
+    extraFrom:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: ingress-nginx
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: monitoring
+  egress:
+    enabled: true
+    allowDNS: true
+    extraEgress:
+      - to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: database
+        ports:
+          - protocol: TCP
+            port: 5432
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  hosts:
+    - host: grafana.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: grafana-tls
+      hosts:
+        - grafana.example.com
+grafana:
+  rootUrl: https://grafana.example.com
+metrics:
+  serviceMonitor:
+    enabled: true

@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+replicaCount: 2
+admin:
+  password: helmforge-grafana-test
+database:
+  type: postgres
+  host: grafana-ci-postgresql
+  port: 5432
+  name: grafana
+  user: grafana
+  password: helmforge-database-test
+  sslMode: disable
+persistence:
+  enabled: false
+extraInitContainers:
+  - name: wait-for-postgresql
+    image: docker.io/grafana/grafana:13.3.2
+    imagePullPolicy: IfNotPresent
+    command:
+      - sh
+      - -ec
+      - until nc -z grafana-ci-postgresql 5432; do sleep 2; done
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 472
+      seccompProfile:
+        type: RuntimeDefault
+    resources:
+      requests:
+        cpu: 5m
+        memory: 8Mi
+      limits:
+        memory: 32Mi
+pdb:
+  enabled: true

@@ -1,0 +1,77 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Grafana configuration and provisioning
+templates:
+  - templates/configmap.yaml
+release:
+  name: test
+  namespace: observability
+tests:
+  - it: renders grafana.ini
+    documentIndex: 0
+    asserts:
+      - matchRegex:
+          path: data["grafana.ini"]
+          pattern: "http_port = 3000"
+  - it: configures the root URL
+    documentIndex: 0
+    set:
+      grafana.rootUrl: "https://grafana.example.com"
+    asserts:
+      - matchRegex:
+          path: data["grafana.ini"]
+          pattern: "root_url = https://grafana.example.com"
+  - it: configures arbitrary ini sections
+    documentIndex: 0
+    set:
+      grafana.ini:
+        auth.anonymous: {enabled: true, org_role: Viewer}
+    asserts:
+      - matchRegex:
+          path: data["grafana.ini"]
+          pattern: "\\[auth.anonymous\\]"
+      - matchRegex:
+          path: data["grafana.ini"]
+          pattern: "org_role = Viewer"
+  - it: renders the default dashboard provider
+    documentIndex: 1
+    asserts:
+      - matchRegex:
+          path: data["dashboards.yaml"]
+          pattern: "/var/lib/grafana/dashboards/helmforge"
+  - it: renders datasource provisioning
+    documentIndex: 1
+    set:
+      provisioning.datasources:
+        apiVersion: 1
+        datasources:
+          - {name: Prometheus, type: prometheus, url: "http://prometheus:9090"}
+    asserts:
+      - matchRegex:
+          path: data["datasources.yaml"]
+          pattern: "name: Prometheus"
+  - it: renders dashboard JSON
+    documentIndex: 2
+    set:
+      provisioning.dashboards:
+        home: {title: Home, uid: home, panels: []}
+    asserts:
+      - matchRegex:
+          path: data["home.json"]
+          pattern: '"title":"Home"'
+  - it: renders unified alerting provisioning
+    documentIndex: 1
+    set:
+      provisioning.alerting:
+        contact-points: {apiVersion: 1, contactPoints: []}
+    asserts:
+      - exists:
+          path: data["contact-points.yaml"]
+  - it: applies common annotations to configuration
+    documentIndex: 0
+    set:
+      commonAnnotations:
+        helmforge.dev/test: "true"
+    asserts:
+      - equal:
+          path: metadata.annotations["helmforge.dev/test"]
+          value: "true"
