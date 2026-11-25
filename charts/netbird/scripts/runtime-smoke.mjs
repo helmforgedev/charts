@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const chartYaml = readFileSync(new URL('../Chart.yaml', import.meta.url), 'utf8');
-const expectedVersion = chartYaml.match(/^appVersion:\s*["']?([^"'\s]+)["']?/m)?.[1] || '0.83.1';
+const expectedVersion = chartYaml.match(/^appVersion:\s*["']?([^"'\s]+)["']?/m)?.[1] || '0.83.2';
 const versionRegex = new RegExp(`management server version ${expectedVersion.replace(/\./g, '\\.')}\\b`);
 
 if (Number(process.versions.node.split('.')[0]) < 22) {
