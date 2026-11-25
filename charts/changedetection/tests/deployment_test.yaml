@@ -195,6 +195,40 @@ tests:
           path: spec.template.spec.containers[1].name
           value: browser
       - equal:
+          path: spec.template.spec.containers[1].image
+          value: "docker.io/dgtlmoon/sockpuppetbrowser@sha256:71fed9b1de8de865a8f30c61e6d8d129de183bf34f8cc545dc7ae499198ec935"
+
+  - it: should render browser extraEnv when provided
+    set:
+      browser.enabled: true
+      browser.extraEnv:
+        - name: CHROME_DISABLE_WEB_SECURITY
+          value: "false"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[1].env
+          content:
+            name: CHROME_DISABLE_WEB_SECURITY
+            value: "false"
+
+  - it: should override default browser env when specified in extraEnv without duplicate keys
+    set:
+      browser.enabled: true
+      browser.extraEnv:
+        - name: SCREEN_WIDTH
+          value: "2560"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[1].env
+          content:
+            name: SCREEN_WIDTH
+            value: "2560"
+      - notContains:
+          path: spec.template.spec.containers[1].env
+          content:
+            name: SCREEN_WIDTH
+            value: "1920"
+      - equal:
           path: spec.template.spec.containers[1].startupProbe.exec.command
           value:
             - python3
