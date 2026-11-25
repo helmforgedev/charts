@@ -234,9 +234,9 @@ targets, notification endpoints, database, and S3 service.
 
 ## Upgrade Notes
 
-Uptime Kuma `2.5.11` includes upstream bug fixes, dependency updates, and maintenance improvements.
+Uptime Kuma `2.5.12` includes security fixes, dependency updates, and maintenance improvements.
 The default `database.type=sqlite`, port, and persistence paths are unchanged.
-See the [upstream release notes](https://github.com/louislam/uptime-kuma/releases/tag/2.5.11).
+See the [upstream release notes](https://github.com/louislam/uptime-kuma/releases/tag/2.5.12).
 Keep persistence enabled and back up `/app/data` before upgrading live instances.
 
 Uptime Kuma `2.5.6` fixes average-response badge calculations and updates
