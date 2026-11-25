@@ -21,7 +21,7 @@ const kubectl = (...args) => execFileSync('kubectl', [
 
 const pods = JSON.parse(kubectl(
   'get', 'pods',
-  '-l', `app.kubernetes.io/instance=${release},app.kubernetes.io/name=grafana`,
+  '-l', `app.kubernetes.io/instance=${release}`,
   '-o', 'json',
 )).items;
 const pod = pods.find((item) => !item.metadata.deletionTimestamp
@@ -36,7 +36,7 @@ assert.ok(Number.isInteger(listener), 'Named Grafana HTTP container port require
 
 const service = JSON.parse(kubectl(
   'get', 'services',
-  '-l', `app.kubernetes.io/instance=${release},app.kubernetes.io/name=grafana`,
+  '-l', `app.kubernetes.io/instance=${release}`,
   '-o', 'json',
 )).items.find((item) => item.spec.ports?.some((port) => port.name === 'http'));
 assert.ok(service, 'Grafana Service required');

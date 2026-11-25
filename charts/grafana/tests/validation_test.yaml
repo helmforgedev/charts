@@ -14,7 +14,16 @@ tests:
       database.host: postgres
       database.password: test-password
     asserts:
-      - failedTemplate: {errorMessage: "multiple replicas cannot share a ReadWriteOnce data volume; disable persistence for externally stored HA metadata or use a shared ReadWriteMany volume"}
+      - failedTemplate: {errorMessage: "multiple replicas cannot share a ReadWriteOnce or ReadWriteOncePod data volume; disable persistence for externally stored HA metadata or use a shared ReadWriteMany volume"}
+  - it: rejects ReadWriteOncePod storage shared by replicas
+    set:
+      replicaCount: 2
+      database.type: postgres
+      database.host: postgres
+      database.password: test-password
+      persistence.accessModes: [ReadWriteOncePod]
+    asserts:
+      - failedTemplate: {errorMessage: "multiple replicas cannot share a ReadWriteOnce or ReadWriteOncePod data volume; disable persistence for externally stored HA metadata or use a shared ReadWriteMany volume"}
   - it: requires an external database host
     set: {database.type: postgres, database.password: test-password}
     asserts:
@@ -48,3 +57,8 @@ tests:
     set: {externalSecrets.enabled: true}
     asserts:
       - failedTemplate: {errorMessage: "externalSecrets.items must not be empty when externalSecrets.enabled is true"}
+  - it: rejects alerting filenames reserved by other provisioning types
+    set:
+      provisioning.alerting.dashboards: {apiVersion: 1}
+    asserts:
+      - failedTemplate: {errorMessage: 'provisioning.alerting key "dashboards" is reserved by Grafana provisioning'}

@@ -167,6 +167,12 @@ ingress:
   tls:
     - secretName: grafana-tls
       hosts: [grafana.example.com]
+networkPolicy:
+  ingress:
+    extraFrom:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: ingress-nginx
 ```
 
 ### Gateway API
@@ -180,11 +186,12 @@ gatewayAPI:
           namespace: gateway-system
       hostnames:
         - grafana.example.com
-      rules:
-        - matches:
-            - path:
-                type: PathPrefix
-                value: /
+networkPolicy:
+  ingress:
+    extraFrom:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: gateway-system
 ```
 
 See [Production operations](docs/production.md) for TLS, database, and routing

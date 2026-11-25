@@ -39,15 +39,16 @@ annotations:
 {{- define "grafana.validate" -}}
 {{- range $key, $_ := .Values.podLabels -}}{{- if has $key (list "app.kubernetes.io/name" "app.kubernetes.io/instance") -}}{{ fail "podLabels cannot override workload selector labels" }}{{- end -}}{{- end -}}
 {{- if and (gt (int .Values.replicaCount) 1) (eq .Values.database.type "sqlite3") -}}{{ fail "replicaCount greater than one requires database.type postgres or mysql; SQLite is not an HA database" }}{{- end -}}
-{{- if and (gt (int .Values.replicaCount) 1) .Values.persistence.enabled (has "ReadWriteOnce" .Values.persistence.accessModes) -}}{{ fail "multiple replicas cannot share a ReadWriteOnce data volume; disable persistence for externally stored HA metadata or use a shared ReadWriteMany volume" }}{{- end -}}
+{{- if and (gt (int .Values.replicaCount) 1) .Values.persistence.enabled (or (has "ReadWriteOnce" .Values.persistence.accessModes) (has "ReadWriteOncePod" .Values.persistence.accessModes)) -}}{{ fail "multiple replicas cannot share a ReadWriteOnce or ReadWriteOncePod data volume; disable persistence for externally stored HA metadata or use a shared ReadWriteMany volume" }}{{- end -}}
 {{- if and (ne .Values.database.type "sqlite3") (not .Values.database.host) -}}{{ fail "database.host is required when database.type is postgres or mysql" }}{{- end -}}
 {{- if and (ne .Values.database.type "sqlite3") (not (or .Values.database.password .Values.database.existingSecret)) -}}{{ fail "database.password or database.existingSecret is required for an external database" }}{{- end -}}
 {{- if and .Values.database.password .Values.database.existingSecret -}}{{ fail "database.password and database.existingSecret are mutually exclusive" }}{{- end -}}
 {{- if and .Values.admin.password .Values.admin.existingSecret -}}{{ fail "admin.password and admin.existingSecret are mutually exclusive" }}{{- end -}}
 {{- if and .Values.pdb.enabled (le (int .Values.replicaCount) 1) -}}{{ fail "pdb.enabled requires replicaCount greater than one" }}{{- end -}}
 {{- if and (ne (toString .Values.pdb.minAvailable) "") (ne (toString .Values.pdb.maxUnavailable) "") -}}{{ fail "set only one of pdb.minAvailable or pdb.maxUnavailable" }}{{- end -}}
-{{- range .Values.grafana.extraEnv -}}{{- if regexMatch "^GF_(PATHS_|SERVER_HTTP_PORT$|SERVER_ROOT_URL$|SERVER_SERVE_FROM_SUB_PATH$|DATABASE_|SECURITY_ADMIN_|PLUGINS_PREINSTALL$)" .name -}}{{ fail (printf "grafana.extraEnv cannot override chart-managed setting %s" .name) }}{{- end -}}{{- end -}}
+{{- range .Values.grafana.extraEnv -}}{{- if regexMatch "^GF_(PATHS_|SERVER_HTTP_PORT$|SERVER_ROOT_URL$|SERVER_SERVE_FROM_SUB_PATH$|DATABASE_|SECURITY_ADMIN_|PLUGINS_PREINSTALL(_SYNC)?$)" .name -}}{{ fail (printf "grafana.extraEnv cannot override chart-managed setting %s" .name) }}{{- end -}}{{- end -}}
 {{- range .Values.plugins.preinstall -}}{{- if not (regexMatch "^[A-Za-z0-9._-]+@[A-Za-z0-9._+-]+$" .) -}}{{ fail (printf "plugins.preinstall entry %q must pin a version as plugin-id@version" .) }}{{- end -}}{{- end -}}
+{{- range $name, $_ := .Values.provisioning.alerting -}}{{- if has $name (list "datasources" "dashboards") -}}{{ fail (printf "provisioning.alerting key %q is reserved by Grafana provisioning" $name) }}{{- end -}}{{- end -}}
 {{- if and .Values.externalSecrets.enabled (not .Values.externalSecrets.items) -}}{{ fail "externalSecrets.items must not be empty when externalSecrets.enabled is true" }}{{- end -}}
 {{- end -}}
 

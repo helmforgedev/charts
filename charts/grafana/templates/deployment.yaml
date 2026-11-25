@@ -21,6 +21,9 @@ spec:
       annotations:
         checksum/config: {{ include "grafana.ini" . | sha256sum }}
         checksum/provisioning: {{ toJson .Values.provisioning | sha256sum }}
+        {{- if and (ne .Values.database.type "sqlite3") (not .Values.database.existingSecret) }}
+        checksum/database-credentials: {{ printf "%s:%s" .Values.database.passwordKey .Values.database.password | sha256sum }}
+        {{- end }}
         {{- with .Values.podAnnotations }}{{ toYaml . | nindent 8 }}{{- end }}
     spec:
       serviceAccountName: {{ include "grafana.serviceAccountName" . }}
@@ -47,26 +50,26 @@ spec:
             - |
               attempt=1
               while [ "$attempt" -le 5 ]; do
-                log_file="/tmp/grafana-startup-${attempt}.log"
+                lock_flag="/tmp/grafana-startup-${attempt}.lock"
                 log_pipe="/tmp/grafana-startup-${attempt}.pipe"
-                rm -f "$log_file" "$log_pipe"
+                rm -f "$lock_flag" "$log_pipe"
                 mkfifo "$log_pipe"
-                tee "$log_file" < "$log_pipe" &
-                tee_pid=$!
+                awk -v flag="$lock_flag" '{ print; fflush(); if ($0 ~ /failed to obtain lock|there is already a lock for this actionName/) { print "1" > flag; close(flag) } }' < "$log_pipe" &
+                logger_pid=$!
                 /run.sh > "$log_pipe" 2>&1 &
                 grafana_pid=$!
-                trap 'kill -TERM "$grafana_pid" 2>/dev/null || true; wait "$grafana_pid" 2>/dev/null || true; kill "$tee_pid" 2>/dev/null || true; wait "$tee_pid" 2>/dev/null || true; exit 0' TERM INT
+                trap 'kill -TERM "$grafana_pid" 2>/dev/null || true; wait "$grafana_pid" 2>/dev/null || true; kill "$logger_pid" 2>/dev/null || true; wait "$logger_pid" 2>/dev/null || true; exit 0' TERM INT
                 set +e
                 wait "$grafana_pid"
                 status=$?
-                wait "$tee_pid"
+                wait "$logger_pid"
                 set -e
                 trap - TERM INT
                 rm -f "$log_pipe"
                 if [ "$status" -eq 0 ]; then
                   exit 0
                 fi
-                if [ "$attempt" -lt 5 ] && grep -Eq 'failed to obtain lock|there is already a lock for this actionName' "$log_file"; then
+                if [ "$attempt" -lt 5 ] && [ -s "$lock_flag" ]; then
                   echo "Grafana startup encountered a transient database lock; retrying (${attempt}/5)."
                   attempt=$((attempt + 1))
                   sleep 2
@@ -136,7 +139,7 @@ spec:
             {{- end }}
             {{- end }}
             {{- if .Values.plugins.preinstall }}
-            - name: GF_PLUGINS_PREINSTALL
+            - name: GF_PLUGINS_PREINSTALL_SYNC
               value: {{ join "," .Values.plugins.preinstall | quote }}
             {{- end }}
             {{- with .Values.grafana.extraEnv }}

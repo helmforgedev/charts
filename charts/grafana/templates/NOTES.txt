@@ -15,13 +15,13 @@ Persistence: {{ ternary "enabled" "disabled" .Values.persistence.enabled }}
 {{- if .Values.ingress.enabled }}
 Ingress endpoints:
 {{- range .Values.ingress.hosts }}
-  - https://{{ .host }}
+  - {{ .host }} (use the protocol configured on the Ingress listener)
 {{- end }}
 {{- else if .Values.gatewayAPI.enabled }}
 Gateway API hostnames:
 {{- range .Values.gatewayAPI.httpRoutes }}
 {{- range .hostnames }}
-  - https://{{ . }}
+  - {{ . }} (use the protocol configured on the Gateway listener)
 {{- end }}
 {{- end }}
 {{- else if eq .Values.service.type "LoadBalancer" }}
@@ -50,8 +50,9 @@ Read the username:
 Read the password:
   kubectl get secret -n {{ .Release.Namespace }} {{ include "grafana.adminSecretName" . }} -o jsonpath="{.data.{{ .Values.admin.passwordKey }}}" | base64 --decode
 
-Rotate credentials by updating the referenced Secret and restarting Grafana.
-Grafana only consumes the initial administrator values when its database is new.
+The Secret initializes the administrator only when the database is new.
+For an existing database, change the password through Grafana, its API, or the
+administrator CLI against the configured database, then synchronize the Secret.
 
 4. Configuration summary
 ========================
