@@ -21,13 +21,13 @@ const pod = pods.find((candidate) => ready(candidate)
 assert.ok(pod, 'Ready Velero server pod required');
 
 const container = pod.spec.containers.find((candidate) => candidate.name === 'velero');
-assert.equal(container.image, 'docker.io/velero/velero:v1.18.4');
+assert.equal(container.image, 'docker.io/velero/velero:v1.19.0');
 const metricsPort = container.ports?.find((port) => port.name === 'metrics')?.containerPort;
 assert.ok(Number.isInteger(metricsPort), 'Named metrics container port required');
 assert.ok(container.args.includes(`--metrics-address=:${metricsPort}`), 'Velero process must listen on the declared metrics port');
 
 const version = kubectl(['exec', pod.metadata.name, '-c', 'velero', '--', '/velero', 'version', '--client-only']);
-assert.match(version, /Version:\s+v1\.18\.4\b/);
+assert.match(version, /Version:\s+v1\.19\.0\b/);
 
 if (release.endsWith('-s3-compatible')) {
   const locations = JSON.parse(kubectl(['get', 'backupstoragelocations.velero.io', '-o', 'json'])).items;
@@ -54,4 +54,4 @@ const metrics = execFileSync('kubectl', ['--context', context, 'get', '--raw', p
 });
 assert.match(metrics, /velero_[a-zA-Z0-9_:]+/);
 
-console.log(`PASS: Velero v1.18.4 metrics listener ${metricsPort} through Service port ${servicePort.port}.`);
+console.log(`PASS: Velero v1.19.0 metrics listener ${metricsPort} through Service port ${servicePort.port}.`);

@@ -106,7 +106,7 @@ metrics:
 |-----|---------|-------------|
 | `commonAnnotations` | `{}` | Annotations added to chart-owned resource metadata, excluding pod templates |
 | `image.repository` | `docker.io/velero/velero` | Velero server image |
-| `image.tag` | `v1.18.4` | Velero server image tag |
+| `image.tag` | `v1.19.0` | Velero server image tag |
 | `plugins.aws.tag` | `v1.14.0` | Default AWS/S3 plugin image tag |
 | `credentials.useSecret` | `true` | Mount credentials when `existingSecret`, `name`, or `secretContents` is set |
 | `credentials.existingSecret` | `""` | Existing credentials secret |
@@ -165,9 +165,9 @@ metrics:
   `/home/cnb/udmrepo` and `/home/cnb/.cache` paths in the server and node-agent
   while keeping their root filesystems read-only
 
-Velero v1.18.4 fixes a backup queue that could remain stuck when a dequeued
-backup completed during its status patch. Review the
-[upstream release](https://github.com/velero-io/velero/releases/tag/v1.18.4)
+Velero v1.19.0 introduces block data mover support, volume in-place restore,
+and fine-grained backup filters. Review the
+[upstream release](https://github.com/velero-io/velero/releases/tag/v1.19.0)
 before upgrading production recovery infrastructure.
 
 ## Troubleshooting
