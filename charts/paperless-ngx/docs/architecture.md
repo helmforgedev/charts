@@ -69,8 +69,8 @@ together.
 
 ## Version Pinning Note
 
-`appVersion` and `image.tag` are `3.4.2`, verified on GitHub Releases and as
-`ghcr.io/paperless-ngx/paperless-ngx:3.4.2`. Tika `3.3.1.0` and Gotenberg
+`appVersion` and `image.tag` are `3.5.1`, verified on GitHub Releases and as
+`ghcr.io/paperless-ngx/paperless-ngx:3.5.1`. Tika `3.3.1.0` and Gotenberg
 `8.37.0` match the versions used in the upstream compose files for that release.
 
 <!-- @AI-METADATA
