@@ -292,7 +292,7 @@ export function restoreSmoke({
     try{const job=await queue.getJob(${JSON.stringify(queuedId)});assert.ok(job,'Pending native job must survive fresh Redis PVC recovery');assert.equal(await job.getState(),'delayed');await job.changeDelay(0);
     const deadline=Date.now()+45000;while(Date.now()<deadline&&(await job.getState())!=='completed')await new Promise(resolve=>setTimeout(resolve,500));assert.equal(await job.getState(),'completed');const done=await queue.getJob(job.id);assert.ok(done.processedOn>=${recoveryStart});assert.ok(done.finishedOn>=done.processedOn);
     const fs=require('node:fs');const walk=dir=>fs.readdirSync(dir,{withFileTypes:true}).flatMap(entry=>entry.isDirectory()?walk(dir+'/'+entry.name):[dir+'/'+entry.name]);
-    const archives=walk('/app/data/storage').filter(path=>path.endsWith('twenty-client-sdk.zip')&&path.includes(done.data.workspaceId)&&path.includes(done.data.applicationUniversalIdentifier));assert.equal(archives.length,1);
+    const archives=walk('/app/data/storage').filter(path=>path.includes('twenty-client-sdk')&&path.endsWith('.zip')&&path.includes(done.data.workspaceId)&&path.includes(done.data.applicationUniversalIdentifier));assert.equal(archives.length,1);
     const archive=fs.readFileSync(archives[0]);assert.equal(archive.subarray(0,2).toString(),'PK');assert.ok(archive.length>1000);assert.ok(fs.statSync(archives[0]).mtimeMs>=done.processedOn,'Restored pending job must write a fresh native SDK archive');
     console.log('owned restored native SDK job completed and regenerated its archive');}
     finally{await queue.close();redis.disconnect();}`,
