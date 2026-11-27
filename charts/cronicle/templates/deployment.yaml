@@ -7,6 +7,7 @@ metadata:
   name: {{ include "cronicle.fullname" . }}
   labels:
     {{- include "cronicle.labels" . | nindent 4 }}
+  {{- include "cronicle.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   replicas: 1
   strategy:
@@ -107,9 +108,9 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- $securityContext := .Values.securityContext }}
-          {{- if $securityProfileEnabled }}
           {{- $defaultContainerSecurityContext := dict "allowPrivilegeEscalation" false "capabilities" (dict "drop" (list "ALL")) }}
+          {{- $securityContext := mergeOverwrite (deepCopy $defaultContainerSecurityContext) .Values.securityContext }}
+          {{- if $securityProfileEnabled }}
           {{- $profileContainerSecurityContext := get $securityProfile "containerSecurityContext" | default dict }}
           {{- $securityContext = mergeOverwrite (deepCopy $defaultContainerSecurityContext) $profileContainerSecurityContext .Values.securityContext }}
           {{- end }}

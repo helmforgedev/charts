@@ -6,6 +6,7 @@ metadata:
   labels:
     {{- include "flowise.labels" . | nindent 4 }}
     app.kubernetes.io/component: main
+  {{- include "flowise.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   replicas: {{ .Values.flowise.replicaCount }}
   selector:
@@ -21,7 +22,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/secret: {{ .Values.auth | toJson | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -44,6 +45,11 @@ spec:
         {{- if ne (include "flowise.databaseMode" .) "sqlite" }}
         - name: wait-for-database
           image: docker.io/library/busybox:1.37.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           command:
             - sh
             - -c
@@ -57,6 +63,11 @@ spec:
         {{- if eq (include "flowise.architectureMode" .) "queue" }}
         - name: wait-for-redis
           image: docker.io/library/busybox:1.37.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           command:
             - sh
             - -c
