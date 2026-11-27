@@ -141,6 +141,16 @@ tests:
           path: spec.template.spec.initContainers[0].name
           value: wait-for-db
 
+  - it: should use Recreate strategy with postgresql
+    template: templates/deployment.yaml
+    set:
+      postgresql.enabled: true
+      postgresql.auth.password: test
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+
   - it: should set postgres env vars
     template: templates/deployment.yaml
     set:
@@ -175,7 +185,23 @@ tests:
                 name: test-n8n-encryption
                 key: encryption-key
 
-  - it: should auto-detect webhook URL from ingress
+  - it: should set the supported webhook URL variable from an explicit value
+    template: templates/deployment.yaml
+    set:
+      n8n.webhookUrl: https://hooks.example.com/
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: N8N_WEBHOOK_URL
+            value: "https://hooks.example.com/"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WEBHOOK_URL
+            value: "https://hooks.example.com/"
+
+  - it: should auto-detect the supported webhook URL variable from ingress
     template: templates/deployment.yaml
     set:
       ingress.enabled: true
@@ -186,6 +212,11 @@ tests:
               pathType: Prefix
     asserts:
       - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: N8N_WEBHOOK_URL
+            value: "https://n8n.example.com/"
+      - notContains:
           path: spec.template.spec.containers[0].env
           content:
             name: WEBHOOK_URL

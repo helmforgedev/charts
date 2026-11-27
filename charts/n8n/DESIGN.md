@@ -47,6 +47,12 @@ flowchart LR
   `ReadWriteOnce` main data PVC during scheduling.
 - Make workers wait for main readiness before starting so fresh installs do not
   race n8n database migrations.
+- Use `Recreate` for the single-replica main Deployment with every database
+  mode so upgrades never run old and new n8n revisions concurrently against
+  one-way database migrations or a shared `ReadWriteOnce` data volume. This
+  guarantee covers main pods only; queue workers are a separate Deployment and
+  must be drained through `queue.workers=0` for upgrades with incompatible
+  migrations, then restored in a second upgrade after the new main pod is ready.
 - Use external task runner mode by default with a dedicated `n8nio/runners`
   sidecar on the main pod and each queue worker. The chart generates a shared
   token and wires the broker port so Code and Python task runner execution does
