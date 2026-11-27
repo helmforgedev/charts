@@ -380,6 +380,13 @@ For production, test restore procedures outside Helm. Backups without restore va
 
 ## Upgrade Notes
 
+The generated `APP_SECRET` is reused from the deployed Secret during connected
+Helm upgrades. `umami.existingSecret` takes precedence, followed by an explicit
+`umami.appSecret`, the deployed generated value, and finally a new random value.
+Local `helm template` and client-side `--dry-run` rendering cannot query the
+cluster; use a stable existing Secret for offline GitOps output, or use
+`--dry-run=server` when validating lookup behavior against a cluster.
+
 Umami 3.x includes database migrations for newer analytics features such as Boards, Shares, Session Replay, and Web Vitals.
 Back up PostgreSQL before upgrading live deployments, especially when migrating from Umami 2.x.
 Umami 3.5.0 adds native browser error tracking, upgraded session replays, centralized tracker configuration, salt rotation options, trusted proxies support, and schema migrations (`27_add_error_tracking`).
