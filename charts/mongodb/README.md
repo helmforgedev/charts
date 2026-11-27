@@ -312,6 +312,12 @@ MongoDB administrative commands and a coordinated Secret update instead of
 changing initialization values. Back up both the PVC data and its credential
 Secrets; restoring only one side can make the database inaccessible.
 
+Explicit `auth.rootPassword` and `auth.replicaSetKey` values override reused
+Secret data. Local `helm template` and client-side `--dry-run`
+rendering cannot query the cluster, so use stable explicit or existing Secrets
+for offline GitOps output, or use `--dry-run=server` to validate lookup behavior
+against a cluster.
+
 StatefulSet claim-template sizes are immutable. During upgrades the chart keeps
 the size already applied to each MongoDB StatefulSet, including when
 `--reset-values` would otherwise restore the default and make Kubernetes reject
