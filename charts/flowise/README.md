@@ -174,6 +174,13 @@ the pod. Read the [security guide](docs/security.md) before public exposure.
 
 ## Operations
 
+When `auth.existingSecret` is empty, the chart generates the five application
+secrets once and reuses their deployed values on connected Helm upgrades.
+Explicit `auth.*` values override reused data. Local `helm template` and
+client-side `--dry-run` rendering cannot query the cluster, so configure a
+stable existing Secret for offline GitOps output, or use `--dry-run=server`
+when validating lookup behavior against a cluster.
+
 Use `/api/v1/ping` for external monitoring. Probe timings are independently
 configurable. Logs are available through `kubectl logs` and are also written to
 the persistent data path. Queue mode requires monitoring both the main and

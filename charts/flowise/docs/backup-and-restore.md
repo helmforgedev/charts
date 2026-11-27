@@ -25,6 +25,24 @@ The S3 Secret must contain `access-key` and `secret-key` unless key names are
 overridden. Each `pgDumpArgs` item is passed directly to `pg_dump`; shell
 expansion is not used.
 
+For AWS, the backup can use EKS Pod Identity or IRSA instead of static S3
+credentials. Enable `backup.s3.credentialsFromPodIdentity`, set
+`backup.s3.region`, and annotate the dedicated backup ServiceAccount as required
+by the selected identity mechanism:
+
+```yaml
+backup:
+  enabled: true
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/flowise-backup
+  s3:
+    endpoint: https://s3.us-east-1.amazonaws.com
+    bucket: platform-backups
+    region: us-east-1
+    credentialsFromPodIdentity: true
+```
+
 Legacy releases accepted a space-delimited string for `pgDumpArgs`. That form
 remains supported for upgrades, but new configurations should use the array
 form so every argument boundary is explicit.

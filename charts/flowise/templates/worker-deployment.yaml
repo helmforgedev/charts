@@ -7,6 +7,7 @@ metadata:
   labels:
     {{- include "flowise.labels" . | nindent 4 }}
     app.kubernetes.io/component: worker
+  {{- include "flowise.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   replicas: {{ .Values.queue.worker.replicaCount }}
   selector:
@@ -22,7 +23,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/secret: {{ .Values.auth | toJson | sha256sum }}
         {{- with .Values.queue.worker.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -40,6 +41,11 @@ spec:
       initContainers:
         - name: wait-for-database
           image: docker.io/library/busybox:1.37.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           command:
             - sh
             - -c
@@ -51,6 +57,11 @@ spec:
               echo "Database is reachable."
         - name: wait-for-redis
           image: docker.io/library/busybox:1.37.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           command:
             - sh
             - -c

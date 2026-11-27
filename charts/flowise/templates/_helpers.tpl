@@ -36,6 +36,17 @@ app.kubernetes.io/name: {{ include "flowise.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
+{{/* Render common annotations merged with resource-specific annotations. */}}
+{{- define "flowise.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "flowise.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
 {{- default (include "flowise.fullname" .) .Values.serviceAccount.name -}}
@@ -263,6 +274,14 @@ sleep {{ int .Values.queue.worker.startupDelaySeconds }}; flowise worker
 {{- end -}}
 {{- end -}}
 
+{{- define "flowise.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create -}}
+{{- printf "%s-backup" (include "flowise.fullname" .) -}}
+{{- else -}}
+{{- required "backup.serviceAccount.name is required when backup.serviceAccount.create=false" .Values.backup.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "flowise.backupEnabled" -}}
 {{- if .Values.backup.enabled -}}
   {{- $dbMode := include "flowise.databaseMode" . -}}
@@ -275,8 +294,11 @@ sleep {{ int .Values.queue.worker.startupDelaySeconds }}; flowise worker
   {{- if not .Values.backup.s3.bucket -}}
     {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
   {{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+  {{- if and (not .Values.backup.s3.credentialsFromPodIdentity) (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
     {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
+  {{- end -}}
+  {{- if and .Values.backup.s3.credentialsFromPodIdentity (not .Values.backup.s3.region) -}}
+    {{- fail "backup.s3.region is required when backup.s3.credentialsFromPodIdentity=true" -}}
   {{- end -}}
 true
 {{- end -}}
