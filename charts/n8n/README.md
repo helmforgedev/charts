@@ -12,6 +12,7 @@ Deploy [n8n](https://n8n.io/) on Kubernetes — a workflow automation platform f
 - **Worker-aware persistence** — queue workers keep the main data PVC by default for upgrade compatibility, with an opt-out for RWO scheduling
 - **Scheduled backups** — database-aware CronJob with S3 upload
 - **Ingress support** — TLS with cert-manager, auto-detected webhook URL
+- **Serialized main upgrades** — `Recreate` prevents concurrent revisions from running database migrations
 - **Encryption key** — auto-generated and persisted across upgrades
 - **Gateway API** — HTTPRoute for clusters running Envoy Gateway or similar
 - **Dual-stack networking** — IPv4/IPv6 service support
@@ -169,7 +170,7 @@ externalSecrets:
 | `n8n.diagnosticsEnabled` | `false` | Share anonymous diagnostics with n8n |
 | `n8n.gracefulShutdownTimeout` | `60` | Graceful shutdown timeout in seconds for main and workers |
 | `database.mode` | `auto` | Database mode (auto, sqlite, external, postgresql) |
-| `postgresql.enabled` | `false` | Deploy PostgreSQL subchart (`helmforge/postgresql` `2.1.1`) |
+| `postgresql.enabled` | `false` | Deploy PostgreSQL subchart (`helmforge/postgresql` `2.2.2`) |
 | `postgresql.initdb.scripts` | n8n extension bootstrap | Creates PostgreSQL extensions required by n8n migrations |
 | `queue.enabled` | `false` | Enable queue mode (requires Redis and a non-SQLite database) |
 | `queue.workers` | `1` | Number of worker replicas |
@@ -245,8 +246,14 @@ any separately pinned runner tag. Existing generated encryption keys and runner
 tokens are retained through Helm lookup; use existing Secrets for offline
 rendering or GitOps. Automatic database migrations require a recoverable backup.
 
-SQLite updates now use `Recreate` to stop the old main process before the new
-version opens the same database. Plan for brief downtime. The Python toggle
+Main Deployment updates use `Recreate` in every database mode to stop the old
+revision before the new version runs database migrations. Plan for brief
+downtime. Queue workers are a separate Deployment; drain and stop them before
+upgrades with incompatible migrations. Set `queue.workers=0` in the upgrade
+that deploys the new main version and wait for every worker pod to terminate.
+Do not rely on `kubectl scale`, because Helm reapplies the configured worker
+count. After the new main pod is ready, run a second Helm upgrade with the
+intended `queue.workers` value. The Python toggle
 `taskRunners.nativePython.enabled` now controls the n8n 2.x variable
 `N8N_PYTHON_ENABLED`; it remains disabled by default and requires external runners.
 

@@ -19,9 +19,17 @@ both is rejected; the chart never chooses one database over another silently.
 
 Zero configuration required. Data is stored in `/home/node/.n8n/database.sqlite`.
 
-SQLite deployments use `Recreate` updates so the previous main process stops
-before its replacement opens the database and runs migrations. Plan for brief
-downtime during upgrades and keep a recoverable data-volume backup.
+The single-replica main Deployment uses `Recreate` updates in every database
+mode so the previous n8n revision stops before its replacement runs migrations.
+This avoids old and new application versions sharing SQLite, PostgreSQL, or a
+`ReadWriteOnce` data volume during an upgrade. Plan for brief downtime and keep
+a recoverable database and data-volume backup. `Recreate` applies only to main
+pods. In queue mode, drain and stop the separate worker Deployment before an
+upgrade with incompatible migrations. Set `queue.workers=0` in the upgrade that
+deploys the new main version and wait for every worker pod to terminate. Manual
+scaling is insufficient because Helm reapplies the configured worker count.
+After the new main pod is ready, run a second Helm upgrade with the intended
+`queue.workers` value.
 
 ```yaml
 persistence:
