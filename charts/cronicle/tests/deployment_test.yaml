@@ -125,15 +125,19 @@ tests:
       - notExists:
           path: spec.template.spec.initContainers
 
-  - it: should preserve the legacy security contract by default
+  - it: should apply the mandatory container security baseline by default
     template: templates/deployment.yaml
     asserts:
       - notExists:
           path: spec.template.spec.automountServiceAccountToken
       - notExists:
           path: spec.template.spec.securityContext
-      - notExists:
-          path: spec.template.spec.containers[0].securityContext
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
 
   - it: should render when new profile values are absent during reuse-values upgrades
     template: templates/deployment.yaml

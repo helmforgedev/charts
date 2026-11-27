@@ -31,6 +31,17 @@ app.kubernetes.io/name: {{ include "cronicle.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
+{{/* Render common annotations merged with resource-specific annotations. */}}
+{{- define "cronicle.renderAnnotations" -}}
+{{- $common := deepCopy (.root.Values.commonAnnotations | default dict) -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite $common $specific -}}
+{{- with $annotations }}
+annotations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "cronicle.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
 {{- default (include "cronicle.fullname" .) .Values.serviceAccount.name -}}
@@ -79,5 +90,5 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{/* ConfigMap checksum annotation */}}
 {{- define "cronicle.configChecksum" -}}
-checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+checksum/config: {{ .Values.cronicle | toJson | sha256sum }}
 {{- end -}}

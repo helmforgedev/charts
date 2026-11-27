@@ -61,6 +61,7 @@ kubectl port-forward svc/<release>-cronicle 3012:80
 | `cronicle.jobMemoryMax` | `1073741824` | Max memory per job (bytes, 1 GB) |
 | `cronicle.maxJobs` | `0` | Max concurrent jobs (0 = unlimited) |
 | `secret.create` | `true` | Auto-generate session encryption key |
+| `secret.value` | `""` | Explicit session encryption secret |
 | `secret.existingSecret` | `""` | Use an existing secret |
 | `persistence.enabled` | `true` | Enable persistence for /opt/cronicle/data |
 | `persistence.size` | `5Gi` | PVC size |
@@ -94,6 +95,13 @@ kubectl port-forward svc/<release>-cronicle 3012:80
 - **Root image** — the pinned image initializes as root; non-root and read-only-root-filesystem settings require a separately validated image
 
 ## Upgrade Compatibility
+
+The chart reuses its generated `secret_key` from the deployed Secret during
+connected Helm upgrades. Precedence is `secret.existingSecret`, then
+`secret.value`, then the deployed generated value, then a new random value.
+Local `helm template` and client-side `--dry-run` rendering cannot perform this
+lookup; use an explicit or existing Secret for stable offline GitOps output, or
+use `--dry-run=server` against a cluster.
 
 The P2 quality baseline adds documentation, schema coverage, an optional
 NetworkPolicy, and an optional security profile. Both new features default to
