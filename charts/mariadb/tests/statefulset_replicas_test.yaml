@@ -142,7 +142,7 @@ tests:
           path: spec.template.spec.initContainers[0].command[2]
           pattern: "local_admin_shutdown\\n\\s+exit 0"
 
-  - it: should continue clone completion when an unmarked datadir lacks replication metadata
+  - it: should fail closed for an unmarked logical replica datadir
     template: templates/statefulset-replicas.yaml
     set:
       architecture: replication
@@ -158,10 +158,64 @@ tests:
           pattern: "local_mariadb\\(\\)"
       - matchRegex:
           path: spec.template.spec.initContainers[0].command[2]
-          pattern: "if \\[ \"\\$\\{LOCAL_SERVER_STARTED\\}\" = \"false\" \\]; then"
+          pattern: "Non-empty replica datadir has no HelmForge bootstrap marker or replication metadata"
       - matchRegex:
           path: spec.template.spec.initContainers[0].command[2]
-          pattern: "CHANGE MASTER TO"
+          pattern: "RESUME_UNMARKED_DATADIR"
+      - equal:
+          path: spec.template.spec.initContainers[0].env[6]
+          value:
+            name: RESUME_UNMARKED_DATADIR
+            value: "false"
+
+  - it: should allow an explicit legacy partial-bootstrap resume
+    template: templates/statefulset-replicas.yaml
+    set:
+      architecture: replication
+      replication.readReplicas.bootstrap.resumeUnmarkedDatadir: true
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].env[6]
+          value:
+            name: RESUME_UNMARKED_DATADIR
+            value: "true"
+
+  - it: should restore new replica claims from an application-consistent VolumeSnapshot
+    template: templates/statefulset-replicas.yaml
+    set:
+      architecture: replication
+      replication.readReplicas.bootstrap.method: volumeSnapshot
+      replication.readReplicas.bootstrap.volumeSnapshot.name: mariadb-source-snapshot
+      replication.readReplicas.bootstrap.volumeSnapshot.gtid: 0-1-42
+    asserts:
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-mariadb-snapshot-replicas
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.dataSource
+          value:
+            apiGroup: snapshot.storage.k8s.io
+            kind: VolumeSnapshot
+            name: mariadb-source-snapshot
+      - equal:
+          path: spec.template.spec.initContainers[0].env[5]
+          value:
+            name: BOOTSTRAP_METHOD
+            value: volumeSnapshot
+      - equal:
+          path: spec.template.spec.initContainers[0].env[7]
+          value:
+            name: VOLUME_SNAPSHOT_GTID
+            value: 0-1-42
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "The replica PVC was not restored from the configured VolumeSnapshot"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "SOURCE_GTID=\"\\$\\{VOLUME_SNAPSHOT_GTID\\}\""
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "only a snapshot of the writable source is supported"
 
   - it: should detect passworded local datadirs before querying replica metadata
     template: templates/statefulset-replicas.yaml
@@ -259,6 +313,18 @@ tests:
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
           pattern: "START SLAVE"
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "STOP SLAVE"
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "shutdown_replica\\(\\)"
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "Slave_IO_Running: Yes"
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "Slave_SQL_Running: Yes"
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
           pattern: "REPLICATION_READY_MARKER=\"/tmp/helmforge-replication-started\""

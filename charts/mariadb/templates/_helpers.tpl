@@ -53,6 +53,14 @@ app.kubernetes.io/role: {{ .role }}
 {{- end -}}
 {{- end -}}
 
+{{- define "mariadb.backupServiceAccountName" -}}
+{{- if .Values.backup.serviceAccount.create -}}
+{{- default (printf "%s-backup" (include "mariadb.fullname" .)) .Values.backup.serviceAccount.name -}}
+{{- else -}}
+{{- default "default" .Values.backup.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "mariadb.secretName" -}}
 {{- if .Values.auth.existingSecret -}}
 {{- .Values.auth.existingSecret -}}
@@ -122,7 +130,11 @@ app.kubernetes.io/role: {{ .role }}
 {{- end -}}
 
 {{- define "mariadb.replicaStatefulSetName" -}}
+{{- if eq .Values.replication.readReplicas.bootstrap.method "volumeSnapshot" -}}
+{{- printf "%s-snapshot-replicas" (include "mariadb.fullname" .) -}}
+{{- else -}}
 {{- printf "%s-replicas" (include "mariadb.fullname" .) -}}
+{{- end -}}
 {{- end -}}
 
 {{- define "mariadb.rootPassword" -}}
@@ -326,8 +338,17 @@ test -f /tmp/helmforge-replication-started && mariadb --socket=/run/mysqld/mysql
   {{- if not .Values.backup.s3.bucket -}}
     {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
   {{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
-    {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
+  {{- if not .Values.backup.s3.credentialsFromPodIdentity -}}
+    {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+      {{- fail "backup requires either backup.s3.existingSecret, both backup.s3.accessKey and backup.s3.secretKey, or backup.s3.credentialsFromPodIdentity=true" -}}
+    {{- end -}}
+  {{- else -}}
+    {{- if not .Values.backup.s3.region -}}
+      {{- fail "backup.s3.region is required when backup.s3.credentialsFromPodIdentity is true" -}}
+    {{- end -}}
+    {{- if and (not .Values.backup.serviceAccount.create) (not .Values.backup.serviceAccount.name) -}}
+      {{- fail "backup.serviceAccount.name is required when workload identity is enabled and backup.serviceAccount.create is false" -}}
+    {{- end -}}
   {{- end -}}
 true
 {{- end -}}
@@ -436,6 +457,12 @@ limits:
     labels:
       {{- include "mariadb.selectorLabels" .root | nindent 6 }}
   spec:
+    {{- with .dataSource }}
+    dataSource:
+      apiGroup: {{ .apiGroup }}
+      kind: {{ .kind }}
+      name: {{ .name }}
+    {{- end }}
     accessModes:
       {{- toYaml .persistence.accessModes | nindent 6 }}
     {{- if .persistence.storageClass }}
@@ -444,6 +471,81 @@ limits:
     resources:
       requests:
         storage: {{ .persistence.size }}
+{{- end -}}
+
+{{- define "mariadb.persistenceRetentionPolicy" -}}
+{{- $policy := .persistence.retentionPolicy | default dict -}}
+{{- $whenDeleted := $policy.whenDeleted | default "" -}}
+{{- $whenScaled := $policy.whenScaled | default "" -}}
+{{- if and $whenDeleted (not (or (eq $whenDeleted "Retain") (eq $whenDeleted "Delete"))) -}}
+{{- fail "persistence.retentionPolicy.whenDeleted must be Retain or Delete" -}}
+{{- end -}}
+{{- if and $whenScaled (not (or (eq $whenScaled "Retain") (eq $whenScaled "Delete"))) -}}
+{{- fail "persistence.retentionPolicy.whenScaled must be Retain or Delete" -}}
+{{- end -}}
+{{- if or $whenDeleted $whenScaled }}
+persistentVolumeClaimRetentionPolicy:
+  {{- with $whenDeleted }}
+  whenDeleted: {{ . }}
+  {{- end }}
+  {{- with $whenScaled }}
+  whenScaled: {{ . }}
+  {{- end }}
+{{- end }}
+{{- end -}}
+
+{{- define "mariadb.configMapData" -}}
+my.cnf: |
+  [mysqld]
+  port = {{ .Values.service.port }}
+  bind-address = 0.0.0.0
+  skip-name-resolve = ON
+  {{- if .Values.tls.enabled }}
+  ssl_ca = /tls/{{ .Values.tls.caFilename }}
+  ssl_cert = /tls/{{ .Values.tls.certFilename }}
+  ssl_key = /tls/{{ .Values.tls.keyFilename }}
+  {{- if .Values.tls.requireSecureTransport }}
+  require_secure_transport = ON
+  {{- end }}
+  {{- end }}
+  {{- if ne .Values.config.preset "none" }}
+  {{ include "mariadb.configPreset" . | nindent 2 }}
+  {{- end }}
+  {{- if .Values.config.myCnf }}
+  {{ .Values.config.myCnf | nindent 2 }}
+  {{- end }}
+{{- end -}}
+
+{{- define "mariadb.initdbConfigMapData" -}}
+00-bootstrap-users.sh: |
+  #!/bin/sh
+  set -eu
+
+  mariadb --protocol=socket -uroot -p"${MARIADB_ROOT_PASSWORD}" <<EOSQL
+  CREATE DATABASE IF NOT EXISTS \`${MARIADB_DATABASE}\`;
+  CREATE USER IF NOT EXISTS '${MARIADB_USER}'@'%' IDENTIFIED BY '${MARIADB_PASSWORD}';
+  GRANT ALL PRIVILEGES ON \`${MARIADB_DATABASE}\`.* TO '${MARIADB_USER}'@'%';
+  {{- if eq .Values.architecture "replication" }}
+  CREATE USER IF NOT EXISTS '${REPLICATION_USERNAME}'@'%' IDENTIFIED BY '${REPLICATION_PASSWORD}';
+  GRANT REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO '${REPLICATION_USERNAME}'@'%';
+  {{- end }}
+  FLUSH PRIVILEGES;
+  EOSQL
+{{- range $name, $content := .Values.initdb.scripts }}
+{{ $name }}: |
+{{ $content | indent 2 }}
+{{- end }}
+{{- end -}}
+
+{{- define "mariadb.configChecksum" -}}
+{{- printf "%s\n%s" (include "mariadb.configMapData" .) (include "mariadb.initdbConfigMapData" .) | sha256sum -}}
+{{- end -}}
+
+{{- define "mariadb.renderAnnotations" -}}
+{{- with .root.Values.commonAnnotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end }}
 {{- end -}}
 
 {{- define "mariadb.podSpecCommon" -}}
@@ -529,6 +631,33 @@ Compile all validation warnings and fail if any violation is found
 */}}
 {{- define "mariadb.validate" -}}
 {{- $messages := list -}}
+{{- $bootstrap := .Values.replication.readReplicas.bootstrap -}}
+{{- if and (eq $bootstrap.method "volumeSnapshot") (ne .Values.architecture "replication") -}}
+  {{- $messages = append $messages "replication.readReplicas.bootstrap.method=volumeSnapshot requires architecture=replication." -}}
+{{- end -}}
+{{- if eq $bootstrap.method "volumeSnapshot" -}}
+  {{- if not .Values.replication.readReplicas.persistence.enabled -}}
+    {{- $messages = append $messages "replication.readReplicas.persistence.enabled must be true when bootstrap.method=volumeSnapshot." -}}
+  {{- end -}}
+  {{- if not $bootstrap.volumeSnapshot.name -}}
+    {{- $messages = append $messages "replication.readReplicas.bootstrap.volumeSnapshot.name is required when bootstrap.method=volumeSnapshot." -}}
+  {{- end -}}
+  {{- if not $bootstrap.volumeSnapshot.gtid -}}
+    {{- $messages = append $messages "replication.readReplicas.bootstrap.volumeSnapshot.gtid is required when bootstrap.method=volumeSnapshot." -}}
+  {{- end -}}
+  {{- $replicaStatefulSetName := include "mariadb.replicaStatefulSetName" . -}}
+  {{- range $ordinal := until (int .Values.replication.readReplicas.replicaCount) -}}
+    {{- $pvcName := printf "data-%s-%d" $replicaStatefulSetName $ordinal -}}
+    {{- $pvc := lookup "v1" "PersistentVolumeClaim" $.Release.Namespace $pvcName -}}
+    {{- if $pvc -}}
+      {{- $existingName := dig "spec" "dataSource" "name" "" $pvc -}}
+      {{- $existingKind := dig "spec" "dataSource" "kind" "" $pvc -}}
+      {{- if or (ne $existingName $bootstrap.volumeSnapshot.name) (ne $existingKind "VolumeSnapshot") -}}
+        {{- $messages = append $messages (printf "Existing replica PVC %s was not provisioned from VolumeSnapshot %s; refusing to reuse it." $pvcName $bootstrap.volumeSnapshot.name) -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
 {{- if and .Values.externalSecrets .Values.externalSecrets.enabled -}}
   {{- if not .Values.auth.existingSecret -}}
     {{- $messages = append $messages "When externalSecrets.enabled is true, auth.existingSecret must be set to prevent credential drift between the chart-managed Secret and the ExternalSecret." -}}
@@ -546,8 +675,14 @@ Compile all validation warnings and fail if any violation is found
   {{- if not .Values.backup.s3.bucket -}}
     {{- $messages = append $messages "When backup.enabled is true, backup.s3.bucket must be specified." -}}
   {{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+  {{- if and (not .Values.backup.s3.credentialsFromPodIdentity) (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
     {{- $messages = append $messages "When backup.enabled is true, either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey must be provided." -}}
+  {{- end -}}
+  {{- if and .Values.backup.s3.credentialsFromPodIdentity (not .Values.backup.s3.region) -}}
+    {{- $messages = append $messages "backup.s3.region is required when backup.s3.credentialsFromPodIdentity=true." -}}
+  {{- end -}}
+  {{- if and .Values.backup.s3.credentialsFromPodIdentity (not .Values.backup.serviceAccount.create) (not .Values.backup.serviceAccount.name) -}}
+    {{- $messages = append $messages "backup.serviceAccount.name is required when workload identity is enabled and backup.serviceAccount.create=false." -}}
   {{- end -}}
 {{- end -}}
 {{- if .Values.tls.enabled -}}

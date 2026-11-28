@@ -5,9 +5,11 @@ metadata:
   name: {{ include "mariadb.sourceStatefulSetName" . }}
   labels:
     {{- include "mariadb.labels" . | nindent 4 }}
+  {{- include "mariadb.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   serviceName: {{ include "mariadb.sourceHeadlessServiceName" . }}
   replicas: 1
+  {{- include "mariadb.persistenceRetentionPolicy" (dict "persistence" (ternary .Values.replication.source.persistence .Values.standalone.persistence (eq .Values.architecture "replication"))) | nindent 2 }}
   selector:
     matchLabels:
       {{- include "mariadb.componentLabels" (dict "root" . "role" (ternary "source" "standalone" (eq .Values.architecture "replication"))) | nindent 6 }}
@@ -19,7 +21,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/config: {{ include "mariadb.configChecksum" . }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

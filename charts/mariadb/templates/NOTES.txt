@@ -62,6 +62,9 @@ Writable workloads should use:
   NetworkPolicy:    {{- if .Values.networkPolicy.enabled }} enabled{{- else }} disabled{{- end }}
   External Secrets: {{- if .Values.externalSecrets.enabled }} enabled{{- else }} disabled{{- end }}
   PDB:              {{- if include "mariadb.pdbEnabled" . }} enabled{{- else }} disabled{{- end }}
+{{- if eq .Values.architecture "replication" }}
+  Replica Bootstrap: {{ .Values.replication.readReplicas.bootstrap.method }}
+{{- end }}
 
 {{- if .Values.externalSecrets.enabled }}
 ExternalSecret:
@@ -92,7 +95,28 @@ root initContainer. If your storage driver does not honor fsGroup for subPath
 directories, set persistence.prepareDataDir.enabled=true and grant the required
 Pod Security exception for that release.
 
-7. Validation Commands
+7. Breaking Change: Replica Bootstrap Safety
+============================================
+Logical replica bootstrap now refuses a non-empty datadir when neither the
+HelmForge bootstrap marker nor MariaDB replication metadata is present.
+
+For a trusted partial bootstrap interrupted on a chart older than 3.0.0 only:
+  replication.readReplicas.bootstrap.resumeUnmarkedDatadir: true
+
+Never use that escape hatch for an unknown or reused PVC.
+{{- if and (eq .Values.architecture "replication") (eq .Values.replication.readReplicas.bootstrap.method "volumeSnapshot") }}
+
+VolumeSnapshot bootstrap is enabled:
+  Snapshot: {{ .Values.replication.readReplicas.bootstrap.volumeSnapshot.name }}
+  GTID:     {{ .Values.replication.readReplicas.bootstrap.volumeSnapshot.gtid }}
+
+The snapshot must be application-consistent, ready in this namespace and taken
+from the writable source PVC. Existing logical replica PVCs are retained only
+when retentionPolicy.whenDeleted=Retain was reconciled before switching methods.
+See: https://helmforge.dev/docs/charts/mariadb#replica-bootstrap
+{{- end }}
+
+8. Validation Commands
 ======================
 Check pods:
   kubectl get pods -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
@@ -110,7 +134,7 @@ Check readiness from inside the source pod:
   kubectl exec -n {{ $namespace }} {{ include "mariadb.sourceStatefulSetName" . }}-0 -c mariadb -- \
     sh -ec 'mariadb-admin ping -h 127.0.0.1 -P {{ .Values.service.port }} -uroot --password="$MARIADB_ROOT_PASSWORD"'
 
-8. Troubleshooting
+9. Troubleshooting
 ==================
   lost+found log entry:
     -> New installs should use persistence.subPath=mysql (default).
@@ -128,8 +152,8 @@ Check readiness from inside the source pod:
     -> Check source and replica logs.
     -> Verify the replication user password is stable across upgrades.
 
-9. Documentation
-================
+10. Documentation
+=================
   HelmForge docs: https://helmforge.dev/docs/charts/mariadb
   Chart source:   https://github.com/helmforgedev/charts/tree/main/charts/mariadb
   MariaDB docs:   https://mariadb.com/kb/en/

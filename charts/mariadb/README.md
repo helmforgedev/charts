@@ -4,6 +4,22 @@
 
 Helm chart for deploying [MariaDB](https://mariadb.org/) on Kubernetes using the official [`mariadb`](https://hub.docker.com/_/mariadb) Docker image. Supports standalone and GTID-based replication architectures.
 
+## Breaking Change in 3.0.0
+
+Replica bootstrap now fails closed when a non-empty logical replica datadir has
+neither HelmForge bootstrap state nor MariaDB replication metadata. Healthy
+existing replicas are detected and continue normally. A trusted bootstrap that
+was interrupted on an older chart can be resumed once with
+`replication.readReplicas.bootstrap.resumeUnmarkedDatadir: true`; unknown PVCs
+must not use this escape hatch.
+
+The new opt-in `volumeSnapshot` method creates a distinct replica StatefulSet
+and new snapshot-backed PVCs. Existing logical replica PVCs are retained for
+rollback only when `retentionPolicy.whenDeleted: Retain` is reconciled before
+the method switch; they are not migrated. Read the
+[replica bootstrap migration guide](docs/replica-bootstrap.md) before enabling
+the method on an existing release.
+
 ## Breaking Change in 2.0.0
 
 MariaDB now mounts `/var/lib/mysql` from the data volume subdirectory configured
@@ -34,6 +50,7 @@ subdirectory before upgrading.
 - **Official MariaDB image** from Docker Hub
 - **Standalone and replication** modes with explicit configuration
 - **GTID-based replication** using MariaDB-native GTID (`MASTER_USE_GTID=slave_pos`)
+- **Physical replica bootstrap** from an operator-provided, application-consistent CSI VolumeSnapshot
 - **Configuration presets** small, medium, large, oltp, read-heavy, analytics
 - **Resource presets** small, medium, large for easy right-sizing
 - **Init scripts** support via ConfigMap or inline values
@@ -82,6 +99,17 @@ replication:
     replicaCount: 2
 ```
 
+## Replica Bootstrap
+
+Read replicas use a GTID-aware logical dump by default. Large installations can
+opt into physical bootstrap from one application-consistent CSI
+`VolumeSnapshot`; the chart restores only new replica PVCs and requires the
+GTID captured at the exact snapshot point. The chart does not pause the source
+or create the snapshot.
+
+See the [replica bootstrap guide](docs/replica-bootstrap.md) for prerequisites,
+upgrade impact, rollback, validation and failure recovery.
+
 ## Main Values
 
 | Key | Default | Description |
@@ -106,6 +134,10 @@ replication:
 | `replication.source.affinity` | `{}` | Affinity for the source pod |
 | `replication.source.tolerations` | `[]` | Tolerations for the source pod |
 | `replication.readReplicas.replicaCount` | `2` | Number of read replicas |
+| `replication.readReplicas.bootstrap.method` | `logical` | Replica bootstrap method: logical or volumeSnapshot |
+| `replication.readReplicas.bootstrap.resumeUnmarkedDatadir` | `false` | Unsafe one-time escape hatch for a trusted legacy partial logical bootstrap |
+| `replication.readReplicas.bootstrap.volumeSnapshot.name` | `""` | Application-consistent source VolumeSnapshot used by new replica PVCs |
+| `replication.readReplicas.bootstrap.volumeSnapshot.gtid` | `""` | MariaDB GTID captured at the exact snapshot point |
 | `replication.readReplicas.resourcesPreset` | `small` | Default replica resource requests and limits |
 | `replication.readReplicas.persistence.size` | `20Gi` | Replica PVC size |
 | `replication.readReplicas.affinity` | `{}` | Affinity for the replica pods |
@@ -117,6 +149,9 @@ replication:
 | `tls.enabled` | `false` | Enable server TLS |
 | `backup.enabled` | `false` | Enable S3 backup CronJob |
 | `backup.schedule` | `"0 3 * * *"` | Backup cron schedule |
+| `backup.s3.credentialsFromPodIdentity` | `false` | Use EKS Pod Identity or IRSA instead of static S3 keys |
+| `backup.s3.region` | `""` | AWS region required by workload identity |
+| `backup.serviceAccount.annotations` | `{}` | Annotations for the dedicated backup identity |
 | `networkPolicy.enabled` | `false` | Enable NetworkPolicy |
 | `pdb.enabled` | `false` | Enable PodDisruptionBudget |
 | `service.ipFamilyPolicy` | `~` | IP family policy (`SingleStack`, `PreferDualStack`, `RequireDualStack`) |

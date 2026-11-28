@@ -27,6 +27,12 @@
       "type": "object",
       "description": "Labels added to all resources"
     },
+    "commonAnnotations": {
+      "type": "object",
+      "description": "Annotations added to every chart-owned top-level Kubernetes resource",
+      "additionalProperties": { "type": "string" },
+      "default": {}
+    },
     "clusterDomain": {
       "type": "string",
       "description": "Kubernetes cluster domain"
@@ -109,7 +115,15 @@
             "enabled": { "type": "boolean" },
             "storageClass": { "type": "string" },
             "accessModes": { "type": "array", "items": { "type": "string" } },
-            "size": { "type": "string" }
+            "size": { "type": "string" },
+            "retentionPolicy": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "whenDeleted": { "type": "string", "enum": ["", "Retain", "Delete"] },
+                "whenScaled": { "type": "string", "enum": ["", "Retain", "Delete"] }
+              }
+            }
           }
         },
         "resources": { "type": "object" }
@@ -130,7 +144,15 @@
                 "enabled": { "type": "boolean" },
                 "storageClass": { "type": "string" },
                 "accessModes": { "type": "array", "items": { "type": "string" } },
-                "size": { "type": "string" }
+                "size": { "type": "string" },
+                "retentionPolicy": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "whenDeleted": { "type": "string", "enum": ["", "Retain", "Delete"] },
+                    "whenScaled": { "type": "string", "enum": ["", "Retain", "Delete"] }
+                  }
+                }
               }
             },
             "resources": { "type": "object" },
@@ -150,13 +172,44 @@
             "serverIdBase": { "type": "integer", "minimum": 1 },
             "resourcesPreset": { "type": "string", "enum": ["none", "small", "medium", "large"] },
             "replicaCount": { "type": "integer", "minimum": 0 },
+            "bootstrap": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "method": { "type": "string", "enum": ["logical", "volumeSnapshot"] },
+                "resumeUnmarkedDatadir": { "type": "boolean" },
+                "volumeSnapshot": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "maxLength": 253,
+                      "pattern": "^$|^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"
+                    },
+                    "gtid": {
+                      "type": "string",
+                      "pattern": "^$|^[0-9]+-[0-9]+-[0-9]+(,[0-9]+-[0-9]+-[0-9]+)*$"
+                    }
+                  }
+                }
+              }
+            },
             "persistence": {
               "type": "object",
               "properties": {
                 "enabled": { "type": "boolean" },
                 "storageClass": { "type": "string" },
                 "accessModes": { "type": "array", "items": { "type": "string" } },
-                "size": { "type": "string" }
+                "size": { "type": "string" },
+                "retentionPolicy": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "whenDeleted": { "type": "string", "enum": ["", "Retain", "Delete"] },
+                    "whenScaled": { "type": "string", "enum": ["", "Retain", "Delete"] }
+                  }
+                }
               }
             },
             "resources": { "type": "object" },
@@ -239,6 +292,16 @@
           }
         },
         "resources": { "type": "object" },
+        "serviceAccount": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "create": { "type": "boolean" },
+            "name": { "type": "string" },
+            "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
+            "automountServiceAccountToken": { "type": "boolean" }
+          }
+        },
         "serviceMonitor": {
           "type": "object",
           "properties": {
@@ -313,7 +376,9 @@
             "existingSecretAccessKeyKey": { "type": "string" },
             "existingSecretSecretKeyKey": { "type": "string" },
             "accessKey": { "type": "string" },
-            "secretKey": { "type": "string" }
+            "secretKey": { "type": "string" },
+            "region": { "type": "string" },
+            "credentialsFromPodIdentity": { "type": "boolean" }
           }
         },
         "database": {
