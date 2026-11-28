@@ -1,0 +1,245 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if include "clickhouse.isReplicated" . }}
+{{- $root := . }}
+{{- $shards := int .Values.replicated.shards }}
+{{- $replicas := int .Values.replicated.replicasPerShard }}
+{{- range $shard := until $shards }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "clickhouse.shardStatefulSetName" (dict "root" $root "shard" $shard) }}
+  namespace: {{ include "clickhouse.namespace" $root | quote }}
+  labels:
+    {{- include "clickhouse.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: clickhouse
+    helmforge.dev/shard: {{ $shard | quote }}
+  {{- include "clickhouse.renderAnnotations" $root | nindent 2 }}
+spec:
+  serviceName: {{ include "clickhouse.headlessServiceName" $root }}
+  replicas: {{ $replicas }}
+  podManagementPolicy: {{ $root.Values.podManagementPolicy }}
+  updateStrategy:
+    {{- toYaml $root.Values.updateStrategy | nindent 4 }}
+  selector:
+    matchLabels:
+      {{- include "clickhouse.serverSelectorLabels" $root | nindent 6 }}
+      helmforge.dev/shard: {{ $shard | quote }}
+  template:
+    metadata:
+      labels:
+        {{- include "clickhouse.serverSelectorLabels" $root | nindent 8 }}
+        helmforge.dev/shard: {{ $shard | quote }}
+        {{- with $root.Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ (include (print $root.Template.BasePath "/configmap.yaml") $root | fromYaml).data | toYaml | sha256sum }}
+        checksum/secret: {{ (include (print $root.Template.BasePath "/secret.yaml") $root | fromYaml).stringData | toYaml | sha256sum }}
+        {{- with $root.Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "clickhouse.serviceAccountName" $root }}
+      automountServiceAccountToken: {{ $root.Values.serviceAccount.automountServiceAccountToken }}
+      terminationGracePeriodSeconds: {{ $root.Values.terminationGracePeriodSeconds }}
+      {{- with $root.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $root.Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $root.Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      initContainers:
+        - name: config
+          image: {{ include "clickhouse.image" $root | quote }}
+          imagePullPolicy: {{ $root.Values.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              ORDINAL="${HOSTNAME##*-}"
+              FQDN="${HOSTNAME}.${HEADLESS_SERVICE}.${NAMESPACE}.svc.${CLUSTER_DOMAIN}"
+              cat > /config-d/macros-generated.xml <<EOF
+              <clickhouse>
+                <macros>
+                  <cluster>${CLUSTER_NAME}</cluster>
+                  <shard>${SHARD_ID}</shard>
+                  <replica>${HOSTNAME}</replica>
+                </macros>
+                <interserver_http_host>${FQDN}</interserver_http_host>
+              </clickhouse>
+              EOF
+              cp /config/helmforge.xml /config-d/helmforge.xml
+          env:
+            - name: HEADLESS_SERVICE
+              value: {{ include "clickhouse.headlessServiceName" $root | quote }}
+            - name: NAMESPACE
+              value: {{ include "clickhouse.namespace" $root | quote }}
+            - name: CLUSTER_DOMAIN
+              value: {{ $root.Values.clusterDomain | quote }}
+            - name: CLUSTER_NAME
+              value: {{ include "clickhouse.clusterName" $root | quote }}
+            - name: SHARD_ID
+              value: {{ $shard | quote }}
+          securityContext:
+            {{- toYaml $root.Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: config-d
+              mountPath: /config-d
+        {{- with $root.Values.extraInitContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      containers:
+        - name: clickhouse
+          image: {{ include "clickhouse.image" $root | quote }}
+          imagePullPolicy: {{ $root.Values.image.pullPolicy }}
+          env:
+            - name: CLICKHOUSE_DB
+              value: {{ $root.Values.clickhouse.database | quote }}
+            - name: CLICKHOUSE_USER
+              value: {{ $root.Values.clickhouse.user | quote }}
+            - name: CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT
+              value: {{ ternary "1" "0" $root.Values.clickhouse.defaultAccessManagement | quote }}
+            {{- if or $root.Values.clickhouse.password $root.Values.clickhouse.existingSecret $root.Values.externalSecrets.enabled }}
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "clickhouse.secretName" $root }}
+                  key: {{ $root.Values.clickhouse.existingSecretPasswordKey }}
+            {{- end }}
+            {{- with $root.Values.clickhouse.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with $root.Values.clickhouse.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ $root.Values.service.ports.http }}
+              protocol: TCP
+            - name: tcp
+              containerPort: {{ $root.Values.service.ports.tcp }}
+              protocol: TCP
+            - name: interserver
+              containerPort: {{ $root.Values.service.ports.interserver }}
+              protocol: TCP
+            {{- if $root.Values.metrics.enabled }}
+            - name: metrics
+              containerPort: {{ $root.Values.service.ports.metrics }}
+              protocol: TCP
+            {{- end }}
+          startupProbe:
+            httpGet:
+              path: /ping
+              port: http
+            {{- toYaml $root.Values.startupProbe | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            {{- toYaml $root.Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            {{- toYaml $root.Values.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml $root.Values.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml $root.Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/clickhouse
+            - name: logs
+              mountPath: /var/log/clickhouse-server
+            - name: config-d
+              mountPath: /etc/clickhouse-server/config.d
+              readOnly: true
+            - name: config
+              mountPath: /etc/clickhouse-server/users.d/users-helmforge.xml
+              subPath: users-helmforge.xml
+              readOnly: true
+            {{- with $root.Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- with $root.Values.extraContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "clickhouse.configMapName" $root }}
+        - name: config-d
+          emptyDir: {}
+        {{- if not $root.Values.persistence.enabled }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
+        {{- if not $root.Values.logs.persistence.enabled }}
+        - name: logs
+          emptyDir: {}
+        {{- end }}
+        {{- with $root.Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with $root.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $root.Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $root.Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $root.Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  {{- if or $root.Values.persistence.enabled $root.Values.logs.persistence.enabled }}
+  {{- with $root.Values.persistence.retentionPolicy }}
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: {{ .whenDeleted }}
+    whenScaled: {{ .whenScaled }}
+  {{- end }}
+  volumeClaimTemplates:
+    {{- if $root.Values.persistence.enabled }}
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          {{- toYaml $root.Values.persistence.accessModes | nindent 10 }}
+        resources:
+          requests:
+            storage: {{ $root.Values.persistence.size }}
+        {{- with $root.Values.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+    {{- end }}
+    {{- if $root.Values.logs.persistence.enabled }}
+    - metadata:
+        name: logs
+      spec:
+        accessModes:
+          {{- toYaml $root.Values.logs.persistence.accessModes | nindent 10 }}
+        resources:
+          requests:
+            storage: {{ $root.Values.logs.persistence.size }}
+        {{- with $root.Values.logs.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+{{- end }}

@@ -1,6 +1,6 @@
 # ClickHouse
 
-Fast column-oriented OLAP database with production-safe standalone defaults.
+Fast column-oriented OLAP database with standalone and replicated (Keeper) topologies.
 
 ## Installation
 
@@ -16,6 +16,8 @@ helm install clickhouse oci://ghcr.io/helmforgedev/helm/clickhouse
 ## Features
 
 - Official ClickHouse image pinned to `26.10.11` from the stable channel.
+- `architecture=standalone` (default) or `architecture=replicated`.
+- Replicated mode: shards × replicas with in-chart ClickHouse Keeper (or external ZooKeeper).
 - StatefulSet with persistent data volume.
 - Client Service exposing HTTP `8123` and native TCP `9000` by default.
 - Headless Service for stable pod DNS.
@@ -23,11 +25,25 @@ helm install clickhouse oci://ghcr.io/helmforgedev/helm/clickhouse
 - ServiceMonitor support.
 - External Secrets integration for the chart-configured user's password.
 - NetworkPolicy and dual-stack Service fields.
-- Explicit guardrail blocking unsafe Helm-only replication.
 
 ## Quick Start
 
 ```yaml
+persistence:
+  size: 20Gi
+```
+
+## Replicated Example (3 ClickHouse + 3 Keeper)
+
+```yaml
+architecture: replicated
+replicated:
+  clusterName: default
+  shards: 1
+  replicasPerShard: 3
+  keeper:
+    enabled: true
+    replicaCount: 3
 persistence:
   size: 20Gi
 ```
@@ -53,8 +69,13 @@ networkPolicy:
 
 | Parameter | Description | Default |
 | --- | --- | --- |
+| `architecture` | `standalone` or `replicated` | `standalone` |
 | `commonAnnotations` | Annotations added to mutable resource metadata except pod and PVC templates | `{}` |
-| `replicaCount` | ClickHouse pod count. Must remain `1` | `1` |
+| `replicaCount` | ClickHouse pod count when standalone. Must remain `1` | `1` |
+| `replicated.shards` | Shard count when replicated | `1` |
+| `replicated.replicasPerShard` | Replicas per shard when replicated | `3` |
+| `replicated.keeper.enabled` | Deploy in-chart ClickHouse Keeper | `true` |
+| `replicated.keeper.replicaCount` | Keeper pod count (odd) | `3` |
 | `image.repository` | Official image repository | `docker.io/clickhouse/clickhouse-server` |
 | `image.tag` | Official full-version tag | `26.10.11` |
 | `clickhouse.database` | Initial database | `default` |
@@ -74,6 +95,7 @@ contract; clients and NetworkPolicy rules must use the resulting ports.
 ## Examples
 
 - [Standalone](examples/standalone.yaml)
+- [Replicated + Keeper](examples/replicated-keeper.yaml)
 - [Production](examples/production.yaml)
 - [External Secrets](examples/external-secrets.yaml)
 - [Metrics](examples/metrics.yaml)

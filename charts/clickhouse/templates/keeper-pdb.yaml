@@ -1,0 +1,21 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if and (include "clickhouse.keeperEnabled" .) .Values.replicated.keeper.podDisruptionBudget.enabled (gt (int .Values.replicated.keeper.replicaCount) 1) }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "clickhouse.keeperFullname" . }}
+  namespace: {{ include "clickhouse.namespace" . | quote }}
+  labels:
+    {{- include "clickhouse.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keeper
+  {{- include "clickhouse.renderAnnotations" . | nindent 2 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "clickhouse.keeperSelectorLabels" . | nindent 6 }}
+  {{- if .Values.replicated.keeper.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ .Values.replicated.keeper.podDisruptionBudget.minAvailable }}
+  {{- else }}
+  maxUnavailable: {{ .Values.replicated.keeper.podDisruptionBudget.maxUnavailable }}
+  {{- end }}
+{{- end }}

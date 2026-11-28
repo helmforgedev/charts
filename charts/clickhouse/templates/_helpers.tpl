@@ -97,9 +97,151 @@ annotations:
 {{- end }}
 {{- end -}}
 
+{{- define "clickhouse.isStandalone" -}}
+{{- if eq (.Values.architecture | default "standalone") "standalone" -}}true{{- end -}}
+{{- end -}}
+
+{{- define "clickhouse.isReplicated" -}}
+{{- if eq .Values.architecture "replicated" -}}true{{- end -}}
+{{- end -}}
+
+{{- define "clickhouse.shards" -}}
+{{- if include "clickhouse.isReplicated" . -}}
+{{- .Values.replicated.shards | int -}}
+{{- else -}}
+1
+{{- end -}}
+{{- end -}}
+
+{{- define "clickhouse.replicasPerShard" -}}
+{{- if include "clickhouse.isReplicated" . -}}
+{{- .Values.replicated.replicasPerShard | int -}}
+{{- else -}}
+{{- .Values.replicaCount | int -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "clickhouse.clusterName" -}}
+{{- if include "clickhouse.isReplicated" . -}}
+{{- .Values.replicated.clusterName -}}
+{{- else -}}
+default
+{{- end -}}
+{{- end -}}
+
+{{- define "clickhouse.shardStatefulSetName" -}}
+{{- include "clickhouse.suffixedName" (dict "base" (include "clickhouse.fullname" .root) "suffix" (printf "-shard%d" (.shard | int))) -}}
+{{- end -}}
+
+{{- define "clickhouse.keeperEnabled" -}}
+{{- if and (include "clickhouse.isReplicated" .) .Values.replicated.keeper.enabled (empty .Values.replicated.externalZookeeper.servers) -}}true{{- end -}}
+{{- end -}}
+
+{{- define "clickhouse.keeperFullname" -}}
+{{- include "clickhouse.suffixedName" (dict "base" (include "clickhouse.fullname" .) "suffix" "-keeper") -}}
+{{- end -}}
+
+{{- define "clickhouse.keeperHeadlessServiceName" -}}
+{{- include "clickhouse.suffixedName" (dict "base" (include "clickhouse.fullname" .) "suffix" "-keeper-headless") -}}
+{{- end -}}
+
+{{- define "clickhouse.keeperConfigMapName" -}}
+{{- include "clickhouse.suffixedName" (dict "base" (include "clickhouse.fullname" .) "suffix" "-keeper-config") -}}
+{{- end -}}
+
+{{- define "clickhouse.keeperImage" -}}
+{{- $tag := .Values.replicated.keeper.image.tag | default .Values.image.tag | default .Chart.AppVersion -}}
+{{- printf "%s:%s" .Values.replicated.keeper.image.repository $tag -}}
+{{- end -}}
+
+{{- define "clickhouse.keeperSelectorLabels" -}}
+{{ include "clickhouse.selectorLabels" . }}
+app.kubernetes.io/component: keeper
+{{- end -}}
+
+{{- define "clickhouse.serverSelectorLabels" -}}
+{{ include "clickhouse.selectorLabels" . }}
+app.kubernetes.io/component: clickhouse
+{{- end -}}
+
+{{- define "clickhouse.podFQDN" -}}
+{{- /* Usage: include "clickhouse.podFQDN" (dict "root" $ "podName" $name) */ -}}
+{{- printf "%s.%s.%s.svc.%s" .podName (include "clickhouse.headlessServiceName" .root) (include "clickhouse.namespace" .root) .root.Values.clusterDomain -}}
+{{- end -}}
+
+{{- define "clickhouse.keeperPodFQDN" -}}
+{{- printf "%s.%s.%s.svc.%s" .podName (include "clickhouse.keeperHeadlessServiceName" .root) (include "clickhouse.namespace" .root) .root.Values.clusterDomain -}}
+{{- end -}}
+
+{{- define "clickhouse.coordinationNodes" -}}
+{{- $root := . -}}
+{{- if not (empty .Values.replicated.externalZookeeper.servers) -}}
+{{- range .Values.replicated.externalZookeeper.servers }}
+<node>
+  <host>{{ .host }}</host>
+  <port>{{ .port | default 2181 }}</port>
+</node>
+{{- end }}
+{{- else if .Values.replicated.keeper.enabled -}}
+{{- $replicas := int .Values.replicated.keeper.replicaCount -}}
+{{- $port := int .Values.replicated.keeper.ports.client -}}
+{{- range $i := until $replicas }}
+{{- $pod := printf "%s-%d" (include "clickhouse.keeperFullname" $root) $i }}
+<node>
+  <host>{{ include "clickhouse.keeperPodFQDN" (dict "root" $root "podName" $pod) }}</host>
+  <port>{{ $port }}</port>
+</node>
+{{- end }}
+{{- end -}}
+{{- end -}}
+
+{{- define "clickhouse.remoteServersXML" -}}
+{{- $root := . -}}
+{{- $shards := int .Values.replicated.shards -}}
+{{- $replicas := int .Values.replicated.replicasPerShard -}}
+{{- $cluster := .Values.replicated.clusterName -}}
+{{- $tcpPort := int .Values.service.ports.tcp -}}
+<remote_servers>
+  <{{ $cluster }}>
+{{- range $shard := until $shards }}
+    <shard>
+      <internal_replication>{{ ternary "true" "false" $root.Values.replicated.internalReplication }}</internal_replication>
+{{- range $replica := until $replicas }}
+{{- $sts := include "clickhouse.shardStatefulSetName" (dict "root" $root "shard" $shard) }}
+{{- $pod := printf "%s-%d" $sts $replica }}
+      <replica>
+        <host>{{ include "clickhouse.podFQDN" (dict "root" $root "podName" $pod) }}</host>
+        <port>{{ $tcpPort }}</port>
+      </replica>
+{{- end }}
+    </shard>
+{{- end }}
+  </{{ $cluster }}>
+</remote_servers>
+{{- end -}}
+
 {{- define "clickhouse.validate" -}}
+{{- $arch := .Values.architecture | default "standalone" -}}
+{{- if and (ne $arch "standalone") (ne $arch "replicated") -}}
+{{- fail "architecture must be standalone or replicated" -}}
+{{- end -}}
+{{- if eq $arch "standalone" -}}
 {{- if lt (.Values.replicaCount | int) 1 -}}{{- fail "replicaCount must be at least 1" -}}{{- end -}}
-{{- if gt (.Values.replicaCount | int) 1 -}}{{- fail "replicaCount > 1 is intentionally blocked in this chart; use ClickHouse Operator for replicated clusters" -}}{{- end -}}
+{{- if gt (.Values.replicaCount | int) 1 -}}{{- fail "replicaCount > 1 is intentionally blocked when architecture=standalone; set architecture=replicated for multi-node clusters" -}}{{- end -}}
+{{- else -}}
+{{- if lt (.Values.replicated.shards | int) 1 -}}{{- fail "replicated.shards must be at least 1" -}}{{- end -}}
+{{- if lt (.Values.replicated.replicasPerShard | int) 1 -}}{{- fail "replicated.replicasPerShard must be at least 1" -}}{{- end -}}
+{{- if empty .Values.replicated.clusterName -}}{{- fail "replicated.clusterName must not be empty" -}}{{- end -}}
+{{- $hasExternal := not (empty .Values.replicated.externalZookeeper.servers) -}}
+{{- if and (not .Values.replicated.keeper.enabled) (not $hasExternal) -}}
+{{- fail "architecture=replicated requires replicated.keeper.enabled=true or replicated.externalZookeeper.servers" -}}
+{{- end -}}
+{{- if and .Values.replicated.keeper.enabled (not $hasExternal) -}}
+{{- $k := .Values.replicated.keeper.replicaCount | int -}}
+{{- if lt $k 1 -}}{{- fail "replicated.keeper.replicaCount must be at least 1" -}}{{- end -}}
+{{- if and (gt $k 1) (ne (mod $k 2) 1) -}}{{- fail "replicated.keeper.replicaCount must be odd when greater than 1" -}}{{- end -}}
+{{- end -}}
+{{- end -}}
 {{- if and .Values.metrics.serviceMonitor.enabled (not .Values.metrics.enabled) -}}{{- fail "metrics.serviceMonitor.enabled requires metrics.enabled=true" -}}{{- end -}}
 {{- if and .Values.clickhouse.existingSecret .Values.clickhouse.password -}}{{- fail "clickhouse.existingSecret and clickhouse.password are mutually exclusive" -}}{{- end -}}
 {{- if .Values.podLabels -}}

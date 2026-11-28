@@ -1,0 +1,151 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if include "clickhouse.keeperEnabled" . }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "clickhouse.keeperFullname" . }}
+  namespace: {{ include "clickhouse.namespace" . | quote }}
+  labels:
+    {{- include "clickhouse.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keeper
+  {{- include "clickhouse.renderAnnotations" . | nindent 2 }}
+spec:
+  serviceName: {{ include "clickhouse.keeperHeadlessServiceName" . }}
+  replicas: {{ .Values.replicated.keeper.replicaCount }}
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      {{- include "clickhouse.keeperSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "clickhouse.keeperSelectorLabels" . | nindent 8 }}
+        {{- with .Values.replicated.keeper.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ (include (print $.Template.BasePath "/keeper-configmap.yaml") . | fromYaml).data | toYaml | sha256sum }}
+        {{- with .Values.replicated.keeper.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "clickhouse.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      initContainers:
+        - name: config
+          image: {{ include "clickhouse.keeperImage" . | quote }}
+          imagePullPolicy: {{ .Values.replicated.keeper.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              ORDINAL="${HOSTNAME##*-}"
+              SERVER_ID=$((ORDINAL + 1))
+              # Inject per-pod server_id into the shared raft base config.
+              sed "s#</keeper_server>#  <server_id>${SERVER_ID}</server_id>\\n      </keeper_server>#" \
+                /config/keeper-base.xml > /config-out/keeper_config.xml
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: config-out
+              mountPath: /config-out
+      containers:
+        - name: keeper
+          image: {{ include "clickhouse.keeperImage" . | quote }}
+          imagePullPolicy: {{ .Values.replicated.keeper.image.pullPolicy }}
+          ports:
+            - name: client
+              containerPort: {{ .Values.replicated.keeper.ports.client }}
+              protocol: TCP
+            - name: raft
+              containerPort: {{ .Values.replicated.keeper.ports.raft }}
+              protocol: TCP
+          startupProbe:
+            tcpSocket:
+              port: client
+            {{- toYaml .Values.startupProbe | nindent 12 }}
+          livenessProbe:
+            tcpSocket:
+              port: client
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            tcpSocket:
+              port: client
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.replicated.keeper.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/clickhouse
+            - name: logs
+              mountPath: /var/log/clickhouse-keeper
+            - name: config-out
+              mountPath: /etc/clickhouse-keeper
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "clickhouse.keeperConfigMapName" . }}
+        - name: config-out
+          emptyDir: {}
+        {{- if not .Values.replicated.keeper.persistence.enabled }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
+        - name: logs
+          emptyDir: {}
+      {{- with .Values.replicated.keeper.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.replicated.keeper.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.replicated.keeper.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.replicated.keeper.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  {{- if .Values.replicated.keeper.persistence.enabled }}
+  {{- with .Values.replicated.keeper.persistence.retentionPolicy }}
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: {{ .whenDeleted }}
+    whenScaled: {{ .whenScaled }}
+  {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          {{- toYaml .Values.replicated.keeper.persistence.accessModes | nindent 10 }}
+        resources:
+          requests:
+            storage: {{ .Values.replicated.keeper.persistence.size }}
+        {{- with .Values.replicated.keeper.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+  {{- end }}
+{{- end }}

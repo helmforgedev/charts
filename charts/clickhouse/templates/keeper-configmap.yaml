@@ -1,0 +1,50 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if include "clickhouse.keeperEnabled" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clickhouse.keeperConfigMapName" . }}
+  namespace: {{ include "clickhouse.namespace" . | quote }}
+  labels:
+    {{- include "clickhouse.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keeper
+  {{- include "clickhouse.renderAnnotations" . | nindent 2 }}
+data:
+  keeper-base.xml: |
+    <clickhouse>
+      <logger>
+        <level>information</level>
+        <log>/var/log/clickhouse-keeper/clickhouse-keeper.log</log>
+        <errorlog>/var/log/clickhouse-keeper/clickhouse-keeper.err.log</errorlog>
+        <size>1000M</size>
+        <count>3</count>
+      </logger>
+      <listen_host>0.0.0.0</listen_host>
+      <keeper_server>
+        <tcp_port>{{ .Values.replicated.keeper.ports.client }}</tcp_port>
+        <log_storage_path>/var/lib/clickhouse/coordination/log</log_storage_path>
+        <snapshot_storage_path>/var/lib/clickhouse/coordination/snapshots</snapshot_storage_path>
+        <coordination_settings>
+          <operation_timeout_ms>10000</operation_timeout_ms>
+          <session_timeout_ms>30000</session_timeout_ms>
+          <raft_logs_level>information</raft_logs_level>
+        </coordination_settings>
+        <raft_configuration>
+{{- $root := . }}
+{{- $replicas := int .Values.replicated.keeper.replicaCount }}
+{{- $raftPort := int .Values.replicated.keeper.ports.raft }}
+{{- range $i := until $replicas }}
+{{- $pod := printf "%s-%d" (include "clickhouse.keeperFullname" $root) $i }}
+          <server>
+            <id>{{ add $i 1 }}</id>
+            <hostname>{{ include "clickhouse.keeperPodFQDN" (dict "root" $root "podName" $pod) }}</hostname>
+            <port>{{ $raftPort }}</port>
+          </server>
+{{- end }}
+        </raft_configuration>
+      </keeper_server>
+{{- with .Values.replicated.keeper.extraConfig }}
+{{ . | indent 6 }}
+{{- end }}
+    </clickhouse>
+{{- end }}
