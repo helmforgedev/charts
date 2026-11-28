@@ -85,3 +85,51 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
+
+  - it: should require replication mode for VolumeSnapshot bootstrap
+    set:
+      replication.readReplicas.bootstrap.method: volumeSnapshot
+      replication.readReplicas.bootstrap.volumeSnapshot.name: source-snapshot
+      replication.readReplicas.bootstrap.volumeSnapshot.gtid: 0-1-42
+    asserts:
+      - failedTemplate:
+          errorMessage: "replication.readReplicas.bootstrap.method=volumeSnapshot requires architecture=replication."
+
+  - it: should require persistent replica PVCs for VolumeSnapshot bootstrap
+    set:
+      architecture: replication
+      replication.readReplicas.persistence.enabled: false
+      replication.readReplicas.bootstrap.method: volumeSnapshot
+      replication.readReplicas.bootstrap.volumeSnapshot.name: source-snapshot
+      replication.readReplicas.bootstrap.volumeSnapshot.gtid: 0-1-42
+    asserts:
+      - failedTemplate:
+          errorMessage: "replication.readReplicas.persistence.enabled must be true when bootstrap.method=volumeSnapshot."
+
+  - it: should require a VolumeSnapshot name
+    set:
+      architecture: replication
+      replication.readReplicas.bootstrap.method: volumeSnapshot
+      replication.readReplicas.bootstrap.volumeSnapshot.gtid: 0-1-42
+    asserts:
+      - failedTemplate:
+          errorMessage: "replication.readReplicas.bootstrap.volumeSnapshot.name is required when bootstrap.method=volumeSnapshot."
+
+  - it: should require an exact VolumeSnapshot GTID
+    set:
+      architecture: replication
+      replication.readReplicas.bootstrap.method: volumeSnapshot
+      replication.readReplicas.bootstrap.volumeSnapshot.name: source-snapshot
+    asserts:
+      - failedTemplate:
+          errorMessage: "replication.readReplicas.bootstrap.volumeSnapshot.gtid is required when bootstrap.method=volumeSnapshot."
+
+  - it: should accept a complete VolumeSnapshot bootstrap contract
+    set:
+      architecture: replication
+      replication.readReplicas.bootstrap.method: volumeSnapshot
+      replication.readReplicas.bootstrap.volumeSnapshot.name: source-snapshot
+      replication.readReplicas.bootstrap.volumeSnapshot.gtid: 0-1-42,1-9-7
+    asserts:
+      - hasDocuments:
+          count: 0

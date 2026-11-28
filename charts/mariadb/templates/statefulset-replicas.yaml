@@ -6,9 +6,11 @@ metadata:
   name: {{ include "mariadb.replicaStatefulSetName" . }}
   labels:
     {{- include "mariadb.labels" . | nindent 4 }}
+  {{- include "mariadb.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   serviceName: {{ include "mariadb.replicasHeadlessServiceName" . }}
   replicas: {{ .Values.replication.readReplicas.replicaCount }}
+  {{- include "mariadb.persistenceRetentionPolicy" (dict "persistence" .Values.replication.readReplicas.persistence) | nindent 2 }}
   podManagementPolicy: OrderedReady
   selector:
     matchLabels:
@@ -21,7 +23,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/config: {{ include "mariadb.configChecksum" . }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -40,6 +42,7 @@ spec:
             - |
               DATA_DIR="/var/lib/mysql"
               CLONE_MARKER="${DATA_DIR}/.helmforge-cloned"
+              BOOTSTRAP_STATE="${DATA_DIR}/.helmforge-bootstrap-state"
               if [ -f "${CLONE_MARKER}" ]; then
                 exit 0
               fi
@@ -75,6 +78,11 @@ spec:
                   sleep 2
                 done
               }
+              cat /config/my.cnf > /etc/mysql/conf.d/zz-chart.cnf
+              DATADIR_HAS_CONTENT=false
+              if find "${DATA_DIR}" -mindepth 1 -maxdepth 1 ! -name lost+found -print -quit | grep -q .; then
+                DATADIR_HAS_CONTENT=true
+              fi
               if [ -d "${DATA_DIR}/mysql" ]; then
                 mariadbd --datadir="${DATA_DIR}" --socket=/tmp/mysql.sock --pid-file=/tmp/mariadb.pid --skip-networking --read-only=OFF &
                 LOCAL_SERVER_STARTED=true
@@ -87,10 +95,40 @@ spec:
 
                 status="$(local_mariadb -Nse "SHOW SLAVE STATUS\\G" 2>/dev/null || true)"
                 if printf "%s\n" "${status}" | grep -Eq "Master_Host: .+"; then
+                  if [ "${BOOTSTRAP_METHOD}" = "volumeSnapshot" ] && [ ! -f "${BOOTSTRAP_STATE}" ]; then
+                    local_admin_shutdown
+                    echo "The configured VolumeSnapshot contains unmanaged replica metadata; only a snapshot of the writable source is supported." >&2
+                    exit 1
+                  fi
                   touch "${CLONE_MARKER}"
+                  rm -f "${BOOTSTRAP_STATE}"
                   local_admin_shutdown
                   exit 0
                 fi
+              fi
+
+              if [ -f "${BOOTSTRAP_STATE}" ]; then
+                recorded_method="$(cat "${BOOTSTRAP_STATE}")"
+                if [ "${recorded_method}" != "${BOOTSTRAP_METHOD}" ]; then
+                  if [ "${LOCAL_SERVER_STARTED}" = "true" ]; then
+                    local_admin_shutdown
+                  fi
+                  echo "Replica bootstrap method changed from ${recorded_method} to ${BOOTSTRAP_METHOD} on a partially initialized PVC; refusing to continue." >&2
+                  exit 1
+                fi
+              elif [ "${DATADIR_HAS_CONTENT}" = "true" ] && [ "${BOOTSTRAP_METHOD}" = "logical" ] && [ "${RESUME_UNMARKED_DATADIR}" != "true" ]; then
+                if [ "${LOCAL_SERVER_STARTED}" = "true" ]; then
+                  local_admin_shutdown
+                fi
+                echo "Non-empty replica datadir has no HelmForge bootstrap marker or replication metadata; refusing to overwrite it. Set replication.readReplicas.bootstrap.resumeUnmarkedDatadir=true only to resume a trusted legacy partial bootstrap." >&2
+                exit 1
+              else
+                printf '%s\n' "${BOOTSTRAP_METHOD}" > "${BOOTSTRAP_STATE}"
+              fi
+
+              if [ "${BOOTSTRAP_METHOD}" = "volumeSnapshot" ] && [ ! -d "${DATA_DIR}/mysql" ]; then
+                echo "The replica PVC was not restored from the configured VolumeSnapshot: ${DATA_DIR}/mysql is missing." >&2
+                exit 1
               fi
 
               ordinal="${HOSTNAME##*-}"
@@ -118,7 +156,7 @@ spec:
                 sleep 5
               done
 
-              if [ ! -d "${DATA_DIR}/mysql" ]; then
+              if [ "${BOOTSTRAP_METHOD}" = "logical" ] && [ ! -d "${DATA_DIR}/mysql" ]; then
                 mariadb-install-db --datadir="${DATA_DIR}" --auth-root-authentication-method=normal
               fi
 
@@ -146,36 +184,43 @@ spec:
               LOCAL_ROOT_PASSWORD_REQUIRED=true
 
               GTID_SQL=""
+              SOURCE_GTID="${VOLUME_SNAPSHOT_GTID}"
 
-              dump_attempt=1
-              until mariadb-dump \
-                -h {{ include "mariadb.sourceServiceName" . }} \
-                -P {{ .Values.service.port }} \
-                -uroot \
-                --password="${MARIADB_ROOT_PASSWORD}" \
-                {{ include "mariadb.cliTlsArgs" . }} \
-                --single-transaction \
-                --gtid \
-                --master-data=2 \
-                --all-databases \
-                --triggers \
-                --routines \
-                --events \
-                > /tmp/source.sql; do
-                if [ "${dump_attempt}" -ge 12 ]; then
-                  exit 1
-                fi
-                dump_attempt=$((dump_attempt + 1))
-                rm -f /tmp/source.sql
-                sleep 5
-              done
+              if [ "${BOOTSTRAP_METHOD}" = "logical" ]; then
+                dump_attempt=1
+                until mariadb-dump \
+                  -h {{ include "mariadb.sourceServiceName" . }} \
+                  -P {{ .Values.service.port }} \
+                  -uroot \
+                  --password="${MARIADB_ROOT_PASSWORD}" \
+                  {{ include "mariadb.cliTlsArgs" . }} \
+                  --single-transaction \
+                  --gtid \
+                  --master-data=2 \
+                  --all-databases \
+                  --triggers \
+                  --routines \
+                  --events \
+                  > /tmp/source.sql; do
+                  if [ "${dump_attempt}" -ge 12 ]; then
+                    exit 1
+                  fi
+                  dump_attempt=$((dump_attempt + 1))
+                  rm -f /tmp/source.sql
+                  sleep 5
+                done
 
-              SOURCE_GTID="$(sed -n "s/^-- SET GLOBAL gtid_slave_pos='\([^']*\)'.*/\1/p; s/^SET GLOBAL gtid_slave_pos='\([^']*\)'.*/\1/p" /tmp/source.sql | tail -n 1)"
+                SOURCE_GTID="$(sed -n "s/^-- SET GLOBAL gtid_slave_pos='\([^']*\)'.*/\1/p; s/^SET GLOBAL gtid_slave_pos='\([^']*\)'.*/\1/p" /tmp/source.sql | tail -n 1)"
+                local_mariadb < /tmp/source.sql
+              fi
+
+              if [ -z "${SOURCE_GTID}" ]; then
+                echo "Replica bootstrap did not produce a GTID position; refusing to configure replication." >&2
+                exit 1
+              fi
               if [ -n "${SOURCE_GTID}" ]; then
                 GTID_SQL="SET GLOBAL gtid_slave_pos='${SOURCE_GTID}';"
               fi
-
-              local_mariadb < /tmp/source.sql
               local_admin_shutdown
               mariadbd --datadir="${DATA_DIR}" --socket=/tmp/mysql.sock --pid-file=/tmp/mariadb.pid --skip-networking --read-only=OFF &
               LOCAL_ROOT_PASSWORD_REQUIRED=true
@@ -218,6 +263,7 @@ spec:
               done
 
               touch "${CLONE_MARKER}"
+              rm -f "${BOOTSTRAP_STATE}"
               local_admin_shutdown
           env:
             - name: MARIADB_ROOT_PASSWORD
@@ -239,6 +285,12 @@ spec:
                 secretKeyRef:
                   name: {{ include "mariadb.secretName" . }}
                   key: {{ .Values.auth.existingSecretUserPasswordKey }}
+            - name: BOOTSTRAP_METHOD
+              value: {{ .Values.replication.readReplicas.bootstrap.method | quote }}
+            - name: RESUME_UNMARKED_DATADIR
+              value: {{ .Values.replication.readReplicas.bootstrap.resumeUnmarkedDatadir | quote }}
+            - name: VOLUME_SNAPSHOT_GTID
+              value: {{ .Values.replication.readReplicas.bootstrap.volumeSnapshot.gtid | quote }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           volumeMounts:
@@ -279,7 +331,18 @@ spec:
               EOF
               docker-entrypoint.sh mariadbd &
               pid="$!"
-              trap 'kill -TERM "${pid}"; wait "${pid}"' TERM INT
+              shutdown_replica() {
+                rm -f "${REPLICATION_READY_MARKER}"
+                if mariadb-admin ping --socket=/run/mysqld/mysqld.sock -uroot --password="${MARIADB_ROOT_PASSWORD}" --silent >/dev/null 2>&1; then
+                  timeout 10 mariadb --socket=/run/mysqld/mysqld.sock -uroot --password="${MARIADB_ROOT_PASSWORD}" -e "STOP SLAVE;" || true
+                  mariadb-admin --socket=/run/mysqld/mysqld.sock -uroot --password="${MARIADB_ROOT_PASSWORD}" shutdown || kill -TERM "${pid}"
+                else
+                  kill -TERM "${pid}"
+                fi
+                wait "${pid}"
+                exit 0
+              }
+              trap shutdown_replica TERM INT
 
               until mariadb-admin ping --socket=/run/mysqld/mysqld.sock -uroot --password="${MARIADB_ROOT_PASSWORD}" --silent; do
                 sleep 2
@@ -293,6 +356,11 @@ spec:
               if ! printf "%s\n" "${status}" | grep -q "Slave_SQL_Running: Yes"; then
                 mariadb --socket=/run/mysqld/mysqld.sock -uroot --password="${MARIADB_ROOT_PASSWORD}" -e "START SLAVE;"
               fi
+              until status="$(mariadb --socket=/run/mysqld/mysqld.sock -uroot --password="${MARIADB_ROOT_PASSWORD}" -e "SHOW SLAVE STATUS\\G")" \
+                && printf "%s\n" "${status}" | grep -q "Slave_IO_Running: Yes" \
+                && printf "%s\n" "${status}" | grep -q "Slave_SQL_Running: Yes"; do
+                sleep 2
+              done
               touch "${REPLICATION_READY_MARKER}"
               wait "${pid}"
           ports:
@@ -410,6 +478,10 @@ spec:
         {{- end }}
   {{- if .Values.replication.readReplicas.persistence.enabled }}
   volumeClaimTemplates:
-    {{- include "mariadb.volumeClaimTemplate" (dict "root" . "persistence" .Values.replication.readReplicas.persistence) | nindent 4 }}
+    {{- $replicaClaim := dict "root" . "persistence" .Values.replication.readReplicas.persistence -}}
+    {{- if eq .Values.replication.readReplicas.bootstrap.method "volumeSnapshot" -}}
+      {{- $_ := set $replicaClaim "dataSource" (dict "apiGroup" "snapshot.storage.k8s.io" "kind" "VolumeSnapshot" "name" .Values.replication.readReplicas.bootstrap.volumeSnapshot.name) -}}
+    {{- end -}}
+    {{- include "mariadb.volumeClaimTemplate" $replicaClaim | nindent 4 }}
   {{- end }}
 {{- end }}

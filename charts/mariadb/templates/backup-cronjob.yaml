@@ -6,6 +6,7 @@ metadata:
   name: {{ include "mariadb.fullname" . }}-backup
   labels:
     {{- include "mariadb.labels" . | nindent 4 }}
+  {{- include "mariadb.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
   schedule: {{ .Values.backup.schedule | quote }}
   suspend: {{ .Values.backup.suspend }}
@@ -21,7 +22,12 @@ spec:
             {{- include "mariadb.selectorLabels" . | nindent 12 }}
         spec:
           restartPolicy: Never
+          {{- if .Values.backup.s3.credentialsFromPodIdentity }}
+          serviceAccountName: {{ include "mariadb.backupServiceAccountName" . }}
+          automountServiceAccountToken: {{ .Values.backup.serviceAccount.automountServiceAccountToken }}
+          {{- else }}
           serviceAccountName: {{ include "mariadb.serviceAccountName" . }}
+          {{- end }}
           terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
           {{- with .Values.imagePullSecrets }}
           imagePullSecrets:
@@ -41,6 +47,10 @@ spec:
           {{- end }}
           initContainers:
             - name: mariadb-backup
+              {{- with .Values.securityContext }}
+              securityContext:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
               image: "{{ .Values.backup.images.mariadb.repository }}:{{ .Values.backup.images.mariadb.tag }}"
               imagePullPolicy: {{ .Values.backup.images.mariadb.pullPolicy }}
               command: ["/bin/sh", "/scripts/mariadb-backup.sh"]
@@ -74,6 +84,10 @@ spec:
                 {{- end }}
           containers:
             - name: upload
+              {{- with .Values.securityContext }}
+              securityContext:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
               image: "{{ .Values.backup.images.uploader.repository }}:{{ .Values.backup.images.uploader.tag }}"
               imagePullPolicy: {{ .Values.backup.images.uploader.pullPolicy }}
               command: ["/bin/sh", "/scripts/upload-backup.sh"]
@@ -86,6 +100,14 @@ spec:
                   value: {{ .Values.backup.s3.prefix | quote }}
                 - name: S3_CREATE_BUCKET_IF_NOT_EXISTS
                   value: {{ ternary "true" "false" .Values.backup.s3.createBucketIfNotExists | quote }}
+                - name: MC_CONFIG_DIR
+                  value: /tmp/mc
+                {{- if .Values.backup.s3.credentialsFromPodIdentity }}
+                - name: AWS_REGION
+                  value: {{ .Values.backup.s3.region | quote }}
+                - name: AWS_DEFAULT_REGION
+                  value: {{ .Values.backup.s3.region | quote }}
+                {{- else }}
                 - name: S3_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
@@ -96,6 +118,7 @@ spec:
                     secretKeyRef:
                       name: {{ include "mariadb.backupSecretName" . }}
                       key: {{ .Values.backup.s3.existingSecretSecretKeyKey }}
+                {{- end }}
               resources:
                 {{- toYaml .Values.backup.resources | nindent 16 }}
               volumeMounts:
@@ -103,12 +126,16 @@ spec:
                   mountPath: /scripts
                 - name: backup-workdir
                   mountPath: /backup/out
+                - name: mc-config
+                  mountPath: /tmp/mc
           volumes:
             - name: scripts
               configMap:
                 name: {{ include "mariadb.fullname" . }}-backup-scripts
                 defaultMode: 0755
             - name: backup-workdir
+              emptyDir: {}
+            - name: mc-config
               emptyDir: {}
             {{- if include "mariadb.backupTlsVolumeEnabled" . }}
             - name: tls

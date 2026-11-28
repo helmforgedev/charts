@@ -17,6 +17,9 @@ fullnameOverride: ""
 # -- Labels added to all resources
 commonLabels: {}
 
+# -- Annotations added to every chart-owned top-level Kubernetes resource
+commonAnnotations: {}
+
 # -- Kubernetes cluster domain
 clusterDomain: cluster.local
 
@@ -116,6 +119,10 @@ standalone:
       - ReadWriteOnce
     # -- PVC size for standalone mode
     size: 8Gi
+    # -- PVC retention when the StatefulSet is deleted or scaled. Retain or Delete. Empty uses the cluster default.
+    retentionPolicy:
+      whenDeleted: ""
+      whenScaled: ""
   # -- Resources for standalone MariaDB
   resources: {}
 
@@ -139,6 +146,10 @@ replication:
         - ReadWriteOnce
       # -- PVC size for the source pod
       size: 20Gi
+      # -- PVC retention when the source StatefulSet is deleted or scaled. Retain or Delete. Empty uses the cluster default.
+      retentionPolicy:
+        whenDeleted: ""
+        whenScaled: ""
     # -- Resources for the source MariaDB pod
     resources: {}
     probes:
@@ -155,6 +166,16 @@ replication:
     resourcesPreset: small
     # -- Number of read replica pods
     replicaCount: 2
+    bootstrap:
+      # -- Replica bootstrap method: logical | volumeSnapshot. volumeSnapshot is opt-in and requires a pre-created, application-consistent CSI VolumeSnapshot.
+      method: logical
+      # -- Allow a logical bootstrap to resume from a non-empty datadir that has neither HelmForge bootstrap state nor replication metadata. This unsafe legacy recovery escape hatch defaults to false.
+      resumeUnmarkedDatadir: false
+      volumeSnapshot:
+        # -- Name of the application-consistent VolumeSnapshot used to provision every new replica PVC. Required when method=volumeSnapshot.
+        name: ""
+        # -- MariaDB GTID position captured at the exact snapshot point. Required when method=volumeSnapshot.
+        gtid: ""
     persistence:
       # -- Enable PVCs for read replicas
       enabled: true
@@ -165,6 +186,10 @@ replication:
         - ReadWriteOnce
       # -- PVC size per read replica
       size: 20Gi
+      # -- PVC retention when replica StatefulSets are deleted or scaled. Retain or Delete. Empty uses the cluster default.
+      retentionPolicy:
+        whenDeleted: ""
+        whenScaled: ""
     # -- Resources for read replica pods
     resources: {}
     probes:
@@ -291,6 +316,15 @@ backup:
   archivePrefix: mariadb
   # -- Resources applied to the backup dump and upload containers
   resources: {}
+  serviceAccount:
+    # -- Create the dedicated backup ServiceAccount used by workload identity
+    create: true
+    # -- Override the dedicated backup ServiceAccount name
+    name: ""
+    # -- Identity-provider annotations, for example an IRSA role ARN
+    annotations: {}
+    # -- Mount the projected token required by EKS Pod Identity and IRSA
+    automountServiceAccountToken: true
   images:
     uploader:
       repository: docker.io/helmforge/mc
@@ -319,6 +353,10 @@ backup:
     accessKey: ""
     # -- Inline secret key used when backup.s3.existingSecret is not set
     secretKey: ""
+    # -- AWS region injected into the upload container. Required for workload identity.
+    region: ""
+    # -- Use EKS Pod Identity or IRSA instead of static S3 credentials
+    credentialsFromPodIdentity: false
   database:
     # -- Extra arguments passed to mariadb-dump before the built-in --all-databases flag
     mariadbdumpArgs: "--single-transaction --quick --skip-lock-tables --no-tablespaces --routines --events --triggers"

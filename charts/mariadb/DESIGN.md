@@ -41,6 +41,9 @@ flowchart TB
   source -. GTID async replication .-> replica1
 
   source --> sourcePVC[(Source PVC)]
+  sourcePVC -. external consistent snapshot .-> snapshot[(VolumeSnapshot)]
+  snapshot -. optional physical bootstrap .-> replicaPVC0
+  snapshot -. optional physical bootstrap .-> replicaPVC1
   replica0 --> replicaPVC0[(Replica PVC 0)]
   replica1 --> replicaPVC1[(Replica PVC 1)]
 ```
@@ -90,6 +93,12 @@ exception and is not part of the default path.
   upgrades do not replace database storage.
 - Replication uses a fixed writable source and MariaDB GTID rather than adding
   an in-chart failover controller that could promote multiple sources.
+- Logical replica bootstrap is the portable default. The optional physical path
+  consumes an operator-provided application-consistent VolumeSnapshot and its
+  exact GTID; the chart deliberately does not pause the source or orchestrate
+  CSI snapshots.
+- Snapshot-backed replicas use a distinct StatefulSet and PVC identity so an
+  upgrade never mutates or overwrites existing logical replica storage.
 - Passwords are read from one chart-managed or existing Secret so the database,
   replication bootstrap, exporter, and backup clients use the same credentials.
 - Configuration presets provide safe starting points, while `config.myCnf`
