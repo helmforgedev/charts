@@ -1,4 +1,5 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if include "clickhouse.isStandalone" . }}
 {{- if and .Values.podDisruptionBudget.enabled (gt (int .Values.replicaCount) 1) }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -17,4 +18,30 @@ spec:
   {{- else }}
   maxUnavailable: {{ .Values.podDisruptionBudget.maxUnavailable }}
   {{- end }}
+{{- end }}
+{{- else if and .Values.replicated.podDisruptionBudget.enabled (gt (int .Values.replicated.replicasPerShard) 1) }}
+{{- $root := . }}
+{{- range $shard := until (int .Values.replicated.shards) }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "clickhouse.shardStatefulSetName" (dict "root" $root "shard" $shard) }}
+  namespace: {{ include "clickhouse.namespace" $root | quote }}
+  labels:
+    {{- include "clickhouse.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: clickhouse
+    helmforge.dev/shard: {{ $shard | quote }}
+  {{- include "clickhouse.renderAnnotations" $root | nindent 2 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "clickhouse.serverSelectorLabels" $root | nindent 6 }}
+      helmforge.dev/shard: {{ $shard | quote }}
+  {{- if $root.Values.replicated.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ $root.Values.replicated.podDisruptionBudget.minAvailable }}
+  {{- else }}
+  maxUnavailable: {{ $root.Values.replicated.podDisruptionBudget.maxUnavailable }}
+  {{- end }}
+{{- end }}
 {{- end }}

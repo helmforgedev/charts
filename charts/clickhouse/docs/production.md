@@ -1,20 +1,38 @@
 # Production Guide
 
-This chart intentionally deploys a standalone ClickHouse StatefulSet. It is a
-good fit for single-node analytics stores, development, or applications that
-need ClickHouse without a Kubernetes operator.
+This chart supports `architecture=standalone` (default) and
+`architecture=replicated` with ClickHouse Keeper or external ZooKeeper.
 
-## Replication Boundary
+## Standalone
 
-Do not increase `replicaCount`. The chart blocks values greater than `1`
-because ClickHouse replication requires Keeper or ZooKeeper, shard definitions,
-and cluster-aware DDL. For those topologies, use the ClickHouse Operator or
-Altinity operator charts.
+Do not increase `replicaCount` above `1` in standalone mode. The chart blocks
+that because simply scaling a StatefulSet does not create a valid ClickHouse
+cluster.
+
+## Replicated
+
+For multi-node clusters set:
+
+```yaml
+architecture: replicated
+replicated:
+  clusterName: default
+  shards: 1
+  replicasPerShard: 3
+  keeper:
+    enabled: true
+    replicaCount: 3
+```
+
+Use Replicated* table engines and `ON CLUSTER <clusterName>` DDL so replicas
+stay consistent. Confirm `system.clusters` and Keeper quorum before cutting
+over production traffic.
 
 ## Storage
 
-ClickHouse stores data under `/var/lib/clickhouse`. Use fast block storage and
-confirm that the StorageClass supports expansion before production.
+ClickHouse stores data under `/var/lib/clickhouse`. Keeper stores coordination
+data under the same path inside Keeper pods. Use fast block storage and confirm
+that the StorageClass supports expansion before production.
 
 ## Upgrades
 
@@ -25,12 +43,12 @@ version in staging, and watch logs during merges and mutations after startup.
 type: chart-docs
 title: ClickHouse Production Guide
 description: Production operating notes for the ClickHouse chart
-keywords: clickhouse, production, storage, replication
+keywords: clickhouse, production, storage, replication, keeper
 purpose: Explain production boundaries
 scope: Chart
 relations:
   - charts/clickhouse/values.yaml
 path: charts/clickhouse/docs/production.md
-version: 1.0
-date: 2026-07-06
+version: 1.1
+date: 2026-11-26
 -->

@@ -8,7 +8,15 @@ ClickHouse has been installed.
 - Chart: {{ .Chart.Name }} {{ .Chart.Version }}
 - App version: {{ .Chart.AppVersion }}
 - Image: {{ include "clickhouse.image" . }}
+- Architecture: {{ .Values.architecture | default "standalone" }}
+{{- if include "clickhouse.isReplicated" . }}
+- Cluster: {{ include "clickhouse.clusterName" . }}
+- Shards: {{ include "clickhouse.shards" . }}
+- Replicas per shard: {{ include "clickhouse.replicasPerShard" . }}
+- Keeper: {{ ternary "in-chart" "external/disabled" (not (empty (include "clickhouse.keeperEnabled" .))) }}
+{{- else }}
 - Replicas: {{ .Values.replicaCount }}
+{{- end }}
 - Metrics: {{ ternary "enabled" "disabled" .Values.metrics.enabled }}
 
 2. Access
@@ -29,10 +37,22 @@ Port-forward native TCP:
 3. Getting started
 ==================
 Wait for readiness:
+{{- if include "clickhouse.isReplicated" . }}
+  kubectl -n {{ include "clickhouse.namespace" . }} rollout status statefulset/{{ include "clickhouse.shardStatefulSetName" (dict "root" . "shard" 0) }} --timeout=10m
+  {{- if include "clickhouse.keeperEnabled" . }}
+  kubectl -n {{ include "clickhouse.namespace" . }} rollout status statefulset/{{ include "clickhouse.keeperFullname" . }} --timeout=10m
+  {{- end }}
+{{- else }}
   kubectl -n {{ include "clickhouse.namespace" . }} rollout status statefulset/{{ include "clickhouse.fullname" . }} --timeout=5m
+{{- end }}
 
 Run an HTTP query:
   kubectl -n {{ include "clickhouse.namespace" . }} run {{ include "clickhouse.fullname" . }}-query --rm -i --restart=Never --image=docker.io/curlimages/curl:8.21.0 -- curl -fsS "http://{{ include "clickhouse.fullname" . }}:{{ .Values.service.ports.http }}/?query=SELECT%201"
+
+{{- if include "clickhouse.isReplicated" . }}
+Check cluster topology:
+  kubectl -n {{ include "clickhouse.namespace" . }} exec statefulset/{{ include "clickhouse.shardStatefulSetName" (dict "root" . "shard" 0) }} -c clickhouse -- clickhouse-client -q "SELECT cluster, shard_num, replica_num, host_name FROM system.clusters WHERE cluster='{{ include "clickhouse.clusterName" . }}'"
+{{- end }}
 
 4. Credentials
 ==============
@@ -56,7 +76,11 @@ Pods:
   kubectl -n {{ include "clickhouse.namespace" . }} get pods -l app.kubernetes.io/instance={{ .Release.Name | quote }} -o wide
 
 Health:
+{{- if include "clickhouse.isReplicated" . }}
+  kubectl -n {{ include "clickhouse.namespace" . }} exec statefulset/{{ include "clickhouse.shardStatefulSetName" (dict "root" . "shard" 0) }} -c clickhouse -- wget -qO- http://127.0.0.1:{{ .Values.service.ports.http }}/ping
+{{- else }}
   kubectl -n {{ include "clickhouse.namespace" . }} exec statefulset/{{ include "clickhouse.fullname" . }} -- wget -qO- http://127.0.0.1:{{ .Values.service.ports.http }}/ping
+{{- end }}
 
 Helm test:
   helm test {{ .Release.Name }} -n {{ include "clickhouse.namespace" . }}
@@ -67,7 +91,14 @@ Events:
   kubectl -n {{ include "clickhouse.namespace" . }} get events --sort-by=.lastTimestamp
 
 Server logs:
+{{- if include "clickhouse.isReplicated" . }}
+  kubectl -n {{ include "clickhouse.namespace" . }} logs statefulset/{{ include "clickhouse.shardStatefulSetName" (dict "root" . "shard" 0) }} -c clickhouse --tail=200
+  {{- if include "clickhouse.keeperEnabled" . }}
+  kubectl -n {{ include "clickhouse.namespace" . }} logs statefulset/{{ include "clickhouse.keeperFullname" . }} -c keeper --tail=200
+  {{- end }}
+{{- else }}
   kubectl -n {{ include "clickhouse.namespace" . }} logs statefulset/{{ include "clickhouse.fullname" . }} -c clickhouse --tail=200
+{{- end }}
 
 Configuration:
   kubectl -n {{ include "clickhouse.namespace" . }} get configmap {{ include "clickhouse.configMapName" . }} -o yaml
@@ -75,14 +106,18 @@ Configuration:
 Common checks:
 - If the pod is pending, inspect PVC binding and StorageClass availability.
 - If authentication fails, verify the password Secret and restart the StatefulSet after a rotation.
-- If you need shards or replicas, use the ClickHouse Operator instead of increasing replicaCount.
+{{- if include "clickhouse.isStandalone" . }}
+- For multi-node clusters, set architecture=replicated with Keeper (or external ZooKeeper).
+{{- else }}
+- Verify system.clusters and Keeper quorum before creating Replicated* / ON CLUSTER objects.
+{{- end }}
 - If metrics are missing, set metrics.enabled=true and verify the Service exposes the metrics port.
 
 8. Resources
 ============
 - HelmForge docs: https://helmforge.dev/docs/charts/clickhouse
 - ClickHouse Docker docs: https://clickhouse.com/docs/install/docker
-- ClickHouse Operator docs: https://clickhouse.com/docs/clickhouse-operator/guides/introduction
+- ClickHouse Keeper docs: https://clickhouse.com/docs/guides/sre/keeper/clickhouse-keeper
 - Issues: https://github.com/helmforgedev/charts/issues
 
 Happy Helmforging :)

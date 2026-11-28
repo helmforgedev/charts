@@ -11,7 +11,11 @@ metadata:
 spec:
   podSelector:
     matchLabels:
+      {{- if include "clickhouse.isReplicated" . }}
+      {{- include "clickhouse.serverSelectorLabels" . | nindent 6 }}
+      {{- else }}
       {{- include "clickhouse.selectorLabels" . | nindent 6 }}
+      {{- end }}
   policyTypes:
     - Ingress
     {{- if .Values.networkPolicy.egress.enabled }}
@@ -29,6 +33,10 @@ spec:
           port: http
         - protocol: TCP
           port: tcp
+        {{- if include "clickhouse.isReplicated" . }}
+        - protocol: TCP
+          port: interserver
+        {{- end }}
     {{- if .Values.metrics.enabled }}
     - from:
         {{- if .Values.networkPolicy.metricsFrom }}
@@ -49,6 +57,26 @@ spec:
         - protocol: TCP
           port: 53
     {{- end }}
+    {{- if include "clickhouse.isReplicated" . }}
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "clickhouse.serverSelectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.ports.interserver }}
+        - protocol: TCP
+          port: {{ .Values.service.ports.tcp }}
+    {{- if include "clickhouse.keeperEnabled" . }}
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "clickhouse.keeperSelectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.replicated.keeper.ports.client }}
+    {{- end }}
+    {{- end }}
     {{- with .Values.networkPolicy.egress.extraTo }}
     - to:
         {{- toYaml . | nindent 8 }}
@@ -56,5 +84,56 @@ spec:
     {{- with .Values.networkPolicy.egress.extraEgress }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
+  {{- end }}
+{{- end }}
+{{- if and .Values.networkPolicy.enabled (include "clickhouse.keeperEnabled" .) }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "clickhouse.keeperFullname" . }}
+  namespace: {{ include "clickhouse.namespace" . | quote }}
+  labels:
+    {{- include "clickhouse.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keeper
+  {{- include "clickhouse.renderAnnotations" . | nindent 2 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "clickhouse.keeperSelectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    {{- if .Values.networkPolicy.egress.enabled }}
+    - Egress
+    {{- end }}
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "clickhouse.serverSelectorLabels" . | nindent 14 }}
+        - podSelector:
+            matchLabels:
+              {{- include "clickhouse.keeperSelectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: client
+        - protocol: TCP
+          port: raft
+  {{- if .Values.networkPolicy.egress.enabled }}
+  egress:
+    {{- if .Values.networkPolicy.egress.allowDNS }}
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- end }}
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "clickhouse.keeperSelectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.replicated.keeper.ports.raft }}
   {{- end }}
 {{- end }}

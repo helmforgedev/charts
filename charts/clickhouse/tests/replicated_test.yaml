@@ -1,0 +1,254 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: clickhouse replicated
+templates:
+  - validate.yaml
+  - configmap.yaml
+  - secret.yaml
+  - statefulset.yaml
+  - shard-statefulset.yaml
+  - keeper-configmap.yaml
+  - keeper-statefulset.yaml
+  - keeper-service.yaml
+  - keeper-pdb.yaml
+  - networkpolicy.yaml
+  - pdb.yaml
+  - service.yaml
+tests:
+  - it: renders shard statefulset for replicated architecture
+    template: shard-statefulset.yaml
+    set:
+      architecture: replicated
+      replicated:
+        shards: 1
+        replicasPerShard: 3
+        keeper:
+          enabled: true
+          replicaCount: 3
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-clickhouse-shard0
+      - equal:
+          path: spec.replicas
+          value: 3
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: clickhouse
+  - it: renders keeper statefulset
+    template: keeper-statefulset.yaml
+    set:
+      architecture: replicated
+      replicated:
+        keeper:
+          enabled: true
+          replicaCount: 3
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-clickhouse-keeper
+      - equal:
+          path: spec.replicas
+          value: 3
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: keeper
+  - it: embeds remote_servers and zookeeper in config
+    template: configmap.yaml
+    set:
+      architecture: replicated
+      replicated:
+        clusterName: default
+        shards: 1
+        replicasPerShard: 3
+        keeper:
+          enabled: true
+          replicaCount: 3
+    asserts:
+      - matchRegex:
+          path: data["helmforge.xml"]
+          pattern: "<remote_servers>"
+      - matchRegex:
+          path: data["helmforge.xml"]
+          pattern: "<zookeeper>"
+      - matchRegex:
+          path: data["helmforge.xml"]
+          pattern: "<cluster>default</cluster>|<default>"
+  - it: does not render standalone statefulset when replicated
+    template: statefulset.yaml
+    set:
+      architecture: replicated
+      replicated:
+        keeper:
+          enabled: true
+          replicaCount: 3
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: renders keeper client and headless services
+    template: keeper-service.yaml
+    set:
+      architecture: replicated
+      replicated:
+        keeper:
+          enabled: true
+          replicaCount: 3
+    asserts:
+      - hasDocuments:
+          count: 2
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-clickhouse-keeper
+        documentIndex: 0
+      - equal:
+          path: spec.ports[0].port
+          value: 9181
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-clickhouse-keeper-headless
+        documentIndex: 1
+      - equal:
+          path: spec.clusterIP
+          value: None
+        documentIndex: 1
+      - equal:
+          path: spec.publishNotReadyAddresses
+          value: true
+        documentIndex: 1
+  - it: renders keeper pdb for quorum protection
+    template: keeper-pdb.yaml
+    set:
+      architecture: replicated
+      replicated:
+        keeper:
+          enabled: true
+          replicaCount: 3
+          podDisruptionBudget:
+            enabled: true
+            maxUnavailable: 1
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-clickhouse-keeper
+      - equal:
+          path: spec.maxUnavailable
+          value: 1
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/component"]
+          value: keeper
+  - it: does not render keeper pdb for single keeper
+    template: keeper-pdb.yaml
+    set:
+      architecture: replicated
+      replicated:
+        keeper:
+          enabled: true
+          replicaCount: 1
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: renders one pdb per shard in replicated mode
+    template: pdb.yaml
+    set:
+      architecture: replicated
+      replicated:
+        shards: 2
+        replicasPerShard: 3
+        podDisruptionBudget:
+          enabled: true
+          maxUnavailable: 1
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-clickhouse-shard0
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-clickhouse-shard1
+        documentIndex: 1
+      - equal:
+          path: spec.selector.matchLabels["helmforge.dev/shard"]
+          value: "0"
+        documentIndex: 0
+  - it: selects only clickhouse component pods in replicated services
+    template: service.yaml
+    set:
+      architecture: replicated
+      replicated:
+        keeper:
+          enabled: true
+          replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.selector["app.kubernetes.io/component"]
+          value: clickhouse
+        documentIndex: 0
+      - equal:
+          path: spec.selector["app.kubernetes.io/component"]
+          value: clickhouse
+        documentIndex: 1
+  - it: renders keeper network policy with raft and client ports
+    template: networkpolicy.yaml
+    set:
+      architecture: replicated
+      networkPolicy:
+        enabled: true
+        egress:
+          enabled: true
+      replicated:
+        keeper:
+          enabled: true
+          replicaCount: 3
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-clickhouse-keeper
+        documentIndex: 1
+      - equal:
+          path: spec.podSelector.matchLabels["app.kubernetes.io/component"]
+          value: keeper
+        documentIndex: 1
+      - contains:
+          path: spec.ingress[0].ports
+          content:
+            port: raft
+            protocol: TCP
+        documentIndex: 1
+  - it: renders macros init container for shard pods
+    template: shard-statefulset.yaml
+    set:
+      architecture: replicated
+      replicated:
+        shards: 1
+        replicasPerShard: 3
+        keeper:
+          enabled: true
+          replicaCount: 3
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: SHARD_ID
+            value: "0"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "macros-generated.xml"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "interserver_http_host"

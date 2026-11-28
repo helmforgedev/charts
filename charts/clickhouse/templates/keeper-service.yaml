@@ -1,0 +1,46 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if include "clickhouse.keeperEnabled" . }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "clickhouse.keeperFullname" . }}
+  namespace: {{ include "clickhouse.namespace" . | quote }}
+  labels:
+    {{- include "clickhouse.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keeper
+  {{- include "clickhouse.renderAnnotations" . | nindent 2 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: client
+      port: {{ .Values.replicated.keeper.ports.client }}
+      targetPort: client
+      protocol: TCP
+  selector:
+    {{- include "clickhouse.keeperSelectorLabels" . | nindent 4 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "clickhouse.keeperHeadlessServiceName" . }}
+  namespace: {{ include "clickhouse.namespace" . | quote }}
+  labels:
+    {{- include "clickhouse.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keeper
+  {{- include "clickhouse.renderAnnotations" . | nindent 2 }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    - name: client
+      port: {{ .Values.replicated.keeper.ports.client }}
+      targetPort: client
+      protocol: TCP
+    - name: raft
+      port: {{ .Values.replicated.keeper.ports.raft }}
+      targetPort: raft
+      protocol: TCP
+  selector:
+    {{- include "clickhouse.keeperSelectorLabels" . | nindent 4 }}
+{{- end }}
